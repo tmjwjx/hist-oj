@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  mode: release  # release 或 debug
+
+database:
+  host: <---HOJ数据库地址--->
+  port: 3306
+  user: <---数据库用户名--->
+  password: <---数据库密码--->
+  dbname: hoj
+
+hoj_api:
+  base_url: <---HOJ后端地址，如 http://127.0.0.1:6688--->
+
+jwt:
+  secret: <---与HOJ一致的JWT密钥--->
+
+rating:
+  initial_rating: 1500  # 新用户初始 Rating
+  k_factor: 32          # K 值，控制波动幅度
+  check_interval: 5     # 定时检查间隔（分钟）

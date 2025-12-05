@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build
+bin/
+*.exe
+*.test
+
+# Logs
+logs/
+*.log
+
+# Documentation
+*.md
+!README.md
+
+# Test
+*_test.go
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
