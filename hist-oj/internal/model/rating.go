@@ -10,13 +10,14 @@ import (
 type RatingHistory struct {
 	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	UID          string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	ContestID    uint64     `gorm:"type:bigint unsigned;not null;index:idx_contest_id" json:"contestId"`
-	OldRating    *int       `gorm:"type:int" json:"oldRating"`
-	NewRating    int        `gorm:"type:int;not null" json:"newRating"`
-	RatingChange int        `gorm:"type:int;not null" json:"ratingChange"`
+	ContestID    uint64     `gorm:"type:bigint unsigned;not null;index:idx_contest_id" json:"contest_id"`
+	ContestTitle string     `gorm:"-" json:"contest_title"` // 不映射到数据库，仅用于返回
+	OldRating    *int       `gorm:"type:int" json:"old_rating"`
+	NewRating    int        `gorm:"type:int;not null" json:"new_rating"`
+	RatingChange int        `gorm:"type:int;not null" json:"rating_change"`
 	Rank         int        `gorm:"type:int;not null" json:"rank"`
 	Participants int       `gorm:"type:int;not null" json:"participants"`
-	CreatedAt    time.Time `gorm:"autoCreateTime" json:"createdAt"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"contest_time"` // 前端期望的字段名
 }
 
 // TableName 指定表名
@@ -26,12 +27,12 @@ func (RatingHistory) TableName() string {
 
 // ContestRatingStatus 比赛Rating状态
 type ContestRatingStatus struct {
-	ContestID       uint64     `gorm:"primaryKey;type:bigint unsigned" json:"contestId"`
-	IsRated         bool       `gorm:"type:tinyint(1);default:0" json:"isRated"`
-	RatingCalculated bool       `gorm:"type:tinyint(1);default:0;index:idx_rating_calculated" json:"ratingCalculated"`
-	CalculatedAt    *time.Time `gorm:"type:datetime" json:"calculatedAt"`
-	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt       time.Time  `gorm:"autoUpdateTime" json:"updatedAt"`
+	ContestID        uint64     `gorm:"primaryKey;type:bigint unsigned;column:contest_id" json:"contestId"`
+	IsRated          bool       `gorm:"type:tinyint(1);default:0;column:is_rated" json:"isRated"`
+	RatingCalculated bool       `gorm:"type:tinyint(1);default:0;index:idx_rating_calculated;column:rating_calculated" json:"ratingCalculated"`
+	CalculatedAt     *time.Time `gorm:"type:datetime;column:calculated_at" json:"calculatedAt"`
+	CreatedAt        time.Time  `gorm:"type:datetime(3);column:created_at;autoCreateTime:milli" json:"createdAt"`
+	UpdatedAt        time.Time  `gorm:"type:datetime(3);column:updated_at;autoUpdateTime:milli" json:"updatedAt"`
 }
 
 // TableName 指定表名
@@ -41,11 +42,12 @@ func (ContestRatingStatus) TableName() string {
 
 // UserRecord 用户记录（对应HOJ的user_record表）
 type UserRecord struct {
-	ID         uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	UID        string    `gorm:"type:varchar(32);not null;uniqueIndex" json:"uid"`
-	HistRating *int      `gorm:"type:int;column:hist_rating" json:"histRating"`
-	CreatedAt  time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt  time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	UID         string    `gorm:"type:varchar(32);not null;uniqueIndex" json:"uid"`
+	Rating      *int      `gorm:"type:int" json:"rating"`           // HOJ 原有的 rating 字段
+	HistRating  *int      `gorm:"type:int;column:hist_rating" json:"histRating"` // 新增的 hist_rating 字段
+	GmtCreate   time.Time `gorm:"type:datetime;column:gmt_create" json:"gmtCreate"`
+	GmtModified time.Time `gorm:"type:datetime;column:gmt_modified;autoUpdateTime" json:"gmtModified"`
 }
 
 // TableName 指定表名
@@ -53,22 +55,67 @@ func (UserRecord) TableName() string {
 	return "user_record"
 }
 
-// Contest 比赛信息（对应HOJ的contest表）
-type Contest struct {
-	ID        uint64    `gorm:"primaryKey;type:bigint unsigned" json:"id"`
-	Type      int       `gorm:"type:int;not null;default:0" json:"type"` // 0: ACM, 1: OI
-	Title     string    `gorm:"type:varchar(255)" json:"title"`
-	StartTime time.Time `gorm:"type:datetime" json:"startTime"`
-	EndTime   time.Time `gorm:"type:datetime" json:"endTime"`
-	Duration  int64     `gorm:"type:bigint" json:"duration"`
-	Status    int       `gorm:"type:int" json:"status"` // -1: 未开始, 0: 进行中, 1: 已结束
+// UserInfo 用户信息（对应HOJ的user_info表）
+type UserInfo struct {
+	UUID      string    `gorm:"primaryKey;type:varchar(32)" json:"uuid"`
+	Username  string    `gorm:"type:varchar(100);uniqueIndex" json:"username"`
+	Password  string    `gorm:"type:varchar(255)" json:"password"`
+	Nickname  string    `gorm:"type:varchar(255)" json:"nickname"`
+	Status    int       `gorm:"type:int;default:0" json:"status"` // 0: 正常, 1: 禁用
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 // TableName 指定表名
+func (UserInfo) TableName() string {
+	return "user_info"
+}
+
+// Contest 比赛信息（对应HOJ的contest表）
+type Contest struct {
+	ID        uint64    `gorm:"primaryKey;type:bigint unsigned" json:"id"`
+	Type      int       `gorm:"type:int;not null;default:0" json:"type"` // 0: ACM, 1: OI
+	IsRating  bool      `gorm:"type:tinyint(1);not null;default:0;column:is_rating" json:"isRating"` // 0: unrated, 1: rated
+	Title     string    `gorm:"type:varchar(255)" json:"title"`
+	StartTime time.Time `gorm:"type:datetime;column:start_time" json:"startTime"`
+	EndTime   time.Time `gorm:"type:datetime;column:end_time" json:"endTime"`
+	Duration  int64     `gorm:"type:bigint" json:"duration"`
+	Status    int       `gorm:"type:int" json:"status"` // -1: 未开始, 0: 进行中, 1: 已结束
+	CreatedAt time.Time `gorm:"column:gmt_create" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"column:gmt_modified" json:"updatedAt"`
+}
+
+// TableName 指定表名
 func (Contest) TableName() string {
 	return "contest"
+}
+
+// ContestRecord 比赛记录（对应HOJ的contest_record表）
+// 这个表存储的是每个用户的每次提交记录
+type ContestRecord struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	CID         uint64    `gorm:"type:bigint unsigned;not null;index:idx_cid" json:"cid"`
+	UID         string    `gorm:"type:varchar(255);not null;index:idx_uid" json:"uid"`
+	PID         uint64    `gorm:"type:bigint unsigned" json:"pid"`
+	CPID        uint64    `gorm:"type:bigint unsigned" json:"cpid"`
+	Username    string    `gorm:"type:varchar(255)" json:"username"`
+	Realname    string    `gorm:"type:varchar(255)" json:"realname"`
+	DisplayID   string    `gorm:"type:varchar(255);column:display_id" json:"displayId"`
+	SubmitID    uint64    `gorm:"type:bigint unsigned;column:submit_id" json:"submitId"`
+	Status      int       `gorm:"type:int" json:"status"` // 0: AC, 其他: 非AC
+	SubmitTime  time.Time `gorm:"type:datetime;column:submit_time" json:"submitTime"`
+	Time        uint64    `gorm:"type:bigint unsigned" json:"time"`
+	Score       *int      `gorm:"type:int" json:"score"`
+	UseTime     int       `gorm:"type:int;column:use_time" json:"useTime"`
+	FirstBlood  bool      `gorm:"type:tinyint(1);column:first_blood" json:"firstBlood"`
+	Checked     bool      `gorm:"type:tinyint(1)" json:"checked"`
+	GmtCreate   time.Time `gorm:"type:datetime;column:gmt_create" json:"gmtCreate"`
+	GmtModified time.Time `gorm:"type:datetime;column:gmt_modified" json:"gmtModified"`
+}
+
+// TableName 指定表名
+func (ContestRecord) TableName() string {
+	return "contest_record"
 }
 
 // InitTables 初始化数据库表

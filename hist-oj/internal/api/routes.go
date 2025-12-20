@@ -5,7 +5,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/config"
-	"github.com/hoj/hist-oj/internal/middleware"
 )
 
 func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *gorm.DB) {
@@ -19,14 +18,20 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			rating.GET("/history/:uid", handler.GetRatingHistory)
 			rating.GET("/color/:rating", handler.GetRatingColor)
 			rating.GET("/contest/:contestId", handler.GetContestParticipantsRating)
+			rating.GET("/contest/info/:contestId", handler.GetContestInfo)
+			rating.POST("/batch", handler.GetBatchUserRating)
+			rating.POST("/contest/batch", handler.GetBatchContestInfo) // 新增批量查询比赛信息接口
+			rating.GET("/rank", handler.GetRatingRank)
 
-			// 计算接口：仅管理员可触发
-			rating.POST("/calculate/:contestId",
-				middleware.AdminAuthMiddleware(&cfg.JWT, db),
-				handler.CalculateRating)
+			// 管理接口：临时取消验证
+			rating.POST("/calculate/:contestId", handler.CalculateRating)
+			rating.POST("/initialize", handler.InitializeUserRating)
+			rating.POST("/contest/set-rating-type", handler.SetContestRatingType)
+			rating.POST("/trigger-scheduler", handler.TriggerScheduler)
 		}
 	}
 
 	router.GET("/health", handler.HealthCheck)
 }
+
 

@@ -10,6 +10,7 @@ import ContestList from "@/views/oj/contest/ContestList.vue"
 import Problem from "@/views/oj/problem/Problem.vue"
 import ACMRank from "@/views/oj/rank/ACMRank.vue"
 import OIRank from "@/views/oj/rank/OIRank.vue"
+import RatingRank from "@/views/oj/rank/RatingRank.vue"
 import ContestDetails from "@/views/oj/contest/ContestDetails.vue"
 import ACMScoreBoard from "@/views/oj/contest/outside/ACMScoreBoard.vue"
 import OIScoreBoard from "@/views/oj/contest/outside/OIScoreBoard.vue"
@@ -247,6 +248,12 @@ const ojRoutes = [
     name: 'OI Rank',
     component: OIRank,
     meta: { title: 'OI Rank' }
+  },
+  {
+    path: '/rating-rank',
+    name: 'Rating Rank',
+    component: RatingRank,
+    meta: { title: 'Rating Rank' }
   },
   {
     path: '/reset-password',

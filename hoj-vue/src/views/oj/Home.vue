@@ -247,6 +247,14 @@
             <span class="panel-title home-title">
               <i class="el-icon-s-data"></i> {{ $t('m.Recent_7_Days_AC_Rank')}}
             </span>
+            <el-button
+              type="text"
+              size="small"
+              @click="goRatingRank"
+              style="float: right; padding: 3px 0; color: #409eff;"
+            >
+              <i class="el-icon-trophy"></i> Rating 排名
+            </el-button>
           </div>
           <vxe-table
             border="inner"
@@ -529,6 +537,11 @@ export default {
       this.$router.push({
         path: "/user-home",
         query: { uid, username },
+      });
+    },
+    goRatingRank() {
+      this.$router.push({
+        path: "/rating-rank"
       });
     },
     getDuration(startTime, endTime) {

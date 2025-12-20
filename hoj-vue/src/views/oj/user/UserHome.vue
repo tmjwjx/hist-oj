@@ -25,7 +25,7 @@
       </div>
       <div class="user-info">
         <p>
-          <span class="emphasis"
+          <span class="emphasis" :style="{ color: ratingColor }"
             ><i class="fa fa-user-circle-o" aria-hidden="true"></i>
             {{ profile.username }}</span
           >
@@ -111,29 +111,74 @@
           <el-col :md="6" :sm="24">
             <el-card shadow="always" class="rating">
               <p>
-                <i class="fa fa-user-secret" aria-hidden="true"></i>
-                {{ $t('m.UserHome_Rating') }}
+                <i class="fa fa-trophy" aria-hidden="true"></i>
+                Rating
               </p>
-              <p class="data-number">
-                {{ profile.rating ? profile.rating : '--' }}
-              </p>
+              <p class="data-number">{{ profile.rating }}</p>
             </el-card>
           </el-col>
         </el-row>
+        <el-card style="margin-top:1rem;" v-if="userRating !== null" class="rating-info-card">
+          <div class="card-title">
+            <i class="el-icon-trophy" style="color:#9b59b6"></i>
+            Hist Rating 信息
+          </div>
+          <el-row :gutter="20" style="margin-top: 15px;">
+            <el-col :span="8">
+              <div class="rating-stat">
+                <div class="rating-stat-label">当前 Rating</div>
+                <div class="rating-stat-value" :style="{ color: ratingColor }">
+                  {{ userRating }}
+                </div>
+                <div class="rating-stat-subtitle">{{ ratingTitle }}</div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="rating-stat">
+                <div class="rating-stat-label">最高 Rating</div>
+                <div class="rating-stat-value" :style="{ color: maxRatingColor }">
+                  {{ maxRating || userRating }}
+                </div>
+                <div class="rating-stat-subtitle">{{ maxRatingTitle }}</div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="rating-stat">
+                <div class="rating-stat-label">参赛次数</div>
+                <div class="rating-stat-value" style="color: #409eff;">
+                  {{ contestCount }}
+                </div>
+                <div class="rating-stat-subtitle">场比赛</div>
+              </div>
+            </el-col>
+          </el-row>
+        </el-card>
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
           <div class="card-title">
             <i class="el-icon-data-analysis" style="color:#409eff">
             </i>
             {{ $t('m.Thermal_energy_table_submitted_in_the_last_year') }}
           </div>
-          <calendar-heatmap 
-            :values="calendarHeatmapValue" 
+          <calendar-heatmap
+            :values="calendarHeatmapValue"
             :end-date="calendarHeatmapEndDate"
             :tooltipUnit="$t('m.Calendar_Tooltip_Uint')"
             :locale="calendarHeatLocale"
             :range-color="['rgb(218, 226, 239)', '#9be9a8', '#40c463', '#30a14e', '#216e39']"
           >
           </calendar-heatmap>
+        </el-card>
+        <el-card style="margin-top:1rem;" v-if="ratingLoading">
+          <div style="text-align: center; padding: 20px; color: #999;">
+            <i class="el-icon-loading"></i> 加载 Rating 数据中...
+          </div>
+        </el-card>
+        <el-card style="margin-top:1rem;" v-else-if="userRating !== null && userIdentifier">
+          <div class="card-title">
+            <i class="el-icon-data-line" style="color:#409eff"></i>
+            Rating 变化历史
+          </div>
+          <RatingChart :uid="userIdentifier" />
         </el-card>
         <el-tabs type="card" style="margin-top:1rem;">
           <el-tab-pane :label="$t('m.Personal_Profile')">
@@ -236,11 +281,17 @@ import { CalendarHeatmap } from 'vue-calendar-heatmap'
 import { PROBLEM_LEVEL } from '@/common/constants';
 import utils from '@/common/utils';
 import Markdown from '@/components/oj/common/Markdown';
+import RatingBadge from '@/components/oj/common/RatingBadge';
+import RatingChart from '@/components/oj/user/RatingChart';
+import ratingApi from '@/common/rating-api';
+import { getRatingColor, getRatingTitle } from '@/common/rating-utils';
 export default {
   components: {
     Avatar,
     CalendarHeatmap,
-    Markdown
+    Markdown,
+    RatingBadge,
+    RatingChart
   },
   data() {
     return {
@@ -263,7 +314,33 @@ export default {
         loading:false,
       },
       PROBLEM_LEVEL: {},
+      userRating: null,
+      maxRating: null,
+      contestCount: 0,
+      ratingLoading: false,
     };
+  },
+  computed: {
+    // 获取用户的唯一标识（优先使用 uuid）
+    userIdentifier() {
+      return this.profile.uuid || this.profile.uid || this.$route.query.uid || this.$route.query.username;
+    },
+    ratingColor() {
+      if (this.userRating === null) return '#808080';
+      return getRatingColor(this.userRating);
+    },
+    ratingTitle() {
+      if (this.userRating === null) return '未定级';
+      return getRatingTitle(this.userRating);
+    },
+    maxRatingColor() {
+      if (this.maxRating === null) return this.ratingColor;
+      return getRatingColor(this.maxRating);
+    },
+    maxRatingTitle() {
+      if (this.maxRating === null) return this.ratingTitle;
+      return getRatingTitle(this.maxRating);
+    }
   },
   created(){
     const uid = this.$route.query.uid;
@@ -313,16 +390,54 @@ export default {
       const username = this.$route.query.username;
       this.loading = true;
       api.getUserInfo(uid, username).then((res) => {
-        this.changeDomTitle({ title: res.data.username });
-        this.profile = res.data.data;
+        // res.data 就是用户对象 { uid, username, ... }
+        const userData = res.data.data || res.data;
+        this.changeDomTitle({ title: userData.username });
+        this.profile = userData;
         this.$nextTick((_) => {
           addCodeBtn();
         });
         this.loading = false;
+        // 获取用户 Rating（使用计算属性 userIdentifier）
+        console.log('init: userIdentifier =', this.userIdentifier, 'profile.uuid =', this.profile.uuid, 'profile.uid =', this.profile.uid);
+        if (this.userIdentifier) {
+          this.fetchUserRating(this.userIdentifier);
+        } else {
+          console.warn('无法获取用户标识，跳过 rating 数据加载');
+        }
       },(_)=>{
         this.loading = false;
       });
 
+    },
+    async fetchUserRating(uid) {
+      if (!uid) {
+        console.warn('fetchUserRating: uid 为空，跳过获取 rating');
+        return;
+      }
+
+      console.log('fetchUserRating called with uid:', uid);
+      this.ratingLoading = true;
+
+      try {
+        const data = await ratingApi.getUserRating(uid);
+        console.log('getUserRating response:', data);
+        this.userRating = data.rating;
+        this.maxRating = data.maxRating;
+        console.log('userRating set to:', this.userRating);
+
+        // 获取参赛次数
+        const historyData = await ratingApi.getRatingHistory(uid, 1, 1);
+        console.log('getRatingHistory response:', historyData);
+        this.contestCount = historyData.total || 0;
+      } catch (error) {
+        console.error('获取用户 Rating 失败:', error);
+        this.userRating = null;
+        this.maxRating = null;
+        this.contestCount = 0;
+      } finally {
+        this.ratingLoading = false;
+      }
     },
     goProblem(problemID) {
       this.$router.push({
@@ -421,6 +536,11 @@ export default {
 }
 .rating {
   background: #dd6161;
+  color: #fff;
+  font-size: 14px;
+}
+.hist-rating {
+  background: #9b59b6;
   color: #fff;
   font-size: 14px;
 }
@@ -581,5 +701,31 @@ export default {
 /deep/rect{
   rx: 2;
   ry: 2;
+}
+
+.rating-info-card {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.rating-stat {
+  text-align: center;
+  padding: 10px;
+}
+
+.rating-stat-label {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 8px;
+}
+
+.rating-stat-value {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.rating-stat-subtitle {
+  font-size: 13px;
+  color: #909399;
 }
 </style>

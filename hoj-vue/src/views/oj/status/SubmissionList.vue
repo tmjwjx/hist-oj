@@ -391,10 +391,9 @@
             show-overflow
           >
             <template v-slot="{ row }">
-              <a
-                @click="goUserHome(row.username, row.uid)"
-                style="color: rgb(87, 163, 243)"
-              >{{ row.username }}</a>
+              <a @click="goUserHome(row.username, row.uid)">
+                <UserName :username="row.username" :bold="true" />
+              </a>
             </template>
           </vxe-table-column>
           <vxe-table-column
@@ -503,12 +502,14 @@ import {
 } from "@/common/constants";
 import utils from "@/common/utils";
 import Pagination from "@/components/oj/common/Pagination";
+import UserName from "@/components/oj/common/UserName.vue";
 import myMessage from "@/common/message";
 import "element-ui/lib/theme-chalk/display.css";
 export default {
   name: "submissionList",
   components: {
     Pagination,
+    UserName,
   },
   data() {
     return {

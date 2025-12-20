@@ -56,16 +56,32 @@ func main() {
 	// 创建处理器
 	handler := api.NewHandler(ratingService, queryService)
 
-	// 设置路由
-	router := gin.Default()
-	api.SetupRoutes(router, handler, cfg, db)
-
 	// 启动定时任务
 	scheduler := schedule.NewScheduler(ratingService, &cfg.Rating)
 	if err := scheduler.Start(); err != nil {
 		logger.Fatal("Failed to start scheduler", zap.Error(err))
 	}
 	defer scheduler.Stop()
+
+	// 将 scheduler 设置到 handler 中
+	handler.SetScheduler(scheduler)
+
+	// 设置路由
+	router := gin.Default()
+
+	// 添加 CORS 中间件（允许前端跨域访问）
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
+
+	api.SetupRoutes(router, handler, cfg, db)
 
 	// 创建HTTP服务器
 	srv := &http.Server{

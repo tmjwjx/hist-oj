@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # hist-oj Rating 服务
+  hist-oj:
+    build:
+      context: ./hist-oj
+      dockerfile: Dockerfile
+    container_name: hist-oj
+    restart: unless-stopped
+    ports:
+      - "9527:9527"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./hist-oj/configs:/app/configs:ro
+    networks:
+      - hoj-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9527/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 前端服务（更新版本，集成 Rating 功能）
+  hoj-frontend:
+    build:
+      context: ./hoj-vue
+      dockerfile: Dockerfile
+    container_name: hoj-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - hist-oj
+    networks:
+      - hoj-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  hoj-network:
+    external: true
+    name: hoj_hoj-network
+
+# 部署说明：
+# 1. 本地测试：docker-compose up -d
+# 2. 生产部署：./scripts/deploy.sh
+# 3. 快速部署：./scripts/quick-deploy.sh [hist-oj|frontend|all]
+#
+# 注意事项：
+# - 确保 hoj_hoj-network 网络已存在
+# - hist-oj 配置文件：./hist-oj/configs/config.yaml
+# - 前端 Nginx 配置：./hoj-vue/nginx.conf
+#
+# 验证部署：
+# - curl http://localhost:9527/health
+# - curl http://localhost/api/rating/contest/info/1002

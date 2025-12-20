@@ -107,7 +107,9 @@
                       class="user-avatar"
                       :src="discussion.avatar"
                     ></avatar>
-                    <span class="pl">{{ discussion.author }}</span>
+                    <span class="pl">
+                      <UserName :username="discussion.author" :bold="true" />
+                    </span>
                   </a>
                   <span
                     class="role-root role"
@@ -457,12 +459,14 @@ import myMessage from "@/common/message";
 import { mapGetters, mapActions } from "vuex";
 import "element-ui/lib/theme-chalk/display.css";
 import Pagination from "@/components/oj/common/Pagination";
+import UserName from "@/components/oj/common/UserName.vue";
 const Editor = () => import("@/components/admin/Editor.vue");
 export default {
   components: {
     Avatar,
     Editor,
     Pagination,
+    UserName,
   },
   data() {
     return {

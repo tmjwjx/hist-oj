@@ -28,7 +28,7 @@ type DatabaseConfig struct {
 }
 
 type HojAPIConfig struct {
-	BaseURL string
+	BaseURL string `mapstructure:"base_url"`
 }
 
 type JWTConfig struct {
@@ -36,9 +36,9 @@ type JWTConfig struct {
 }
 
 type RatingConfig struct {
-	InitialRating int
-	KFactor       int
-	CheckInterval int
+	InitialRating int `mapstructure:"initial_rating"`
+	KFactor       int `mapstructure:"k_factor"`
+	CheckInterval int `mapstructure:"check_interval"`
 }
 
 // LogConfig 日志配置（简化，使用默认值）
@@ -84,7 +84,7 @@ func setDefaults() {
 	
 	viper.SetDefault("database.port", 3306)
 	viper.SetDefault("jwt.secret", "default")
-	viper.SetDefault("rating.initial_rating", 1500)
+	viper.SetDefault("rating.initial_rating", 1200)
 	viper.SetDefault("rating.k_factor", 32)
 	viper.SetDefault("rating.check_interval", 5)
 }

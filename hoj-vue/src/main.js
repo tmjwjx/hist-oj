@@ -54,6 +54,10 @@ import 'muse-ui/dist/muse-ui.css';
 import VueDOMPurifyHTML from 'vue-dompurify-html'
 Vue.use(VueDOMPurifyHTML)
 
+// 全局注册 UserName 组件（Rating 着色）
+import UserName from '@/components/oj/common/UserName'
+Vue.component('UserName', UserName)
+
 import router from './router'
 Vue.use(Drawer)
 Vue.use(List)

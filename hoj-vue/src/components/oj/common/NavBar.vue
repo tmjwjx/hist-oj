@@ -53,6 +53,9 @@
               <el-menu-item index="/oi-rank">{{
                 $t('m.NavBar_OI_Rank')
               }}</el-menu-item>
+              <el-menu-item index="/rating-rank">
+                <i class="el-icon-trophy"></i> Rating 排名
+              </el-menu-item>
             </el-submenu>
             <el-menu-item index="/discussion"
               v-if="websiteConfig.openPublicDiscussion"

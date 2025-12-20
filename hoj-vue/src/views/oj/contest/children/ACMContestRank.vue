@@ -181,6 +181,7 @@
                   <span
                     class="contest-username"
                     :title="row.rankShowName"
+                    :style="{ color: getUserRatingColor(row.username) }"
                   >
                     <span
                       class="contest-rank-flag"
@@ -194,7 +195,8 @@
                       class="contest-rank-flag"
                       v-if="row.gender == 'female'"
                     >Girl</span>
-                    {{ row.rankShowName }}</span>
+                    {{ row.rankShowName }}
+                  </span>
                   <span
                     class="contest-school"
                     v-if="row.school"
@@ -253,6 +255,7 @@
                   <span
                     class="contest-username"
                     :title="row.rankShowName"
+                    :style="{ color: getUserRatingColor(row.username) }"
                   >
                     <span
                       class="contest-rank-flag"
@@ -266,7 +269,8 @@
                       class="contest-rank-flag"
                       v-if="row.gender == 'female'"
                     >Girl</span>
-                    {{ row.rankShowName }}</span>
+                    {{ row.rankShowName }}
+                  </span>
                   <span
                     class="contest-school"
                     v-if="row.school"
@@ -286,6 +290,32 @@
           show-overflow
           v-if="isContestAdmin"
         >
+        </vxe-table-column>
+        <vxe-table-column
+          v-if="isRatingContest"
+          field="contestRating"
+          :title="$t('m.Contest_Rating')"
+          min-width="120"
+          align="center"
+        >
+          <template v-slot="{ row }">
+            <span v-if="getContestRating(row.uid) !== null">
+              <span :style="{ color: getContestRatingColor(row.uid), fontWeight: '600' }">
+                {{ getContestRating(row.uid) }}
+              </span>
+              <span
+                v-if="getRatingChange(row.uid) !== null"
+                :style="{
+                  color: getRatingChange(row.uid) > 0 ? '#67c23a' : '#f56c6c',
+                  fontSize: '12px',
+                  marginLeft: '4px'
+                }"
+              >
+                （{{ getRatingChange(row.uid) > 0 ? '+' : '' }}{{ getRatingChange(row.uid) }}）
+              </span>
+            </span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
         </vxe-table-column>
         <vxe-table-column
           field="rating"
@@ -570,6 +600,7 @@ export default {
       if (
         column.property != "rank" &&
         column.property != "rating" &&
+        column.property != "contestRating" &&
         column.property != "totalTime" &&
         column.property != "username" &&
         column.property != "realname"
@@ -585,6 +616,7 @@ export default {
         if (
           column.property == "rank" ||
           column.property == "rating" ||
+          column.property == "contestRating" ||
           column.property == "totalTime" ||
           column.property == "username" ||
           column.property == "realname"
@@ -600,19 +632,34 @@ export default {
       if (
         column.property != "rank" &&
         column.property != "rating" &&
+        column.property != "contestRating" &&
         column.property != "totalTime" &&
         column.property != "username" &&
         column.property != "realname"
       ) {
-        if (this.isContestAdmin) {
-          return row.cellClassName[
-            [this.contestProblems[columnIndex - 5].displayId]
-          ];
-        } else {
-          return row.cellClassName[
-            [this.contestProblems[columnIndex - 4].displayId]
-          ];
+        // 添加安全检查
+        if (!this.contestProblems || this.contestProblems.length === 0) {
+          return '';
         }
+
+        // 计算题目索引：需要减去前面的固定列数
+        // 固定列：rank, username, realname, contestRating(如果是Rating比赛), rating(AC), totalTime
+        // 如果是 Rating 比赛，固定列数量会增加 1
+        let fixedColumns = this.isContestAdmin ? 5 : 4;
+        if (this.isRatingContest) {
+          fixedColumns += 1; // Rating 列
+        }
+        let problemIndex = columnIndex - fixedColumns;
+        if (problemIndex < 0 || problemIndex >= this.contestProblems.length) {
+          return '';
+        }
+
+        let displayId = this.contestProblems[problemIndex]?.displayId;
+        if (!displayId || !row.cellClassName) {
+          return '';
+        }
+
+        return row.cellClassName[displayId] || '';
       } else {
         if (row.isConcerned && column.property !== "username") {
           return "bg-concerned";
@@ -620,6 +667,7 @@ export default {
       }
     },
     applyToTable(dataRank) {
+      console.log('🔧 ACM applyToTable 开始, 数据长度:', dataRank?.length);
       dataRank.forEach((rank, i) => {
         let info = rank.submissionInfo;
         let cellClass = {};
@@ -660,7 +708,9 @@ export default {
           rank.username
         );
       });
-      this.dataRank = dataRank;
+      console.log('✅ ACM 数据处理完成，准备赋值给 this.dataRank');
+      this.$set(this, 'dataRank', dataRank);
+      console.log('✅ ACM this.dataRank 已更新, 长度:', this.dataRank?.length);
     },
     addChartCategory(contestProblems) {
       let category = [];

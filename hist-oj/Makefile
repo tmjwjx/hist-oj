@@ -54,3 +54,7 @@ deploy: docker-build docker-run
 # 查看状态
 status:
 	docker-compose ps
+
+# Rating 管理命令
+reset-rating:
+	go run ./cmd/reset_rating/main.go

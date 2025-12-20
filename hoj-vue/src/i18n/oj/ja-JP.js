@@ -450,6 +450,7 @@ export const m = {
   Contest_Rank_Search_Placeholder:'ユーザー名 / 学校名を入力',
   Contest_Rank_Setting:'ランキング設定',
   Contest_Setting:'コンテスト設定',
+  Contest_Rating: 'Rating',
   Contains_After_Contest:'コンテスト後を含む',
 
   // /views/oj/contest/children/ACMInfo.vue
@@ -753,5 +754,13 @@ export const m = {
   Already_Public_Problem:'すでに公開問題バンクにあります',
   Applying_for_Publicity:'公開申請中',
   Group_Problem_Apply_Public_Tips:'この問題を公開問題バンクに申請しますか？',
-  Cancel_Group_Problem_Apply_Public_Tips:'この問題の公開問題バンク申請をキャンセルしますか？'
+  Cancel_Group_Problem_Apply_Public_Tips:'この問題の公開問題バンク申請をキャンセルしますか？',
+
+  // Rating コンテスト関連
+  Contest_Rating_Type: 'Rating タイプ',
+  Rating_Contest: 'Rating コンテスト',
+  Unrating_Contest: '非 Rating コンテスト',
+  Rating_Contest_Tips: 'Rating コンテスト - コンテスト終了後に参加者の Rating が計算されます',
+  Unrating_Contest_Tips: '非 Rating コンテスト - コンテスト終了後に Rating は計算されません',
+  Rating_Type_Cannot_Be_Modified: 'Rating タイプは作成後に変更できません'
 }

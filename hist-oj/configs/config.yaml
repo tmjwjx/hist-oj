@@ -1,21 +1,23 @@
 server:
-  port: 8080
-  mode: release  # release 或 debug
+  port: 9527
+  mode: release  # 生产环境使用 release
 
 database:
-  host: <---HOJ数据库地址--->
+  host: 43.143.133.62
   port: 3306
-  user: <---数据库用户名--->
-  password: <---数据库密码--->
+  user: root
+  password: hist2025
   dbname: hoj
 
 hoj_api:
-  base_url: <---HOJ后端地址，如 http://127.0.0.1:6688--->
+  base_url: http://43.143.133.62:6688
 
 jwt:
-  secret: <---与HOJ一致的JWT密钥--->
+  # JWT 密钥，必须与 HOJ 后端 Nacos 配置中心中的 hoj.jwt.secret 保持一致
+  # 来源：sqlAndsetting/nacos.sql 中的初始化配置，默认值为 hoj-secret-init
+  secret: hoj-secret-init
 
 rating:
-  initial_rating: 1500  # 新用户初始 Rating
-  k_factor: 32          # K 值，控制波动幅度
+  initial_rating: 1200  # 新用户初始 Rating
+  k_factor: 85         # K 值，控制波动幅度（已调大）
   check_interval: 5     # 定时检查间隔（分钟）

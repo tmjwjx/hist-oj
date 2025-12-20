@@ -49,11 +49,9 @@
               :src="row.avatar"
               class="user-avatar"
             ></avatar>
-            <a
-              @click="getInfoByUsername(row.uid, row.username)"
-              style="color:#2d8cf0;"
-              >{{ row.username }}</a
-            >
+            <a @click="getInfoByUsername(row.uid, row.username)">
+              <UserName :username="row.username" :bold="true" />
+            </a>
             <span style="margin-left:2px" v-if="row.titleName">
               <el-tag effect="dark" size="small" :color="row.titleColor">
                 {{ row.titleName }}
@@ -129,12 +127,14 @@ import utils from '@/common/utils';
 import { RULE_TYPE } from '@/common/constants';
 import { mapGetters } from 'vuex';
 import Avatar from 'vue-avatar';
+import UserName from '@/components/oj/common/UserName.vue';
 const Pagination = () => import('@/components/oj/common/Pagination');
 export default {
   name: 'acm-rank',
   components: {
     Pagination,
     Avatar,
+    UserName,
   },
   data() {
     return {

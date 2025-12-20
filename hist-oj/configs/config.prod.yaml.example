@@ -1,0 +1,26 @@
+# 生产环境配置文件示例
+# 部署时复制此文件为 config.prod.yaml 并修改相应配置
+
+server:
+  port: 9527
+  mode: release  # 生产环境使用 release
+
+database:
+  host: 43.143.133.62  # 数据库地址（修改为实际地址）
+  port: 3306
+  user: root            # 数据库用户名（修改为实际用户名）
+  password: hist2025    # 数据库密码（修改为实际密码）
+  dbname: hoj           # 数据库名
+
+hoj_api:
+  base_url: http://43.143.133.62:6688  # HOJ API 地址（修改为实际地址）
+
+jwt:
+  # JWT 密钥，必须与 HOJ 后端 Nacos 配置中心中的 hoj.jwt.secret 保持一致
+  secret: hoj-secret-init  # 修改为实际的 JWT secret
+
+rating:
+  initial_rating: 1500  # 新用户初始 Rating
+  k_factor: 32          # K 值，控制波动幅度
+  check_interval: 5     # 定时检查间隔（分钟）
+

@@ -94,8 +94,15 @@ module.exports={
     port: 8066, // 开发服务器运行端口号
     proxy: {
       '/api': {                                //   以'/api'开头的请求会被代理进行转发
-        target: 'http://localhost:6688',       //   要发向的后台服务器地址  如果后台服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
-        changeOrigin: true 
+        target: 'http://43.143.133.62:6688',       //   要发向的后台服务器地址  如果后台服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
+        changeOrigin: true
+      },
+      '/rating-api': {                         //   Rating 服务代理
+        target: 'http://localhost:9527',       //   本地 hist-oj 服务
+        changeOrigin: true,
+        pathRewrite: {
+          '^/rating-api': '/api'               //   将 /rating-api 重写为 /api
+        }
       }
     },
     disableHostCheck: true,
@@ -110,8 +117,9 @@ module.exports={
         if (isProduction || devNeedCdn) args[0].cdn = cdn
         return args
     })
-    config.plugin('webpack-bundle-analyzer') // 查看打包文件体积大小
-      .use(require('webpack-bundle-analyzer').BundleAnalyzerPlugin)
+    // 注释掉 webpack-bundle-analyzer，避免自动打开 8888 端口
+    // config.plugin('webpack-bundle-analyzer') // 查看打包文件体积大小
+    //   .use(require('webpack-bundle-analyzer').BundleAnalyzerPlugin)
     // ============注入cdn end============
 
   },

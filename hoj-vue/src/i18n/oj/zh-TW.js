@@ -450,6 +450,7 @@ export const m = {
   Contest_Rank_Search_Placeholder:'請輸入使用者名稱 / 學校名稱',
   Contest_Rank_Setting:'榜單設定',
   Contest_Setting:'比賽設定',
+  Contest_Rating: 'Rating',
   Contains_After_Contest:'包含賽後',
 
   // /views/oj/contest/children/ACMInfo.vue
@@ -753,5 +754,13 @@ export const m = {
   Already_Public_Problem:'已在公開題庫中',
   Applying_for_Publicity:'申請公開中',
   Group_Problem_Apply_Public_Tips:'您是否確定要申請該題目加入公開題庫？',
-  Cancel_Group_Problem_Apply_Public_Tips:'您是否要取消申請該題目加入公開題庫？'
+  Cancel_Group_Problem_Apply_Public_Tips:'您是否要取消申請該題目加入公開題庫？',
+
+  // Rating 比賽相關
+  Contest_Rating_Type: 'Rating 類型',
+  Rating_Contest: 'Rating 比賽',
+  Unrating_Contest: '非 Rating 比賽',
+  Rating_Contest_Tips: 'Rating 比賽 - 比賽結束後將計算參賽者的 Rating 分數',
+  Unrating_Contest_Tips: '非 Rating 比賽 - 比賽結束後不計算 Rating 分數',
+  Rating_Type_Cannot_Be_Modified: 'Rating 類型創建後不可修改'
 }

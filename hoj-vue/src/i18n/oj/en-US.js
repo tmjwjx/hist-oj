@@ -448,6 +448,7 @@ export const m = {
   Contest_Rank_Setting:'Rank Setting',
   Contest_Setting:'Contest Setting',
   Contains_After_Contest:'Contains After Contest',
+  Contest_Rating: 'Rating',
 
   // /views/oj/contest/children/ACMInfo.vue
   AC_Time: 'AC Time',
@@ -750,5 +751,13 @@ export const m = {
   Already_Public_Problem:'Already in the public problem bank',
   Applying_for_Publicity:'Applying for publicity',
   Group_Problem_Apply_Public_Tips:'Are you sure you want to apply for this problem to be added to the public bank?',
-  Cancel_Group_Problem_Apply_Public_Tips:'Do you want to cancel the application for this problem to be added to the public bank?'
+  Cancel_Group_Problem_Apply_Public_Tips:'Do you want to cancel the application for this problem to be added to the public bank?',
+
+  // Rating Contest
+  Contest_Rating_Type: 'Rating Type',
+  Rating_Contest: 'Rating Contest',
+  Unrating_Contest: 'Unrating Contest',
+  Rating_Contest_Tips: 'Rating Contest - Participants\' ratings will be calculated after the contest ends',
+  Unrating_Contest_Tips: 'Unrating Contest - Ratings will not be calculated after the contest ends',
+  Rating_Type_Cannot_Be_Modified: 'Rating type cannot be modified after creation'
 }

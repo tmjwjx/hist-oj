@@ -6,6 +6,10 @@ WORKDIR /app
 # 安装必要的构建工具
 RUN apk add --no-cache git
 
+# 设置 Go 代理（加速依赖下载）
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GO111MODULE=on
+
 # 复制 go mod 文件并下载依赖
 COPY go.mod go.sum ./
 RUN go mod download
@@ -34,11 +38,11 @@ COPY --from=builder /app/hist-oj-service .
 COPY --from=builder /app/configs ./configs
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 9527
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:9527/health || exit 1
 
 # 启动命令
 CMD ["./hist-oj-service"]

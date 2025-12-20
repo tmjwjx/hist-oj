@@ -450,6 +450,7 @@ export const m = {
   Contest_Rank_Search_Placeholder:'사용자 이름 / 학교 이름 입력',
   Contest_Rank_Setting:'랭킹 설정',
   Contest_Setting:'대회 설정',
+  Contest_Rating: 'Rating',
   Contains_After_Contest:'대회 후 포함',
 
   // /views/oj/contest/children/ACMInfo.vue
@@ -753,5 +754,13 @@ export const m = {
   Already_Public_Problem:'이미 공개 문제 은행에 있음',
   Applying_for_Publicity:'공개 신청 중',
   Group_Problem_Apply_Public_Tips:'이 문제를 공개 문제 은행에 신청하시겠습니까?',
-  Cancel_Group_Problem_Apply_Public_Tips:'이 문제의 공개 문제 은행 신청을 취소하시겠습니까?'
+  Cancel_Group_Problem_Apply_Public_Tips:'이 문제의 공개 문제 은행 신청을 취소하시겠습니까?',
+
+  // Rating 대회 관련
+  Contest_Rating_Type: 'Rating 유형',
+  Rating_Contest: 'Rating 대회',
+  Unrating_Contest: '비 Rating 대회',
+  Rating_Contest_Tips: 'Rating 대회 - 대회 종료 후 참가자의 Rating 점수가 계산됩니다',
+  Unrating_Contest_Tips: '비 Rating 대회 - 대회 종료 후 Rating 점수가 계산되지 않습니다',
+  Rating_Type_Cannot_Be_Modified: 'Rating 유형은 생성 후 수정할 수 없습니다'
 }

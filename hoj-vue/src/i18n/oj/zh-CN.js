@@ -451,6 +451,7 @@ export const m = {
   Contest_Rank_Setting:'榜单设置',
   Contest_Setting:'比赛设置',
   Contains_After_Contest:'包含赛后',
+  Contest_Rating: 'Rating',
 
   // /views/oj/contest/children/ACMInfo.vue
   AC_Time: 'AC 时间',
@@ -753,5 +754,13 @@ export const m = {
   Already_Public_Problem:'已在公开题库中',
   Applying_for_Publicity:'申请公开中',
   Group_Problem_Apply_Public_Tips:'您是否确定要申请该题目加入公开题库？',
-  Cancel_Group_Problem_Apply_Public_Tips:'您是否要取消申请该题目加入公开题库？'
+  Cancel_Group_Problem_Apply_Public_Tips:'您是否要取消申请该题目加入公开题库？',
+
+  // Rating 比赛相关
+  Contest_Rating_Type: 'Rating 类型',
+  Rating_Contest: 'Rating 比赛',
+  Unrating_Contest: '非 Rating 比赛',
+  Rating_Contest_Tips: 'Rating 比赛 - 比赛结束后将计算参赛者的 Rating 分数',
+  Unrating_Contest_Tips: '非 Rating 比赛 - 比赛结束后不计算 Rating 分数',
+  Rating_Type_Cannot_Be_Modified: 'Rating 类型创建后不可修改'
 }

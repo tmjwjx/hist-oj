@@ -14,6 +14,12 @@ import (
 type Handler struct {
 	ratingService *service.RatingService
 	queryService  *service.QueryService
+	scheduler     Scheduler
+}
+
+// Scheduler 定时任务接口
+type Scheduler interface {
+	TriggerCheck()
 }
 
 func NewHandler(ratingService *service.RatingService, queryService *service.QueryService) *Handler {
@@ -21,6 +27,11 @@ func NewHandler(ratingService *service.RatingService, queryService *service.Quer
 		ratingService: ratingService,
 		queryService:  queryService,
 	}
+}
+
+// SetScheduler 设置定时任务调度器
+func (h *Handler) SetScheduler(scheduler Scheduler) {
+	h.scheduler = scheduler
 }
 
 // Response 统一响应结构
@@ -203,6 +214,231 @@ func (h *Handler) GetContestParticipantsRating(c *gin.Context) {
 		"contestId":    contestID,
 		"participants": len(results),
 		"records":      results,
+	}))
+}
+
+// GetBatchUserRating 批量获取用户rating信息
+func (h *Handler) GetBatchUserRating(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		UIDs []string `json:"uids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	if len(req.UIDs) == 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "uids不能为空"))
+		return
+	}
+
+	if len(req.UIDs) > 100 {
+		c.JSON(http.StatusOK, errorResponse(400, "一次最多查询100个用户"))
+		return
+	}
+
+	results, err := h.queryService.GetBatchUserRating(req.UIDs)
+	if err != nil {
+		logger.Error("批量查询用户rating失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(results))
+}
+
+// InitializeUserRating 初始化用户默认rating
+func (h *Handler) InitializeUserRating(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		UID           string `json:"uid" binding:"required"`
+		InitialRating int    `json:"initialRating"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 如果没有指定初始rating，使用默认值1200
+	if req.InitialRating == 0 {
+		req.InitialRating = 1200
+	}
+
+	err := h.queryService.InitializeUserRating(req.UID, req.InitialRating)
+	if err != nil {
+		logger.Error("初始化用户rating失败",
+			zap.String("uid", req.UID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "初始化失败: "+err.Error()))
+		return
+	}
+
+	logger.Info("初始化用户rating成功",
+		zap.String("uid", req.UID),
+		zap.Int("rating", req.InitialRating))
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"uid":    req.UID,
+		"rating": req.InitialRating,
+	}))
+}
+
+// SetContestRatingType 设置比赛的Rating类型
+func (h *Handler) SetContestRatingType(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ContestID uint64 `json:"contestId" binding:"required"`
+		IsRating  bool   `json:"isRating"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	err := h.queryService.SetContestRatingType(req.ContestID, req.IsRating)
+	if err != nil {
+		logger.Error("设置比赛Rating类型失败",
+			zap.Uint64("contest_id", req.ContestID),
+			zap.Bool("is_rating", req.IsRating),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "设置失败: "+err.Error()))
+		return
+	}
+
+	logger.Info("设置比赛Rating类型成功",
+		zap.Uint64("contest_id", req.ContestID),
+		zap.Bool("is_rating", req.IsRating))
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"contestId": req.ContestID,
+		"isRating":  req.IsRating,
+	}))
+}
+
+// GetContestInfo 获取比赛信息（包括是否为Rating比赛）
+func (h *Handler) GetContestInfo(c *gin.Context) {
+	logger := utils.GetLogger()
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseUint(contestIDStr, 10, 64)
+	if err != nil || contestID <= 0 {
+		logger.Warn("请求参数错误",
+			zap.String("param", "contestId"),
+			zap.String("value", contestIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "contestId参数格式错误"))
+		return
+	}
+
+	contestInfo, err := h.queryService.GetContestInfo(contestID)
+	if err != nil {
+		logger.Error("查询比赛信息失败",
+			zap.Uint64("contest_id", contestID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	if contestInfo == nil {
+		c.JSON(http.StatusOK, errorResponse(404, "比赛不存在"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(contestInfo))
+}
+
+// GetBatchContestInfo 批量获取比赛信息（包括是否为Rating比赛）
+func (h *Handler) GetBatchContestInfo(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ContestIDs []uint64 `json:"contestIds" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	if len(req.ContestIDs) == 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "contestIds不能为空"))
+		return
+	}
+
+	if len(req.ContestIDs) > 50 {
+		c.JSON(http.StatusOK, errorResponse(400, "一次最多查询50个比赛"))
+		return
+	}
+
+	results, err := h.queryService.GetBatchContestInfo(req.ContestIDs)
+	if err != nil {
+		logger.Error("批量查询比赛信息失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(results))
+}
+
+
+// GetRatingRank 获取Rating排名列表
+func (h *Handler) GetRatingRank(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "30"))
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 30
+	}
+
+	keyword := c.Query("keyword")
+
+	logger.Info("获取Rating排名",
+		zap.Int("page", page),
+		zap.Int("limit", limit),
+		zap.String("keyword", keyword))
+
+	result, err := h.queryService.GetRatingRank(page, limit, keyword)
+	if err != nil {
+		logger.Error("查询Rating排名失败",
+			zap.Int("page", page),
+			zap.Int("limit", limit),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// TriggerScheduler 手动触发定时任务
+func (h *Handler) TriggerScheduler(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	if h.scheduler == nil {
+		logger.Error("定时任务调度器未初始化")
+		c.JSON(http.StatusOK, errorResponse(500, "定时任务调度器未初始化"))
+		return
+	}
+
+	logger.Info("手动触发定时任务")
+
+	// 在后台执行，避免阻塞请求
+	go h.scheduler.TriggerCheck()
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"message": "定时任务已触发，正在后台执行",
 	}))
 }
 

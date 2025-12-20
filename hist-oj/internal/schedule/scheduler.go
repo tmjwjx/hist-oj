@@ -56,6 +56,11 @@ func (s *Scheduler) Stop() {
 	s.cron.Stop()
 }
 
+// TriggerCheck 手动触发检查（公开方法）
+func (s *Scheduler) TriggerCheck() {
+	s.checkAndCalculateRating()
+}
+
 // checkAndCalculateRating 检查并计算rating
 func (s *Scheduler) checkAndCalculateRating() {
 	// 添加panic恢复，防止定时任务崩溃影响服务
