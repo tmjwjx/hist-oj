@@ -292,7 +292,7 @@
                 ></avatar>
                 <a
                   @click="goUserHome(row.username, row.uid)"
-                  style="color:#2d8cf0;"
+                  :style="{ color: row.ratingColor || '#2d8cf0', fontWeight: row.ratingColor ? 'bold' : 'normal' }"
                 >{{ row.username }}</a>
                 <span
                   style="margin-left:2px"
@@ -369,6 +369,7 @@
 <script>
 import time from "@/common/time";
 import api from "@/common/api";
+import ratingApi from "@/common/rating-api";
 import {
   CONTEST_STATUS_REVERSE,
   CONTEST_TYPE_REVERSE,
@@ -499,9 +500,35 @@ export default {
       api.getRecent7ACRank().then(
         (res) => {
           this.recentUserACRecord = res.data.data;
+          // 批量查询用户 Rating 并设置颜色，完成后再关闭 loading
+          this.loadUsersRatingColor();
+        },
+        (err) => {
+          this.loading.recent7ACRankLoading = false;
+        }
+      );
+    },
+    // 批量加载用户 Rating 颜色
+    loadUsersRatingColor() {
+      if (!this.recentUserACRecord || this.recentUserACRecord.length === 0) {
+        this.loading.recent7ACRankLoading = false;
+        return;
+      }
+      const uids = this.recentUserACRecord.map(u => u.uid);
+      ratingApi.getBatchUserRating(uids).then(
+        (data) => {
+          this.recentUserACRecord.forEach(user => {
+            const ratingInfo = data[user.uid];
+            if (ratingInfo && ratingInfo.rating) {
+              this.$set(user, 'ratingColor', ratingInfo.color);
+            }
+          });
+          // Rating 颜色加载完成后关闭 loading
           this.loading.recent7ACRankLoading = false;
         },
         (err) => {
+          console.error('加载用户 Rating 颜色失败:', err);
+          // 即使失败也要关闭 loading
           this.loading.recent7ACRankLoading = false;
         }
       );

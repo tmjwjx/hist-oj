@@ -369,19 +369,8 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 			return nil, fmt.Errorf("找不到用户 %s 的rating变化", record.UID)
 		}
 
-		// 新手保护：前3场比赛掉分减半
-		contestCount := contestCountMap[record.UID]
-		originalChange := change
-		if contestCount < 3 && change < 0 {
-			change = change / 2
-			logger.Debug("新手保护生效（掉分减半）",
-				zap.String("uid", record.UID),
-				zap.Int64("contest_count", contestCount),
-				zap.Int("original_change", originalChange),
-				zap.Int("protected_change", change))
-		}
-
 		// 新人奖励：前4场比赛，如果AC了至少一道题，额外+30分
+		contestCount := contestCountMap[record.UID]
 		if contestCount < 4 && record.AC > 0 {
 			change += 30
 			logger.Debug("新人奖励生效（AC题目+30分）",

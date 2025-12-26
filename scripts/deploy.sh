@@ -159,6 +159,11 @@ deploy_on_server() {
             -p 80:80 \
             -p 443:443 \
             --restart unless-stopped \
+            --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1" \
+            --health-interval=30s \
+            --health-timeout=3s \
+            --health-retries=3 \
+            --health-start-period=10s \
             hoj-frontend:latest
 
         echo "[INFO] 等待服务启动..."

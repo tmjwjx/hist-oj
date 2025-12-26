@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -17,37 +16,7 @@ func CalculateRatingChange(oldRating, rank, participants int, allRatings []int, 
 		return 0
 	}
 
-	// 检查是否所有人的rating都相同（或非常接近）
-	allSameRating := true
-	firstRating := allRatings[0]
-	for _, r := range allRatings {
-		if math.Abs(float64(r-firstRating)) > 10 { // 允许10分的误差
-			allSameRating = false
-			break
-		}
-	}
-
-	// 如果所有人rating相同，使用简化的线性分配
-	if allSameRating {
-		// 使用线性插值：第1名获得最高分，最后一名获得最低分
-		// 更激进的幅度：第1名+150分，最后一名-90分
-		maxChange := float64(kFactor) * 3.0  // 第1名最多加 K×3.0 分
-		minChange := -float64(kFactor) * 1.8 // 最后一名最多减 K×1.8 分
-
-		// 线性插值计算rating变化
-		// rank=1 时得到 maxChange，rank=participants 时得到 minChange
-		ratingChange := maxChange - (maxChange-minChange)*float64(rank-1)/float64(participants-1)
-
-		// 调试日志
-		if rank <= 3 || rank >= participants-2 {
-			println(fmt.Sprintf("🔵 线性分配: rank=%d, maxChange=%.2f, minChange=%.2f, ratingChange=%.2f",
-				rank, maxChange, minChange, ratingChange))
-		}
-
-		return int(math.Round(ratingChange))
-	}
-
-	// 如果rating有差异，使用标准Elo算法
+	// 使用标准Elo算法
 	// 计算期望排名（基于当前rating在所有参赛者中的位置）
 	expectedRank := calculateExpectedRank(oldRating, allRatings)
 
@@ -144,4 +113,3 @@ func CalculateAllRatingChanges(ratings []int, kFactor int) []int {
 
 	return changes
 }
-

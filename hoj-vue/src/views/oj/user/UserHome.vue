@@ -284,7 +284,7 @@ import Markdown from '@/components/oj/common/Markdown';
 import RatingBadge from '@/components/oj/common/RatingBadge';
 import RatingChart from '@/components/oj/user/RatingChart';
 import ratingApi from '@/common/rating-api';
-import { getRatingColor, getRatingTitle } from '@/common/rating-utils';
+import { getRatingColor, getRatingName } from '@/common/rating-utils';
 export default {
   components: {
     Avatar,
@@ -330,8 +330,8 @@ export default {
       return getRatingColor(this.userRating);
     },
     ratingTitle() {
-      if (this.userRating === null) return '未定级';
-      return getRatingTitle(this.userRating);
+      if (this.userRating === null) return 'Unrated';
+      return getRatingName(this.userRating);
     },
     maxRatingColor() {
       if (this.maxRating === null) return this.ratingColor;
@@ -339,7 +339,7 @@ export default {
     },
     maxRatingTitle() {
       if (this.maxRating === null) return this.ratingTitle;
-      return getRatingTitle(this.maxRating);
+      return getRatingName(this.maxRating);
     }
   },
   created(){

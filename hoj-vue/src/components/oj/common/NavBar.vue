@@ -68,17 +68,12 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
-            <el-submenu index="about">
-              <template slot="title"
-                ><i class="el-icon-info"></i>{{ $t('m.NavBar_About') }}</template
-              >
-              <el-menu-item index="/introduction">{{
-                $t('m.NavBar_Introduction')
-              }}</el-menu-item>
-              <el-menu-item index="/developer">{{
-                $t('m.NavBar_Developer')
-              }}</el-menu-item>
-            </el-submenu>
+            <el-menu-item index="/introduction"
+              ><i class="el-icon-document"></i>编译环境</el-menu-item
+            >
+            <el-menu-item index="/about-us"
+              ><i class="el-icon-user"></i>关于我们</el-menu-item
+            >
         </template>
         <template v-else-if="mode == 'training'">
           <el-menu-item index="/home"
@@ -157,7 +152,7 @@
               placement="bottom"
               trigger="hover"
             >
-              <span class="el-dropdown-link">
+              <span class="el-dropdown-link" :style="getUsernameStyle()">
                 {{ userInfo.username }}<i class="el-icon-caret-bottom"></i>
               </span>
 
@@ -565,45 +560,27 @@
           <mu-list-item
             button
             :ripple="false"
-            nested
-            :open="openSideMenu === 'about'"
-            @toggle-nested="openSideMenu = arguments[0] ? 'about' : ''"
+            to="/introduction"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
           >
             <mu-list-item-action>
-              <mu-icon value=":el-icon-info" size="24"></mu-icon>
+              <mu-icon value=":el-icon-document" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>{{ $t('m.NavBar_About') }}</mu-list-item-title>
+            <mu-list-item-title>编译环境</mu-list-item-title>
+          </mu-list-item>
+
+          <mu-list-item
+            button
+            :ripple="false"
+            to="/about-us"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
             <mu-list-item-action>
-              <mu-icon
-                class="toggle-icon"
-                size="24"
-                value=":el-icon-arrow-down"
-              ></mu-icon>
+              <mu-icon value=":el-icon-user" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/introduction"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_Introduction')
-              }}</mu-list-item-title>
-            </mu-list-item>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/developer"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_Developer')
-              }}</mu-list-item-title>
-            </mu-list-item>
+            <mu-list-item-title>关于我们</mu-list-item-title>
           </mu-list-item>
         </mu-list>
       </mu-drawer>
@@ -630,6 +607,7 @@ import MsgSvg from '@/components/oj/msg/msgSvg';
 import { mapGetters, mapActions } from 'vuex';
 import Avatar from 'vue-avatar';
 import api from '@/common/api';
+import ratingApi from '@/common/rating-api';
 export default {
   components: {
     Login,
@@ -653,6 +631,8 @@ export default {
       this.msgTimer = setInterval(() => {
         this.getUnreadMsgCount();
       }, 120 * 1000);
+      // 加载用户 Rating 颜色
+      this.loadUserRatingColor();
     }
   },
   beforeDestroy() {
@@ -670,6 +650,8 @@ export default {
       imgUrl: require('@/assets/logo.png'),
       avatarStyle:
         'display: inline-flex;width: 30px;height: 30px;border-radius: 50%;align-items: center;justify-content: center;text-align: center;user-select: none;',
+      userRatingColor: null,
+      ratingLoaded: false,
     };
   },
   methods: {
@@ -776,6 +758,36 @@ export default {
       }else{
         return `/training/${tid}/problems`;
       }
+    },
+    // 加载用户 Rating 颜色
+    loadUserRatingColor() {
+      if (!this.userInfo || !this.userInfo.uid) {
+        this.ratingLoaded = true;
+        return;
+      }
+      ratingApi.getUserRating(this.userInfo.uid).then(
+        (data) => {
+          if (data && data.color) {
+            this.userRatingColor = data.color;
+          }
+          this.ratingLoaded = true;
+        },
+        (err) => {
+          console.error('加载用户 Rating 颜色失败:', err);
+          this.ratingLoaded = true;
+        }
+      );
+    },
+    // 获取用户名样式
+    getUsernameStyle() {
+      if (!this.ratingLoaded) {
+        return { color: '#409eff' };
+      }
+      return {
+        color: this.userRatingColor || '#409eff',
+        fontWeight: this.userRatingColor ? 'bold' : 'normal',
+        transition: 'color 0.3s ease'
+      };
     }
   },
   computed: {

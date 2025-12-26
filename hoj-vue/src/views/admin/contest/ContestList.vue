@@ -64,6 +64,12 @@
             </el-tag>
           </template>
         </vxe-table-column>
+        <vxe-table-column title="Rating" width="100">
+          <template v-slot="{ row }">
+            <el-tag v-if="row.isRating" type="success" size="small">Rating</el-tag>
+            <el-tag v-else type="info" size="small">未设置</el-tag>
+          </template>
+        </vxe-table-column>
         <vxe-table-column :title="$t('m.Visible')" min-width="80">
           <template v-slot="{ row }">
             <el-switch
@@ -142,6 +148,21 @@
                   </el-button>
                 </el-tooltip>
               </div>
+              <div style="margin-bottom:10px" v-if="!row.isRating">
+                <el-tooltip
+                  effect="dark"
+                  content="设为Rating赛"
+                  placement="top"
+                >
+                  <el-button
+                    icon="el-icon-star-on"
+                    size="mini"
+                    @click.native="openSetRatingDialog(row)"
+                    type="warning"
+                  >
+                  </el-button>
+                </el-tooltip>
+              </div>
             </template>
             <el-tooltip
               effect="dark"
@@ -191,12 +212,64 @@
         }}</el-button>
       </span>
     </el-dialog>
+
+    <!-- 第一步确认对话框 -->
+    <el-dialog
+      title="设置 Rating 比赛"
+      width="400px"
+      :visible.sync="firstConfirmVisible"
+      :close-on-click-modal="false"
+    >
+      <div style="margin-bottom: 15px;">
+        <p><strong>比赛：</strong>#{{ selectedContest.id }} {{ selectedContest.title }}</p>
+      </div>
+      <el-alert
+        title="⚠️ 此操作不可撤销"
+        type="warning"
+        :closable="false"
+        style="margin-bottom: 15px;"
+      ></el-alert>
+      <div>
+        <p style="margin-bottom: 10px;">请输入比赛ID确认：</p>
+        <el-input
+          v-model="firstConfirmInput"
+          placeholder="请输入比赛ID"
+          @keyup.enter.native="validateFirstStep"
+        ></el-input>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="firstConfirmVisible = false">取消</el-button>
+        <el-button type="primary" @click="validateFirstStep">确认</el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 第二步确认对话框 -->
+    <el-dialog
+      title="最终确认"
+      width="400px"
+      :visible.sync="secondConfirmVisible"
+      :close-on-click-modal="false"
+    >
+      <div style="margin-bottom: 15px;">
+        <p>确认将比赛 <strong>#{{ selectedContest.id }}</strong> 设为 Rating 赛？</p>
+      </div>
+      <el-alert
+        title="此操作不可撤销！"
+        type="error"
+        :closable="false"
+      ></el-alert>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="secondConfirmVisible = false">取消</el-button>
+        <el-button type="danger" @click="confirmSetRating">确认</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import api from '@/common/api';
 import utils from '@/common/utils';
+import ratingApi from '@/common/rating-api';
 import {
   CONTEST_STATUS_REVERSE,
   CONTEST_TYPE_REVERSE,
@@ -218,6 +291,11 @@ export default {
       currentId: 1,
       downloadDialogVisible: false,
       CONTEST_TYPE_REVERSE: {},
+      // Rating 设置相关
+      firstConfirmVisible: false,
+      secondConfirmVisible: false,
+      firstConfirmInput: '',
+      selectedContest: { id: 0, title: '' },
     };
   },
   mounted() {
@@ -249,9 +327,32 @@ export default {
           this.loading = false;
           this.total = res.data.data.total;
           this.contestList = res.data.data.records;
+          // 批量查询比赛的 Rating 状态
+          this.loadContestsRatingStatus();
         },
         (res) => {
           this.loading = false;
+        }
+      );
+    },
+    // 批量加载比赛 Rating 状态
+    loadContestsRatingStatus() {
+      if (this.contestList.length === 0) return;
+      const contestIds = this.contestList.map(c => c.id);
+      ratingApi.getBatchContestInfo(contestIds).then(
+        (data) => {
+          // 更新每个比赛的 isRating 状态
+          this.contestList.forEach(contest => {
+            const info = data[contest.id];
+            if (info) {
+              this.$set(contest, 'isRating', info.isRating);
+            } else {
+              this.$set(contest, 'isRating', false);
+            }
+          });
+        },
+        (err) => {
+          console.error('加载 Rating 状态失败:', err);
         }
       );
     },
@@ -298,6 +399,33 @@ export default {
     },
     filterByKeyword() {
       this.currentChange(1);
+    },
+    // 打开设置 Rating 对话框
+    openSetRatingDialog(contest) {
+      this.selectedContest = contest;
+      this.firstConfirmInput = '';
+      this.firstConfirmVisible = true;
+    },
+    // 验证第一步输入
+    validateFirstStep() {
+      if (this.firstConfirmInput !== String(this.selectedContest.id)) {
+        myMessage.error('比赛ID输入错误');
+        return;
+      }
+      this.firstConfirmVisible = false;
+      this.secondConfirmVisible = true;
+    },
+    // 最终确认并执行设置
+    async confirmSetRating() {
+      try {
+        await ratingApi.setContestRatingType(this.selectedContest.id, true);
+        myMessage.success('设置成功');
+        this.secondConfirmVisible = false;
+        // 刷新列表
+        this.getContestList(this.currentPage);
+      } catch (err) {
+        myMessage.error('设置失败: ' + (err.message || err));
+      }
     },
   },
 };
