@@ -230,10 +230,10 @@
         style="margin-bottom: 15px;"
       ></el-alert>
       <div>
-        <p style="margin-bottom: 10px;">请输入比赛ID确认：</p>
+        <p style="margin-bottom: 10px;">请输入比赛名称确认：</p>
         <el-input
           v-model="firstConfirmInput"
-          placeholder="请输入比赛ID"
+          placeholder="请输入比赛名称"
           @keyup.enter.native="validateFirstStep"
         ></el-input>
       </div>
@@ -408,8 +408,8 @@ export default {
     },
     // 验证第一步输入
     validateFirstStep() {
-      if (this.firstConfirmInput !== String(this.selectedContest.id)) {
-        myMessage.error('比赛ID输入错误');
+      if (this.firstConfirmInput !== this.selectedContest.title) {
+        myMessage.error('比赛名称输入错误');
         return;
       }
       this.firstConfirmVisible = false;

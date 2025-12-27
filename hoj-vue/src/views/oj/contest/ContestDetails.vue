@@ -37,6 +37,21 @@
                     {{ $t('m.Group_Contest_Tag')}}
                 </el-button>
              </el-tooltip>
+             <el-tooltip
+               v-if="isRating"
+               content="Rating 比赛 - 此比赛会影响选手的 Rating 分数"
+               placement="top"
+               effect="dark"
+               style="margin-left:10px;"
+             >
+               <el-tag
+                 effect="dark"
+                 size="medium"
+                 class="rating-tag"
+               >
+                 <i class="el-icon-trophy"></i> Rating
+               </el-tag>
+             </el-tooltip>
             </el-col>
             <el-col :span="10" style="text-align:right">
               <el-button size="small" plain v-if="contest.count != null">
@@ -343,6 +358,7 @@
 import time from '@/common/time';
 import moment from 'moment';
 import api from '@/common/api';
+import ratingApi from '@/common/rating-api';
 import { mapState, mapGetters, mapActions } from 'vuex';
 import { addCodeBtn } from '@/common/codeblock';
 import {
@@ -370,6 +386,7 @@ export default {
       RULE_TYPE: {},
       btnLoading: false,
       contestPassword: '',
+      isRating: false, // 是否为 Rating 比赛
     };
   },
   created() {
@@ -388,6 +405,8 @@ export default {
     this.$store.dispatch('getContest').then((res) => {
       this.changeDomTitle({ title: res.data.data.title });
       let data = res.data.data;
+      // 获取比赛 Rating 信息
+      this.fetchContestRatingInfo(data.id);
       let endTime = moment(data.endTime);
       // 如果当前时间还是在比赛结束前的时间，需要计算倒计时，同时开启获取比赛公告的定时器
       if (endTime.isAfter(moment(data.now))) {
@@ -478,6 +497,56 @@ export default {
         },
       })
     },
+    // 获取比赛 Rating 信息
+    async fetchContestRatingInfo(contestId) {
+      if (!contestId) return;
+      
+      try {
+        // 先检查缓存
+        const cacheKey = `rating_contest_${contestId}`;
+        const cached = localStorage.getItem(cacheKey);
+        
+        if (cached) {
+          try {
+            const data = JSON.parse(cached);
+            // 检查缓存是否过期（1 小时）
+            if (Date.now() - data.timestamp < 3600000) {
+              this.isRating = data.isRating;
+              return;
+            } else {
+              // 缓存过期，删除
+              localStorage.removeItem(cacheKey);
+            }
+          } catch (e) {
+            localStorage.removeItem(cacheKey);
+          }
+        }
+        
+        // 调用 API 获取 Rating 信息
+        const result = await ratingApi.getContestInfo(contestId);
+        if (result && result.isRating !== undefined) {
+          this.isRating = result.isRating;
+          // 缓存结果（有效期 1 小时）
+          localStorage.setItem(cacheKey, JSON.stringify({
+            isRating: result.isRating,
+            timestamp: Date.now()
+          }));
+        }
+      } catch (error) {
+        console.error('获取比赛 Rating 信息失败:', error);
+        // 失败时尝试使用缓存数据
+        const cacheKey = `rating_contest_${contestId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const data = JSON.parse(cached);
+            this.isRating = data.isRating;
+          } catch (e) {
+            // 忽略缓存解析错误
+          }
+        }
+      }
+    },
   },
   computed: {
     ...mapState({
@@ -551,6 +620,25 @@ export default {
 };
 </script>
 <style scoped>
+.rating-tag {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  padding: 6px 14px !important;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4) !important;
+  transition: all 0.3s ease !important;
+  font-size: 13px !important;
+}
+.rating-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5) !important;
+}
+.rating-tag i {
+  margin-right: 4px;
+  font-size: 14px;
+  vertical-align: middle;
+}
 .panel-title {
   font-size: 1.5rem !important;
   font-weight: 500;

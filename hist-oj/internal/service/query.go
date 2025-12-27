@@ -335,6 +335,42 @@ func (s *QueryService) SetContestRatingType(contestID uint64, isRating bool) err
 		return gorm.ErrRecordNotFound
 	}
 
+	// 如果设置为 Rating 赛，需要在 contest_rating_status 表中创建或更新记录
+	if isRating {
+		var status model.ContestRatingStatus
+		err := s.db.Where("contest_id = ?", contestID).First(&status).Error
+
+		if err == gorm.ErrRecordNotFound {
+			// 记录不存在，创建新记录
+			status = model.ContestRatingStatus{
+				ContestID:        contestID,
+				IsRated:          true,
+				RatingCalculated: false,
+			}
+			if err := s.db.Create(&status).Error; err != nil {
+				logger.Error("创建比赛Rating状态记录失败",
+					zap.Uint64("contest_id", contestID),
+					zap.Error(err))
+				return err
+			}
+			logger.Info("创建比赛Rating状态记录成功", zap.Uint64("contest_id", contestID))
+		} else if err != nil {
+			logger.Error("查询比赛Rating状态失败",
+				zap.Uint64("contest_id", contestID),
+				zap.Error(err))
+			return err
+		} else {
+			// 记录已存在，更新 is_rated 字段
+			if err := s.db.Model(&status).Update("is_rated", true).Error; err != nil {
+				logger.Error("更新比赛Rating状态失败",
+					zap.Uint64("contest_id", contestID),
+					zap.Error(err))
+				return err
+			}
+			logger.Info("更新比赛Rating状态成功", zap.Uint64("contest_id", contestID))
+		}
+	}
+
 	logger.Info("设置比赛Rating类型成功",
 		zap.Uint64("contest_id", contestID),
 		zap.Bool("is_rating", isRating))

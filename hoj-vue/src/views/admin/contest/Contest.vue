@@ -379,30 +379,6 @@
             </el-form-item>
           </el-col>
 
-          <el-col
-            :md="8"
-            :xs="24"
-          >
-            <el-form-item
-              :label="$t('m.Contest_Rating_Type')"
-              required
-            >
-              <el-tooltip
-                :content="disableRuleType ? $t('m.Rating_Type_Cannot_Be_Modified') : ''"
-                placement="top"
-                :disabled="!disableRuleType"
-              >
-                <el-switch
-                  v-model="contest.isRating"
-                  :active-text="$t('m.Rating_Contest')"
-                  :inactive-text="$t('m.Unrating_Contest')"
-                  :disabled="disableRuleType"
-                >
-                </el-switch>
-              </el-tooltip>
-            </el-form-item>
-          </el-col>
-
           <template v-if="contest.openAccountLimit">
             <el-form :model="formRule">
               <el-col
@@ -658,7 +634,6 @@
 
 <script>
 import api from "@/common/api";
-import ratingApi from "@/common/rating-api";
 import time from "@/common/time";
 import moment from "moment";
 import { mapGetters } from "vuex";
@@ -696,7 +671,6 @@ export default {
         accountLimitRule: "",
         starAccount: [],
         oiRankScoreType: "Recent",
-        isRating: false, // Rating 比赛标识，默认为非 Rating 比赛
         awardType: 0,
         awardConfigList: [
           {
@@ -875,35 +849,11 @@ export default {
 
       api[funcName](data)
         .then((res) => {
-          // 如果是创建比赛，需要调用 hist-oj API 设置 Rating 类型
-          if (funcName === "admin_createContest") {
-            const contestId = res.data.data.id;
-            // 调用 hist-oj API 设置 Rating 类型
-            ratingApi.setContestRatingType(contestId, this.contest.isRating)
-              .then(() => {
-                myMessage.success("success");
-                this.$router.push({
-                  name: "admin-contest-list",
-                  query: { refresh: "true" },
-                });
-              })
-              .catch((err) => {
-                console.error("设置 Rating 类型失败:", err);
-                // 即使设置 Rating 类型失败，也提示成功并跳转
-                myMessage.success("success");
-                this.$router.push({
-                  name: "admin-contest-list",
-                  query: { refresh: "true" },
-                });
-              });
-          } else {
-            // 编辑模式直接跳转
-            myMessage.success("success");
-            this.$router.push({
-              name: "admin-contest-list",
-              query: { refresh: "true" },
-            });
-          }
+          myMessage.success("success");
+          this.$router.push({
+            name: "admin-contest-list",
+            query: { refresh: "true" },
+          });
         })
         .catch(() => {});
     },

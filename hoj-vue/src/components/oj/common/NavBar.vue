@@ -608,6 +608,7 @@ import { mapGetters, mapActions } from 'vuex';
 import Avatar from 'vue-avatar';
 import api from '@/common/api';
 import ratingApi from '@/common/rating-api';
+import { getRatingColor } from '@/common/rating-utils';
 export default {
   components: {
     Login,
@@ -763,30 +764,48 @@ export default {
     loadUserRatingColor() {
       if (!this.userInfo || !this.userInfo.uid) {
         this.ratingLoaded = true;
+        // 如果没有用户信息，保持蓝色（不设置 userRatingColor）
+        this.userRatingColor = null;
         return;
       }
       ratingApi.getUserRating(this.userInfo.uid).then(
         (data) => {
-          if (data && data.color) {
+          // 优先使用 API 返回的 color
+          if (data && typeof data.color === 'string' && data.color.trim() !== '') {
             this.userRatingColor = data.color;
+          } 
+          // 如果 API 返回了有效的 rating 值，使用前端函数计算颜色
+          else if (data && typeof data.rating === 'number' && !isNaN(data.rating)) {
+            this.userRatingColor = getRatingColor(data.rating);
+          } 
+          // 如果数据无效，保持蓝色
+          else {
+            this.userRatingColor = null;
           }
           this.ratingLoaded = true;
         },
         (err) => {
           console.error('加载用户 Rating 颜色失败:', err);
+          // API 调用失败时，保持蓝色（不设置 userRatingColor）
+          this.userRatingColor = null;
           this.ratingLoaded = true;
         }
       );
     },
     // 获取用户名样式
     getUsernameStyle() {
+      // 如果还没有加载完成，显示蓝色
       if (!this.ratingLoaded) {
-        return { color: '#409eff' };
+        return { 
+          color: '#409eff',
+          fontWeight: 'normal'
+        };
       }
+      // 加载完成后，如果有 rating 颜色就使用，否则保持蓝色
       return {
         color: this.userRatingColor || '#409eff',
         fontWeight: this.userRatingColor ? 'bold' : 'normal',
-        transition: 'color 0.3s ease'
+        transition: this.userRatingColor ? 'color 0.3s ease' : 'none'
       };
     }
   },
@@ -845,8 +864,23 @@ export default {
         this.msgTimer = setInterval(() => {
           this.getUnreadMsgCount();
         }, 120 * 1000);
+        // 加载用户 Rating 颜色
+        this.loadUserRatingColor();
       } else {
         clearInterval(this.msgTimer);
+        // 用户登出时重置 Rating 颜色
+        this.userRatingColor = null;
+        this.ratingLoaded = false;
+      }
+    },
+    // 监听用户 UID 变化，确保切换用户时重新加载颜色
+    'userInfo.uid'(newUid, oldUid) {
+      if (this.isAuthenticated && newUid && newUid !== oldUid) {
+        // 重置状态
+        this.ratingLoaded = false;
+        this.userRatingColor = null;
+        // 重新加载颜色
+        this.loadUserRatingColor();
       }
     },
     $route(){
@@ -897,7 +931,7 @@ export default {
 }
 .el-dropdown-link {
   cursor: pointer;
-  color: #409eff !important;
+  /* color 由 getUsernameStyle() 动态设置，不再使用固定颜色 */
 }
 .el-icon-arrow-down {
   font-size: 18px;
