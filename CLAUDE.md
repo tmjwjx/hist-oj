@@ -25,7 +25,7 @@ HOJ (Hcode Online Judge) 是一个基于 Vue 和 Spring Boot、Spring Cloud Alib
 
 **当前调试策略**：
 - **前端（hoj-vue）**：本地运行，连接线上后端（`http://43.143.133.62:6688`） `npm run serve`
-- **hist-oj 服务**：本地运行，需要配置本地数据库连接 `make run`
+- **hist-oj 服务**：本地运行（默认端口 9527），需要配置本地数据库连接 `make run`
 - **hoj-springboot**：暂不本地运行，直接使用线上服务
 
 **调试目标**：
@@ -33,9 +33,10 @@ HOJ (Hcode Online Judge) 是一个基于 Vue 和 Spring Boot、Spring Cloud Alib
 2. 修改 hist-oj 代码，完善 Rating 计算和查询接口
 3. 打通前端 → hist-oj 的数据流，实现 Rating 功能的端到端展示
 
-**需要配置的代理**：
-- 前端需要添加对 hist-oj 服务的代理配置（假设 hist-oj 运行在本地某端口，如 8080）
-- 在 [vue.config.js](hoj-vue/vue.config.js) 中添加新的 proxy 规则
+**代理配置**：
+- 前端已配置 hist-oj 服务代理：`/rating-api` → `http://localhost:9527/api`
+- 配置位置：[vue.config.js](hoj-vue/vue.config.js#L100-L106)
+- 前端调用示例：`axios.get('/rating-api/user/rating')` 会被代理到 `http://localhost:9527/api/user/rating`
 
 **技术栈**：
 - 后端：Java 8, Spring Boot 2.2.6, Spring Cloud Alibaba 2.2.1
@@ -114,7 +115,18 @@ make docker-logs
 
 # 停止服务
 make docker-stop
+
+# 重置 Rating 数据
+make reset-rating
+
+# 查看服务状态
+make status
 ```
+
+**hist-oj 配置文件**：
+- 配置文件位于 `hist-oj/configs/config.yaml`
+- 需要配置数据库连接信息（MySQL）
+- 默认服务端口：9527
 
 ## 项目架构
 
