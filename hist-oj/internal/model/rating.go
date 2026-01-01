@@ -8,16 +8,17 @@ import (
 
 // RatingHistory Rating历史记录
 type RatingHistory struct {
-	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID           uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	UID          string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
 	ContestID    uint64     `gorm:"type:bigint unsigned;not null;index:idx_contest_id" json:"contest_id"`
 	ContestTitle string     `gorm:"-" json:"contest_title"` // 不映射到数据库，仅用于返回
+	ContestTime  *time.Time `gorm:"-" json:"contest_time"` // 比赛时间，从Contest表关联查询
 	OldRating    *int       `gorm:"type:int" json:"old_rating"`
 	NewRating    int        `gorm:"type:int;not null" json:"new_rating"`
 	RatingChange int        `gorm:"type:int;not null" json:"rating_change"`
 	Rank         int        `gorm:"type:int;not null" json:"rank"`
-	Participants int       `gorm:"type:int;not null" json:"participants"`
-	CreatedAt    time.Time `gorm:"autoCreateTime" json:"contest_time"` // 前端期望的字段名
+	Participants int        `gorm:"type:int;not null" json:"participants"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"` // 记录创建时间
 }
 
 // TableName 指定表名
