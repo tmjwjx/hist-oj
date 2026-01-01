@@ -102,9 +102,15 @@ export default {
       this.chart = echarts.init(this.$refs.chart)
       console.log('[RatingChart] echarts initialized:', this.chart)
 
-      const dates = this.chartData.map(item =>
-        new Date(item.contest_time).toLocaleDateString()
-      )
+      // 统一格式化日期为 YYYY-MM-DD
+      const dates = this.chartData.map(item => {
+        if (!item.contest_time) return '未知日期'
+        const date = new Date(item.contest_time)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })
       const ratings = this.chartData.map(item => item.new_rating)
 
       const option = {

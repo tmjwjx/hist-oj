@@ -171,11 +171,12 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 		return nil, err
 	}
 
-	// 填充比赛标题
+	// 填充比赛标题和比赛时间
 	for i := range histories {
 		var contest model.Contest
 		if err := s.db.Where("id = ?", histories[i].ContestID).First(&contest).Error; err == nil {
 			histories[i].ContestTitle = contest.Title
+			histories[i].ContestTime = &contest.EndTime // 使用比赛结束时间
 		}
 	}
 
