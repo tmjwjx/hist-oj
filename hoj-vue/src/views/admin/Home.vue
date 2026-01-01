@@ -64,6 +64,9 @@
             v-if="isSuperAdmin || isProblemAdmin"
             >{{ $t('m.Export_Import_Problem') }}</el-menu-item
           >
+          <el-menu-item index="/admin/problem/judge-terminal">
+            判题终端
+          </el-menu-item>
         </el-submenu>
 
         <el-submenu index="training">

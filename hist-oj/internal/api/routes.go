@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/config"
+	"github.com/hoj/hist-oj/internal/service"
 )
 
 func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *gorm.DB) {
@@ -20,7 +21,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			rating.GET("/contest/:contestId", handler.GetContestParticipantsRating)
 			rating.GET("/contest/info/:contestId", handler.GetContestInfo)
 			rating.POST("/batch", handler.GetBatchUserRating)
-			rating.POST("/contest/batch", handler.GetBatchContestInfo) // 新增批量查询比赛信息接口
+			rating.POST("/contest/batch", handler.GetBatchContestInfo)
 			rating.GET("/rank", handler.GetRatingRank)
 
 			// 管理接口：临时取消验证
@@ -28,6 +29,16 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			rating.POST("/initialize", handler.InitializeUserRating)
 			rating.POST("/contest/set-rating-type", handler.SetContestRatingType)
 			rating.POST("/trigger-scheduler", handler.TriggerScheduler)
+		}
+
+		// 判题终端相关接口
+		judgeService := service.NewJudgeService(db)
+		judgeHandler := NewJudgeHandler(judgeService)
+
+		judge := api.Group("/judge")
+		{
+			judge.POST("/get-info", judgeHandler.GetInfo)
+			judge.POST("/run-combined", judgeHandler.RunCombined)
 		}
 	}
 

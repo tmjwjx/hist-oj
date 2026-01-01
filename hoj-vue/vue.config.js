@@ -103,6 +103,13 @@ module.exports={
         pathRewrite: {
           '^/rating-api': '/api'               //   将 /rating-api 重写为 /api
         }
+      },
+      '/judge-api': {                          //   判题终端服务代理
+        target: 'http://localhost:9527',       //   本地 hist-oj 服务
+        changeOrigin: true,
+        pathRewrite: {
+          '^/judge-api': '/api/judge'          //   将 /judge-api 重写为 /api/judge
+        }
       }
     },
     disableHostCheck: true,

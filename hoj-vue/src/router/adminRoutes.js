@@ -13,6 +13,7 @@ const AdminGroupProblemList= ()=>import('@/views/admin/problem/GroupProblemList'
 const Problem= ()=>import('@/views/admin/problem/Problem')
 const Tag= ()=>import('@/views/admin/problem/Tag')
 const ProblemImportAndExport= ()=>import('@/views/admin/problem/ImportAndExport')
+const JudgeTerminal= ()=>import('@/views/admin/problem/JudgeTerminal')
 const Contest= ()=>import('@/views/admin/contest/Contest')
 const ContestList= ()=>import('@/views/admin/contest/ContestList')
 const Training= ()=>import('@/views/admin/training/Training')
@@ -109,6 +110,12 @@ const adminRoutes= [
           name: 'admin-problem_batch_operation',
           component: ProblemImportAndExport,
           meta: { title:'Export Import Problem'},
+        },
+        {
+          path: 'problem/judge-terminal',
+          name: 'admin-judge-terminal',
+          component: JudgeTerminal,
+          meta: { title:'Judge Terminal'},
         },
         {
           path: 'training/create',
