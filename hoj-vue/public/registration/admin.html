@@ -704,6 +704,30 @@
                 min-height: 250px;
             }
         }
+
+        /* 修复 Element Plus 日期选择器日历面板布局问题 */
+        .el-date-picker__header-label,
+        .el-date-table th {
+            display: table-cell !important;
+            width: auto !important;
+        }
+
+        .el-date-table .el-date-table__row {
+            display: table-row !important;
+        }
+
+        .el-date-table .el-date-table__cell {
+            display: table-cell !important;
+        }
+
+        /* 确保日期选择器的日历面板正常显示 */
+        .el-picker-panel {
+            line-height: normal !important;
+        }
+
+        .el-date-table th {
+            text-align: center !important;
+        }
     </style>
 </head>
 <body>
