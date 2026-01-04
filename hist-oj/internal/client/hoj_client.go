@@ -82,6 +82,15 @@ func (c *HOJClient) Login(username, password string) error {
 		return fmt.Errorf("登录失败: %s", hojResp.Message)
 	}
 
+	// 保存 token（从响应头获取）
+	if token := resp.Header.Get("Authorization"); token != "" {
+		c.token = token
+	}
+
+	// 也保存用户名和密码用于后续可能的重新登录
+	c.username = username
+	c.password = password
+
 	return nil
 }
 
@@ -94,6 +103,7 @@ type TestJudgeReq struct {
 	UserInput      string `json:"userInput"`
 	ExpectedOutput string `json:"expectedOutput"`
 	IsRemoteJudge  bool   `json:"isRemoteJudge"`
+	Mode           string `json:"mode,omitempty"` // 添加 mode 字段
 }
 
 // TestJudgeRes 本地测试结果
@@ -143,12 +153,20 @@ func (c *HOJClient) SubmitTestJudge(req *TestJudgeReq) (string, error) {
 		return "", fmt.Errorf("序列化请求失败: %w", err)
 	}
 
+	// 调试：打印请求内容
+	fmt.Printf("[HOJ Client] 提交测试请求: URL=%s, Body=%s\n", url, string(jsonData))
+
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("创建请求失败: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	// 添加 Authorization 头
+	if c.token != "" {
+		httpReq.Header.Set("Authorization", c.token)
+		fmt.Printf("[HOJ Client] Authorization: %s\n", c.token[:20]+"...")
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -160,6 +178,9 @@ func (c *HOJClient) SubmitTestJudge(req *TestJudgeReq) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("读取响应失败: %w", err)
 	}
+
+	// 调试：打印响应
+	fmt.Printf("[HOJ Client] 响应: %s\n", string(body))
 
 	var hojResp HOJResponse
 	if err := json.Unmarshal(body, &hojResp); err != nil {
@@ -183,7 +204,17 @@ func (c *HOJClient) SubmitTestJudge(req *TestJudgeReq) (string, error) {
 func (c *HOJClient) GetTestJudgeResult(testJudgeKey string) (*TestJudgeRes, error) {
 	url := fmt.Sprintf("%s/api/get-test-judge-result?testJudgeKey=%s", c.baseURL, testJudgeKey)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 添加 Authorization 头
+	if c.token != "" {
+		req.Header.Set("Authorization", c.token)
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}

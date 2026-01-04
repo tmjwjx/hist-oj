@@ -10,7 +10,7 @@
     <script>
         // 强制清除缓存并重新加载
         (function() {
-            const VERSION = '2025-01-03-v3';
+            const VERSION = '2025-01-04-v1';
             const storedVersion = sessionStorage.getItem('pageVersion');
 
             if (storedVersion !== VERSION) {
@@ -568,7 +568,9 @@
                             type="text"
                             v-model="newMessage"
                             placeholder="输入消息..."
-                            @keyup.enter="sendMessage"
+                            @compositionstart="handleCompositionStart"
+                            @compositionend="handleCompositionEnd"
+                            @keydown.enter="handleEnterKey"
                         >
                         <button @click="sendMessage" type="button">发送</button>
                     </div>
@@ -594,7 +596,10 @@
                     showChatModal: false,
                     newMessage: '',
                     lastViewTimestamp: null,
-                    pollTimer: null
+                    pollTimer: null,
+                    isComposing: false, // 输入法状态标记
+                    justFinishedComposing: false, // 刚完成输入法标记
+                    compositionEndTime: 0 // 输入法结束时间戳
                 }
             },
             computed: {
@@ -752,6 +757,25 @@
                 },
                 closeChat() {
                     this.showChatModal = false
+                },
+                handleEnterKey(e) {
+                    const now = Date.now()
+                    // 如果正在使用输入法，或者刚完成输入法（150ms内），阻止发送
+                    if (this.isComposing || (this.justFinishedComposing && now - this.compositionEndTime < 150)) {
+                        e.preventDefault()
+                        return
+                    }
+                    // 只有在非输入法状态时才发送消息
+                    this.sendMessage()
+                },
+                handleCompositionStart() {
+                    this.isComposing = true
+                    this.justFinishedComposing = false
+                },
+                handleCompositionEnd() {
+                    this.isComposing = false
+                    this.justFinishedComposing = true
+                    this.compositionEndTime = Date.now()
                 },
                 async sendMessage() {
                     if (!this.newMessage.trim()) {

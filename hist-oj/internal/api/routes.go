@@ -32,7 +32,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		}
 
 		// 判题终端相关接口
-		judgeService := service.NewJudgeService(db)
+		judgeService := service.NewJudgeService(db, cfg.HojAPI.BaseURL)
 		judgeHandler := NewJudgeHandler(judgeService)
 
 		judge := api.Group("/judge")

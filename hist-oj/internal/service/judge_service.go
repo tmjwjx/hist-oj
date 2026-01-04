@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -25,11 +24,10 @@ type JudgeService struct {
 }
 
 // NewJudgeService 创建判题服务
-func NewJudgeService(db *gorm.DB) *JudgeService {
-	// HOJ 后端地址，从环境变量或配置文件读取
-	hojBaseURL := os.Getenv("HOJ_BASE_URL")
+func NewJudgeService(db *gorm.DB, hojBaseURL string) *JudgeService {
+	// HOJ 后端地址，从参数传入
 	if hojBaseURL == "" {
-		hojBaseURL = "http://hoj-backend:6688" // 默认值
+		hojBaseURL = "http://43.143.133.62:6688" // 默认值
 	}
 
 	return &JudgeService{
@@ -132,16 +130,19 @@ func ExtractSamples(examples string) ([]SampleResult, error) {
 
 // TestLocalSamples 本地测试样例（使用 HOJ 后端）
 func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, password string, samples []SampleResult) ([]SampleResult, error) {
-	// 先登录 HOJ
+	// 先登录 HOJ（共享的客户端会保持登录状态）
+	s.logger.Info("开始登录 HOJ 后端")
 	if err := s.hojClient.Login(username, password); err != nil {
 		s.logger.Error("登录 HOJ 失败", zap.Error(err))
 		return nil, fmt.Errorf("登录 HOJ 失败: %w", err)
 	}
+	s.logger.Info("HOJ 登录成功")
 
 	results := make([]SampleResult, 0, len(samples))
 
 	// 对每个样例调用 HOJ 测试接口
-	for _, sample := range samples {
+	for i, sample := range samples {
+		s.logger.Info("开始测试样例", zap.Int("样例编号", i+1), zap.Int("总数", len(samples)))
 		result := sample
 
 		// 提交测试请求
@@ -155,6 +156,7 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 			IsRemoteJudge:  false,
 		}
 
+		s.logger.Info("提交测试请求", zap.String("输入", truncateString(sample.Input, 50)))
 		testJudgeKey, err := s.hojClient.SubmitTestJudge(testReq)
 		if err != nil {
 			s.logger.Error("提交测试失败", zap.Error(err))
@@ -163,19 +165,22 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 			results = append(results, result)
 			continue
 		}
+		s.logger.Info("提交测试成功", zap.String("testJudgeKey", testJudgeKey))
 
 		// 轮询查询结果（最多等待 30 秒）
 		var testResult *client.TestJudgeRes
-		for i := 0; i < 30; i++ {
+		for j := 0; j < 30; j++ {
 			time.Sleep(1 * time.Second)
 
 			testResult, err = s.hojClient.GetTestJudgeResult(testJudgeKey)
 			if err == nil {
+				s.logger.Info("查询测试结果成功", zap.Int("等待次数", j+1))
 				break
 			}
 
 			// 如果是结果不存在的错误，继续等待
 			if strings.Contains(err.Error(), "不存在") || strings.Contains(err.Error(), "未找到") {
+				s.logger.Debug("测试结果未就绪，继续等待", zap.Int("次数", j+1))
 				continue
 			}
 
@@ -203,10 +208,29 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 			result.Output = testResult.Stderr
 		}
 
+		s.logger.Info("样例测试完成",
+			zap.Int("样例编号", i+1),
+			zap.Bool("是否通过", result.IsOK),
+			zap.Int("状态码", testResult.Status))
+
 		results = append(results, result)
+
+		// 如果不是最后一个样例，等待 2 秒再提交下一个
+		if i < len(samples)-1 {
+			s.logger.Info("等待 2 秒后提交下一个样例...")
+			time.Sleep(2 * time.Second)
+		}
 	}
 
 	return results, nil
+}
+
+// truncateString 截断字符串用于日志输出
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // SubmitAndWaitResult 提交代码并等待结果
@@ -260,4 +284,14 @@ func (s *JudgeService) SaveSubmissionHistory(
 	}
 
 	return s.historyService.Create(history)
+}
+
+// GetBingoJClient 获取 BingoJ 客户端实例
+func (s *JudgeService) GetBingoJClient() *client.BingoJClient {
+	return s.bingoJClient
+}
+
+// GetHOJClient 获取 HOJ 客户端实例
+func (s *JudgeService) GetHOJClient() *client.HOJClient {
+	return s.hojClient
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -116,9 +117,9 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		zap.String("pid", req.PID),
 		zap.String("language", req.Language))
 
-	// 1. 登录
+	// 1. 登录（使用共享的客户端实例）
 	sendSSE(c, "log", "正在登录 OJ...")
-	bingoJClient := client.NewBingoJClient()
+	bingoJClient := h.judgeService.GetBingoJClient()
 	if err := bingoJClient.Login(req.Username, req.Password); err != nil {
 		sendSSE(c, "log", fmt.Sprintf("登录失败: %s", err.Error()))
 		return
@@ -149,6 +150,12 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		return
 	}
 
+	// 调试：输出题目ID
+	h.logger.Info("题目详情获取成功",
+		zap.String("displayID", displayID),
+		zap.String("problemId", problem.ProblemId),
+		zap.String("title", problem.Title))
+
 	localInfo := "跳过 (无样例)"
 
 	// 3. 本地样例测试
@@ -157,8 +164,15 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		if err == nil && len(samples) > 0 {
 			sendSSE(c, "log", fmt.Sprintf("开始自测 %d 组样例...", len(samples)))
 
-			// 将 PID 转换为 int64
-			pidInt, _ := strconv.ParseInt(req.PID, 10, 64)
+			// 直接使用 req.PID（因为样例测试是在 HOJ 后端进行，HOJ 的题目ID就是前端传递的PID）
+			pidInt, err := strconv.ParseInt(req.PID, 10, 64)
+			if err != nil {
+				h.logger.Error("解析题目ID失败", zap.Error(err), zap.String("pid", req.PID))
+				sendSSE(c, "log", fmt.Sprintf("题目ID格式错误: %s", req.PID))
+				return
+			}
+
+			h.logger.Info("开始本地样例测试", zap.Int64("题目ID", pidInt))
 			results, err := h.judgeService.TestLocalSamples(pidInt, req.Language, req.Code, req.Username, req.Password, samples)
 			if err != nil {
 				sendSSE(c, "compile_error", map[string]string{"msg": err.Error()})
@@ -198,20 +212,29 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		return
 	}
 
-	sendSSE(c, "log", fmt.Sprintf("提交ID: %s，判题中...", submitID))
+	h.logger.Info("远程提交成功", zap.String("submit_id", submitID))
+	sendSSE(c, "log", fmt.Sprintf("提交ID: %s，等待 2 秒后查询结果...", submitID))
+
+	// 等待 2 秒后再查询结果，避免提交过快导致查询失败
+	time.Sleep(2 * time.Second)
 
 	// 轮询判题结果
 	for i := 0; i < 20; i++ {
+		h.logger.Debug("查询判题结果", zap.Int("次数", i+1), zap.String("submit_id", submitID))
 		result, err := bingoJClient.GetSubmissionResult(submitID)
 		if err != nil {
+			h.logger.Warn("查询判题结果失败，继续重试", zap.Error(err), zap.Int("次数", i+1))
+			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		statusText := client.GetStatusText(result.Status)
+		h.logger.Info("判题结果", zap.Int("status", result.Status), zap.String("status_text", statusText))
 
 		// 判题中
 		if result.Status == 6 || result.Status == 7 || result.Status == 9 {
 			sendSSE(c, "remote_status", map[string]string{"status": statusText})
+			time.Sleep(1 * time.Second)
 			continue
 		}
 

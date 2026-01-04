@@ -763,7 +763,9 @@
                         type="text"
                         v-model="newMessage"
                         placeholder="输入消息..."
-                        @keyup.enter="sendMessage"
+                        @compositionstart="handleCompositionStart"
+                        @compositionend="handleCompositionEnd"
+                        @keydown.enter="handleEnterKey"
                     >
                     <button @click="sendMessage">发送</button>
                 </div>
@@ -796,6 +798,9 @@
                     currentChatUser: null,
                     chatMessages: [],
                     newMessage: '',
+                    isComposing: false, // 输入法状态标记
+                    justFinishedComposing: false, // 刚完成输入法标记
+                    compositionEndTime: 0, // 输入法结束时间戳
                     // 轮询定时器
                     pollTimer: null
                 };
@@ -951,6 +956,25 @@
                     this.currentChatUser = null;
                     this.chatMessages = [];
                     this.newMessage = '';
+                },
+                handleEnterKey(e) {
+                    const now = Date.now();
+                    // 如果正在使用输入法，或者刚完成输入法（150ms内），阻止发送
+                    if (this.isComposing || (this.justFinishedComposing && now - this.compositionEndTime < 150)) {
+                        e.preventDefault();
+                        return;
+                    }
+                    // 只有在非输入法状态时才发送消息
+                    this.sendMessage();
+                },
+                handleCompositionStart() {
+                    this.isComposing = true;
+                    this.justFinishedComposing = false;
+                },
+                handleCompositionEnd() {
+                    this.isComposing = false;
+                    this.justFinishedComposing = true;
+                    this.compositionEndTime = Date.now();
                 },
                 async sendMessage() {
                     if (!this.newMessage.trim()) return;
