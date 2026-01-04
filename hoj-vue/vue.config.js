@@ -97,15 +97,22 @@ module.exports={
         target: 'http://43.143.133.62:6688',       //   要发向的后台服务器地址  如果后台服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
         changeOrigin: true
       },
+      '/registration-api': {                   //   报名系统Go后端服务代理
+        target: 'http://43.143.133.62:8080',   //   生产环境 Go后端服务
+        changeOrigin: true,
+        pathRewrite: {
+          '^/registration-api': '/api'         //   将 /registration-api 重写为 /api
+        }
+      },
       '/rating-api': {                         //   Rating 服务代理
-        target: 'http://localhost:9527',       //   本地 hist-oj 服务
+        target: 'http://43.143.133.62:9527',   //   生产环境 hist-oj 服务
         changeOrigin: true,
         pathRewrite: {
           '^/rating-api': '/api'               //   将 /rating-api 重写为 /api
         }
       },
       '/judge-api': {                          //   判题终端服务代理
-        target: 'http://localhost:9527',       //   本地 hist-oj 服务
+        target: 'http://43.143.133.62:9527',   //   生产环境 hist-oj 服务
         changeOrigin: true,
         pathRewrite: {
           '^/judge-api': '/api/judge'          //   将 /judge-api 重写为 /api/judge

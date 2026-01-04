@@ -102,6 +102,10 @@
           }}</el-menu-item>
         </el-submenu>
 
+        <el-menu-item index="/admin/registration"
+          ><i class="el-icon-s-claim"></i>赛事报名系统</el-menu-item
+        >
+
         <el-submenu index="discussion">
           <template slot="title"
             ><i class="fa fa-comments fa-size" aria-hidden="true"></i

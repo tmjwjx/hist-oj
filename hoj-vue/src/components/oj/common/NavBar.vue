@@ -68,6 +68,9 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
+            <el-menu-item index="/registration"
+              ><i class="el-icon-s-claim"></i>赛事报名系统</el-menu-item
+            >
             <el-menu-item index="/introduction"
               ><i class="el-icon-document"></i>编译环境</el-menu-item
             >
@@ -555,6 +558,19 @@
               <mu-icon value=":fa fa-users" size="24"></mu-icon>
             </mu-list-item-action>
             <mu-list-item-title>{{ $t('m.NavBar_Group') }}</mu-list-item-title>
+          </mu-list-item>
+
+          <mu-list-item
+            button
+            :ripple="false"
+            to="/registration"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":el-icon-s-claim" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>赛事报名系统</mu-list-item-title>
           </mu-list-item>
 
           <mu-list-item

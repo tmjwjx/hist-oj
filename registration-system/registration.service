@@ -1,0 +1,14 @@
+[Unit]
+Description=Contest Registration System Go Backend
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/path/to/registration-system/backend
+ExecStart=/usr/local/go/bin/go run /path/to/registration-system/backend/main.go
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

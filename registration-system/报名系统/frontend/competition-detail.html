@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>比赛报名详情</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>
+        // 强制清除缓存并重新加载
+        (function() {
+            const VERSION = '2025-01-03-v3';
+            const storedVersion = sessionStorage.getItem('pageVersion');
+
+            if (storedVersion !== VERSION) {
+                sessionStorage.clear();
+                sessionStorage.setItem('pageVersion', VERSION);
+            }
+        })();
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js?v=3.5.14"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js?v=1.7.11"></script>
+    <!-- Markdown 支持 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .back-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .back-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4); }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+        .card h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+        .required-mark { color: #e53e3e; }
+
+        .description-content {
+            line-height: 1.6;
+            color: #4a5568;
+        }
+        .description-content h1, .description-content h2, .description-content h3 {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: #2d3748;
+        }
+        .description-content h1 {
+            font-size: 28px;
+            font-weight: 700;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .description-content h2 {
+            font-size: 24px;
+            font-weight: 600;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .description-content h3 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .description-content p {
+            margin-bottom: 12px;
+        }
+        .description-content ul, .description-content ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+        .description-content li {
+            margin: 6px 0;
+        }
+        .description-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 12px 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .description-content img:hover {
+            transform: scale(1.02);
+        }
+        .description-content blockquote {
+            border-left: 4px solid #4facfe;
+            padding-left: 16px;
+            margin: 12px 0;
+            color: #718096;
+            font-style: italic;
+        }
+        .description-content pre {
+            background: #2d3748;
+            color: #f7fafc;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .description-content pre code {
+            background: transparent;
+            color: #f7fafc;
+            padding: 0;
+        }
+        .description-content code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #e53e3e;
+        }
+        .description-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+        .description-content table th,
+        .description-content table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .description-content table th {
+            background: #f7fafc;
+            font-weight: 600;
+        }
+        .description-content a {
+            color: #4facfe;
+            text-decoration: none;
+        }
+        .description-content a:hover {
+            text-decoration: underline;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .btn:hover { transform: translateY(-2px); }
+
+        .badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .badge.pending { background: #fef3c7; color: #92400e; }
+        .badge.approved { background: #d1fae5; color: #065f46; }
+        .badge.rejected { background: #fee2e2; color: #991b1b; }
+
+        /* 聊天弹窗样式 */
+        .chat-modal {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none !important;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .chat-modal.active {
+            display: flex !important;
+        }
+
+        .chat-content {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .chat-header h3 {
+            font-size: 18px;
+            color: #455a64;
+        }
+
+        .close-chat {
+            background: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #90a4ae;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .close-chat:hover {
+            background: #eceff1;
+            color: #455a64;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafafa;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message.admin {
+            align-self: flex-start;
+            background: #e0f2f1;
+            color: #00695c;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+
+        .chat-input-area {
+            padding: 16px 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fafafa;
+        }
+
+        .chat-input-area input:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+        }
+
+        .chat-input-area button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-input-area button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+        }
+
+        .chat-empty {
+            text-align: center;
+            color: #90a4ae;
+            padding: 40px;
+            font-size: 14px;
+        }
+
+        .btn-logout {
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            color: white;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <div>
+                    <h1>{{ competition.name }}</h1>
+                    <p style="color: #718096;">📅 报名时间: {{ formatTime(competition.start_time) }} - {{ formatTime(competition.end_time) }}</p>
+                    <p v-if="registrationStatus" :style="{ color: registrationStatus.color, marginTop: '8px', fontWeight: 600 }">
+                        {{ registrationStatus.text }}
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <a href="registration.html" class="back-btn">← 返回比赛列表</a>
+                    <button class="btn btn-logout" @click="logout">退出登录</button>
+                </div>
+            </div>
+
+            <!-- 比赛说明 -->
+            <div class="card" v-if="competition.description">
+                <h2>📄 比赛说明</h2>
+                <div class="description-content" v-html="competition.renderedDescription || competition.description"></div>
+            </div>
+
+            <!-- 已报名状态 - 查看表单 -->
+            <div class="card" v-if="userRegistration && userRegistration.status !== 'rejected'">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>📋 我的报名表单</h2>
+                    <span class="badge" :class="userRegistration.status" style="font-size: 14px;">
+                        {{ getStatusText(userRegistration.status) }}
+                    </span>
+                </div>
+
+                <!-- 只读表单显示 -->
+                <div class="form-group" v-if="hasField('name')">
+                    <label>👤 姓名</label>
+                    <input type="text" :value="userRegistration.name" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('class')">
+                    <label>🏫 班级</label>
+                    <input type="text" :value="userRegistration.class" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('college')">
+                    <label>🎓 学院</label>
+                    <input type="text" :value="userRegistration.college" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('student_id')">
+                    <label>🆔 学号</label>
+                    <input type="text" :value="userRegistration.student_id" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('gender')">
+                    <label>⚧️ 性别</label>
+                    <input type="text" :value="userRegistration.gender" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('shirt_size')">
+                    <label>👕 衬衫大小</label>
+                    <input type="text" :value="userRegistration.shirt_size" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('team_name')">
+                    <label>👥 队伍名称</label>
+                    <input type="text" :value="userRegistration.team_name" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+                <div class="form-group" v-if="hasField('qq')">
+                    <label>💬 QQ</label>
+                    <input type="text" :value="userRegistration.qq" readonly style="background: #f7fafc; cursor: not-allowed;">
+                </div>
+
+                <p style="color: #718096; font-size: 14px; text-align: center; margin-top: 20px;">
+                    {{ userRegistration.status === 'pending' ? '⏳ 等待管理员审核中，暂时无法修改' : '✅ 报名已通过，无法修改' }}
+                </p>
+
+                <!-- 聊天按钮 -->
+                <div style="margin-top: 24px;">
+                    <button @click="openChat" class="btn" style="background: linear-gradient(135deg, #ab47bc 0%, #ba68c8 100%); color: white; position: relative;">
+                        💬 与管理员通信
+                        <span v-if="unreadCount > 0" style="position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; font-weight: 600; min-width: 20px; text-align: center; animation: pulse 2s infinite;">
+                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 报名表单或修改表单 -->
+            <div class="card" v-if="!userRegistration || userRegistration.status === 'rejected'">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>{{ userRegistration && userRegistration.status === 'rejected' ? '✏️ 修改报名' : '✏️ 报名表单' }}</h2>
+                    <!-- 如果是被退回的报名，显示状态 -->
+                    <span v-if="userRegistration && userRegistration.status === 'rejected'"
+                          class="badge rejected"
+                          style="font-size: 14px;">
+                        {{ getStatusText(userRegistration.status) }}
+                    </span>
+                </div>
+
+                <form @submit.prevent="submitRegistration">
+                    <div class="form-group" v-if="hasField('name')">
+                        <label>👤 姓名 <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.name" placeholder="请输入姓名">
+                    </div>
+                    <div class="form-group" v-if="hasField('class')">
+                        <label>🏫 班级 <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.class" placeholder="请输入班级">
+                    </div>
+                    <div class="form-group" v-if="hasField('college')">
+                        <label>🎓 学院 <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.college" placeholder="请输入学院">
+                    </div>
+                    <div class="form-group" v-if="hasField('student_id')">
+                        <label>🆔 学号 <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.student_id" placeholder="请输入学号">
+                    </div>
+                    <div class="form-group" v-if="hasField('gender')">
+                        <label>⚧️ 性别 <span class="required-mark">*</span></label>
+                        <select v-model="formData.gender" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            <option value="">请选择</option>
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-if="hasField('shirt_size')">
+                        <label>👕 衬衫大小 <span class="required-mark">*</span></label>
+                        <select v-model="formData.shirt_size" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                            <option value="">请选择</option>
+                            <option value="S">S</option>
+                            <option value="XL">XL</option>
+                            <option value="2XL">2XL</option>
+                            <option value="3XL">3XL</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-if="hasField('team_name')">
+                        <label>👥 队伍名称 <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.team_name" placeholder="请输入队伍名称">
+                    </div>
+                    <div class="form-group" v-if="hasField('qq')">
+                        <label>💬 QQ <span class="required-mark">*</span></label>
+                        <input type="text" v-model="formData.qq" placeholder="请输入QQ号码">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        {{ userRegistration && userRegistration.status === 'rejected' ? '✅ 提交修改' : '✅ 提交报名' }}
+                    </button>
+                </form>
+
+                <!-- 如果是被退回的报名，显示通信按钮 -->
+                <div v-if="userRegistration && userRegistration.status === 'rejected'" style="margin-top: 24px;">
+                    <button @click="openChat" class="btn" style="background: linear-gradient(135deg, #ab47bc 0%, #ba68c8 100%); color: white; position: relative;">
+                        💬 与管理员通信
+                        <span v-if="unreadCount > 0" style="position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; font-weight: 600; min-width: 20px; text-align: center; animation: pulse 2s infinite;">
+                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 聊天弹窗 (必须在 #app 内部) -->
+            <div class="chat-modal" :class="{ active: showChatModal }" @click.self="closeChat">
+                <div class="chat-content" @click.stop>
+                    <div class="chat-header">
+                        <h3>💬 与管理员通信</h3>
+                        <button class="close-chat" @click="closeChat" type="button">×</button>
+                    </div>
+
+                    <div class="chat-messages" ref="chatMessages">
+                        <template v-if="chatMessages.length === 0">
+                            <div class="chat-empty">
+                                暂无通信记录
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div
+                                v-for="(msg, index) in chatMessages"
+                                :key="index"
+                                class="message"
+                                :class="msg.sender"
+                            >
+                                <div>{{ msg.message }}</div>
+                                <div class="message-time">{{ formatMessageTime(msg.timestamp) }}</div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <input
+                            type="text"
+                            v-model="newMessage"
+                            placeholder="输入消息..."
+                            @keyup.enter="sendMessage"
+                        >
+                        <button @click="sendMessage" type="button">发送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+        createApp({
+            data() {
+                return {
+                    competitionId: null,
+                    competition: {},
+                    currentUser: null,
+                    userRegistration: null,
+                    formData: {
+                        name: '', class: '', college: '', student_id: '',
+                        gender: '', shirt_size: '', team_name: '', qq: ''
+                    },
+                    chatMessages: [],
+                    showChatModal: false,
+                    newMessage: '',
+                    lastViewTimestamp: null,
+                    pollTimer: null
+                }
+            },
+            computed: {
+                unreadCount() {
+                    // 只计算上次查看之后新发送的管理员消息
+                    const lastViewTime = this.lastViewTimestamp || localStorage.getItem(`lastView_${this.competitionId}`) || '0'
+                    return this.chatMessages.filter(msg => {
+                        return msg.sender === 'admin' &&
+                               new Date(msg.timestamp) > new Date(lastViewTime)
+                    }).length
+                },
+                registrationStatus() {
+                    if (!this.competition.start_time || !this.competition.end_time) return null
+
+                    const now = new Date()
+                    const start = new Date(this.competition.start_time)
+                    const end = new Date(this.competition.end_time)
+
+                    if (now < start) {
+                        return { text: '未开始报名', color: '#f59e0b' }
+                    } else if (now > end) {
+                        return { text: '报名结束', color: '#ef4444' }
+                    } else {
+                        return { text: '报名中', color: '#10b981' }
+                    }
+                },
+                canRegister() {
+                    // 如果是被退回的报名，允许随时修改
+                    if (this.userRegistration && this.userRegistration.status === 'rejected') {
+                        return true
+                    }
+
+                    if (!this.competition.start_time || !this.competition.end_time) return true
+
+                    const now = new Date()
+                    const start = new Date(this.competition.start_time)
+                    const end = new Date(this.competition.end_time)
+
+                    return now >= start && now <= end
+                }
+            },
+            methods: {
+                async loadCompetition() {
+                    try {
+                        const response = await axios.get(`http://43.143.133.62:8080/api/competitions/${this.competitionId}`)
+                        this.competition = response.data
+                        // 渲染 Markdown 内容
+                        if (this.competition.description) {
+                            this.competition.renderedDescription = this.renderMarkdown(this.competition.description)
+                        }
+                    } catch (error) {
+                        alert('加载比赛信息失败')
+                        console.error(error)
+                    }
+                },
+                renderMarkdown(content) {
+                    if (!content) return ''
+                    try {
+                        // 预处理：将带尺寸的图片直接转换为 HTML
+                        // 匹配：![alt](url){ width="xxx" }
+                        let processedContent = content.replace(
+                            /!\[([^\]]*)\]\(([^)]+)\)\s*\{\s*width\s*=\s*["']([^"'%]+%?)["']\s*\}/g,
+                            (match, alt, url, width) => {
+                                // 如果 width 不带 %，加上 px
+                                const normalizedWidth = width.includes('%') ? width : (width.includes('px') ? width : width + 'px')
+                                // 直接生成 HTML，不再使用 Markdown
+                                return `<img src="${url}" alt="${alt}" style="width: ${normalizedWidth}; max-width: 100%; height: auto;" class="marked-image">`
+                            }
+                        )
+
+                        // 配置 marked
+                        marked.setOptions({
+                            breaks: true,
+                            gfm: true,
+                            highlight: function(code, lang) {
+                                if (lang && hljs.getLanguage(lang)) {
+                                    try {
+                                        return hljs.highlight(code, { language: lang }).value
+                                    } catch (err) {}
+                                }
+                                return hljs.highlightAuto(code).value
+                            }
+                        })
+
+                        const result = marked.parse(processedContent)
+                        return result
+                    } catch (error) {
+                        console.error('Markdown 解析错误:', error)
+                        return content
+                    }
+                },
+                async loadUserRegistration() {
+                    try {
+                        const response = await axios.get(
+                            `http://43.143.133.62:8080/api/competitions/${this.competitionId}/user-registration?user_uuid=${this.currentUser.uuid}`
+                        )
+                        this.userRegistration = response.data
+
+                        // 如果有报名记录，加载聊天记录
+                        if (this.userRegistration && this.userRegistration.remark) {
+                            this.parseChatHistory()
+                        }
+
+                        // 如果是被退回的报名，预填充表单数据
+                        if (this.userRegistration && this.userRegistration.status === 'rejected') {
+                            this.formData = {
+                                name: this.userRegistration.name || '',
+                                class: this.userRegistration.class || '',
+                                college: this.userRegistration.college || '',
+                                student_id: this.userRegistration.student_id || '',
+                                gender: this.userRegistration.gender || '',
+                                shirt_size: this.userRegistration.shirt_size || '',
+                                team_name: this.userRegistration.team_name || '',
+                                qq: this.userRegistration.qq || ''
+                            }
+                        }
+                    } catch (e) {
+                        this.userRegistration = null
+                    }
+                },
+                parseChatHistory() {
+                    try {
+                        // 尝试解析 remark 字段为 JSON 数组
+                        const parsed = JSON.parse(this.userRegistration.remark)
+                        if (Array.isArray(parsed)) {
+                            this.chatMessages = parsed
+                        } else {
+                            // 如果不是数组，说明是旧的简单字符串格式
+                            this.chatMessages = [{ sender: 'admin', message: this.userRegistration.remark, timestamp: new Date().toISOString() }]
+                        }
+                    } catch (e) {
+                        // 解析失败，说明是简单的字符串
+                        if (this.userRegistration.remark) {
+                            this.chatMessages = [{ sender: 'admin', message: this.userRegistration.remark, timestamp: new Date().toISOString() }]
+                        }
+                    }
+                },
+                openChat() {
+                    if (!this.userRegistration) {
+                        alert('请先报名后再与管理员通信')
+                        return
+                    }
+
+                    this.showChatModal = true
+
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                        this.scrollToBottom()
+                    })
+
+                    // 记录查看时间，清除未读计数
+                    const timestamp = new Date().toISOString()
+                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                    this.lastViewTimestamp = timestamp
+                },
+                closeChat() {
+                    this.showChatModal = false
+                },
+                async sendMessage() {
+                    if (!this.newMessage.trim()) {
+                        return
+                    }
+
+                    // 添加用户消息到聊天记录
+                    const userMessage = {
+                        sender: 'user',
+                        message: this.newMessage,
+                        timestamp: new Date().toISOString()
+                    }
+                    this.chatMessages.push(userMessage)
+
+                    try {
+                        await axios.put(`http://43.143.133.62:8080/api/registrations/${this.userRegistration.id}`, {
+                            remark: JSON.stringify(this.chatMessages)
+                        })
+                        this.newMessage = ''
+                        this.$nextTick(() => {
+                            this.scrollToBottom()
+                        })
+                    } catch (error) {
+                        alert('发送失败：' + (error.response?.data || error.message))
+                        // 发送失败，移除刚才添加的消息
+                        this.chatMessages.pop()
+                    }
+                },
+                async submitRegistration() {
+                    // 检查报名是否在有效时间内
+                    if (!this.canRegister) {
+                        if (this.registrationStatus) {
+                            alert(this.registrationStatus.text)
+                        } else {
+                            alert('当前无法报名')
+                        }
+                        return
+                    }
+
+                    // 验证表单
+                    const fields = JSON.parse(this.competition.fields)
+                    for (const field in fields) {
+                        if (fields[field] && !this.formData[field]) {
+                            const names = {name:'姓名',class:'班级',college:'学院',student_id:'学号',gender:'性别',shirt_size:'衬衫大小',team_name:'队伍名称',qq:'QQ'}
+                            alert(`请填写${names[field]}`)
+                            return
+                        }
+                    }
+
+                    const isUpdate = this.userRegistration && this.userRegistration.status === 'rejected'
+
+                    try {
+                        if (isUpdate) {
+                            // 更新被退回的报名
+                            await axios.put(`http://43.143.133.62:8080/api/registrations/${this.userRegistration.id}`, {
+                                ...this.formData,
+                                status: 'pending'  // 重置为待审核
+                            })
+                        } else {
+                            // 创建新报名
+                            await axios.post('http://43.143.133.62:8080/api/registrations', {
+                                competition_id: this.competition.id,
+                                user_uuid: this.currentUser.uuid,
+                                ...this.formData
+                            })
+                        }
+                        await this.loadUserRegistration()
+                    } catch (error) {
+                        alert('报名失败：' + (error.response?.data || error.message))
+                    }
+                },
+                hasField(field) {
+                    if (!this.competition.fields) return false
+                    const fields = JSON.parse(this.competition.fields)
+                    return fields[field]
+                },
+                getStatusText(status) {
+                    if (!status) return '未报名'
+                    if (status === 'pending') return '待审核'
+                    if (status === 'approved') return '报名成功'
+                    if (status === 'rejected') return '报名失败'
+                },
+                formatTime(str) {
+                    if (!str) return ''
+                    const date = new Date(str)
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                        timeZone: 'Asia/Shanghai'
+                    })
+                },
+                formatMessageTime(timestamp) {
+                    if (!timestamp) return ''
+                    const date = new Date(timestamp)
+                    return date.toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })
+                },
+                scrollToBottom() {
+                    const container = this.$refs.chatMessages
+                    if (container) {
+                        container.scrollTop = container.scrollHeight
+                    }
+                },
+                logout() {
+                    this.stopPolling()
+                    localStorage.removeItem('user')
+                    window.location.href = 'registration.html'
+                },
+                startPolling() {
+                    // 每5秒轮询一次数据（比赛信息和报名状态）
+                    this.pollTimer = setInterval(async () => {
+                        await this.loadCompetition()
+                        await this.loadUserRegistration()
+
+                        // 如果聊天窗口打开，也刷新聊天消息
+                        if (this.showChatModal && this.userRegistration) {
+                            this.parseChatHistory()
+                            this.$nextTick(() => {
+                                this.scrollToBottom()
+                            })
+                        }
+                    }, 5000)
+                },
+                stopPolling() {
+                    if (this.pollTimer) {
+                        clearInterval(this.pollTimer)
+                        this.pollTimer = null
+                    }
+                }
+            },
+            async mounted() {
+                // 确保弹窗初始状态为关闭
+                this.showChatModal = false
+
+                // 获取 URL 参数
+                const urlParams = new URLSearchParams(window.location.search)
+                this.competitionId = urlParams.get('id')
+
+                if (!this.competitionId) {
+                    alert('缺少比赛ID')
+                    window.location.href = 'registration.html'
+                    return
+                }
+
+                // 获取当前用户
+                const savedUser = localStorage.getItem('user')
+                if (!savedUser) {
+                    alert('请先登录')
+                    window.location.href = 'registration.html'
+                    return
+                }
+
+                try {
+                    this.currentUser = JSON.parse(savedUser)
+                } catch (e) {
+                    localStorage.removeItem('user')
+                    window.location.href = 'registration.html'
+                    return
+                }
+
+                await this.loadCompetition()
+                await this.loadUserRegistration()
+
+                // 再次确保弹窗是关闭的
+                this.showChatModal = false
+
+                // 启动定时刷新
+                this.startPolling()
+            },
+            beforeUnmount() {
+                // 组件销毁时清除定时器
+                this.stopPolling()
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
