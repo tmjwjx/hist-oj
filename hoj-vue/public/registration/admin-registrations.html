@@ -1095,6 +1095,11 @@
                     });
                 },
                 getUnreadCount(registration) {
+                    // 如果聊天窗口打开的是当前用户，未读计数为0
+                    if (this.showChatModal && this.currentChatUser && this.currentChatUser.id === registration.id) {
+                        return 0;
+                    }
+
                     // 计算未读的用户消息数量
                     if (!registration.remark) return 0;
 
@@ -1212,18 +1217,32 @@
                         const response = await axios.get(`/registration-api/api/competitions/${this.competitionId}/registrations`);
                         const updatedReg = response.data.find(r => r.id === this.currentChatUser.id);
 
-                        if (updatedReg && updatedReg.remark) {
-                            try {
-                                const newMessages = JSON.parse(updatedReg.remark);
-                                // 只添加新消息（防止消息重复）
-                                if (newMessages.length > this.chatMessages.length) {
-                                    this.chatMessages = newMessages;
-                                    this.$nextTick(() => {
-                                        this.scrollToBottom();
-                                    });
+                        if (updatedReg) {
+                            // 更新 currentChatUser 的数据，包括 remark 字段
+                            this.currentChatUser = { ...this.currentChatUser, ...updatedReg };
+
+                            // 同时更新 registrations 数组中的对应项
+                            const index = this.registrations.findIndex(r => r.id === this.currentChatUser.id);
+                            if (index !== -1) {
+                                this.registrations[index] = updatedReg;
+                            }
+
+                            if (updatedReg.remark) {
+                                try {
+                                    const newMessages = JSON.parse(updatedReg.remark);
+                                    // 只添加新消息（防止消息重复）
+                                    if (newMessages.length > this.chatMessages.length) {
+                                        this.chatMessages = newMessages;
+                                        // 如果有新消息，更新查看时间，这样新消息不会被标记为未读
+                                        const timestamp = new Date().toISOString();
+                                        localStorage.setItem(`adminLastView_${this.currentChatUser.id}`, timestamp);
+                                        this.$nextTick(() => {
+                                            this.scrollToBottom();
+                                        });
+                                    }
+                                } catch (e) {
+                                    // 解析失败，忽略
                                 }
-                            } catch (e) {
-                                // 解析失败，忽略
                             }
                         }
                     } catch (error) {

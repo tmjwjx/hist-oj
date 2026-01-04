@@ -604,11 +604,19 @@
             },
             computed: {
                 unreadCount() {
+                    // 如果聊天窗口是打开的，未读计数为0
+                    if (this.showChatModal) {
+                        return 0
+                    }
+
                     // 只计算上次查看之后新发送的管理员消息
                     const lastViewTime = this.lastViewTimestamp || localStorage.getItem(`lastView_${this.competitionId}`) || '0'
+                    const lastViewDate = new Date(lastViewTime)
+
                     return this.chatMessages.filter(msg => {
-                        return msg.sender === 'admin' &&
-                               new Date(msg.timestamp) > new Date(lastViewTime)
+                        if (msg.sender !== 'admin') return false
+                        const msgDate = new Date(msg.timestamp)
+                        return msgDate > lastViewDate
                     }).length
                 },
                 registrationStatus() {
@@ -745,13 +753,13 @@
 
                     this.showChatModal = true
 
+                    // 立即解析最新的聊天记录
+                    this.parseChatHistory()
+
                     // 记录查看时间，清除未读计数
                     const timestamp = new Date().toISOString()
                     localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
                     this.lastViewTimestamp = timestamp
-
-                    // 强制刷新未读计数显示
-                    this.$forceUpdate()
 
                     // 滚动到底部
                     this.$nextTick(() => {
@@ -759,6 +767,12 @@
                     })
                 },
                 closeChat() {
+                    // 关闭聊天窗口时，再次更新查看时间
+                    // 确保在聊天窗口期间看到的所有消息都标记为已读
+                    const timestamp = new Date().toISOString()
+                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                    this.lastViewTimestamp = timestamp
+
                     this.showChatModal = false
                 },
                 handleEnterKey(e) {
@@ -903,10 +917,18 @@
 
                         // 如果聊天窗口打开，也刷新聊天消息
                         if (this.showChatModal && this.userRegistration) {
+                            const oldLength = this.chatMessages.length
                             this.parseChatHistory()
-                            this.$nextTick(() => {
-                                this.scrollToBottom()
-                            })
+                            // 只有在新消息时才滚动到底部并更新查看时间
+                            if (this.chatMessages.length > oldLength) {
+                                // 更新查看时间，这样新消息不会被标记为未读
+                                const timestamp = new Date().toISOString()
+                                localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                                this.lastViewTimestamp = timestamp
+                                this.$nextTick(() => {
+                                    this.scrollToBottom()
+                                })
+                            }
                         }
                     }, 5000)
                 },
