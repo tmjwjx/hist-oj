@@ -6,6 +6,10 @@
     <title>报名系统 - 管理员</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
     <!-- Markdown 支持 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
@@ -108,15 +112,6 @@
             font-size: 14px;
             transition: all 0.3s;
             background: #f7fafc;
-        }
-
-        .datetime-input-wrapper {
-            position: relative;
-            cursor: pointer;
-        }
-
-        .datetime-input-wrapper input[type="datetime-local"] {
-            cursor: pointer;
         }
 
         input:focus,
@@ -739,16 +734,28 @@
 
                     <div class="form-group">
                         <label>📅 报名开始时间 *</label>
-                        <div class="datetime-input-wrapper" @click="$refs.startTimeInput.showPicker()">
-                            <input type="datetime-local" v-model="newCompetition.startTime" step="1" ref="startTimeInput">
-                        </div>
+                        <el-date-picker
+                            v-model="newCompetition.startTime"
+                            type="datetime"
+                            placeholder="选择报名开始时间"
+                            format="YYYY-MM-DD HH:mm:ss"
+                            value-format="YYYY-MM-DD HH:mm:ss"
+                            :editable="false"
+                            style="width: 100%">
+                        </el-date-picker>
                     </div>
 
                     <div class="form-group">
                         <label>⏰ 报名结束时间 *</label>
-                        <div class="datetime-input-wrapper" @click="$refs.endTimeInput.showPicker()">
-                            <input type="datetime-local" v-model="newCompetition.endTime" step="1" ref="endTimeInput">
-                        </div>
+                        <el-date-picker
+                            v-model="newCompetition.endTime"
+                            type="datetime"
+                            placeholder="选择报名结束时间"
+                            format="YYYY-MM-DD HH:mm:ss"
+                            value-format="YYYY-MM-DD HH:mm:ss"
+                            :editable="false"
+                            style="width: 100%">
+                        </el-date-picker>
                     </div>
 
                     <div class="form-group">
@@ -1149,7 +1156,7 @@
                     this.currentTab = 'manage'
                 }
             }
-        }).mount('#app')
+        }).use(ElementPlus).mount('#app')
     </script>
 </body>
 </html>

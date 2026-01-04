@@ -6,6 +6,10 @@
     <title>编辑比赛 - 报名系统</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
     <!-- Markdown 支持 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
@@ -106,6 +110,16 @@
             font-size: 14px;
             transition: all 0.3s;
             font-family: inherit;
+        }
+
+        /* 确保datetime-local输入框的图标区域也可以点击 */
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 0.7;
         }
 
         input:focus,
@@ -423,12 +437,28 @@
 
                     <div class="form-group">
                         <label>📅 报名开始时间</label>
-                        <input type="datetime-local" v-model="competition.startTime" step="1" required>
+                        <el-date-picker
+                            v-model="competition.startTime"
+                            type="datetime"
+                            placeholder="选择报名开始时间"
+                            format="YYYY-MM-DD HH:mm:ss"
+                            value-format="YYYY-MM-DD HH:mm:ss"
+                            :editable="false"
+                            style="width: 100%">
+                        </el-date-picker>
                     </div>
 
                     <div class="form-group">
                         <label>📅 报名结束时间</label>
-                        <input type="datetime-local" v-model="competition.endTime" step="1" required>
+                        <el-date-picker
+                            v-model="competition.endTime"
+                            type="datetime"
+                            placeholder="选择报名结束时间"
+                            format="YYYY-MM-DD HH:mm:ss"
+                            value-format="YYYY-MM-DD HH:mm:ss"
+                            :editable="false"
+                            style="width: 100%">
+                        </el-date-picker>
                     </div>
 
                     <div class="form-group">
@@ -694,7 +724,7 @@
 
                 await this.loadCompetition()
             }
-        }).mount('#app')
+        }).use(ElementPlus).mount('#app')
     </script>
 </body>
 </html>
