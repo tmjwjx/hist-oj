@@ -706,27 +706,92 @@
         }
 
         /* 修复 Element Plus 日期选择器日历面板布局问题 */
-        .el-date-picker__header-label,
-        .el-date-table th {
-            display: table-cell !important;
-            width: auto !important;
-        }
-
-        .el-date-table .el-date-table__row {
-            display: table-row !important;
-        }
-
-        .el-date-table .el-date-table__cell {
-            display: table-cell !important;
-        }
-
-        /* 确保日期选择器的日历面板正常显示 */
         .el-picker-panel {
             line-height: normal !important;
         }
 
-        .el-date-table th {
+        /* 修复日期选择器面板的整体布局 */
+        .el-picker-panel .el-date-picker__header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 12px 12px 0 !important;
+        }
+
+        .el-picker-panel .el-date-picker__header-label {
+            display: inline-block !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+            padding: 0 8px !important;
+        }
+
+        /* 修复日历表格布局 */
+        .el-picker-panel .el-date-table {
+            display: table !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+        }
+
+        .el-picker-panel .el-date-table thead {
+            display: table-header-group !important;
+        }
+
+        .el-picker-panel .el-date-table tbody {
+            display: table-row-group !important;
+        }
+
+        .el-picker-panel .el-date-table tr {
+            display: table-row !important;
+        }
+
+        .el-picker-panel .el-date-table th {
+            display: table-cell !important;
+            padding: 8px 0 !important;
             text-align: center !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            color: #909399 !important;
+            border-bottom: none !important;
+        }
+
+        .el-picker-panel .el-date-table td {
+            display: table-cell !important;
+            padding: 0 !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+        }
+
+        .el-picker-panel .el-date-table .el-date-table-cell {
+            width: 100% !important;
+            height: 32px !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .el-picker-panel .el-date-table .el-date-table-cell__text {
+            display: inline-block !important;
+            width: 28px !important;
+            height: 28px !important;
+            line-height: 28px !important;
+            text-align: center !important;
+            border-radius: 50% !important;
+            font-size: 14px !important;
+        }
+
+        /* 防止全局样式影响日期选择器面板 */
+        .el-picker-panel * {
+            box-sizing: border-box !important;
+        }
+
+        /* 修复日期选择器底部按钮区域 */
+        .el-picker-panel .el-picker-panel__footer {
+            padding: 8px 12px !important;
+            border-top: 1px solid #e4e7ed !important;
+            display: flex !important;
+            justify-content: flex-end !important;
         }
     </style>
 </head>
