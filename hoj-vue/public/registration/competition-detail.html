@@ -745,15 +745,18 @@
 
                     this.showChatModal = true
 
-                    // 滚动到底部
-                    this.$nextTick(() => {
-                        this.scrollToBottom()
-                    })
-
                     // 记录查看时间，清除未读计数
                     const timestamp = new Date().toISOString()
                     localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
                     this.lastViewTimestamp = timestamp
+
+                    // 强制刷新未读计数显示
+                    this.$forceUpdate()
+
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                        this.scrollToBottom()
+                    })
                 },
                 closeChat() {
                     this.showChatModal = false
