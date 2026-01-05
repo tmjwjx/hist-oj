@@ -13,15 +13,22 @@
             <i class="el-icon-setting"></i> 配置
           </div>
           <el-form :model="form" size="small" label-width="80px">
+            <el-alert
+              title="凭据说明"
+              type="info"
+              :closable="false"
+              style="margin-bottom: 15px; padding: 8px 12px;">
+              首次输入的用户名和密码将在验证成功后自动保存，下次访问时自动填充
+            </el-alert>
             <el-row :gutter="10">
               <el-col :span="12">
                 <el-form-item label="用户名">
-                  <el-input v-model="form.username" placeholder="root"></el-input>
+                  <el-input v-model="form.username" placeholder="请输入用户名" clearable></el-input>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="密码">
-                  <el-input v-model="form.password" type="password" placeholder="hist2025"></el-input>
+                  <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password clearable></el-input>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -256,8 +263,8 @@ export default {
   data() {
     return {
       form: {
-        username: 'root',
-        password: 'hist2025',
+        username: '',
+        password: '',
         mode: 'normal', // 固定为普通模式
         pid: '',
         language: 'C++ 17 With O2',
@@ -288,11 +295,52 @@ export default {
       currentCode: ''
     }
   },
+  mounted() {
+    // 从 localStorage 读取用户凭据
+    this.loadUserCredentials()
+  },
   methods: {
+    // 从 localStorage 加载用户凭据
+    loadUserCredentials() {
+      try {
+        const savedCredentials = localStorage.getItem('judge_terminal_credentials')
+        if (savedCredentials) {
+          const credentials = JSON.parse(savedCredentials)
+          this.form.username = credentials.username || ''
+          this.form.password = credentials.password || ''
+          if (this.form.username && this.form.password) {
+            console.log('已从本地加载用户凭据')
+          }
+        }
+      } catch (error) {
+        console.error('读取凭据失败:', error)
+      }
+    },
+
+    // 保存用户凭据到 localStorage
+    saveUserCredentials() {
+      try {
+        const credentials = {
+          username: this.form.username,
+          password: this.form.password
+        }
+        localStorage.setItem('judge_terminal_credentials', JSON.stringify(credentials))
+        console.log('凭据已保存到本地')
+      } catch (error) {
+        console.error('保存凭据失败:', error)
+        this.$message.warning('凭据保存失败，请检查浏览器设置')
+      }
+    },
     // 获取题目信息
     async fetchProblemInfo() {
       if (!this.form.pid) {
         this.$message.warning('请输入题目ID')
+        return
+      }
+
+      // 验证用户名和密码
+      if (!this.form.username || !this.form.password) {
+        this.$message.warning('请输入用户名和密码')
         return
       }
 
@@ -308,6 +356,9 @@ export default {
         })
 
         if (res.code === 200) {
+          // 保存凭据到本地
+          this.saveUserCredentials()
+
           this.problemInfo = res.data
           this.historyPagination.currentPage = 1 // 重置到第一页
           await this.fetchHistory() // 获取分页历史记录
@@ -356,6 +407,15 @@ export default {
         this.$message.warning('请先获取题目')
         return
       }
+
+      // 验证用户名和密码
+      if (!this.form.username || !this.form.password) {
+        this.$message.warning('请输入用户名和密码')
+        return
+      }
+
+      // 保存凭据
+      this.saveUserCredentials()
 
       this.isRunning = true
       this.showResult = true
