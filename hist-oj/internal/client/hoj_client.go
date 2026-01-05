@@ -77,8 +77,8 @@ func (c *HOJClient) Login(username, password string) error {
 		return fmt.Errorf("解析登录响应失败: %w", err)
 	}
 
-	// HOJ 登录成功时 msg 为 "success"，不检查 code 字段
-	if hojResp.Message != "success" && hojResp.Code != 200 {
+	// HOJ 登录成功时 msg 为 "success"，检查 status 或 code 字段
+	if hojResp.Message != "success" && hojResp.Status != 200 && hojResp.Code != 200 {
 		return fmt.Errorf("登录失败: %s", hojResp.Message)
 	}
 
@@ -111,9 +111,9 @@ type TestJudgeRes struct {
 	Status           int    `json:"status"`
 	Time             int64  `json:"time"`
 	Memory           int64  `json:"memory"`
-	Input            string `json:"input"`
+	Input            string `json:"userInput"`
+	Output           string `json:"userOutput"`
 	ExpectedOutput   string `json:"expectedOutput"`
-	Stdout           string `json:"stdout"`
 	Stderr           string `json:"stderr"`
 	ProblemJudgeMode string `json:"problemJudgeMode"`
 }
@@ -139,7 +139,8 @@ type JudgeResult struct {
 
 // HOJResponse HOJ 统一响应格式
 type HOJResponse struct {
-	Code    int             `json:"code"`
+	Status  int             `json:"status"` // HOJ 使用 status 字段
+	Code    int             `json:"code"`   // 某些接口使用 code 字段
 	Message string          `json:"msg"`
 	Data    json.RawMessage `json:"data"`
 }
@@ -155,6 +156,8 @@ func (c *HOJClient) SubmitTestJudge(req *TestJudgeReq) (string, error) {
 
 	// 调试：打印请求内容
 	fmt.Printf("[HOJ Client] 提交测试请求: URL=%s, Body=%s\n", url, string(jsonData))
+	fmt.Printf("[HOJ Client] 请求详情: pid=%d, type=%s, language=%s, inputLen=%d\n",
+		req.Pid, req.Type, req.Language, len(req.UserInput))
 
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -187,7 +190,8 @@ func (c *HOJClient) SubmitTestJudge(req *TestJudgeReq) (string, error) {
 		return "", fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	if hojResp.Code != 200 {
+	// HOJ 使用 status 字段，如果不是 200 则为错误
+	if hojResp.Status != 200 {
 		return "", fmt.Errorf("HOJ 返回错误: %s", hojResp.Message)
 	}
 
@@ -225,12 +229,16 @@ func (c *HOJClient) GetTestJudgeResult(testJudgeKey string) (*TestJudgeRes, erro
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
+	// 调试：打印原始响应
+	fmt.Printf("[HOJ Client] 获取测试结果响应: %s\n", string(body))
+
 	var hojResp HOJResponse
 	if err := json.Unmarshal(body, &hojResp); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	if hojResp.Code != 200 {
+	// 检查 status 或 code 字段
+	if hojResp.Status != 200 && hojResp.Code != 200 {
 		return nil, fmt.Errorf("HOJ 返回错误: %s", hojResp.Message)
 	}
 
@@ -274,7 +282,8 @@ func (c *HOJClient) SubmitProblemJudge(req *SubmitJudgeReq) (*JudgeResult, error
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	if hojResp.Code != 200 {
+	// 检查 status 或 code 字段
+	if hojResp.Status != 200 && hojResp.Code != 200 {
 		return nil, fmt.Errorf("HOJ 返回错误: %s", hojResp.Message)
 	}
 
@@ -306,7 +315,8 @@ func (c *HOJClient) GetSubmissionDetail(submitId int64) (*JudgeResult, error) {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	if hojResp.Code != 200 {
+	// 检查 status 或 code 字段
+	if hojResp.Status != 200 && hojResp.Code != 200 {
 		return nil, fmt.Errorf("HOJ 返回错误: %s", hojResp.Message)
 	}
 

@@ -38,6 +38,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		judge := api.Group("/judge")
 		{
 			judge.POST("/get-info", judgeHandler.GetInfo)
+			judge.POST("/get-history", judgeHandler.GetHistory)
 			judge.POST("/run-combined", judgeHandler.RunCombined)
 		}
 	}

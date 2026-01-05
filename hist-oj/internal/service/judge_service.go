@@ -173,22 +173,31 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 			time.Sleep(1 * time.Second)
 
 			testResult, err = s.hojClient.GetTestJudgeResult(testJudgeKey)
-			if err == nil {
-				s.logger.Info("查询测试结果成功", zap.Int("等待次数", j+1))
+			if err != nil {
+				// 如果是结果不存在的错误，继续等待
+				if strings.Contains(err.Error(), "不存在") || strings.Contains(err.Error(), "未找到") {
+					s.logger.Debug("测试结果未就绪，继续等待", zap.Int("次数", j+1))
+					continue
+				}
+
+				// 其他错误直接返回
+				s.logger.Error("查询测试结果失败", zap.Error(err))
+				result.IsOK = false
+				result.Output = fmt.Sprintf("查询结果失败: %v", err)
+				results = append(results, result)
 				break
 			}
 
-			// 如果是结果不存在的错误，继续等待
-			if strings.Contains(err.Error(), "不存在") || strings.Contains(err.Error(), "未找到") {
-				s.logger.Debug("测试结果未就绪，继续等待", zap.Int("次数", j+1))
+			// 没有错误，检查判题状态
+			// status: 0=AC, -1=WA, -2=CE, -3=PE, 1=TLE, 2=MLE, 3=RE, 5=判题中
+			if testResult.Status == 5 || testResult.Status == 6 {
+				// 还在判题中，继续等待
+				s.logger.Debug("判题中，继续等待", zap.Int("次数", j+1), zap.Int("status", testResult.Status))
 				continue
 			}
 
-			// 其他错误直接返回
-			s.logger.Error("查询测试结果失败", zap.Error(err))
-			result.IsOK = false
-			result.Output = fmt.Sprintf("查询结果失败: %v", err)
-			results = append(results, result)
+			// 判题完成（无论成功还是失败）
+			s.logger.Info("查询测试结果成功", zap.Int("等待次数", j+1), zap.Int("最终状态", testResult.Status))
 			break
 		}
 
@@ -200,12 +209,25 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 		}
 
 		// 处理测试结果
-		result.Output = strings.TrimSpace(testResult.Stdout)
+		result.Output = testResult.Output // HOJ 已经提供了清理后的 userOutput
 		result.IsOK = (testResult.Status == 0) // 0 表示 Accepted
 
-		// 如果有错误信息，添加到输出
-		if testResult.Stderr != "" {
+		// 调试：打印完整结果
+		s.logger.Info("收到测试结果",
+			zap.Int("样例编号", i+1),
+			zap.Int("status", testResult.Status),
+			zap.String("output", testResult.Output),
+			zap.String("stderr", testResult.Stderr),
+			zap.String("expected", testResult.ExpectedOutput))
+
+		// 如果程序输出为空但有错误信息，则显示错误信息
+		if result.Output == "" && testResult.Stderr != "" {
 			result.Output = testResult.Stderr
+		}
+
+		// 如果程序输出和错误信息都为空，显示提示
+		if result.Output == "" {
+			result.Output = "(无输出)"
 		}
 
 		s.logger.Info("样例测试完成",
@@ -284,6 +306,11 @@ func (s *JudgeService) SaveSubmissionHistory(
 	}
 
 	return s.historyService.Create(history)
+}
+
+// GetHistory 获取提交历史（分页）
+func (s *JudgeService) GetHistory(pid, cid string, page, pageSize int) ([]*model.SubmissionHistory, int64, error) {
+	return s.historyService.GetByPIDAndCIDWithPage(pid, cid, page, pageSize)
 }
 
 // GetBingoJClient 获取 BingoJ 客户端实例

@@ -110,7 +110,8 @@ func (c *BingoJClient) Login(username, password string) error {
 
 // ProblemDetail 题目详情
 type ProblemDetail struct {
-	ProblemId   string `json:"problemId"` // 数据库中的真实题目ID
+	ID          int64  `json:"id"`        // 数据库主键ID（HOJ样例测试需要这个）
+	ProblemId   string `json:"problemId"` // 显示ID（如 "0001"）
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Input       string `json:"input"`

@@ -128,6 +128,10 @@ func InitTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ContestRatingStatus{}); err != nil {
 		return err
 	}
+	// 创建提交历史表
+	if err := db.AutoMigrate(&SubmissionHistory{}); err != nil {
+		return err
+	}
 	return nil
 }
 

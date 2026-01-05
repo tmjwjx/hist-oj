@@ -69,3 +69,39 @@ func (s *SubmissionHistoryService) GetByUsername(username string, limit int) ([]
 
 	return histories, nil
 }
+
+// GetByPIDAndCIDWithPage 根据题目ID和比赛ID分页查询历史记录
+func (s *SubmissionHistoryService) GetByPIDAndCIDWithPage(pid, cid string, page, pageSize int) ([]*model.SubmissionHistory, int64, error) {
+	var histories []*model.SubmissionHistory
+	var total int64
+
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+
+	// 查询总数
+	if err := s.db.Model(&model.SubmissionHistory{}).
+		Where("pid = ? AND cid = ?", pid, cid).
+		Count(&total).Error; err != nil {
+		s.logger.Error("查询提交历史总数失败",
+			zap.String("pid", pid),
+			zap.String("cid", cid),
+			zap.Error(err))
+		return nil, 0, fmt.Errorf("查询提交历史总数失败: %w", err)
+	}
+
+	// 查询分页数据
+	query := s.db.Where("pid = ? AND cid = ?", pid, cid).
+		Order("id DESC").
+		Limit(pageSize).
+		Offset(offset)
+
+	if err := query.Find(&histories).Error; err != nil {
+		s.logger.Error("查询提交历史失败",
+			zap.String("pid", pid),
+			zap.String("cid", cid),
+			zap.Error(err))
+		return nil, 0, fmt.Errorf("查询提交历史失败: %w", err)
+	}
+
+	return histories, total, nil
+}

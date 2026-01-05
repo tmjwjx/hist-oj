@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"github.com/hoj/hist-oj/internal/client"
+	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
 )
@@ -54,6 +54,61 @@ func (h *JudgeHandler) GetInfo(c *gin.Context) {
 		h.logger.Error("获取题目信息失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
 		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// GetHistoryRequest 获取历史记录请求
+type GetHistoryRequest struct {
+	PID      string `json:"pid" binding:"required"`
+	CID      string `json:"cid"`
+	Page     int    `json:"page" binding:"required"`
+	PageSize int    `json:"pageSize" binding:"required"`
+}
+
+// GetHistoryResponse 获取历史记录响应
+type GetHistoryResponse struct {
+	List  []*model.SubmissionHistory `json:"list"`
+	Total int64                       `json:"total"`
+}
+
+// GetHistory 获取提交历史（分页）
+func (h *JudgeHandler) GetHistory(c *gin.Context) {
+	var req GetHistoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 设置默认值
+	if req.CID == "" {
+		req.CID = "0"
+	}
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.PageSize < 1 || req.PageSize > 100 {
+		req.PageSize = 10
+	}
+
+	h.logger.Info("获取历史记录",
+		zap.String("pid", req.PID),
+		zap.String("cid", req.CID),
+		zap.Int("page", req.Page),
+		zap.Int("pageSize", req.PageSize))
+
+	list, total, err := h.judgeService.GetHistory(req.PID, req.CID, req.Page, req.PageSize)
+	if err != nil {
+		h.logger.Error("获取历史记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	result := &GetHistoryResponse{
+		List:  list,
+		Total: total,
 	}
 
 	c.JSON(http.StatusOK, successResponse(result))
@@ -133,17 +188,11 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	var dbCID string
 	var submitCID int
 
-	if req.Mode == "contest" {
-		displayID = strings.ToUpper(req.PID)
-		dbCID = req.CID
-		submitCID, _ = strconv.Atoi(req.CID)
-		problem, err = bingoJClient.GetContestProblemDetail(displayID, req.CID)
-	} else {
-		displayID = req.PID
-		dbCID = "0"
-		submitCID = 0
-		problem, err = bingoJClient.GetProblemDetail(req.PID)
-	}
+	// 只支持普通模式
+	displayID = req.PID
+	dbCID = "0"
+	submitCID = 0
+	problem, err = bingoJClient.GetProblemDetail(req.PID)
 
 	if err != nil {
 		sendSSE(c, "log", fmt.Sprintf("获取题目失败: %s", err.Error()))
@@ -153,8 +202,15 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	// 调试：输出题目ID
 	h.logger.Info("题目详情获取成功",
 		zap.String("displayID", displayID),
-		zap.String("problemId", problem.ProblemId),
+		zap.String("bingojProblemId", problem.ProblemId),
+		zap.Int64("dbID", problem.ID),
 		zap.String("title", problem.Title))
+
+	// 样例测试需要使用 HOJ 数据库的主键ID（problem.ID）
+	// 这个ID会被发送到HOJ后端的样例测试接口
+	pidForTest := fmt.Sprintf("%d", problem.ID)
+
+	h.logger.Info("样例测试将使用数据库ID", zap.String("dbID", pidForTest))
 
 	localInfo := "跳过 (无样例)"
 
@@ -164,15 +220,18 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		if err == nil && len(samples) > 0 {
 			sendSSE(c, "log", fmt.Sprintf("开始自测 %d 组样例...", len(samples)))
 
-			// 直接使用 req.PID（因为样例测试是在 HOJ 后端进行，HOJ 的题目ID就是前端传递的PID）
-			pidInt, err := strconv.ParseInt(req.PID, 10, 64)
+			// 使用 pidForTest（用户输入的 HOJ 数据库题目 ID）进行样例测试
+			pidInt, err := strconv.ParseInt(pidForTest, 10, 64)
 			if err != nil {
-				h.logger.Error("解析题目ID失败", zap.Error(err), zap.String("pid", req.PID))
-				sendSSE(c, "log", fmt.Sprintf("题目ID格式错误: %s", req.PID))
+				h.logger.Error("解析题目ID失败", zap.Error(err), zap.String("pidForTest", pidForTest))
+				sendSSE(c, "log", fmt.Sprintf("题目ID格式错误: %s", pidForTest))
 				return
 			}
 
-			h.logger.Info("开始本地样例测试", zap.Int64("题目ID", pidInt))
+			h.logger.Info("开始本地样例测试",
+				zap.Int64("hojPid", pidInt),
+				zap.String("显示ID", req.PID),
+				zap.Int("样例数量", len(samples)))
 			results, err := h.judgeService.TestLocalSamples(pidInt, req.Language, req.Code, req.Username, req.Password, samples)
 			if err != nil {
 				sendSSE(c, "compile_error", map[string]string{"msg": err.Error()})
@@ -243,7 +302,7 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		sendSSE(c, "log", fmt.Sprintf("最终结果: %s", statusText))
 
 		// 保存到数据库
-		_ = h.judgeService.SaveSubmissionHistory(
+		if err := h.judgeService.SaveSubmissionHistory(
 			submitID,
 			displayID,
 			dbCID,
@@ -254,7 +313,12 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 			req.Language,
 			req.Code,
 			localInfo,
-		)
+		); err != nil {
+			h.logger.Error("保存提交历史失败", zap.Error(err))
+			sendSSE(c, "log", fmt.Sprintf("警告: 保存历史记录失败: %s", err.Error()))
+		} else {
+			sendSSE(c, "log", "提交历史已保存")
+		}
 
 		return
 	}

@@ -26,9 +26,8 @@
               </el-col>
             </el-row>
             <el-form-item label="模式">
-              <el-radio-group v-model="form.mode" size="small" @change="handleModeChange">
-                <el-radio label="normal">普通</el-radio>
-                <el-radio label="contest">比赛</el-radio>
+              <el-radio-group v-model="form.mode" size="small" disabled>
+                <el-radio label="normal">普通模式</el-radio>
               </el-radio-group>
               <el-button type="primary" size="mini" style="margin-left: 10px" @click="fetchProblemInfo">
                 获取题目
@@ -45,20 +44,9 @@
           <el-form :model="form" size="small">
             <el-row :gutter="10">
               <el-col :span="12">
-                <el-input v-model="form.pid" placeholder="题目ID (如 1001)" size="small"></el-input>
+                <el-input v-model="form.pid" placeholder="题目ID (如 0001)" size="small"></el-input>
               </el-col>
-              <el-col :span="12" v-if="form.mode === 'contest'">
-                <el-input v-model="form.cid" placeholder="比赛ID" size="small"></el-input>
-              </el-col>
-              <el-col :span="12" v-if="form.mode === 'normal'">
-                <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
-                  <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
-                  <el-option label="C" value="C With O2"></el-option>
-                  <el-option label="Python3" value="Python3"></el-option>
-                  <el-option label="Java" value="Java"></el-option>
-                </el-select>
-              </el-col>
-              <el-col :span="12" v-else>
+              <el-col :span="12">
                 <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
                   <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
                   <el-option label="C" value="C With O2"></el-option>
@@ -130,7 +118,7 @@
                 {{ simplifyLanguage(scope.row.language) }}
               </template>
             </el-table-column>
-            <el-table-column label="时间" width="80">
+            <el-table-column label="提交时间" width="120">
               <template slot-scope="scope">
                 {{ formatTime(scope.row.submit_time) }}
               </template>
@@ -143,6 +131,17 @@
               </template>
             </el-table-column>
           </el-table>
+          <div style="margin-top: 10px; text-align: center">
+            <el-pagination
+              @current-change="handleHistoryPageChange"
+              :current-page="historyPagination.currentPage"
+              :page-size="historyPagination.pageSize"
+              :total="historyPagination.total"
+              layout="prev, pager, next, total"
+              small
+            >
+            </el-pagination>
+          </div>
         </el-card>
       </el-col>
 
@@ -244,7 +243,7 @@
 </template>
 
 <script>
-import { getJudgeInfo, runCombinedJudge } from '@/common/judgeTerminal'
+import { getJudgeInfo, getJudgeHistory, runCombinedJudge } from '@/common/judgeTerminal'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 
@@ -259,9 +258,8 @@ export default {
       form: {
         username: 'root',
         password: 'hist2025',
-        mode: 'normal',
+        mode: 'normal', // 固定为普通模式
         pid: '',
-        cid: '',
         language: 'C++ 17 With O2',
         code: ''
       },
@@ -273,6 +271,11 @@ export default {
       examples: [],
       logs: [],
       historyList: [],
+      historyPagination: {
+        currentPage: 1,
+        pageSize: 10,
+        total: 0
+      },
       isRunning: false,
       showResult: false,
       remoteBannerText: '等待开始...',
@@ -286,13 +289,6 @@ export default {
     }
   },
   methods: {
-    // 切换模式
-    handleModeChange() {
-      if (this.form.mode === 'contest') {
-        this.form.cid = ''
-      }
-    },
-
     // 获取题目信息
     async fetchProblemInfo() {
       if (!this.form.pid) {
@@ -305,15 +301,16 @@ export default {
       try {
         const res = await getJudgeInfo({
           pid: this.form.pid,
-          cid: this.form.cid || '0',
-          mode: this.form.mode,
+          cid: '0',
+          mode: 'normal',
           username: this.form.username,
           password: this.form.password
         })
 
         if (res.code === 200) {
           this.problemInfo = res.data
-          this.historyList = res.data.history || []
+          this.historyPagination.currentPage = 1 // 重置到第一页
+          await this.fetchHistory() // 获取分页历史记录
           this.extractExamples()
           this.addLog('获取题目成功')
           this.$message.success('获取题目成功')
@@ -502,10 +499,59 @@ export default {
       return language
     },
 
-    // 格式化时间
+    // 格式化时间（北京时间）
     formatTime(time) {
-      if (!time) return ''
-      return time.split('T')[1]?.split('.')[0] || ''
+      if (!time) return '--'
+      try {
+        // 处理 ISO 8601 格式的时间字符串
+        const date = new Date(time)
+        if (isNaN(date.getTime())) return '--'
+
+        // 转换为北京时间（UTC+8）
+        const beijingTime = new Date(date.getTime() + (8 * 60 * 60 * 1000))
+
+        // 格式化为 YYYY-MM-DD HH:mm:ss
+        const year = beijingTime.getUTCFullYear()
+        const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(beijingTime.getUTCDate()).padStart(2, '0')
+        const hours = String(beijingTime.getUTCHours()).padStart(2, '0')
+        const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0')
+        const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0')
+
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+      } catch (e) {
+        console.error('时间格式化错误:', e)
+        return '--'
+      }
+    },
+
+    // 历史记录分页切换
+    async handleHistoryPageChange(page) {
+      if (!this.form.pid) {
+        this.$message.warning('请先获取题目信息')
+        return
+      }
+      this.historyPagination.currentPage = page
+      await this.fetchHistory()
+    },
+
+    // 获取历史记录
+    async fetchHistory() {
+      try {
+        const res = await getJudgeHistory({
+          pid: this.form.pid,
+          cid: '0',
+          page: this.historyPagination.currentPage,
+          pageSize: this.historyPagination.pageSize
+        })
+
+        if (res.code === 200) {
+          this.historyList = res.data.list || []
+          this.historyPagination.total = res.data.total || 0
+        }
+      } catch (error) {
+        console.error('获取历史记录失败:', error)
+      }
     },
 
     // 显示代码

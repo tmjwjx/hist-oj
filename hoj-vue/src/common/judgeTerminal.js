@@ -14,6 +14,18 @@ export function getJudgeInfo(data) {
 }
 
 /**
+ * 获取判题历史记录（分页）
+ * @param {Object} data - 请求参数
+ * @param {string} data.pid - 题目ID
+ * @param {string} data.cid - 比赛ID（可选）
+ * @param {number} data.page - 页码（从1开始）
+ * @param {number} data.pageSize - 每页条数
+ */
+export function getJudgeHistory(data) {
+  return axios.post('/judge-api/get-history', data).then(res => res.data)
+}
+
+/**
  * 本地测试并提交代码（SSE 流式接口）
  * @param {Object} data - 请求参数
  * @param {string} data.pid - 题目ID

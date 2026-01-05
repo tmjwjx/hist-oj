@@ -112,10 +112,10 @@ module.exports={
         }
       },
       '/judge-api': {                          //   判题终端服务代理
-        target: 'http://43.143.133.62:9527',   //   生产环境 hist-oj 服务
+        target: 'http://localhost:9527',       //   本地开发环境 hist-oj 服务
         changeOrigin: true,
         pathRewrite: {
-          '^/judge-api': '/api/judge'          //   将 /judge-api 重写为 /api/judge
+          '^/judge-api': '/api'                //   将 /judge-api 重写为 /api
         }
       }
     },
