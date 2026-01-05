@@ -449,3 +449,94 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 	})
 }
 
+// AdjustUserRating 手动调整用户rating（管理员）
+func (h *Handler) AdjustUserRating(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		Username     string `json:"username" binding:"required"`
+		RatingChange int    `json:"ratingChange" binding:"required"`
+		Reason       string `json:"reason" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 获取操作人UID（从认证中间件中获取，如果没有则使用默认值）
+	operatorUID, _ := c.Get("operatorUID")
+	operatorUIDStr := ""
+	if operatorUID != nil {
+		operatorUIDStr = operatorUID.(string)
+	}
+
+	logger.Info("手动调整用户rating请求",
+		zap.String("username", req.Username),
+		zap.Int("rating_change", req.RatingChange),
+		zap.String("reason", req.Reason),
+		zap.String("operator_uid", operatorUIDStr))
+
+	oldRating, newRating, ratingChange, err := h.ratingService.AdjustUserRating(
+		req.Username,
+		req.RatingChange,
+		req.Reason,
+		operatorUIDStr,
+	)
+
+	if err != nil {
+		logger.Error("手动调整用户rating失败",
+			zap.String("username", req.Username),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "调整失败: "+err.Error()))
+		return
+	}
+
+	result := map[string]interface{}{
+		"username":      req.Username,
+		"oldRating":     oldRating,
+		"newRating":     newRating,
+		"ratingChange":  ratingChange,
+		"reason":        req.Reason,
+		"operatorUID":   operatorUIDStr,
+	}
+
+	logger.Info("手动调整用户rating成功",
+		zap.String("username", req.Username),
+		zap.Int("old_rating", oldRating),
+		zap.Int("new_rating", newRating),
+		zap.Int("rating_change", ratingChange))
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// GetManualAdjustmentHistory 获取手动调整历史（管理员）
+func (h *Handler) GetManualAdjustmentHistory(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	logger.Info("查询手动调整历史",
+		zap.Int("page", page),
+		zap.Int("limit", limit))
+
+	result, err := h.queryService.GetManualAdjustmentHistory(page, limit)
+	if err != nil {
+		logger.Error("查询手动调整历史失败",
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+

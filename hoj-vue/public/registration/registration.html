@@ -372,6 +372,12 @@
                         )
                         this.userRegistrations[competitionId] = response.data
 
+                        // 首次加载时初始化 lastView 时间（避免所有消息都显示为未读）
+                        if (!localStorage.getItem(`lastView_${competitionId}`)) {
+                            const now = new Date().toISOString()
+                            localStorage.setItem(`lastView_${competitionId}`, now)
+                        }
+
                         // 计算未读消息数量
                         if (response.data && response.data.remark) {
                             try {

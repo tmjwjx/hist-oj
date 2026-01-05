@@ -144,6 +144,13 @@ upload_images() {
         exit 1
     }
     log_info "✓ hoj-frontend 镜像上传成功"
+
+    # 上传数据库迁移脚本
+    log_info "上传数据库迁移脚本..."
+    sshpass -p "$SERVER_PASS" scp hist-oj/migrations/005_add_manual_rating_fields.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
+        log_warn "数据库迁移脚本上传失败（可能不存在）"
+    }
+    log_info "✓ 数据库迁移脚本上传成功"
 }
 
 # 在服务器上部署
@@ -167,6 +174,14 @@ deploy_on_server() {
         # 加载前端镜像
         echo "[INFO] 加载 hoj-frontend 镜像..."
         gunzip -c hoj-frontend.tar.gz | docker load
+
+        # 执行数据库迁移（如果迁移脚本存在）
+        if [ -f "/opt/005_add_manual_rating_fields.sql" ]; then
+            echo "[INFO] 执行数据库迁移..."
+            mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/005_add_manual_rating_fields.sql && echo "[INFO] ✓ 数据库迁移成功" || echo "[WARN] 数据库迁移失败（可能已执行过）"
+        else
+            echo "[WARN] 未找到数据库迁移脚本，跳过迁移"
+        fi
 
         echo "[INFO] 停止并删除旧容器..."
         docker stop hist-oj registration-backend hoj-frontend 2>/dev/null || true
@@ -227,6 +242,13 @@ deploy_on_server() {
         echo "[INFO] 测试 hist-oj 健康检查..."
         curl -s http://localhost:9527/health || echo "健康检查失败"
 
+        echo "[INFO] 测试手动调整 Rating API（需要管理员权限）..."
+        curl -s -X POST http://localhost:9527/api/rating/admin/adjust \
+            -H "Content-Type: application/json" \
+            -H "X-Operator-UID: admin" \
+            -d '{"username": "test", "ratingChange": 10, "reason": "部署测试"}' \
+            || echo "手动调整 API 测试失败（预期行为，因为用户可能不存在）"
+
         echo "[INFO] 测试报名系统 API..."
         docker exec hoj-frontend curl -s http://registration-backend:8080/api/competitions || echo "报名系统 API 测试失败"
 
@@ -252,6 +274,16 @@ cleanup() {
     log_info "✓ 清理完成"
 }
 
+# 清理服务器上的临时文件
+cleanup_server() {
+    log_info "清理服务器上的临时文件..."
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+        cd /opt
+        rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz 005_add_manual_rating_fields.sql
+        echo "[INFO] ✓ 服务器清理完成"
+ENDSSH
+}
+
 # 显示部署结果
 show_result() {
     log_info "=========================================="
@@ -263,10 +295,20 @@ show_result() {
     log_info "  - 报名页面: http://${SERVER_IP}/registration"
     log_info "  - 管理后台: http://${SERVER_IP}/admin/registration"
     log_info ""
+    log_info "新增功能：手动调整 Rating"
+    log_info "  - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
+    log_info "  - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
+    log_info ""
     log_info "验证命令："
     log_info "  curl http://${SERVER_IP}:9527/health"
     log_info "  curl http://${SERVER_IP}/api/rating/contest/info/1002"
     log_info "  curl http://${SERVER_IP}/registration-api/competitions"
+    log_info ""
+    log_info "测试手动调整功能："
+    log_info "  curl -X POST http://${SERVER_IP}:9527/api/rating/admin/adjust \\"
+    log_info "    -H 'Content-Type: application/json' \\"
+    log_info "    -H 'X-Operator-UID: admin' \\"
+    log_info "    -d '{\"username\": \"user\", \"ratingChange\": -100, \"reason\": \"测试\"}'"
     log_info "=========================================="
 }
 
@@ -295,6 +337,7 @@ main() {
     upload_images
     deploy_on_server
     cleanup
+    cleanup_server
     show_result
 
     log_info "✓ 所有步骤完成！"

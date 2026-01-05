@@ -39,6 +39,9 @@
           <el-menu-item index="/admin/switch">{{
             $t('m.System_Switch')
           }}</el-menu-item>
+          <el-menu-item index="/admin/rating">
+            Rating 管理
+          </el-menu-item>
         </el-submenu>
         <!-- <el-submenu index="problem" v-if="hasProblemPermission"> -->
         <el-submenu index="problem">
@@ -285,6 +288,16 @@
               <mu-list-item-title>{{
                 $t('m.System_Switch')
               }}</mu-list-item-title>
+            </mu-list-item>
+            <mu-list-item
+              button
+              :ripple="false"
+              slot="nested"
+              to="/admin/rating"
+              @click="opendrawer = !opendrawer"
+              active-class="mobile-menu-active"
+            >
+              <mu-list-item-title>Rating 管理</mu-list-item-title>
             </mu-list-item>
           </mu-list-item>
 

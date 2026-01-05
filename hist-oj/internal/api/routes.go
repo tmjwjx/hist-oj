@@ -29,6 +29,14 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			rating.POST("/initialize", handler.InitializeUserRating)
 			rating.POST("/contest/set-rating-type", handler.SetContestRatingType)
 			rating.POST("/trigger-scheduler", handler.TriggerScheduler)
+
+			// 手动调整 rating（管理员，需要权限验证）
+			admin := rating.Group("/admin")
+			admin.Use(AdminAuthMiddleware())
+			{
+				admin.POST("/adjust", handler.AdjustUserRating)
+				admin.GET("/history", handler.GetManualAdjustmentHistory)
+			}
 		}
 
 		// 判题终端相关接口

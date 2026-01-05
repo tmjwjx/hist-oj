@@ -549,3 +549,78 @@ func (s *QueryService) GetRatingRank(page, limit int, keyword string) (map[strin
 	return result, nil
 }
 
+// GetManualAdjustmentHistory 获取手动调整历史记录（管理员）
+func (s *QueryService) GetManualAdjustmentHistory(page, limit int) (map[string]interface{}, error) {
+	logger := utils.GetLogger()
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	offset := (page - 1) * limit
+
+	var histories []model.RatingHistory
+	var total int64
+
+	// 查询总数（只查询手动调整记录）
+	if err := s.db.Model(&model.RatingHistory{}).
+		Where("is_manual = ?", true).
+		Count(&total).Error; err != nil {
+		logger.Error("查询手动调整历史总数失败",
+			zap.Error(err))
+		return nil, err
+	}
+
+	// 查询记录（只查询手动调整记录，按创建时间倒序）
+	if err := s.db.Where("is_manual = ?", true).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&histories).Error; err != nil {
+		logger.Error("查询手动调整历史失败",
+			zap.Int("page", page),
+			zap.Int("limit", limit),
+			zap.Error(err))
+		return nil, err
+	}
+
+	// 查询每个记录的用户名
+	type HistoryWithUsername struct {
+		model.RatingHistory
+		Username string `json:"username"`
+	}
+
+	results := make([]HistoryWithUsername, 0, len(histories))
+	for _, history := range histories {
+		var userInfo model.UserInfo
+		if err := s.db.Where("uuid = ?", history.UID).First(&userInfo).Error; err == nil {
+			results = append(results, HistoryWithUsername{
+				RatingHistory: history,
+				Username:      userInfo.Username,
+			})
+		} else {
+			// 如果找不到用户信息，使用 UID 作为用户名
+			results = append(results, HistoryWithUsername{
+				RatingHistory: history,
+				Username:      history.UID,
+			})
+		}
+	}
+
+	result := map[string]interface{}{
+		"total":   total,
+		"page":    page,
+		"limit":   limit,
+		"records": results,
+	}
+
+	logger.Info("查询手动调整历史成功",
+		zap.Int64("total", total),
+		zap.Int("records", len(results)))
+
+	return result, nil
+}
+

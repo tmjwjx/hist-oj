@@ -104,6 +104,15 @@ export default {
 
       // 统一格式化日期为 YYYY-MM-DD
       const dates = this.chartData.map(item => {
+        // 手动调整记录使用创建时间
+        if (item.is_manual) {
+          const date = new Date(item.created_at)
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const day = String(date.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }
+        // 比赛记录使用比赛时间
         if (!item.contest_time) return '未知日期'
         const date = new Date(item.contest_time)
         const year = date.getFullYear()
@@ -112,6 +121,11 @@ export default {
         return `${year}-${month}-${day}`
       })
       const ratings = this.chartData.map(item => item.new_rating)
+
+      // 区分比赛记录和手动调整记录
+      const itemColors = this.chartData.map(item => {
+        return item.is_manual ? '#FF4D4F' : '#409EFF' // 手动调整用红色，比赛记录用蓝色
+      })
 
       const option = {
         title: {
@@ -122,12 +136,26 @@ export default {
           trigger: 'axis',
           formatter: (params) => {
             const data = this.chartData[params[0].dataIndex]
+
+            // 手动调整记录的 tooltip
+            if (data.is_manual) {
+              return `
+                <div style="text-align: left;">
+                  <strong style="color: #FF4D4F;">⚠️ ${data.reason || '手动调整'}</strong><br/>
+                  Rating: ${data.old_rating} → ${data.new_rating}<br/>
+                  变化: <span style="color: ${data.rating_change > 0 ? '#67C23A' : '#F56C6C'}">${data.rating_change > 0 ? '+' : ''}${data.rating_change}</span><br/>
+                  <span style="color: #999; font-size: 12px;">${new Date(data.created_at).toLocaleString('zh-CN')}</span>
+                </div>
+              `
+            }
+
+            // 比赛记录的 tooltip
             return `
               <div style="text-align: left;">
-                <strong>${data.contest_title}</strong><br/>
+                <strong>${data.contest_title || '比赛'}</strong><br/>
                 Rating: ${data.old_rating} → ${data.new_rating}<br/>
                 变化: ${data.rating_change > 0 ? '+' : ''}${data.rating_change}<br/>
-                排名: ${data.rank}
+                排名: ${data.rank} / ${data.participants}
               </div>
             `
           }
@@ -152,7 +180,9 @@ export default {
           type: 'line',
           smooth: true,
           itemStyle: {
-            color: '#409EFF'
+            color: (params) => {
+              return itemColors[params.dataIndex]
+            }
           },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -164,7 +194,32 @@ export default {
             data: [
               { type: 'max', name: '最高' },
               { type: 'min', name: '最低' }
-            ]
+            ],
+            itemStyle: {
+              color: '#409EFF'
+            }
+          },
+          // 标记手动调整的点
+          markPoint: {
+            data: this.chartData
+              .map((item, index) => {
+                if (item.is_manual) {
+                  return {
+                    name: item.reason || '手动调整',
+                    coord: [index, item.new_rating],
+                    itemStyle: {
+                      color: '#FF4D4F'
+                    },
+                    label: {
+                      show: true,
+                      formatter: '⚠️',
+                      fontSize: 20
+                    }
+                  }
+                }
+                return null
+              })
+              .filter(item => item !== null)
           }
         }]
       }

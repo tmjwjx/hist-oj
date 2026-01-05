@@ -386,9 +386,10 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 
 		// 创建 oldRating 的副本，避免指针问题
 		oldRatingCopy := oldRating
+		contestIDCopy := uint64(contestID) // 转换为 uint64
 		history := model.RatingHistory{
 			UID:          record.UID,
-			ContestID:    uint64(contestID),
+			ContestID:    &contestIDCopy, // 使用指针
 			OldRating:    &oldRatingCopy,
 			NewRating:    newRating,
 			RatingChange: change,
@@ -496,5 +497,146 @@ func (s *RatingService) CanCalculateRating(contestID int64) bool {
 		return false
 	}
 	return true
+}
+
+// AdjustUserRating 手动调整用户rating
+// 参数:
+//   - username: 用户名
+//   - delta: rating变化值（正数=增加，负数=减少）
+//   - reason: 操作原因（必填，如"AI作弊"、"账号违规"等）
+//   - operatorUID: 操作人UID（管理员）
+// 返回:
+//   - oldRating: 调整前的rating
+//   - newRating: 调整后的rating
+//   - ratingChange: 实际rating变化
+func (s *RatingService) AdjustUserRating(username string, delta int, reason string, operatorUID string) (int, int, int, error) {
+	logger := utils.GetLogger()
+
+	// 参数验证
+	if username == "" {
+		logger.Error("用户名不能为空")
+		return 0, 0, 0, fmt.Errorf("用户名不能为空")
+	}
+	if reason == "" {
+		logger.Error("操作原因不能为空")
+		return 0, 0, 0, fmt.Errorf("操作原因不能为空")
+	}
+	if delta == 0 {
+		logger.Error("rating变化值不能为0")
+		return 0, 0, 0, fmt.Errorf("rating变化值不能为0")
+	}
+
+	// 查询用户信息（获取真实UID）
+	var userInfo model.UserInfo
+	if err := s.db.Where("username = ?", username).First(&userInfo).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Error("用户不存在", zap.String("username", username))
+			return 0, 0, 0, fmt.Errorf("用户不存在: %s", username)
+		}
+		logger.Error("查询用户信息失败", zap.String("username", username), zap.Error(err))
+		return 0, 0, 0, fmt.Errorf("查询用户信息失败: %w", err)
+	}
+
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			logger.Error("调整rating时发生panic",
+				zap.String("username", username),
+				zap.Any("panic", r))
+		}
+	}()
+
+	// 获取用户当前rating
+	var userRecord model.UserRecord
+	if err := tx.Where("uid = ?", userInfo.UUID).First(&userRecord).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 用户没有rating记录，创建初始记录
+			initialRating := s.config.InitialRating
+			logger.Info("用户没有rating记录，创建初始记录",
+				zap.String("username", username),
+				zap.String("uid", userInfo.UUID),
+				zap.Int("initial_rating", initialRating))
+			userRecord = model.UserRecord{
+				UID:        userInfo.UUID,
+				HistRating: &initialRating,
+			}
+			if err := tx.Create(&userRecord).Error; err != nil {
+				tx.Rollback()
+				logger.Error("创建用户rating记录失败", zap.String("uid", userInfo.UUID), zap.Error(err))
+				return 0, 0, 0, fmt.Errorf("创建用户rating记录失败: %w", err)
+			}
+		} else {
+			tx.Rollback()
+			logger.Error("查询用户rating失败", zap.String("uid", userInfo.UUID), zap.Error(err))
+			return 0, 0, 0, fmt.Errorf("查询用户rating失败: %w", err)
+		}
+	}
+
+	oldRating := s.config.InitialRating
+	if userRecord.HistRating != nil {
+		oldRating = *userRecord.HistRating
+	}
+
+	// 计算新rating
+	ratingChange := delta
+	newRating := utils.CalculateNewRating(oldRating, ratingChange)
+
+	// 更新用户rating
+	if err := tx.Model(&model.UserRecord{}).
+		Where("uid = ?", userInfo.UUID).
+		Update("hist_rating", newRating).Error; err != nil {
+		tx.Rollback()
+		logger.Error("更新用户rating失败",
+			zap.String("uid", userInfo.UUID),
+			zap.Int("new_rating", newRating),
+			zap.Error(err))
+		return 0, 0, 0, fmt.Errorf("更新用户rating失败: %w", err)
+	}
+
+	// 插入rating历史记录
+	now := time.Now()
+	oldRatingCopy := oldRating
+	history := model.RatingHistory{
+		UID:          userInfo.UUID,
+		ContestID:    nil, // 手动调整不关联比赛
+		OldRating:    &oldRatingCopy,
+		NewRating:    newRating,
+		RatingChange: ratingChange,
+		Rank:         0,         // 手动调整没有排名
+		Participants: 0,         // 手动调整没有参赛人数
+		Reason:       reason,
+		IsManual:     true,
+		OperatorUID:  operatorUID,
+		CreatedAt:    now,
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		logger.Error("创建rating历史记录失败",
+			zap.String("uid", userInfo.UUID),
+			zap.Error(err))
+		return 0, 0, 0, fmt.Errorf("创建rating历史记录失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败",
+			zap.String("username", username),
+			zap.Error(err))
+		return 0, 0, 0, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	logger.Info("手动调整用户rating成功",
+		zap.String("username", username),
+		zap.String("uid", userInfo.UUID),
+		zap.Int("old_rating", oldRating),
+		zap.Int("new_rating", newRating),
+		zap.Int("rating_change", ratingChange),
+		zap.String("reason", reason),
+		zap.String("operator_uid", operatorUID))
+
+	return oldRating, newRating, ratingChange, nil
 }
 

@@ -4,6 +4,7 @@ const Login= ()=>import('@/views/admin/Login')
 const Home= ()=>import('@/views/admin/Home')
 const Dashboard= ()=>import('@/views/admin/Dashboard')
 const User= ()=>import('@/views/admin/general/User')
+const RatingManagement= ()=>import('@/views/admin/general/RatingManagement')
 const Announcement= ()=>import('@/views/admin/general/Announcement')
 const SysNotice= ()=>import('@/views/admin/general/SysNotice')
 const SystemConfig= ()=>import('@/views/admin/general/SystemConfig')
@@ -51,6 +52,12 @@ const adminRoutes= [
           name: 'admin-user',
           component: User,
           meta: { requireSuperAdmin: true,title:'User Admin'},
+      },
+      {
+          path: 'rating',
+          name: 'admin-rating',
+          component: RatingManagement,
+          meta: { requireSuperAdmin: true,title:'Rating Management'},
       },
         {
           path: 'announcement',

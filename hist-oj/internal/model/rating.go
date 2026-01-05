@@ -10,7 +10,7 @@ import (
 type RatingHistory struct {
 	ID           uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	UID          string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	ContestID    uint64     `gorm:"type:bigint unsigned;not null;index:idx_contest_id" json:"contest_id"`
+	ContestID    *uint64    `gorm:"type:bigint unsigned;default:0;index:idx_contest_id" json:"contest_id"` // 改为指针，0 表示不关联比赛（手动调整）
 	ContestTitle string     `gorm:"-" json:"contest_title"` // 不映射到数据库，仅用于返回
 	ContestTime  *time.Time `gorm:"-" json:"contest_time"` // 比赛时间，从Contest表关联查询
 	OldRating    *int       `gorm:"type:int" json:"old_rating"`
@@ -18,6 +18,9 @@ type RatingHistory struct {
 	RatingChange int        `gorm:"type:int;not null" json:"rating_change"`
 	Rank         int        `gorm:"type:int;not null" json:"rank"`
 	Participants int        `gorm:"type:int;not null" json:"participants"`
+	Reason       string     `gorm:"type:varchar(255);default:''" json:"reason"` // 操作原因（手动调整时的备注）
+	IsManual     bool       `gorm:"type:tinyint(1);default:0;index:idx_is_manual" json:"is_manual"` // 是否为手动调整
+	OperatorUID  string     `gorm:"type:varchar(32);default:''" json:"operator_uid"` // 操作人UID
 	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"` // 记录创建时间
 }
 
