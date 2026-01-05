@@ -164,6 +164,18 @@
           </div>
           <div class="problem-content" v-if="problemInfo.problem">
             <h3 class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</h3>
+            <!-- 判题模式显示 -->
+            <div class="problem-info-bar">
+              <el-tag size="small" type="primary">
+                判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
+              </el-tag>
+              <el-tag size="small" type="primary" style="margin-left: 10px">
+                时间限制: {{ problemInfo.problem.timeLimit }}ms
+              </el-tag>
+              <el-tag size="small" type="primary" style="margin-left: 10px">
+                内存限制: {{ problemInfo.problem.memoryLimit }}MB
+              </el-tag>
+            </div>
             <div v-if="problemInfo.problem.description" class="problem-section">
               <h4><i class="el-icon-tickets"></i> 描述</h4>
               <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
@@ -618,6 +630,17 @@ export default {
     showCode(row) {
       this.currentCode = row.code
       this.codeDialogVisible = true
+    },
+
+    // 获取判题模式文本
+    getJudgeModeText(mode) {
+      const modeMap = {
+        'default': '默认模式',
+        'spj': '特殊判题 (SPJ)',
+        'interactive': '交互式',
+        'subtask': '子任务'
+      }
+      return modeMap[mode] || mode || '默认模式'
     }
   }
 }
@@ -727,6 +750,20 @@ export default {
   margin-bottom: 5px;
   color: #606266;
   font-size: 12px;
+}
+
+/* 题目信息栏 */
+.problem-info-bar {
+  padding: 12px 15px;
+  background-color: #f0f9ff;
+  border-left: 4px solid #409eff;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .example-box pre {

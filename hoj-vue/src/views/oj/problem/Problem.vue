@@ -170,6 +170,7 @@
                           problemData.problem.memoryLimit
                         }}MB</span><br />
                     </template>
+                    <span>判题模式：{{ getJudgeModeText(problemData.problem.judgeMode) }}</span><br />
                     <template v-if="problemData.problem.difficulty != null">
                       <span>{{ $t('m.Level') }}：<span
                           class="el-tag el-tag--small"
@@ -1702,6 +1703,15 @@ export default {
     },
     getLevelName(difficulty) {
       return utils.getLevelName(difficulty);
+    },
+    getJudgeModeText(mode) {
+      const modeMap = {
+        'default': '默认模式',
+        'spj': '特殊判题 (SPJ)',
+        'interactive': '交互式',
+        'subtask': '子任务'
+      }
+      return modeMap[mode] || mode || '默认模式'
     },
     goUserHome(username) {
       this.$router.push({

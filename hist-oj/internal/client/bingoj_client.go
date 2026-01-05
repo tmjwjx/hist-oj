@@ -118,6 +118,9 @@ type ProblemDetail struct {
 	Output      string `json:"output"`
 	Examples    string `json:"examples"`
 	Hint        string `json:"hint"`
+	JudgeMode   string `json:"judgeMode"`   // 判题模式
+	TimeLimit   int64  `json:"timeLimit"`   // 时间限制（ms）
+	MemoryLimit int64  `json:"memoryLimit"` // 内存限制（MB）
 }
 
 // GetProblemDetail 获取题目详情（普通模式）
