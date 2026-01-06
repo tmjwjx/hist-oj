@@ -197,9 +197,11 @@ export default {
           countName = 'like';
           break;
       }
+      // 减去实际加载的消息数量，而不是固定的 limit
+      let actualCount = Math.min(this.dataList.length, this.query.limit);
       let needSubstractMsg = {
         name: countName,
-        num: this.limit,
+        num: actualCount,
       };
       this.$store.dispatch('substractUnreadMessageCount', needSubstractMsg);
     },

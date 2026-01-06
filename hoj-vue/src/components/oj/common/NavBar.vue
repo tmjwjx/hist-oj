@@ -669,6 +669,7 @@ export default {
         'display: inline-flex;width: 30px;height: 30px;border-radius: 50%;align-items: center;justify-content: center;text-align: center;user-select: none;',
       userRatingColor: null,
       ratingLoaded: false,
+      lastUnreadCount: 0, // 记录上次的未读消息总数，用于检测新消息
     };
   },
   methods: {
@@ -711,7 +712,9 @@ export default {
         this.$store.dispatch('updateUnreadMessageCount', data);
         let sumMsg =
           data.comment + data.reply + data.like + data.mine + data.sys;
-        if (sumMsg > 0) {
+
+        // 只有当未读消息数量增加时才弹窗通知（避免重复通知已读的消息）
+        if (sumMsg > 0 && sumMsg > this.lastUnreadCount) {
           if (this.webLanguage == 'zh-CN') {
             this.$notify.info({
               title: '未读消息',
@@ -738,6 +741,8 @@ export default {
             });
           }
         }
+        // 更新上次的未读消息数
+        this.lastUnreadCount = sumMsg;
       });
     },
     changeWebLanguage() {
