@@ -40,60 +40,6 @@
         </el-card>
         <Announcements class="card-top"></Announcements>
         <SubmissionStatistic class="card-top"></SubmissionStatistic>
-        <el-card class="card-top">
-          <div
-            slot="header"
-            class="clearfix"
-          >
-            <span class="panel-title home-title">
-              <i class="el-icon-magic-stick"></i> {{
-              $t('m.Latest_Problem')
-            }}</span>
-          </div>
-          <vxe-table
-            border="inner"
-            highlight-hover-row
-            stripe
-            :loading="loading.recentUpdatedProblemsLoading"
-            auto-resize
-            :data="recentUpdatedProblems"
-            @cell-click="goProblem"
-          >
-            <vxe-table-column
-              field="problemId"
-              :title="$t('m.Problem_ID')"
-              min-width="100"
-              show-overflow
-              align="center"
-            >
-            </vxe-table-column>
-            <vxe-table-column
-              field="title"
-              :title="$t('m.Title')"
-              show-overflow
-              min-width="130"
-              align="center"
-            >
-            </vxe-table-column>
-            <vxe-table-column
-              field="gmtModified"
-              :title="$t('m.Recent_Update')"
-              show-overflow
-              min-width="96"
-              align="center"
-            >
-              <template v-slot="{ row }">
-                <el-tooltip
-                  :content="row.gmtModified | localtime"
-                  placement="top"
-                >
-                  <span>{{ row.gmtModified | fromNow }}</span>
-                </el-tooltip>
-              </template>
-            </vxe-table-column>
-
-          </vxe-table>
-        </el-card>
       </el-col>
       <el-col
         :md="9"
@@ -245,7 +191,7 @@
             class="clearfix"
           >
             <span class="panel-title home-title">
-              <i class="el-icon-s-data"></i> {{ $t('m.Recent_7_Days_AC_Rank')}}
+              <i class="el-icon-trophy"></i> Rating 排行榜
             </span>
             <el-button
               type="text"
@@ -253,7 +199,7 @@
               @click="goRatingRank"
               style="float: right; padding: 3px 0; color: #409eff;"
             >
-              <i class="el-icon-trophy"></i> Rating 排名
+              查看全部 <i class="el-icon-d-arrow-right"></i>
             </el-button>
           </div>
           <vxe-table
@@ -261,9 +207,9 @@
             stripe
             auto-resize
             align="center"
-            :data="recentUserACRecord"
+            :data="ratingRankList"
             max-height="500px"
-            :loading="loading.recent7ACRankLoading"
+            :loading="loading.ratingRankLoading"
           >
             <vxe-table-column
               type="seq"
@@ -292,29 +238,87 @@
                 ></avatar>
                 <a
                   @click="goUserHome(row.username, row.uid)"
-                  :style="{ color: row.ratingColor || '#2d8cf0', fontWeight: row.ratingColor ? 'bold' : 'normal' }"
+                  :style="{ color: row.color, fontWeight: 'bold' }"
                 >{{ row.username }}</a>
                 <span
                   style="margin-left:2px"
-                  v-if="row.titleName"
+                  v-if="row.level"
                 >
                   <el-tag
                     effect="dark"
                     size="small"
-                    :color="row.titleColor"
+                    :color="row.color"
                   >
-                    {{ row.titleName }}
+                    {{ row.level }}
                   </el-tag>
                 </span>
               </template>
             </vxe-table-column>
             <vxe-table-column
-              field="ac"
-              :title="$t('m.AC')"
-              min-width="50"
+              field="rating"
+              title="Rating"
+              min-width="80"
               align="left"
             >
+              <template v-slot="{ row }">
+                <span :style="{ color: row.color, fontWeight: 'bold' }">{{ row.rating }}</span>
+              </template>
             </vxe-table-column>
+          </vxe-table>
+        </el-card>
+
+        <el-card class="card-top">
+          <div
+            slot="header"
+            class="clearfix"
+          >
+            <span class="panel-title home-title">
+              <i class="el-icon-magic-stick"></i> {{
+              $t('m.Latest_Problem')
+            }}</span>
+          </div>
+          <vxe-table
+            border="inner"
+            highlight-hover-row
+            stripe
+            :loading="loading.recentUpdatedProblemsLoading"
+            auto-resize
+            :data="recentUpdatedProblems"
+            @cell-click="goProblem"
+          >
+            <vxe-table-column
+              field="problemId"
+              :title="$t('m.Problem_ID')"
+              min-width="100"
+              show-overflow
+              align="center"
+            >
+            </vxe-table-column>
+            <vxe-table-column
+              field="title"
+              :title="$t('m.Title')"
+              show-overflow
+              min-width="130"
+              align="center"
+            >
+            </vxe-table-column>
+            <vxe-table-column
+              field="gmtModified"
+              :title="$t('m.Recent_Update')"
+              show-overflow
+              min-width="96"
+              align="center"
+            >
+              <template v-slot="{ row }">
+                <el-tooltip
+                  :content="row.gmtModified | localtime"
+                  placement="top"
+                >
+                  <span>{{ row.gmtModified | fromNow }}</span>
+                </el-tooltip>
+              </template>
+            </vxe-table-column>
+
           </vxe-table>
         </el-card>
         <el-card class="card-top">
@@ -392,11 +396,13 @@ export default {
       interval: 5000,
       recentUpdatedProblems: [],
       recentUserACRecord: [],
+      ratingRankList: [],
       CONTEST_STATUS_REVERSE: {},
       CONTEST_TYPE_REVERSE: {},
       contests: [],
       loading: {
         recent7ACRankLoading: false,
+        ratingRankLoading: false,
         recentUpdatedProblemsLoading: false,
         recentContests: false,
       },
@@ -459,7 +465,7 @@ export default {
     this.CONTEST_TYPE_REVERSE = Object.assign({}, CONTEST_TYPE_REVERSE);
     this.getHomeCarousel();
     this.getRecentContests();
-    this.getRecent7ACRank();
+    this.getRatingRank();
     this.getRecentUpdatedProblemList();
   },
   methods: {
@@ -495,41 +501,16 @@ export default {
         }
       );
     },
-    getRecent7ACRank() {
-      this.loading.recent7ACRankLoading = true;
-      api.getRecent7ACRank().then(
+    getRatingRank() {
+      this.loading.ratingRankLoading = true;
+      ratingApi.getRatingRank(1, 10).then(
         (res) => {
-          this.recentUserACRecord = res.data.data;
-          // 批量查询用户 Rating 并设置颜色，完成后再关闭 loading
-          this.loadUsersRatingColor();
+          this.ratingRankList = res.records || [];
+          this.loading.ratingRankLoading = false;
         },
         (err) => {
-          this.loading.recent7ACRankLoading = false;
-        }
-      );
-    },
-    // 批量加载用户 Rating 颜色
-    loadUsersRatingColor() {
-      if (!this.recentUserACRecord || this.recentUserACRecord.length === 0) {
-        this.loading.recent7ACRankLoading = false;
-        return;
-      }
-      const uids = this.recentUserACRecord.map(u => u.uid);
-      ratingApi.getBatchUserRating(uids).then(
-        (data) => {
-          this.recentUserACRecord.forEach(user => {
-            const ratingInfo = data[user.uid];
-            if (ratingInfo && ratingInfo.rating) {
-              this.$set(user, 'ratingColor', ratingInfo.color);
-            }
-          });
-          // Rating 颜色加载完成后关闭 loading
-          this.loading.recent7ACRankLoading = false;
-        },
-        (err) => {
-          console.error('加载用户 Rating 颜色失败:', err);
-          // 即使失败也要关闭 loading
-          this.loading.recent7ACRankLoading = false;
+          console.error('获取 Rating 排名失败:', err);
+          this.loading.ratingRankLoading = false;
         }
       );
     },
