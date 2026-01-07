@@ -731,8 +731,13 @@ func updateRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 如果不是被退回的报名，需要检查比赛时间
-	if currentReg.Status != "rejected" {
+	// 如果是用户修改表单数据（不是管理员修改状态），需要检查比赛时间
+	// 判断依据：请求中包含表单字段（name, class, college等）但只允许被退回的报名修改
+	isFormUpdate := update.Name != "" || update.Class != "" || update.College != "" ||
+		update.StudentID != "" || update.Gender != "" || update.ShirtSize != "" ||
+		update.TeamName != "" || update.QQ != ""
+
+	if isFormUpdate && currentReg.Status != "rejected" {
 		compTable := getCompetitionTable()
 		var comp Competition
 		err = db.QueryRow(

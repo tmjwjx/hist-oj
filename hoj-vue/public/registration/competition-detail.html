@@ -410,6 +410,20 @@
                 <div class="description-content" v-html="competition.renderedDescription || competition.description"></div>
             </div>
 
+            <!-- 不在报名时间内且报名未被退回时的提示 -->
+            <div class="card" v-if="!canRegister && (!userRegistration || userRegistration.status !== 'rejected')">
+                <h2>📝 报名提示</h2>
+                <p style="color: #718096; text-align: center; padding: 20px;">
+                    {{ registrationStatus ? registrationStatus.text : '当前无法提交报名表单' }}
+                </p>
+                <p v-if="userRegistration && userRegistration.status === 'pending'" style="color: #f59e0b; text-align: center; font-size: 14px;">
+                    ⏳ 您的报名正在等待管理员审核
+                </p>
+                <p v-else-if="userRegistration && userRegistration.status === 'approved'" style="color: #10b981; text-align: center; font-size: 14px;">
+                    ✅ 您的报名已通过审核
+                </p>
+            </div>
+
             <!-- 已报名状态 - 查看表单 -->
             <div class="card" v-if="userRegistration && userRegistration.status !== 'rejected'">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -468,8 +482,8 @@
                 </div>
             </div>
 
-            <!-- 报名表单或修改表单 -->
-            <div class="card" v-if="!userRegistration || userRegistration.status === 'rejected'">
+            <!-- 报名表单或修改表单 - 只在报名时间内或被退回时显示 -->
+            <div class="card" v-if="canRegister && (!userRegistration || userRegistration.status === 'rejected')">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2>{{ userRegistration && userRegistration.status === 'rejected' ? '✏️ 修改报名' : '✏️ 报名表单' }}</h2>
                     <!-- 如果是被退回的报名，显示状态 -->

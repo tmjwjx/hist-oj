@@ -744,14 +744,12 @@
 
                         <div class="actions">
                             <button
-                                v-if="reg.status === 'pending' || reg.status === 'rejected'"
                                 class="btn btn-approve"
                                 @click="approveRegistration(reg.id)"
                             >
                                 ✓ 通过
                             </button>
                             <button
-                                v-if="reg.status === 'pending' || reg.status === 'approved'"
                                 class="btn btn-reject"
                                 @click="rejectRegistration(reg.id)"
                             >
