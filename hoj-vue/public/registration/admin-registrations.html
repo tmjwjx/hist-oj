@@ -626,7 +626,7 @@
                         type="text"
                         v-model="searchQuery"
                         placeholder="搜索姓名、学院、班级、学号或队名..."
-                        @input="filterRegistrations"
+                        @input="filterRegistrations(true)"
                     >
                 </div>
 
@@ -634,28 +634,28 @@
                     <button
                         class="filter-btn"
                         :class="{ active: statusFilter === 'all' }"
-                        @click="statusFilter = 'all'; filterRegistrations()"
+                        @click="statusFilter = 'all'; filterRegistrations(true)"
                     >
                         全部 ({{ stats.total }})
                     </button>
                     <button
                         class="filter-btn"
                         :class="{ active: statusFilter === 'pending' }"
-                        @click="statusFilter = 'pending'; filterRegistrations()"
+                        @click="statusFilter = 'pending'; filterRegistrations(true)"
                     >
                         待审核 ({{ stats.pending }})
                     </button>
                     <button
                         class="filter-btn"
                         :class="{ active: statusFilter === 'approved' }"
-                        @click="statusFilter = 'approved'; filterRegistrations()"
+                        @click="statusFilter = 'approved'; filterRegistrations(true)"
                     >
                         已通过 ({{ stats.approved }})
                     </button>
                     <button
                         class="filter-btn"
                         :class="{ active: statusFilter === 'rejected' }"
-                        @click="statusFilter = 'rejected'; filterRegistrations()"
+                        @click="statusFilter = 'rejected'; filterRegistrations(true)"
                     >
                         已拒绝 ({{ stats.rejected }})
                     </button>
@@ -923,7 +923,11 @@
 
                         const response = await axios.get(`/registration-api/api/competitions/${this.competitionId}/registrations`);
                         this.registrations = response.data || [];
-                        this.filterRegistrations();
+
+                        // 第一次加载时重置到第一页，自动刷新时保持当前页
+                        const isFirstLoadAndNeedReset = isFirstLoad && this.currentPage === 1;
+                        this.filterRegistrations(isFirstLoadAndNeedReset);
+
                         this.updateStats();
 
                         if (isFirstLoad) {
@@ -937,7 +941,7 @@
                         }
                     }
                 },
-                filterRegistrations() {
+                filterRegistrations(resetPage = true) {
                     let filtered = this.registrations;
 
                     if (this.statusFilter !== 'all') {
@@ -956,8 +960,16 @@
                     }
 
                     this.filteredRegistrations = filtered;
-                    // 重置到第一页
-                    this.currentPage = 1;
+                    // 只在手动操作时重置到第一页，自动刷新时保持当前页
+                    if (resetPage) {
+                        this.currentPage = 1;
+                    } else {
+                        // 如果当前页超出了新的总页数，则重置到第一页
+                        const totalPages = Math.ceil(this.filteredRegistrations.length / this.pageSize);
+                        if (this.currentPage > totalPages) {
+                            this.currentPage = 1;
+                        }
+                    }
                 },
                 updateStats() {
                     this.stats = {

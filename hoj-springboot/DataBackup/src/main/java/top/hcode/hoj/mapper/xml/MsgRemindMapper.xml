@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="top.hcode.hoj.mapper.MsgRemindMapper">
 
-    <select id="getUserUnreadMsgCount" resultType="top.hcode.hoj.pojo.vo.UserUnreadMsgCountVO" useCache="true">
+    <select id="getUserUnreadMsgCount" resultType="top.hcode.hoj.pojo.vo.UserUnreadMsgCountVO" useCache="false">
         SELECT
           (SELECT COUNT(1) FROM msg_remind WHERE recipient_id=#{uid} AND state=0 AND `action`='Discuss') AS 'comment',
           (SELECT COUNT(1) FROM msg_remind WHERE recipient_id=#{uid} AND state=0 AND `action`='Reply') AS 'reply',
