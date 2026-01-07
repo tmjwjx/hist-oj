@@ -866,9 +866,37 @@
                     pollTimer: null
                 };
             },
+            watch: {
+                // 监听页码变化，保存到 URL
+                currentPage(newPage) {
+                    this.updateURLParams();
+                },
+                // 监听筛选条件变化，保存到 URL
+                statusFilter(newFilter) {
+                    this.updateURLParams();
+                },
+                searchQuery(newQuery) {
+                    this.updateURLParams();
+                }
+            },
             mounted() {
                 const urlParams = new URLSearchParams(window.location.search);
                 this.competitionId = urlParams.get('id');
+
+                // 从 URL 恢复之前的页码和筛选条件
+                const savedPage = urlParams.get('page');
+                const savedFilter = urlParams.get('filter');
+                const savedQuery = urlParams.get('query');
+
+                if (savedPage) {
+                    this.currentPage = parseInt(savedPage) || 1;
+                }
+                if (savedFilter) {
+                    this.statusFilter = savedFilter;
+                }
+                if (savedQuery) {
+                    this.searchQuery = decodeURIComponent(savedQuery);
+                }
 
                 if (this.competitionId) {
                     this.loadCompetition();
@@ -897,6 +925,21 @@
                 }
             },
             methods: {
+                updateURLParams() {
+                    const url = new URL(window.location);
+                    // 更新页码
+                    url.searchParams.set('page', this.currentPage);
+                    // 更新筛选条件
+                    url.searchParams.set('filter', this.statusFilter);
+                    // 更新搜索关键词
+                    if (this.searchQuery) {
+                        url.searchParams.set('query', this.searchQuery);
+                    } else {
+                        url.searchParams.delete('query');
+                    }
+                    // 使用 replaceState 更新 URL，不刷新页面
+                    window.history.replaceState({}, '', url);
+                },
                 async loadCompetition() {
                     try {
                         const response = await axios.get(`/registration-api/api/competitions/${this.competitionId}`);
@@ -923,11 +966,14 @@
 
                         const response = await axios.get(`/registration-api/api/competitions/${this.competitionId}/registrations`);
                         this.registrations = response.data || [];
-                        this.filterRegistrations();
+                        // 自动刷新时不重置页码，第一次加载时也不重置（因为已从 URL 恢复）
+                        this.filterRegistrations(false);
                         this.updateStats();
 
                         if (isFirstLoad) {
                             this.loading = false;
+                            // 第一次加载完成后更新 URL 参数
+                            this.updateURLParams();
                         }
                     } catch (error) {
                         // 只在第一次加载失败时显示错误提示
@@ -937,7 +983,7 @@
                         }
                     }
                 },
-                filterRegistrations() {
+                filterRegistrations(resetPage = true) {
                     let filtered = this.registrations;
 
                     if (this.statusFilter !== 'all') {
@@ -956,8 +1002,15 @@
                     }
 
                     this.filteredRegistrations = filtered;
-                    // 重置到第一页
-                    this.currentPage = 1;
+                    // 只在需要时重置到第一页（例如用户改变筛选条件时）
+                    if (resetPage) {
+                        this.currentPage = 1;
+                    } else {
+                        // 如果不重置页码，确保当前页码不超出范围
+                        if (this.currentPage > this.totalPages) {
+                            this.currentPage = Math.max(1, this.totalPages);
+                        }
+                    }
                 },
                 updateStats() {
                     this.stats = {
