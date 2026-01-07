@@ -45,8 +45,8 @@ func (s *Scheduler) Start() error {
 	s.cron.Start()
 	utils.GetLogger().Info("定时任务已启动", zap.Int("interval_minutes", interval))
 
-	// 启动时立即执行一次
-	go s.checkAndCalculateRating()
+	// 不再在启动时立即执行，避免与定时任务冲突
+	// 如果需要立即检查，可以手动调用 TriggerScheduler 或等待下一个定时周期
 
 	return nil
 }

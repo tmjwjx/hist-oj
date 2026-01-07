@@ -31,21 +31,41 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	logger := utils.GetLogger()
 	logger.Info("开始计算比赛rating", zap.Int64("contest_id", contestID))
 
-	// 先检查比赛状态（在事务外进行，避免不必要的回滚）
+	// 使用事务并在开始时加行锁，防止并发计算
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			if tx != nil {
+				tx.Rollback()
+			}
+			logger.Error("计算rating时发生panic",
+				zap.Int64("contest_id", contestID),
+				zap.Any("panic", r))
+		}
+	}()
+
+	// 使用 SELECT FOR UPDATE 加行锁，防止并发计算
+	// 这会锁定该比赛的记录，直到事务提交或回滚
 	var status model.ContestRatingStatus
-	err := s.db.Where("contest_id = ?", contestID).First(&status).Error
+	err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("contest_id = ?", contestID).
+		First(&status).Error
+
 	if err == gorm.ErrRecordNotFound {
+		tx.Rollback()
 		// 如果找不到记录，说明比赛还没有设置 Rating 类型，不计算
 		logger.Info("比赛未设置Rating类型", zap.Int64("contest_id", contestID))
 		return nil, nil
 	} else if err != nil {
+		tx.Rollback()
 		logger.Error("查询比赛状态失败", zap.Int64("contest_id", contestID), zap.Error(err))
 		return nil, fmt.Errorf("查询比赛状态失败: %w", err)
 	}
 
-	// 检查是否已计算过
+	// 检查是否已计算过（在锁内再次检查，防止并发）
 	if status.RatingCalculated {
-		logger.Warn("比赛rating已计算过", zap.Int64("contest_id", contestID))
+		tx.Rollback()
+		logger.Warn("比赛rating已计算过（并发检测）", zap.Int64("contest_id", contestID))
 		var histories []model.RatingHistory
 		s.db.Where("contest_id = ?", contestID).Find(&histories)
 		return histories, nil
@@ -53,22 +73,12 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 
 	// 检查是否为 Rating 比赛
 	if !status.IsRated {
+		tx.Rollback()
 		logger.Info("比赛不是Rating比赛", zap.Int64("contest_id", contestID))
 		return nil, nil
 	}
 
-	// 使用事务确保数据一致性（在确认需要计算后再开启事务）
-	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			if tx != nil {
-				tx.Rollback()
-			}
-			logger.Error("计算rating时发生panic", 
-				zap.Int64("contest_id", contestID),
-				zap.Any("panic", r))
-		}
-	}()
+	logger.Info("获取到计算锁，开始处理", zap.Int64("contest_id", contestID))
 
 	// 获取比赛信息
 	contestInfo, err := client.GetContestInfo(contestID)
