@@ -150,8 +150,7 @@ export default {
           this.total = res.data.data.total;
           this.dataList = res.data.data.records;
           this.loading = false;
-          // 后端已经自动标记消息为已读，前端不需要手动减计数
-          // this.substractUnreadMsgNum();
+          this.substractUnreadMsgNum();
         },
         (err) => {
           this.loading = false;

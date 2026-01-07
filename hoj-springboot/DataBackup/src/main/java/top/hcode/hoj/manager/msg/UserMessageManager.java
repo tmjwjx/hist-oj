@@ -264,8 +264,7 @@ public class UserMessageManager {
     }
 
 
-    // 改为同步执行，确保在返回消息列表前就更新数据库
-    // @Async  // 移除异步注解
+    @Async
     public void updateUserMsgRead(IPage<UserMsgVO> userMsgList) {
         List<Long> idList = userMsgList.getRecords().stream()
                 .filter(userMsgVo -> !userMsgVo.getState())
