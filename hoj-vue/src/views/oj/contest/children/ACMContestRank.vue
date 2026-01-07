@@ -667,7 +667,6 @@ export default {
       }
     },
     applyToTable(dataRank) {
-      console.log('🔧 ACM applyToTable 开始, 数据长度:', dataRank?.length);
       dataRank.forEach((rank, i) => {
         let info = rank.submissionInfo;
         let cellClass = {};
@@ -708,9 +707,7 @@ export default {
           rank.username
         );
       });
-      console.log('✅ ACM 数据处理完成，准备赋值给 this.dataRank');
       this.$set(this, 'dataRank', dataRank);
-      console.log('✅ ACM this.dataRank 已更新, 长度:', this.dataRank?.length);
     },
     addChartCategory(contestProblems) {
       let category = [];

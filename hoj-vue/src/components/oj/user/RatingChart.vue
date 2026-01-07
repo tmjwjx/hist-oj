@@ -67,11 +67,9 @@ export default {
       this.error = null
       try {
         const data = await ratingApi.getRatingHistory(this.uid, 1, 100)
-        console.log('Rating history response:', data)
         // API 返回的数据是倒序的（最新在前），需要反转为正序（最早在前）
         const records = data.records || data || []
         this.chartData = Array.isArray(records) ? [...records].reverse() : []
-        console.log('Chart data:', this.chartData)
       } catch (error) {
         console.error('获取 Rating 历史失败:', error)
         this.error = '加载失败: ' + (error.message || '未知错误')
@@ -86,21 +84,11 @@ export default {
       }
     },
     renderChart() {
-      console.log('[RatingChart] renderChart called')
-      console.log('[RatingChart] this.$refs.chart:', this.$refs.chart)
-      console.log('[RatingChart] this.chartData.length:', this.chartData.length)
-
       if (!this.$refs.chart || this.chartData.length === 0) {
-        console.warn('[RatingChart] renderChart early return:', {
-          hasRef: !!this.$refs.chart,
-          dataLength: this.chartData.length
-        })
         return
       }
 
-      console.log('[RatingChart] Initializing echarts...')
       this.chart = echarts.init(this.$refs.chart)
-      console.log('[RatingChart] echarts initialized:', this.chart)
 
       // 统一格式化日期为 YYYY-MM-DD
       const dates = this.chartData.map(item => {

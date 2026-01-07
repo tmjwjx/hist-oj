@@ -56,7 +56,6 @@ export default {
         containsEnd: this.isContainsAfterContestJudge,
       }
       api.getContestRank(data).then(res => {
-        console.log('getContestRank response:', res);
         if (this.showChart && !refresh && this.$refs.chart) {
           this.$refs.chart.hideLoading()
         }
@@ -68,7 +67,6 @@ export default {
 
         this.total = res.data.data.total
         const records = res.data.data.records || [];
-        console.log('排名记录数:', records.length);
 
         // 先立即渲染表格，不等待 Rating 数据
         if (page === 1 && this.showChart && this.$refs.chart) {
@@ -81,7 +79,6 @@ export default {
 
         try {
           this.applyToTable(records)
-          console.log('表格渲染完成');
         } catch (error) {
           console.error('渲染表格失败:', error);
         }

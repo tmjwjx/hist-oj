@@ -399,11 +399,8 @@ export default {
         });
         this.loading = false;
         // 获取用户 Rating（使用计算属性 userIdentifier）
-        console.log('init: userIdentifier =', this.userIdentifier, 'profile.uuid =', this.profile.uuid, 'profile.uid =', this.profile.uid);
         if (this.userIdentifier) {
           this.fetchUserRating(this.userIdentifier);
-        } else {
-          console.warn('无法获取用户标识，跳过 rating 数据加载');
         }
       },(_)=>{
         this.loading = false;
@@ -412,23 +409,18 @@ export default {
     },
     async fetchUserRating(uid) {
       if (!uid) {
-        console.warn('fetchUserRating: uid 为空，跳过获取 rating');
         return;
       }
 
-      console.log('fetchUserRating called with uid:', uid);
       this.ratingLoading = true;
 
       try {
         const data = await ratingApi.getUserRating(uid);
-        console.log('getUserRating response:', data);
         this.userRating = data.rating;
         this.maxRating = data.maxRating;
-        console.log('userRating set to:', this.userRating);
 
         // 获取参赛次数
         const historyData = await ratingApi.getRatingHistory(uid, 1, 1);
-        console.log('getRatingHistory response:', historyData);
         this.contestCount = historyData.total || 0;
       } catch (error) {
         console.error('获取用户 Rating 失败:', error);
@@ -484,7 +476,6 @@ export default {
       }
     },
     "$store.state.language"(newVal,oldVal){
-      console.log(newVal,oldVal)
       this.calendarHeatLocale = {
           months: [
             this.$i18n.t('m.Jan'),

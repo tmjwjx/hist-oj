@@ -667,9 +667,7 @@ export default {
           rank.username
         );
       });
-      console.log('🔧 OI applyToTable 完成，准备赋值给 this.dataRank, 长度:', dataRank?.length);
       this.$set(this, 'dataRank', dataRank);
-      console.log('✅ OI this.dataRank 已更新, 长度:', this.dataRank?.length);
     },
 
     downloadRankCSV() {

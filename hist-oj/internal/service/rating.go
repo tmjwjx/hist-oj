@@ -31,6 +31,8 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	logger := utils.GetLogger()
 	logger.Info("开始计算比赛rating", zap.Int64("contest_id", contestID))
 
+	now := time.Now()
+
 	// 使用事务并在开始时加行锁，防止并发计算
 	tx := s.db.Begin()
 	defer func() {
@@ -78,7 +80,21 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		return nil, nil
 	}
 
-	logger.Info("获取到计算锁，开始处理", zap.Int64("contest_id", contestID))
+	// 立即更新 RatingCalculated = true，防止并发
+	// 即使后续计算失败，也需要手动重置状态才能重新计算
+	status.RatingCalculated = true
+	calculatedAt := now
+	status.CalculatedAt = &calculatedAt
+	status.UpdatedAt = now
+	if err := tx.Save(&status).Error; err != nil {
+		tx.Rollback()
+		logger.Error("更新比赛rating状态失败",
+			zap.Int64("contest_id", contestID),
+			zap.Error(err))
+		return nil, fmt.Errorf("更新比赛rating状态失败: %w", err)
+	}
+
+	logger.Info("获取到计算锁并设置计算标志，开始处理", zap.Int64("contest_id", contestID))
 
 	// 获取比赛信息
 	contestInfo, err := client.GetContestInfo(contestID)
@@ -357,7 +373,6 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 
 	// 保存rating历史记录并更新用户rating
 	histories := make([]model.RatingHistory, 0, len(rankResp.Records))
-	now := time.Now()
 
 	// 批量更新用户rating
 	// 通过UID进行强关联绑定，确保每个用户都得到正确的rating变化
@@ -442,7 +457,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		}
 	}
 
-	logger.Info("用户rating更新完成", 
+	logger.Info("用户rating更新完成",
 		zap.Int64("contest_id", contestID),
 		zap.Int("updated_users", updateCount),
 		zap.Int("total_users", len(histories)))
@@ -450,30 +465,11 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	// 批量保存历史记录
 	if err := tx.CreateInBatches(histories, 100).Error; err != nil {
 		tx.Rollback()
-		logger.Error("保存rating历史失败", 
+		logger.Error("保存rating历史失败",
 			zap.Int64("contest_id", contestID),
 			zap.Int("history_count", len(histories)),
 			zap.Error(err))
 		return nil, fmt.Errorf("保存rating历史失败: %w", err)
-	}
-
-	// 更新比赛rating状态
-	calculatedAt := now
-	status.RatingCalculated = true
-	status.CalculatedAt = &calculatedAt
-	status.UpdatedAt = now
-
-	// 如果是新记录，设置 CreatedAt
-	if status.CreatedAt.IsZero() {
-		status.CreatedAt = now
-	}
-
-	if err := tx.Save(&status).Error; err != nil {
-		tx.Rollback()
-		logger.Error("更新比赛rating状态失败",
-			zap.Int64("contest_id", contestID),
-			zap.Error(err))
-		return nil, fmt.Errorf("更新比赛rating状态失败: %w", err)
 	}
 
 	// 提交事务

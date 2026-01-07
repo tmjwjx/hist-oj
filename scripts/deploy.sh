@@ -243,11 +243,13 @@ deploy_on_server() {
         curl -s http://localhost:9527/health || echo "健康检查失败"
 
         echo "[INFO] 测试手动调整 Rating API（需要管理员权限）..."
-        curl -s -X POST http://localhost:9527/api/rating/admin/adjust \
-            -H "Content-Type: application/json" \
-            -H "X-Operator-UID: admin" \
-            -d '{"username": "test", "ratingChange": 10, "reason": "部署测试"}' \
-            || echo "手动调整 API 测试失败（预期行为，因为用户可能不存在）"
+        # 注释掉自动测试，避免每次部署都给 test 用户 +10 分
+        # curl -s -X POST http://localhost:9527/api/rating/admin/adjust \
+        #     -H "Content-Type: application/json" \
+        #     -H "X-Operator-UID: admin" \
+        #     -d '{"username": "test", "ratingChange": 10, "reason": "部署测试"}' \
+        #     || echo "手动调整 API 测试失败（预期行为，因为用户可能不存在）"
+        echo "[INFO] 已禁用自动 Rating 测试（如需测试，请手动执行）"
 
         echo "[INFO] 测试报名系统 API..."
         docker exec hoj-frontend curl -s http://registration-backend:8080/api/competitions || echo "报名系统 API 测试失败"
