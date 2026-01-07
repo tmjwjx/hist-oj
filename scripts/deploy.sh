@@ -86,78 +86,104 @@ build_images() {
 
 # 保存镜像
 save_images() {
-    log_info "保存 Docker 镜像..."
+    local DEPLOY_TARGET="${1:-all}"
+    log_info "保存 Docker 镜像（目标: $DEPLOY_TARGET）..."
 
     cd "$PROJECT_DIR"
 
-    # 保存 hist-oj
-    log_info "保存 hist-oj 镜像..."
-    docker save hist-oj:latest | gzip > hist-oj.tar.gz || {
-        log_error "hist-oj 镜像保存失败"
-        exit 1
-    }
-    log_info "✓ hist-oj 镜像已保存 ($(du -h hist-oj.tar.gz | cut -f1))"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
+        # 保存 hist-oj
+        log_info "保存 hist-oj 镜像..."
+        docker save hist-oj:latest | gzip > hist-oj.tar.gz || {
+            log_error "hist-oj 镜像保存失败"
+            exit 1
+        }
+        log_info "✓ hist-oj 镜像已保存 ($(du -h hist-oj.tar.gz | cut -f1))"
+    fi
 
-    # 保存报名系统
-    log_info "保存 registration-backend 镜像..."
-    docker save registration-backend:latest | gzip > registration-backend.tar.gz || {
-        log_error "registration-backend 镜像保存失败"
-        exit 1
-    }
-    log_info "✓ registration-backend 镜像已保存 ($(du -h registration-backend.tar.gz | cut -f1))"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
+        # 保存报名系统
+        log_info "保存 registration-backend 镜像..."
+        docker save registration-backend:latest | gzip > registration-backend.tar.gz || {
+            log_error "registration-backend 镜像保存失败"
+            exit 1
+        }
+        log_info "✓ registration-backend 镜像已保存 ($(du -h registration-backend.tar.gz | cut -f1))"
+    fi
 
-    # 保存前端
-    log_info "保存 hoj-frontend 镜像..."
-    docker save hoj-frontend:latest | gzip > hoj-frontend.tar.gz || {
-        log_error "hoj-frontend 镜像保存失败"
-        exit 1
-    }
-    log_info "✓ hoj-frontend 镜像已保存 ($(du -h hoj-frontend.tar.gz | cut -f1))"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+        # 保存前端
+        log_info "保存 hoj-frontend 镜像..."
+        docker save hoj-frontend:latest | gzip > hoj-frontend.tar.gz || {
+            log_error "hoj-frontend 镜像保存失败"
+            exit 1
+        }
+        log_info "✓ hoj-frontend 镜像已保存 ($(du -h hoj-frontend.tar.gz | cut -f1))"
+    fi
 }
 
 # 上传镜像到服务器
 upload_images() {
-    log_info "上传镜像到服务器..."
+    local DEPLOY_TARGET="${1:-all}"
+    log_info "上传镜像到服务器（目标: $DEPLOY_TARGET）..."
 
     cd "$PROJECT_DIR"
 
-    # 上传 hist-oj
-    log_info "上传 hist-oj 镜像..."
-    sshpass -p "$SERVER_PASS" scp hist-oj.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
-        log_error "hist-oj 镜像上传失败"
-        exit 1
-    }
-    log_info "✓ hist-oj 镜像上传成功"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
+        # 上传 hist-oj
+        log_info "上传 hist-oj 镜像..."
+        sshpass -p "$SERVER_PASS" scp hist-oj.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
+            log_error "hist-oj 镜像上传失败"
+            exit 1
+        }
+        log_info "✓ hist-oj 镜像上传成功"
+    fi
 
-    # 上传报名系统
-    log_info "上传 registration-backend 镜像..."
-    sshpass -p "$SERVER_PASS" scp registration-backend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
-        log_error "registration-backend 镜像上传失败"
-        exit 1
-    }
-    log_info "✓ registration-backend 镜像上传成功"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
+        # 上传报名系统
+        log_info "上传 registration-backend 镜像..."
+        sshpass -p "$SERVER_PASS" scp registration-backend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
+            log_error "registration-backend 镜像上传失败"
+            exit 1
+        }
+        log_info "✓ registration-backend 镜像上传成功"
+    fi
 
-    # 上传前端
-    log_info "上传 hoj-frontend 镜像..."
-    sshpass -p "$SERVER_PASS" scp hoj-frontend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
-        log_error "hoj-frontend 镜像上传失败"
-        exit 1
-    }
-    log_info "✓ hoj-frontend 镜像上传成功"
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+        # 上传前端
+        log_info "上传 hoj-frontend 镜像..."
+        sshpass -p "$SERVER_PASS" scp hoj-frontend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
+            log_error "hoj-frontend 镜像上传失败"
+            exit 1
+        }
+        log_info "✓ hoj-frontend 镜像上传成功"
+    fi
 
-    # 上传数据库迁移脚本
-    log_info "上传数据库迁移脚本..."
-    sshpass -p "$SERVER_PASS" scp hist-oj/migrations/005_add_manual_rating_fields.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
-        log_warn "数据库迁移脚本上传失败（可能不存在）"
-    }
-    log_info "✓ 数据库迁移脚本上传成功"
+    # 上传数据库迁移脚本（只在完整部署时上传）
+    if [ "$DEPLOY_TARGET" = "all" ]; then
+        log_info "上传数据库迁移脚本..."
+
+        # 上传 Rating 系统迁移脚本
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/005_add_manual_rating_fields.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "Rating 迁移脚本上传失败（可能不存在）"
+        }
+
+        # 上传报名系统迁移脚本（新增）
+        sshpass -p "$SERVER_PASS" scp registration-system/migrations/001_add_last_view_time_fields.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "报名系统迁移脚本上传失败（可能不存在）"
+        }
+
+        log_info "✓ 数据库迁移脚本上传完成"
+    fi
 }
 
 # 在服务器上部署
 deploy_on_server() {
-    log_info "在服务器上部署服务..."
+    local DEPLOY_TARGET="${1:-all}"
+    log_info "在服务器上部署服务（目标: $DEPLOY_TARGET）..."
 
-    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+    # 传递参数到远程脚本
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "DEPLOY_TARGET='$DEPLOY_TARGET'" << 'ENDSSH'
         set -e
 
         echo "[INFO] 加载 Docker 镜像..."
@@ -175,63 +201,104 @@ deploy_on_server() {
         echo "[INFO] 加载 hoj-frontend 镜像..."
         gunzip -c hoj-frontend.tar.gz | docker load
 
-        # 执行数据库迁移（如果迁移脚本存在）
-        if [ -f "/opt/005_add_manual_rating_fields.sql" ]; then
-            echo "[INFO] 执行数据库迁移..."
-            mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/005_add_manual_rating_fields.sql && echo "[INFO] ✓ 数据库迁移成功" || echo "[WARN] 数据库迁移失败（可能已执行过）"
+        # 执行数据库迁移（如果迁移脚本存在且字段未添加）
+        echo "[INFO] 检查数据库迁移..."
+
+        # 检查 last_view_time 和 admin_last_view_time 字段是否已存在
+        FIELD_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='histcontest_register_registrations' \
+             AND COLUMN_NAME IN ('last_view_time', 'admin_last_view_time')" 2>/dev/null || echo "0")
+
+        if [ "$FIELD_EXISTS" -ge "2" ]; then
+            echo "[INFO] ✓ 数据库字段已存在，跳过迁移"
         else
-            echo "[WARN] 未找到数据库迁移脚本，跳过迁移"
+            echo "[INFO] 需要执行数据库迁移..."
+
+            # Rating 系统迁移
+            if [ -f "/opt/005_add_manual_rating_fields.sql" ]; then
+                echo "[INFO] 执行 Rating 系统数据库迁移..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/005_add_manual_rating_fields.sql && echo "[INFO] ✓ Rating 迁移成功" || echo "[WARN] Rating 迁移失败"
+            fi
+
+            # 报名系统迁移
+            if [ -f "/opt/001_add_last_view_time_fields.sql" ]; then
+                echo "[INFO] 执行报名系统数据库迁移..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/001_add_last_view_time_fields.sql && echo "[INFO] ✓ 报名系统迁移成功" || echo "[WARN] 报名系统迁移失败"
+            fi
         fi
 
         echo "[INFO] 停止并删除旧容器..."
-        docker stop hist-oj registration-backend hoj-frontend 2>/dev/null || true
-        docker rm hist-oj registration-backend hoj-frontend 2>/dev/null || true
+
+        # 根据部署目标选择性停止容器
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
+            docker stop hist-oj 2>/dev/null || true
+            docker rm hist-oj 2>/dev/null || true
+        fi
+
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
+            docker stop registration-backend 2>/dev/null || true
+            docker rm registration-backend 2>/dev/null || true
+        fi
+
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+            docker stop hoj-frontend 2>/dev/null || true
+            docker rm hoj-frontend 2>/dev/null || true
+        fi
 
         echo "[INFO] 创建上传文件目录..."
         mkdir -p /opt/registration-uploads
 
-        echo "[INFO] 启动 hist-oj 容器..."
-        docker run -d \
-            --name hist-oj \
-            --network hoj_hoj-network \
-            -p 9527:9527 \
-            -v /workspace/hoj-deploy/distributed/main/hist-oj/configs:/app/configs \
-            --restart unless-stopped \
-            hist-oj:latest
+        # 根据部署目标选择性启动容器
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
+            echo "[INFO] 启动 hist-oj 容器..."
+            docker run -d \
+                --name hist-oj \
+                --network hoj_hoj-network \
+                -p 9527:9527 \
+                -v /workspace/hoj-deploy/distributed/main/hist-oj/configs:/app/configs \
+                --restart unless-stopped \
+                hist-oj:latest
+        fi
 
-        echo "[INFO] 启动 registration-backend 容器..."
-        docker run -d \
-            --name registration-backend \
-            --network hoj_hoj-network \
-            -v /opt/registration-uploads:/app/uploads \
-            -e DATABASE_HOST=43.143.133.62 \
-            -e DATABASE_PORT=3306 \
-            -e DATABASE_USER=root \
-            -e DATABASE_PASSWORD=hist2025 \
-            -e DATABASE_DBNAME=hoj \
-            -e SERVER_PORT=8080 \
-            -e TZ=Asia/Shanghai \
-            --restart unless-stopped \
-            --health-cmd="curl -f http://localhost:8080/api/competitions || exit 1" \
-            --health-interval=30s \
-            --health-timeout=10s \
-            --health-retries=3 \
-            --health-start-period=40s \
-            registration-backend:latest
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
+            echo "[INFO] 启动 registration-backend 容器..."
+            docker run -d \
+                --name registration-backend \
+                --network hoj_hoj-network \
+                -v /opt/registration-uploads:/app/uploads \
+                -e DATABASE_HOST=43.143.133.62 \
+                -e DATABASE_PORT=3306 \
+                -e DATABASE_USER=root \
+                -e DATABASE_PASSWORD=hist2025 \
+                -e DATABASE_DBNAME=hoj \
+                -e SERVER_PORT=8080 \
+                -e TZ=Asia/Shanghai \
+                --restart unless-stopped \
+                --health-cmd="curl -f http://localhost:8080/api/competitions || exit 1" \
+                --health-interval=30s \
+                --health-timeout=10s \
+                --health-retries=3 \
+                --health-start-period=40s \
+                registration-backend:latest
+        fi
 
-        echo "[INFO] 启动 hoj-frontend 容器..."
-        docker run -d \
-            --name hoj-frontend \
-            --network hoj_hoj-network \
-            -p 80:80 \
-            -p 443:443 \
-            --restart unless-stopped \
-            --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1" \
-            --health-interval=30s \
-            --health-timeout=3s \
-            --health-retries=3 \
-            --health-start-period=10s \
-            hoj-frontend:latest
+        if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+            echo "[INFO] 启动 hoj-frontend 容器..."
+            docker run -d \
+                --name hoj-frontend \
+                --network hoj_hoj-network \
+                -p 80:80 \
+                -p 443:443 \
+                --restart unless-stopped \
+                --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1" \
+                --health-interval=30s \
+                --health-timeout=3s \
+                --health-retries=3 \
+                --health-start-period=10s \
+                hoj-frontend:latest
+        fi
 
         echo "[INFO] 等待服务启动..."
         sleep 5
@@ -281,7 +348,7 @@ cleanup_server() {
     log_info "清理服务器上的临时文件..."
     sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
         cd /opt
-        rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz 005_add_manual_rating_fields.sql
+        rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz 005_add_manual_rating_fields.sql 001_add_last_view_time_fields.sql
         echo "[INFO] ✓ 服务器清理完成"
 ENDSSH
 }
@@ -297,9 +364,15 @@ show_result() {
     log_info "  - 报名页面: http://${SERVER_IP}/registration"
     log_info "  - 管理后台: http://${SERVER_IP}/admin/registration"
     log_info ""
-    log_info "新增功能：手动调整 Rating"
-    log_info "  - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
-    log_info "  - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
+    log_info "新增功能："
+    log_info "  1. 手动调整 Rating"
+    log_info "     - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
+    log_info "     - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
+    log_info ""
+    log_info "  2. 持久化消息已读状态（解决浏览器缓存清除问题）"
+    log_info "     - 用户和管理员的已读状态分别存储在数据库"
+    log_info "     - 支持跨设备同步已读状态"
+    log_info "     - 新增字段: last_view_time, admin_last_view_time"
     log_info ""
     log_info "验证命令："
     log_info "  curl http://${SERVER_IP}:9527/health"
@@ -311,6 +384,14 @@ show_result() {
     log_info "    -H 'Content-Type: application/json' \\"
     log_info "    -H 'X-Operator-UID: admin' \\"
     log_info "    -d '{\"username\": \"user\", \"ratingChange\": -100, \"reason\": \"测试\"}'"
+    log_info ""
+    log_info "数据库迁移："
+    log_info "  - 已执行: 001_add_last_view_time_fields.sql"
+    log_info "  - 新增字段验证:"
+    log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
+    log_info "      'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \\"
+    log_info "       WHERE TABLE_NAME=\"histcontest_register_registrations\" \\"
+    log_info "       AND COLUMN_NAME IN (\"last_view_time\", \"admin_last_view_time\")' hoj"
     log_info "=========================================="
 }
 
@@ -320,13 +401,69 @@ main() {
     log_info "HOJ2 + 报名系统自动化部署"
     log_info "=========================================="
 
-    # 检查参数
-    if [ "$1" == "--skip-build" ]; then
-        log_warn "跳过镜像构建步骤"
-        SKIP_BUILD=true
-    else
-        SKIP_BUILD=false
-    fi
+    # 解析参数
+    SKIP_BUILD=false
+    SKIP_DB_MIGRATION=false
+    DEPLOY_TARGET="all"
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --skip-build)
+                log_warn "跳过镜像构建步骤"
+                SKIP_BUILD=true
+                shift
+                ;;
+            --skip-db)
+                log_warn "跳过数据库迁移"
+                SKIP_DB_MIGRATION=true
+                shift
+                ;;
+            --only-frontend)
+                log_warn "仅部署前端"
+                DEPLOY_TARGET="frontend"
+                shift
+                ;;
+            --only-backend)
+                log_warn "仅部署后端服务"
+                DEPLOY_TARGET="backend"
+                shift
+                ;;
+            --only-registration)
+                log_warn "仅部署报名系统"
+                DEPLOY_TARGET="registration"
+                shift
+                ;;
+            -h|--help)
+                echo "用法: $0 [选项]"
+                echo ""
+                echo "选项:"
+                echo "  --skip-build         跳过镜像构建步骤（使用已有镜像）"
+                echo "  --skip-db            跳过数据库迁移（适用于已部署环境）"
+                echo "  --only-frontend      仅部署前端服务"
+                echo "  --only-backend       仅部署后端服务"
+                echo "  --only-registration  仅部署报名系统"
+                echo "  -h, --help           显示帮助信息"
+                echo ""
+                echo "示例:"
+                echo "  $0                  # 完整部署"
+                echo "  $0 --skip-db        # 跳过数据库迁移（快速部署）"
+                echo "  $0 --only-frontend  # 仅更新前端"
+                exit 0
+                ;;
+            *)
+                log_error "未知参数: $1"
+                echo "使用 -h 或 --help 查看帮助"
+                exit 1
+                ;;
+        esac
+    done
+
+    # 显示部署计划
+    log_info "部署计划："
+    log_info "  - 构建镜像: $([ "$SKIP_BUILD" = true ] && echo '否' || echo '是')"
+    log_info "  - 数据库迁移: $([ "$SKIP_DB_MIGRATION" = true ] && echo '跳过' || echo '自动检测')"
+    log_info "  - 部署目标: $DEPLOY_TARGET"
+    echo ""
 
     # 执行部署流程
     check_requirements
@@ -335,9 +472,9 @@ main() {
         build_images
     fi
 
-    save_images
-    upload_images
-    deploy_on_server
+    save_images "$DEPLOY_TARGET"
+    upload_images "$DEPLOY_TARGET"
+    deploy_on_server "$DEPLOY_TARGET"
     cleanup
     cleanup_server
     show_result

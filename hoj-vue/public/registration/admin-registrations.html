@@ -1072,7 +1072,10 @@
 
                     // 记录查看时间，清除未读计数
                     const timestamp = new Date().toISOString();
+
+                    // 同时保存到 localStorage 和数据库
                     localStorage.setItem(`adminLastView_${registration.id}`, timestamp);
+                    this.saveAdminLastViewTime(registration.id, timestamp);
 
                     // 强制刷新未读计数显示
                     this.$forceUpdate();
@@ -1083,10 +1086,32 @@
                     });
                 },
                 closeChat() {
+                    // 关闭聊天窗口时，再次更新查看时间
+                    if (this.currentChatUser) {
+                        const timestamp = new Date().toISOString();
+                        localStorage.setItem(`adminLastView_${this.currentChatUser.id}`, timestamp);
+                        this.saveAdminLastViewTime(this.currentChatUser.id, timestamp);
+                    }
+
                     this.showChatModal = false;
                     this.currentChatUser = null;
                     this.chatMessages = [];
                     this.newMessage = '';
+                },
+                async saveAdminLastViewTime(registrationId, timestamp) {
+                    // 保存 admin_last_view_time 到数据库
+                    try {
+                        await axios.put(`/registration-api/api/registrations/${registrationId}`, {
+                            admin_last_view_time: timestamp
+                        })
+                        // 更新本地 registrations 数组中的对应项
+                        const reg = this.registrations.find(r => r.id === registrationId);
+                        if (reg) {
+                            reg.admin_last_view_time = timestamp;
+                        }
+                    } catch (error) {
+                        console.error('保存 admin_last_view_time 失败:', error);
+                    }
                 },
                 handleEnterKey(e) {
                     const now = Date.now();
@@ -1158,7 +1183,15 @@
 
                     try {
                         const messages = JSON.parse(registration.remark);
-                        const lastViewTime = localStorage.getItem(`adminLastView_${registration.id}`) || '0';
+
+                        // 优先使用数据库中的 admin_last_view_time
+                        let lastViewTime = registration.admin_last_view_time || '0';
+
+                        // 如果数据库中没有，则从 localStorage 读取（兼容旧数据）
+                        if (!lastViewTime || lastViewTime === '0') {
+                            lastViewTime = localStorage.getItem(`adminLastView_${registration.id}`) || '0';
+                        }
+
                         return messages.filter(msg => {
                             return msg.sender === 'user' &&
                                    new Date(msg.timestamp) > new Date(lastViewTime)

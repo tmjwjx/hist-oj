@@ -372,17 +372,25 @@
                         )
                         this.userRegistrations[competitionId] = response.data
 
-                        // 首次加载时初始化 lastView 时间（避免所有消息都显示为未读）
-                        if (!localStorage.getItem(`lastView_${competitionId}`)) {
-                            const now = new Date().toISOString()
-                            localStorage.setItem(`lastView_${competitionId}`, now)
-                        }
-
                         // 计算未读消息数量
                         if (response.data && response.data.remark) {
                             try {
                                 const messages = JSON.parse(response.data.remark)
-                                const lastViewTime = localStorage.getItem(`lastView_${competitionId}`) || '0'
+
+                                // 优先使用数据库中的 last_view_time
+                                let lastViewTime = response.data.last_view_time || '0'
+
+                                // 如果数据库中没有，则从 localStorage 读取（兼容旧数据）
+                                if (!lastViewTime || lastViewTime === '0') {
+                                    lastViewTime = localStorage.getItem(`lastView_${competitionId}`) || '0'
+                                }
+
+                                // 如果 localStorage 和数据库都没有，初始化为当前时间（首次访问）
+                                if (!lastViewTime || lastViewTime === '0') {
+                                    lastViewTime = new Date().toISOString()
+                                    localStorage.setItem(`lastView_${competitionId}`, lastViewTime)
+                                }
+
                                 const unreadCount = messages.filter(msg => {
                                     return msg.sender === 'admin' &&
                                            new Date(msg.timestamp) > new Date(lastViewTime)

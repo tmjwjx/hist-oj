@@ -613,8 +613,14 @@
                         return 0
                     }
 
-                    // 只计算上次查看之后新发送的管理员消息
-                    const lastViewTime = this.lastViewTimestamp || localStorage.getItem(`lastView_${this.competitionId}`) || '0'
+                    // 优先使用数据库中的 last_view_time
+                    let lastViewTime = this.userRegistration?.last_view_time || '0'
+
+                    // 如果数据库中没有，则使用内存中的或 localStorage 中的（兼容旧数据）
+                    if (!lastViewTime || lastViewTime === '0') {
+                        lastViewTime = this.lastViewTimestamp || localStorage.getItem(`lastView_${this.competitionId}`) || '0'
+                    }
+
                     const lastViewDate = new Date(lastViewTime)
 
                     return this.chatMessages.filter(msg => {
@@ -780,8 +786,11 @@
 
                     // 记录查看时间，清除未读计数
                     const timestamp = new Date().toISOString()
-                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
                     this.lastViewTimestamp = timestamp
+
+                    // 同时保存到 localStorage 和数据库
+                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                    this.saveLastViewTime(timestamp)
 
                     // 滚动到底部
                     this.$nextTick(() => {
@@ -792,10 +801,27 @@
                     // 关闭聊天窗口时，再次更新查看时间
                     // 确保在聊天窗口期间看到的所有消息都标记为已读
                     const timestamp = new Date().toISOString()
-                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
                     this.lastViewTimestamp = timestamp
 
+                    // 同时保存到 localStorage 和数据库
+                    localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                    this.saveLastViewTime(timestamp)
+
                     this.showChatModal = false
+                },
+                async saveLastViewTime(timestamp) {
+                    // 保存 last_view_time 到数据库
+                    try {
+                        await axios.put(`/registration-api/api/registrations/${this.userRegistration.id}`, {
+                            last_view_time: timestamp
+                        })
+                        // 更新本地 userRegistration 对象
+                        if (this.userRegistration) {
+                            this.userRegistration.last_view_time = timestamp
+                        }
+                    } catch (error) {
+                        console.error('保存 last_view_time 失败:', error)
+                    }
                 },
                 handleEnterKey(e) {
                     const now = Date.now()
@@ -945,8 +971,12 @@
                             if (this.chatMessages.length > oldLength) {
                                 // 更新查看时间，这样新消息不会被标记为未读
                                 const timestamp = new Date().toISOString()
-                                localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
                                 this.lastViewTimestamp = timestamp
+
+                                // 同时保存到 localStorage 和数据库
+                                localStorage.setItem(`lastView_${this.competitionId}`, timestamp)
+                                this.saveLastViewTime(timestamp)
+
                                 this.$nextTick(() => {
                                     this.scrollToBottom()
                                 })

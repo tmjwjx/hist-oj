@@ -36,20 +36,22 @@ type Competition struct {
 }
 
 type Registration struct {
-	ID            int       `json:"id"`
-	CompetitionID int       `json:"competition_id"`
-	UserUUID      string    `json:"user_uuid"` // 关联用户
-	Name          string    `json:"name"`
-	Class         string    `json:"class"`
-	College       string    `json:"college"`
-	StudentID     string    `json:"student_id"`
-	Gender        string    `json:"gender"`
-	ShirtSize     string    `json:"shirt_size"`
-	TeamName      string    `json:"team_name"`
-	QQ            string    `json:"qq"`
-	Status        string    `json:"status"` // "pending", "approved", "rejected"
-	Remark        string    `json:"remark"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID               int        `json:"id"`
+	CompetitionID    int        `json:"competition_id"`
+	UserUUID         string     `json:"user_uuid"` // 关联用户
+	Name             string     `json:"name"`
+	Class            string     `json:"class"`
+	College          string     `json:"college"`
+	StudentID        string     `json:"student_id"`
+	Gender           string     `json:"gender"`
+	ShirtSize        string     `json:"shirt_size"`
+	TeamName         string     `json:"team_name"`
+	QQ               string     `json:"qq"`
+	Status           string     `json:"status"` // "pending", "approved", "rejected"
+	Remark           string     `json:"remark"`
+	LastViewTime     *time.Time `json:"last_view_time"`      // 用户最后查看通信记录的时间
+	AdminLastViewTime *time.Time `json:"admin_last_view_time"` // 管理员最后查看通信记录的时间
+	CreatedAt        time.Time  `json:"created_at"`
 }
 
 type FieldConfig struct {
@@ -142,12 +144,32 @@ func initSQLiteTables() {
 			qq TEXT,
 			status TEXT DEFAULT 'pending',
 			remark TEXT,
+			last_view_time DATETIME,
+			admin_last_view_time DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (competition_id) REFERENCES competitions(id)
 		)
 	`)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// 如果表已存在，添加 last_view_time 字段（兼容旧数据）
+	_, err = db.Exec(`
+		ALTER TABLE registrations ADD COLUMN last_view_time DATETIME
+	`)
+	// 忽略错误（字段可能已存在）
+	if err != nil {
+		fmt.Println("添加 last_view_time 字段（可能已存在）:", err)
+	}
+
+	// 如果表已存在，添加 admin_last_view_time 字段（兼容旧数据）
+	_, err = db.Exec(`
+		ALTER TABLE registrations ADD COLUMN admin_last_view_time DATETIME
+	`)
+	// 忽略错误（字段可能已存在）
+	if err != nil {
+		fmt.Println("添加 admin_last_view_time 字段（可能已存在）:", err)
 	}
 
 	fmt.Println("✅ SQLite 数据库表检查完成")
@@ -287,6 +309,8 @@ func initMySQLTables() {
 			qq VARCHAR(20),
 			status VARCHAR(20) DEFAULT 'pending',
 			remark TEXT,
+			last_view_time DATETIME,
+			admin_last_view_time DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (competition_id) REFERENCES histcontest_register_competitions(id)
 		)
@@ -317,6 +341,50 @@ func initMySQLTables() {
 		}
 	} else {
 		fmt.Println("✓ user_uuid 字段已存在")
+	}
+
+	// 检查并添加 last_view_time 字段（兼容旧数据）
+	rows2, _ := db.Query("SHOW COLUMNS FROM histcontest_register_registrations LIKE 'last_view_time'")
+	hasLastViewColumn := false
+	if rows2 != nil {
+		defer rows2.Close()
+		hasLastViewColumn = rows2.Next()
+	}
+
+	if !hasLastViewColumn {
+		_, err = db.Exec(`
+			ALTER TABLE histcontest_register_registrations
+			ADD COLUMN last_view_time DATETIME
+		`)
+		if err != nil {
+			fmt.Println("添加 last_view_time 字段失败:", err)
+		} else {
+			fmt.Println("✓ last_view_time 字段已添加")
+		}
+	} else {
+		fmt.Println("✓ last_view_time 字段已存在")
+	}
+
+	// 检查并添加 admin_last_view_time 字段（兼容旧数据）
+	rows3, _ := db.Query("SHOW COLUMNS FROM histcontest_register_registrations LIKE 'admin_last_view_time'")
+	hasAdminLastViewColumn := false
+	if rows3 != nil {
+		defer rows3.Close()
+		hasAdminLastViewColumn = rows3.Next()
+	}
+
+	if !hasAdminLastViewColumn {
+		_, err = db.Exec(`
+			ALTER TABLE histcontest_register_registrations
+			ADD COLUMN admin_last_view_time DATETIME
+		`)
+		if err != nil {
+			fmt.Println("添加 admin_last_view_time 字段失败:", err)
+		} else {
+			fmt.Println("✓ admin_last_view_time 字段已添加")
+		}
+	} else {
+		fmt.Println("✓ admin_last_view_time 字段已存在")
 	}
 
 	// 检查表是否真的存在
@@ -578,7 +646,7 @@ func getRegistrations(w http.ResponseWriter, r *http.Request) {
 	regTable := getRegistrationTable()
 
 	rows, err := db.Query(
-		`SELECT id, competition_id, user_uuid, name, class, college, student_id, gender, shirt_size, team_name, qq, status, remark, created_at
+		`SELECT id, competition_id, user_uuid, name, class, college, student_id, gender, shirt_size, team_name, qq, status, remark, last_view_time, admin_last_view_time, created_at
 		FROM `+regTable+` WHERE competition_id = ? ORDER BY created_at DESC`,
 		competitionID,
 	)
@@ -592,7 +660,7 @@ func getRegistrations(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var reg Registration
 		err := rows.Scan(&reg.ID, &reg.CompetitionID, &reg.UserUUID, &reg.Name, &reg.Class, &reg.College,
-			&reg.StudentID, &reg.Gender, &reg.ShirtSize, &reg.TeamName, &reg.QQ, &reg.Status, &reg.Remark, &reg.CreatedAt)
+			&reg.StudentID, &reg.Gender, &reg.ShirtSize, &reg.TeamName, &reg.QQ, &reg.Status, &reg.Remark, &reg.LastViewTime, &reg.AdminLastViewTime, &reg.CreatedAt)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -618,11 +686,11 @@ func getUserRegistration(w http.ResponseWriter, r *http.Request) {
 
 	var reg Registration
 	err := db.QueryRow(
-		`SELECT id, competition_id, user_uuid, name, class, college, student_id, gender, shirt_size, team_name, qq, status, remark, created_at
+		`SELECT id, competition_id, user_uuid, name, class, college, student_id, gender, shirt_size, team_name, qq, status, remark, last_view_time, admin_last_view_time, created_at
 		FROM `+regTable+` WHERE competition_id = ? AND user_uuid = ?`,
 		competitionID, userUUID,
 	).Scan(&reg.ID, &reg.CompetitionID, &reg.UserUUID, &reg.Name, &reg.Class, &reg.College,
-		&reg.StudentID, &reg.Gender, &reg.ShirtSize, &reg.TeamName, &reg.QQ, &reg.Status, &reg.Remark, &reg.CreatedAt)
+		&reg.StudentID, &reg.Gender, &reg.ShirtSize, &reg.TeamName, &reg.QQ, &reg.Status, &reg.Remark, &reg.LastViewTime, &reg.AdminLastViewTime, &reg.CreatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -732,6 +800,16 @@ func updateRegistration(w http.ResponseWriter, r *http.Request) {
 	if update.Remark != "" {
 		updateFields = append(updateFields, "remark = ?")
 		args = append(args, update.Remark)
+	}
+	// 支持 last_view_time 的更新（用于标记用户已读状态）
+	if update.LastViewTime != nil {
+		updateFields = append(updateFields, "last_view_time = ?")
+		args = append(args, *update.LastViewTime)
+	}
+	// 支持 admin_last_view_time 的更新（用于标记管理员已读状态）
+	if update.AdminLastViewTime != nil {
+		updateFields = append(updateFields, "admin_last_view_time = ?")
+		args = append(args, *update.AdminLastViewTime)
 	}
 
 	if len(updateFields) == 0 {
