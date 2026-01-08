@@ -23,6 +23,7 @@ const TrainingProblemList= ()=>import('@/views/admin/training/TrainingProblemLis
 const TrainingCategory= ()=>import('@/views/admin/training/Category')
 const DiscussionList= ()=>import('@/views/admin/discussion/Discussion')
 const RegistrationAdmin= ()=>import('@/views/admin/registration/RegistrationAdmin')
+const ToolboxAdmin= ()=>import('@/views/admin/toolbox/ToolboxAdmin')
 const adminRoutes= [
     {
       path: '/admin/login',
@@ -204,11 +205,10 @@ const adminRoutes= [
           meta: { title:'Discussion Admin'}
         },
         {
-          path: 'registration',
-          name: 'admin-registration',
-          beforeEnter() {
-            window.location.href = '/registration/admin.html'
-          }
+          path: 'toolbox',
+          name: 'admin-toolbox',
+          component: ToolboxAdmin,
+          meta: { title: 'Toolbox Admin'}
         },
       ]
     },

@@ -28,6 +28,7 @@ import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
 import Registration from "@/views/oj/registration/Registration.vue"
+import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
 import Message from "@/views/oj/message/message.vue"
 import UserMsg from "@/views/oj/message/UserMsg.vue"
 import SysMsg from "@/views/oj/message/SysMsg.vue"
@@ -422,11 +423,10 @@ const ojRoutes = [
     component:Introduction,
   },
   {
-    path: '/registration',
-    name: 'Registration',
-    beforeEnter() {
-      window.location.href = '/registration/registration.html'
-    }
+    path: '/toolbox',
+    name: 'Toolbox',
+    component: Toolbox,
+    meta: { title: 'Toolbox' }
   },
   {
     path: '/about-us',

@@ -68,8 +68,8 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
-            <el-menu-item index="/registration"
-              ><i class="el-icon-s-claim"></i>赛事报名系统</el-menu-item
+            <el-menu-item index="/toolbox"
+              ><i class="fa fa-briefcase"></i>工具箱</el-menu-item
             >
             <el-menu-item index="/introduction"
               ><i class="el-icon-document"></i>编译环境</el-menu-item

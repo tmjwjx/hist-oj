@@ -55,33 +55,104 @@ build_images() {
     cd "$PROJECT_DIR"
 
     # 构建 hist-oj
-    log_info "构建 hist-oj 镜像..."
+    log_info "构建 hist-oj 镜像（不使用缓存）..."
     cd hist-oj
-    docker build --platform linux/amd64 -t hist-oj:latest . || {
+    docker build --no-cache --platform linux/amd64 -t hist-oj:latest . || {
         log_error "hist-oj 镜像构建失败"
         exit 1
     }
     log_info "✓ hist-oj 镜像构建成功"
 
     # 构建报名系统后端
-    log_info "构建 registration-backend 镜像..."
+    log_info "构建 registration-backend 镜像（不使用缓存）..."
     cd ../registration-system/backend
-    docker build --platform linux/amd64 -t registration-backend:latest . || {
+    docker build --no-cache --platform linux/amd64 -t registration-backend:latest . || {
         log_error "registration-backend 镜像构建失败"
         exit 1
     }
     log_info "✓ registration-backend 镜像构建成功"
 
     # 构建前端
-    log_info "构建 hoj-frontend 镜像..."
+    log_info "构建 hoj-frontend 镜像（注意：这将清理旧的构建缓存）..."
     cd ../../hoj-vue
-    docker build --platform linux/amd64 -t hoj-frontend:latest . || {
+
+    # 清理旧的构建文件和 Docker 缓存
+    log_info "清理旧的构建文件和 Docker 缓存..."
+    rm -rf dist node_modules/.cache
+    docker builder prune -af
+    docker system prune -af --volumes 2>/dev/null || true
+
+    # 记录构建前的镜像 ID（用于验证）
+    FRONTEND_IMAGE_BEFORE=$(docker images hoj-frontend:latest --format "{{.ID}}" 2>/dev/null || echo "")
+    if [ -n "$FRONTEND_IMAGE_BEFORE" ]; then
+        log_info "构建前镜像 ID: $FRONTEND_IMAGE_BEFORE"
+    fi
+
+    # 强制重新构建（不使用任何缓存）
+    log_info "开始重新构建前端镜像（不使用缓存）..."
+    docker build \
+        --no-cache \
+        --pull \
+        --platform linux/amd64 \
+        --progress=plain \
+        -t hoj-frontend:latest \
+        . || {
         log_error "hoj-frontend 镜像构建失败"
         exit 1
     }
     log_info "✓ hoj-frontend 镜像构建成功"
 
+    # 显示新镜像信息
+    NEW_IMAGE_ID=$(docker images hoj-frontend:latest --format "{{.ID}}")
+    NEW_IMAGE_SIZE=$(docker images hoj-frontend:latest --format "{{.Size}}")
+    log_info "新镜像 ID: $NEW_IMAGE_ID, 大小: $NEW_IMAGE_SIZE"
+
+    # 验证镜像是否真的更新了
+    if [ "$FRONTEND_IMAGE_BEFORE" = "$NEW_IMAGE_ID" ]; then
+        log_error "⚠️  警告：镜像 ID 未变化！可能使用了缓存。"
+        log_error "建议：手动删除镜像后重新构建"
+        log_error "命令：docker rmi $NEW_IMAGE_ID && ./scripts/deploy.sh"
+    else
+        log_info "✓ 镜像已更新（旧: $FRONTEND_IMAGE_BEFORE -> 新: $NEW_IMAGE_ID）"
+    fi
+
     cd "$PROJECT_DIR"
+}
+
+# 验证镜像内容
+verify_image_content() {
+    log_info "验证镜像内容..."
+    docker run --rm hoj-frontend:latest sh -c '
+        # 检查 app.js 文件
+        APP_JS=$(find /usr/share/nginx/html/assets/js -name "app.*.js" -type f | head -1)
+        if [ -z "$APP_JS" ]; then
+            echo "[ERROR] 未找到 app.js 文件"
+            exit 1
+        fi
+
+        echo "[INFO] 找到 app.js: $(basename $APP_JS)"
+
+        # 检查关键功能是否存在
+        if grep -q "fa-briefcase" "$APP_JS"; then
+            COUNT=$(grep -o "fa-briefcase" "$APP_JS" | wc -l)
+            echo "[INFO] ✓ fa-briefcase 图标已包含 ($COUNT 处)"
+        else
+            echo "[ERROR] fa-briefcase 图标未找到！"
+            exit 1
+        fi
+
+        # 检查导航栏图标
+        if grep -q "NavBar" "$APP_JS" && grep -q "toolbox" "$APP_JS"; then
+            echo "[INFO] ✓ 导航栏工具箱代码已包含"
+        else
+            echo "[WARN] 导航栏代码可能有问题"
+        fi
+    ' || {
+        log_error "镜像内容验证失败！"
+        log_error "这表明构建没有正确包含最新代码。"
+        exit 1
+    }
+    log_info "✓ 镜像内容验证通过"
 }
 
 # 保存镜像
@@ -189,6 +260,9 @@ deploy_on_server() {
         echo "[INFO] 加载 Docker 镜像..."
         cd /opt
 
+        # 记录加载前的镜像 ID
+        FRONTEND_IMAGE_BEFORE=$(docker images hoj-frontend:latest --format "{{.ID}}" 2>/dev/null || echo "")
+
         # 加载 hist-oj 镜像
         echo "[INFO] 加载 hist-oj 镜像..."
         gunzip -c hist-oj.tar.gz | docker load
@@ -200,6 +274,19 @@ deploy_on_server() {
         # 加载前端镜像
         echo "[INFO] 加载 hoj-frontend 镜像..."
         gunzip -c hoj-frontend.tar.gz | docker load
+
+        # 验证前端镜像是否更新
+        FRONTEND_IMAGE_AFTER=$(docker images hoj-frontend:latest --format "{{.ID}}")
+        if [ "$FRONTEND_IMAGE_BEFORE" != "$FRONTEND_IMAGE_AFTER" ]; then
+            echo "[INFO] ✓ hoj-frontend 镜像已更新"
+            echo "[INFO]   旧镜像: $FRONTEND_IMAGE_BEFORE"
+            echo "[INFO]   新镜像: $FRONTEND_IMAGE_AFTER"
+        else
+            echo "[WARN] hoj-frontend 镜像 ID 未变化（可能使用了相同的基础层）"
+        fi
+
+        # 显示新镜像的创建时间和大小
+        docker images hoj-frontend:latest --format "[INFO] 镜像信息: 创建于 {{.CreatedAt}}, 大小: {{.Size}}"
 
         # 执行数据库迁移（如果迁移脚本存在且字段未添加）
         echo "[INFO] 检查数据库迁移..."
@@ -233,18 +320,32 @@ deploy_on_server() {
 
         # 根据部署目标选择性停止容器
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
+            echo "[INFO] 停止 hist-oj 容器..."
             docker stop hist-oj 2>/dev/null || true
             docker rm hist-oj 2>/dev/null || true
         fi
 
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
+            echo "[INFO] 停止 registration-backend 容器..."
             docker stop registration-backend 2>/dev/null || true
             docker rm registration-backend 2>/dev/null || true
         fi
 
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+            echo "[INFO] 停止 hoj-frontend 容器..."
             docker stop hoj-frontend 2>/dev/null || true
             docker rm hoj-frontend 2>/dev/null || true
+
+            # 等待容器完全停止
+            sleep 2
+
+            # 验证容器已被删除
+            if docker ps -a | grep -q hoj-frontend; then
+                echo "[WARN] hoj-frontend 容器仍然存在，强制删除..."
+                docker stop hoj-frontend 2>/dev/null || true
+                docker rm hoj-frontend 2>/dev/null || true
+            fi
+            echo "[INFO] ✓ hoj-frontend 容器已停止并删除"
         fi
 
         echo "[INFO] 创建上传文件目录..."
@@ -324,6 +425,58 @@ deploy_on_server() {
         echo "[INFO] 测试前端访问 hist-oj..."
         docker exec hoj-frontend curl -s http://hist-oj:9527/health || echo "前端访问 hist-oj 失败"
 
+        echo "[INFO] 测试工具箱路由（用户端）..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/toolbox | grep -q "200" && echo "[INFO] ✓ 用户工具箱路由正常" || echo "[WARN] 用户工具箱路由异常"
+
+        echo "[INFO] 测试工具箱路由（管理端）..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/admin/toolbox | grep -q "200" && echo "[INFO] ✓ 管理员工具箱路由正常" || echo "[WARN] 管理员工具箱路由异常"
+
+        echo "[INFO] 验证工具箱组件文件是否在容器中..."
+        # 查找实际的 app.js 文件（文件名带有 hash）
+        APP_JS=$(docker exec hoj-frontend find /usr/share/nginx/html/assets/js -name "app.*.js" -type f 2>/dev/null | head -1)
+        if [ -n "$APP_JS" ]; then
+            echo "[INFO] 找到 app.js 文件: $(basename $APP_JS)"
+
+            # 检查文件修改时间
+            FILE_TIME=$(docker exec hoj-frontend stat -c "%Y" "$APP_JS" 2>/dev/null)
+            CURRENT_TIME=$(date +%s)
+            TIME_DIFF=$((CURRENT_TIME - FILE_TIME))
+
+            if [ $TIME_DIFF -lt 300 ]; then
+                echo "[INFO] ✓ app.js 文件是最近创建的（$TIME_DIFF 秒前）"
+            else
+                echo "[WARN] app.js 文件较旧（$TIME_DIFF 秒前），可能不是最新版本"
+            fi
+
+            if docker exec hoj-frontend grep -q "toolbox" "$APP_JS" 2>/dev/null; then
+                COUNT=$(docker exec hoj-frontend grep -o "toolbox" "$APP_JS" 2>/dev/null | wc -l)
+                echo "[INFO] ✓ 工具箱代码已包含在构建文件中（找到 $COUNT 处引用）"
+            else
+                echo "[WARN] 工具箱代码未找到，可能构建有问题"
+            fi
+
+            # 检查新图标
+            if docker exec hoj-frontend grep -q "el-icon-s-grid" "$APP_JS" 2>/dev/null; then
+                echo "[INFO] ✓ 新图标 el-icon-s-grid 已包含"
+            else
+                echo "[WARN] 新图标未找到"
+            fi
+
+            # 检查 Rating 管理（在 chunk 文件中）
+            CHUNK_JS=$(docker exec hoj-frontend find /usr/share/nginx/html/assets/js -name "chunk-*.js" -type f -exec grep -l "ToolboxAdmin" {} \; 2>/dev/null | head -1)
+            if [ -n "$CHUNK_JS" ]; then
+                echo "[INFO] 找到 ToolboxAdmin chunk: $(basename $CHUNK_JS)"
+                if docker exec hoj-frontend grep -q "Rating 管理" "$CHUNK_JS" 2>/dev/null; then
+                    echo "[INFO] ✓ Rating 管理功能已包含"
+                fi
+                if docker exec hoj-frontend grep -q "admin-rating" "$CHUNK_JS" 2>/dev/null; then
+                    echo "[INFO] ✓ Rating 路由已正确配置"
+                fi
+            fi
+        else
+            echo "[WARN] 未找到 app.js 文件"
+        fi
+
         echo "[INFO] 部署完成！"
 ENDSSH
 
@@ -353,23 +506,96 @@ cleanup_server() {
 ENDSSH
 }
 
+# 清理服务器上的旧镜像
+cleanup_old_images() {
+    log_info "清理服务器上的旧镜像..."
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+        echo "[INFO] 检查并清理旧版本的 Docker 镜像..."
+
+        # 获取当前运行的容器使用的镜像 ID
+        RUNNING_HIST_OJ=$(docker inspect hist-oj 2>/dev/null | grep -A 1 '"Image"' | tail -1 | awk -F'"' '{print $2}' || echo "")
+        RUNNING_REGISTRATION=$(docker inspect registration-backend 2>/dev/null | grep -A 1 '"Image"' | tail -1 | awk -F'"' '{print $2}' || echo "")
+        RUNNING_FRONTEND=$(docker inspect hoj-frontend 2>/dev/null | grep -A 1 '"Image"' | tail -1 | awk -F'"' '{print $2}' || echo "")
+
+        # 清理 hoj-frontend 旧镜像（保留最新的 2 个）
+        echo "[INFO] 清理 hoj-frontend 旧镜像..."
+        docker images hoj-frontend --format "{{.ID}} {{.CreatedAt}}" | sort -k2 -r | tail -n +3 | while read IMAGE_ID CREATED; do
+            if [ "$IMAGE_ID" != "$RUNNING_FRONTEND" ]; then
+                echo "[INFO]   删除旧镜像: $IMAGE_ID ($CREATED)"
+                docker rmi $IMAGE_ID 2>/dev/null || echo "[WARN]   无法删除镜像 $IMAGE_ID (可能被使用)"
+            fi
+        done
+
+        # 清理 hist-oj 旧镜像（保留最新的 2 个）
+        echo "[INFO] 清理 hist-oj 旧镜像..."
+        docker images hist-oj --format "{{.ID}} {{.CreatedAt}}" | sort -k2 -r | tail -n +3 | while read IMAGE_ID CREATED; do
+            if [ "$IMAGE_ID" != "$RUNNING_HIST_OJ" ]; then
+                echo "[INFO]   删除旧镜像: $IMAGE_ID ($CREATED)"
+                docker rmi $IMAGE_ID 2>/dev/null || echo "[WARN]   无法删除镜像 $IMAGE_ID (可能被使用)"
+            fi
+        done
+
+        # 清理 registration-backend 旧镜像（保留最新的 2 个）
+        echo "[INFO] 清理 registration-backend 旧镜像..."
+        docker images registration-backend --format "{{.ID}} {{.CreatedAt}}" | sort -k2 -r | tail -n +3 | while read IMAGE_ID CREATED; do
+            if [ "$IMAGE_ID" != "$RUNNING_REGISTRATION" ]; then
+                echo "[INFO]   删除旧镜像: $IMAGE_ID ($CREATED)"
+                docker rmi $IMAGE_ID 2>/dev/null || echo "[WARN]   无法删除镜像 $IMAGE_ID (可能被使用)"
+            fi
+        done
+
+        # 清理悬空镜像（dangling images）
+        DANGLING=$(docker images -f "dangling=true" -q | head -20)
+        if [ -n "$DANGLING" ]; then
+            echo "[INFO] 清理悬空镜像..."
+            docker rmi $DANGLING 2>/dev/null || echo "[WARN]   无悬空镜像需要清理"
+        fi
+
+        echo "[INFO] ✓ 旧镜像清理完成"
+
+        # 显示剩余镜像
+        echo ""
+        echo "[INFO] 当前保留的镜像："
+        docker images | grep -E "REPOSITORY|hist-oj|registration-backend|hoj-frontend"
+ENDSSH
+
+    if [ $? -eq 0 ]; then
+        log_info "✓ 旧镜像清理成功"
+    else
+        log_warn "旧镜像清理部分失败（非致命错误）"
+    fi
+}
+
 # 显示部署结果
 show_result() {
     log_info "=========================================="
     log_info "部署完成！"
     log_info "=========================================="
     log_info "服务访问地址："
-    log_info "  - 前端: http://${SERVER_IP}"
+    log_info "  - 前端主页: http://${SERVER_IP}"
     log_info "  - hist-oj API: http://${SERVER_IP}:9527"
-    log_info "  - 报名页面: http://${SERVER_IP}/registration"
-    log_info "  - 管理后台: http://${SERVER_IP}/admin/registration"
+    log_info "  - 用户工具箱: http://${SERVER_IP}/toolbox"
+    log_info "  - 管理员工具箱: http://${SERVER_IP}/admin/toolbox"
+    log_info "  - 报名系统: http://${SERVER_IP}/toolbox -> 赛事报名系统"
+    log_info "  - 报名管理: http://${SERVER_IP}/admin/toolbox -> 赛事报名系统管理"
+    log_info ""
+    log_info "架构更新："
+    log_info "  - 已将赛事报名系统封装到工具箱中"
+    log_info "  - 用户端导航: '赛事报名系统' -> '工具箱'"
+    log_info "  - 管理端导航: '赛事报名系统' -> '工具箱'"
+    log_info "  - 支持未来扩展更多工具到工具箱"
     log_info ""
     log_info "新增功能："
-    log_info "  1. 手动调整 Rating"
+    log_info "  1. 工具箱系统"
+    log_info "     - 用户工具箱: /toolbox"
+    log_info "     - 管理员工具箱: /admin/toolbox"
+    log_info "     - 卡片式布局，易于扩展"
+    log_info ""
+    log_info "  2. 手动调整 Rating"
     log_info "     - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
     log_info "     - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
     log_info ""
-    log_info "  2. 持久化消息已读状态（解决浏览器缓存清除问题）"
+    log_info "  3. 持久化消息已读状态（解决浏览器缓存清除问题）"
     log_info "     - 用户和管理员的已读状态分别存储在数据库"
     log_info "     - 支持跨设备同步已读状态"
     log_info "     - 新增字段: last_view_time, admin_last_view_time"
@@ -378,6 +604,17 @@ show_result() {
     log_info "  curl http://${SERVER_IP}:9527/health"
     log_info "  curl http://${SERVER_IP}/api/rating/contest/info/1002"
     log_info "  curl http://${SERVER_IP}/registration-api/competitions"
+    log_info ""
+    log_info "测试工具箱访问："
+    log_info "  - 用户端: curl -I http://${SERVER_IP}/toolbox"
+    log_info "  - 管理端: curl -I http://${SERVER_IP}/admin/toolbox"
+    log_info ""
+    log_warn "⚠️  重要提示："
+    log_warn "  如果页面没有更新，请强制刷新浏览器缓存："
+    log_warn "  - Windows/Linux: Ctrl + Shift + R 或 Ctrl + F5"
+    log_warn "  - Mac: Cmd + Shift + R"
+    log_warn "  - 或清除浏览器缓存后重新访问"
+    log_warn ""
     log_info ""
     log_info "测试手动调整功能："
     log_info "  curl -X POST http://${SERVER_IP}:9527/api/rating/admin/adjust \\"
@@ -392,6 +629,14 @@ show_result() {
     log_info "      'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \\"
     log_info "       WHERE TABLE_NAME=\"histcontest_register_registrations\" \\"
     log_info "       AND COLUMN_NAME IN (\"last_view_time\", \"admin_last_view_time\")' hoj"
+    log_info ""
+    log_info "代码变更："
+    log_info "  - 新增: hoj-vue/src/views/oj/toolbox/Toolbox.vue"
+    log_info "  - 新增: hoj-vue/src/views/admin/toolbox/ToolboxAdmin.vue"
+    log_info "  - 修改: hoj-vue/src/components/oj/common/NavBar.vue (导航菜单)"
+    log_info "  - 修改: hoj-vue/src/views/admin/Home.vue (管理菜单)"
+    log_info "  - 修改: hoj-vue/src/router/ojRoutes.js (用户路由)"
+    log_info "  - 修改: hoj-vue/src/router/adminRoutes.js (管理员路由)"
     log_info "=========================================="
 }
 
@@ -470,6 +715,7 @@ main() {
 
     if [ "$SKIP_BUILD" = false ]; then
         build_images
+        verify_image_content
     fi
 
     save_images "$DEPLOY_TARGET"
@@ -477,6 +723,7 @@ main() {
     deploy_on_server "$DEPLOY_TARGET"
     cleanup
     cleanup_server
+    cleanup_old_images
     show_result
 
     log_info "✓ 所有步骤完成！"

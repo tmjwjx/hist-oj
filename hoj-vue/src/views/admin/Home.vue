@@ -39,9 +39,6 @@
           <el-menu-item index="/admin/switch">{{
             $t('m.System_Switch')
           }}</el-menu-item>
-          <el-menu-item index="/admin/rating">
-            Rating 管理
-          </el-menu-item>
         </el-submenu>
         <!-- <el-submenu index="problem" v-if="hasProblemPermission"> -->
         <el-submenu index="problem">
@@ -105,8 +102,8 @@
           }}</el-menu-item>
         </el-submenu>
 
-        <el-menu-item index="/admin/registration"
-          ><i class="el-icon-s-claim"></i>赛事报名系统</el-menu-item
+        <el-menu-item index="/admin/toolbox"
+          ><i class="fa fa-briefcase fa-size"></i>工具箱</el-menu-item
         >
 
         <el-submenu index="discussion">
@@ -293,11 +290,11 @@
               button
               :ripple="false"
               slot="nested"
-              to="/admin/rating"
+              to="/admin/switch"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
-              <mu-list-item-title>Rating 管理</mu-list-item-title>
+              <mu-list-item-title>系统开关</mu-list-item-title>
             </mu-list-item>
           </mu-list-item>
 
