@@ -254,8 +254,9 @@ deploy_on_server() {
     log_info "在服务器上部署服务（目标: $DEPLOY_TARGET）..."
 
     # 传递参数到远程脚本
-    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "DEPLOY_TARGET='$DEPLOY_TARGET'" << 'ENDSSH'
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << ENDSSH
         set -e
+        DEPLOY_TARGET='$DEPLOY_TARGET'
 
         echo "[INFO] 加载 Docker 镜像..."
         cd /opt
@@ -273,7 +274,18 @@ deploy_on_server() {
 
         # 加载前端镜像
         echo "[INFO] 加载 hoj-frontend 镜像..."
-        gunzip -c hoj-frontend.tar.gz | docker load
+        if [ -f "hoj-frontend.tar.gz" ]; then
+            gunzip -c hoj-frontend.tar.gz | docker load
+            if [ $? -eq 0 ]; then
+                echo "[INFO] ✓ hoj-frontend 镜像加载成功"
+            else
+                echo "[ERROR] hoj-frontend 镜像加载失败"
+                exit 1
+            fi
+        else
+            echo "[ERROR] hoj-frontend.tar.gz 文件不存在"
+            exit 1
+        fi
 
         # 验证前端镜像是否更新
         FRONTEND_IMAGE_AFTER=$(docker images hoj-frontend:latest --format "{{.ID}}")
@@ -472,6 +484,13 @@ deploy_on_server() {
                 if docker exec hoj-frontend grep -q "admin-rating" "$CHUNK_JS" 2>/dev/null; then
                     echo "[INFO] ✓ Rating 路由已正确配置"
                 fi
+                # 检查判题终端功能
+                if docker exec hoj-frontend grep -q "判题终端" "$CHUNK_JS" 2>/dev/null; then
+                    echo "[INFO] ✓ 判题终端功能已包含"
+                fi
+                if docker exec hoj-frontend grep -q "JudgeTerminalTool" "$CHUNK_JS" 2>/dev/null; then
+                    echo "[INFO] ✓ 判题终端组件已包含"
+                fi
             fi
         else
             echo "[WARN] 未找到 app.js 文件"
@@ -591,11 +610,17 @@ show_result() {
     log_info "     - 管理员工具箱: /admin/toolbox"
     log_info "     - 卡片式布局，易于扩展"
     log_info ""
-    log_info "  2. 手动调整 Rating"
+    log_info "  2. 判题终端（管理员工具箱）"
+    log_info "     - 访问路径: 管理员工具箱 -> 判题终端"
+    log_info "     - 支持本地样例自测和远程判题提交"
+    log_info "     - 自动保存用户凭据"
+    log_info "     - 实时查看判题结果和历史记录"
+    log_info ""
+    log_info "  3. 手动调整 Rating"
     log_info "     - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
     log_info "     - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
     log_info ""
-    log_info "  3. 持久化消息已读状态（解决浏览器缓存清除问题）"
+    log_info "  4. 持久化消息已读状态（解决浏览器缓存清除问题）"
     log_info "     - 用户和管理员的已读状态分别存储在数据库"
     log_info "     - 支持跨设备同步已读状态"
     log_info "     - 新增字段: last_view_time, admin_last_view_time"
@@ -633,6 +658,7 @@ show_result() {
     log_info "代码变更："
     log_info "  - 新增: hoj-vue/src/views/oj/toolbox/Toolbox.vue"
     log_info "  - 新增: hoj-vue/src/views/admin/toolbox/ToolboxAdmin.vue"
+    log_info "  - 新增: hoj-vue/src/components/admin/toolbox/JudgeTerminalTool.vue"
     log_info "  - 修改: hoj-vue/src/components/oj/common/NavBar.vue (导航菜单)"
     log_info "  - 修改: hoj-vue/src/views/admin/Home.vue (管理菜单)"
     log_info "  - 修改: hoj-vue/src/router/ojRoutes.js (用户路由)"

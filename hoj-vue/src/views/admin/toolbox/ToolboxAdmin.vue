@@ -42,6 +42,7 @@
 <script>
 export default {
   name: 'ToolboxAdmin',
+  components: {},
   data() {
     return {
       tools: [
@@ -58,6 +59,13 @@ export default {
           icon: 'fa fa-line-chart',
           iconColor: '#67C23A',
           action: 'openRatingManagement'
+        },
+        {
+          title: '判题终端',
+          description: '代码自测与提交判题',
+          icon: 'fa fa-terminal',
+          iconColor: '#409EFF',
+          action: 'openJudgeTerminal'
         }
       ]
     };
@@ -69,6 +77,9 @@ export default {
         if (tool.action === 'openRatingManagement') {
           // 动态加载 RatingManagement 组件
           this.$router.push({ name: 'admin-rating' });
+        } else if (tool.action === 'openJudgeTerminal') {
+          // 跳转到判题终端页面
+          this.$router.push({ name: 'admin-judge-terminal-page' });
         }
       } else if (tool.url) {
         if (tool.url.startsWith('http')) {

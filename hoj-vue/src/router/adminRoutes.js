@@ -5,6 +5,7 @@ const Home= ()=>import('@/views/admin/Home')
 const Dashboard= ()=>import('@/views/admin/Dashboard')
 const User= ()=>import('@/views/admin/general/User')
 const RatingManagement= ()=>import('@/views/admin/general/RatingManagement')
+const JudgeTerminalPage= ()=>import('@/views/admin/general/JudgeTerminalPage')
 const Announcement= ()=>import('@/views/admin/general/Announcement')
 const SysNotice= ()=>import('@/views/admin/general/SysNotice')
 const SystemConfig= ()=>import('@/views/admin/general/SystemConfig')
@@ -14,7 +15,6 @@ const AdminGroupProblemList= ()=>import('@/views/admin/problem/GroupProblemList'
 const Problem= ()=>import('@/views/admin/problem/Problem')
 const Tag= ()=>import('@/views/admin/problem/Tag')
 const ProblemImportAndExport= ()=>import('@/views/admin/problem/ImportAndExport')
-const JudgeTerminal= ()=>import('@/views/admin/problem/JudgeTerminal')
 const Contest= ()=>import('@/views/admin/contest/Contest')
 const ContestList= ()=>import('@/views/admin/contest/ContestList')
 const Training= ()=>import('@/views/admin/training/Training')
@@ -59,6 +59,12 @@ const adminRoutes= [
           name: 'admin-rating',
           component: RatingManagement,
           meta: { requireSuperAdmin: true,title:'Rating Management'},
+      },
+      {
+          path: 'judge-terminal',
+          name: 'admin-judge-terminal-page',
+          component: JudgeTerminalPage,
+          meta: { requireSuperAdmin: true,title:'Judge Terminal'},
       },
         {
           path: 'announcement',
@@ -119,12 +125,6 @@ const adminRoutes= [
           name: 'admin-problem_batch_operation',
           component: ProblemImportAndExport,
           meta: { title:'Export Import Problem'},
-        },
-        {
-          path: 'problem/judge-terminal',
-          name: 'admin-judge-terminal',
-          component: JudgeTerminal,
-          meta: { title:'Judge Terminal'},
         },
         {
           path: 'training/create',

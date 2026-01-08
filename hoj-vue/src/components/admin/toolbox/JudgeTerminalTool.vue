@@ -1,262 +1,272 @@
 <template>
-  <div class="judge-terminal">
-    <el-row :gutter="20">
-      <!-- 左侧栏 -->
-      <el-col :span="10">
-        <h3 class="section-title">
-          <i class="el-icon-monitor"></i> BingoJ 判题终端
-        </h3>
+  <div class="judge-terminal-tool">
+    <el-dialog
+      title="BingoJ 判题终端"
+      :visible.sync="dialogVisible"
+      width="95%"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      top="2vh"
+      custom-class="judge-terminal-dialog"
+    >
+      <el-row :gutter="20">
+        <!-- 左侧栏 -->
+        <el-col :span="10">
+          <h3 class="section-title">
+            <i class="el-icon-monitor"></i> BingoJ 判题终端
+          </h3>
 
-        <!-- 配置区 -->
-        <el-card class="config-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <i class="el-icon-setting"></i> 配置
-          </div>
-          <el-form :model="form" size="small" label-width="80px">
-            <el-alert
-              title="凭据说明"
-              type="info"
-              :closable="false"
-              style="margin-bottom: 15px; padding: 8px 12px;">
-              首次输入的用户名和密码将在验证成功后自动保存，下次访问时自动填充
-            </el-alert>
-            <el-row :gutter="10">
-              <el-col :span="12">
-                <el-form-item label="用户名">
-                  <el-input v-model="form.username" placeholder="请输入用户名" clearable></el-input>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="密码">
-                  <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password clearable></el-input>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-form-item label="模式">
-              <el-radio-group v-model="form.mode" size="small" disabled>
-                <el-radio label="normal">普通模式</el-radio>
-              </el-radio-group>
-              <el-button type="primary" size="mini" style="margin-left: 10px" @click="fetchProblemInfo">
-                获取题目
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
-
-        <!-- 代码编辑器 -->
-        <el-card class="code-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <i class="el-icon-edit"></i> 代码编辑器
-          </div>
-          <el-form :model="form" size="small">
-            <el-row :gutter="10">
-              <el-col :span="12">
-                <el-input v-model="form.pid" placeholder="题目ID (如 0001)" size="small"></el-input>
-              </el-col>
-              <el-col :span="12">
-                <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
-                  <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
-                  <el-option label="C" value="C With O2"></el-option>
-                  <el-option label="Python3" value="Python3"></el-option>
-                  <el-option label="Java" value="Java"></el-option>
-                </el-select>
-              </el-col>
-            </el-row>
-            <el-input
-              type="textarea"
-              v-model="form.code"
-              :rows="12"
-              placeholder="// 在此粘贴代码..."
-              style="margin-top: 10px; font-family: 'Consolas', monospace; font-size: 13px"
-            ></el-input>
-            <el-button
-              type="primary"
-              :loading="isRunning"
-              @click="runCode"
-              style="width: 100%; margin-top: 10px"
-            >
-              <i class="el-icon-video-play"></i> {{ isRunning ? '运行中...' : '运行自测并提交' }}
-            </el-button>
-          </el-form>
-        </el-card>
-
-        <!-- 日志区 -->
-        <el-card class="log-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <i class="el-icon-document"></i> 系统日志
-          </div>
-          <div class="log-area" ref="logArea">
-            <div v-for="(log, index) in logs" :key="index" class="log-line">
-              <span class="log-time">[{{ log.time }}]</span> {{ log.msg }}
+          <!-- 配置区 -->
+          <el-card class="config-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <i class="el-icon-setting"></i> 配置
             </div>
-          </div>
-        </el-card>
-
-        <!-- 历史记录 -->
-        <el-card class="history-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <i class="el-icon-time"></i> 本地记录
-          </div>
-          <el-table :data="historyList" size="small" stripe style="width: 100%">
-            <el-table-column prop="username" label="用户" width="80"></el-table-column>
-            <el-table-column label="远程结果" width="100">
-              <template slot-scope="scope">
-                <el-tag :type="getResultType(scope.row.result)" size="mini">
-                  {{ scope.row.result }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="本地自测" width="100">
-              <template slot-scope="scope">
-                <el-tag :type="getLocalResultType(scope.row.local_info)" size="mini">
-                  {{ scope.row.local_info || '-' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="耗时/内存" width="100">
-              <template slot-scope="scope">
-                <span style="font-size: 11px; color: #909399">
-                  {{ scope.row.time_used || '--' }} / {{ scope.row.memory_used || '--' }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="language" label="语言" width="60">
-              <template slot-scope="scope">
-                {{ simplifyLanguage(scope.row.language) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="提交时间" width="120">
-              <template slot-scope="scope">
-                {{ formatTime(scope.row.submit_time) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="代码" width="60" align="center">
-              <template slot-scope="scope">
-                <el-button type="text" size="mini" @click="showCode(scope.row)">
-                  <i class="el-icon-view"></i>
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div style="margin-top: 10px; text-align: center">
-            <el-pagination
-              @current-change="handleHistoryPageChange"
-              :current-page="historyPagination.currentPage"
-              :page-size="historyPagination.pageSize"
-              :total="historyPagination.total"
-              layout="prev, pager, next, total"
-              small
-            >
-            </el-pagination>
-          </div>
-        </el-card>
-      </el-col>
-
-      <!-- 右侧栏 -->
-      <el-col :span="14">
-        <!-- 题目详情 -->
-        <el-card class="problem-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <span><i class="el-icon-document"></i> 题目详情</span>
-            <el-tag v-if="problemInfo.displayId" type="primary" size="small">
-              {{ problemInfo.displayId }}
-            </el-tag>
-          </div>
-          <div class="problem-content" v-if="problemInfo.problem">
-            <h3 class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</h3>
-            <!-- 判题模式显示 -->
-            <div class="problem-info-bar">
-              <el-tag size="small" type="primary">
-                判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
-              </el-tag>
-              <el-tag size="small" type="primary" style="margin-left: 10px">
-                时间限制: {{ problemInfo.problem.timeLimit }}ms
-              </el-tag>
-              <el-tag size="small" type="primary" style="margin-left: 10px">
-                内存限制: {{ problemInfo.problem.memoryLimit }}MB
-              </el-tag>
-            </div>
-            <div v-if="problemInfo.problem.description" class="problem-section">
-              <h4><i class="el-icon-tickets"></i> 描述</h4>
-              <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
-            </div>
-            <div v-if="problemInfo.problem.input" class="problem-section">
-              <h4><i class="el-icon-download"></i> 输入</h4>
-              <div v-html="renderMarkdown(problemInfo.problem.input)"></div>
-            </div>
-            <div v-if="problemInfo.problem.output" class="problem-section">
-              <h4><i class="el-icon-upload2"></i> 输出</h4>
-              <div v-html="renderMarkdown(problemInfo.problem.output)"></div>
-            </div>
-            <div v-if="problemInfo.problem.hint" class="problem-section">
-              <h4><i class="el-icon-info"></i> 提示</h4>
-              <div v-html="renderMarkdown(problemInfo.problem.hint)"></div>
-            </div>
-            <div v-if="examples.length > 0" class="problem-section">
-              <h4><i class="el-icon-document-copy"></i> 样例</h4>
-              <el-row :gutter="10" v-for="(example, index) in examples" :key="index" style="margin-bottom: 10px">
+            <el-form :model="form" size="small" label-width="80px">
+              <el-alert
+                title="凭据说明"
+                type="info"
+                :closable="false"
+                style="margin-bottom: 15px; padding: 8px 12px;">
+                首次输入的用户名和密码将在验证成功后自动保存,下次访问时自动填充
+              </el-alert>
+              <el-row :gutter="10">
                 <el-col :span="12">
-                  <div class="example-box">
-                    <div class="example-title">样例 {{ index + 1 }} 输入:</div>
-                    <pre>{{ example.input }}</pre>
-                  </div>
+                  <el-form-item label="用户名">
+                    <el-input v-model="form.username" placeholder="请输入用户名" clearable></el-input>
+                  </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <div class="example-box">
-                    <div class="example-title">样例 {{ index + 1 }} 输出:</div>
-                    <pre>{{ example.output }}</pre>
-                  </div>
+                  <el-form-item label="密码">
+                    <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password clearable></el-input>
+                  </el-form-item>
                 </el-col>
               </el-row>
+              <el-form-item label="模式">
+                <el-radio-group v-model="form.mode" size="small" disabled>
+                  <el-radio label="normal">普通模式</el-radio>
+                </el-radio-group>
+                <el-button type="primary" size="mini" style="margin-left: 10px" @click="fetchProblemInfo">
+                  获取题目
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </el-card>
+
+          <!-- 代码编辑器 -->
+          <el-card class="code-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <i class="el-icon-edit"></i> 代码编辑器
             </div>
-          </div>
-          <div v-else class="empty-state">
-            <i class="el-icon-arrow-left"></i> 请先在左侧输入ID并获取题目
-          </div>
-        </el-card>
+            <el-form :model="form" size="small">
+              <el-row :gutter="10">
+                <el-col :span="12">
+                  <el-input v-model="form.pid" placeholder="题目ID (如 0001)" size="small"></el-input>
+                </el-col>
+                <el-col :span="12">
+                  <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
+                    <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
+                    <el-option label="C" value="C With O2"></el-option>
+                    <el-option label="Python3" value="Python3"></el-option>
+                    <el-option label="Java" value="Java"></el-option>
+                  </el-select>
+                </el-col>
+              </el-row>
+              <el-input
+                type="textarea"
+                v-model="form.code"
+                :rows="12"
+                placeholder="// 在此粘贴代码..."
+                style="margin-top: 10px; font-family: 'Consolas', monospace; font-size: 13px"
+              ></el-input>
+              <el-button
+                type="primary"
+                :loading="isRunning"
+                @click="runCode"
+                style="width: 100%; margin-top: 10px"
+              >
+                <i class="el-icon-video-play"></i> {{ isRunning ? '运行中...' : '运行自测并提交' }}
+              </el-button>
+            </el-form>
+          </el-card>
 
-        <!-- 结果面板 -->
-        <el-card v-if="showResult" class="result-card" shadow="hover">
-          <div slot="header" class="card-header">
-            <i class="el-icon-data-analysis"></i> 判题结果报告
-          </div>
-
-          <!-- 远程结果 Banner -->
-          <div :class="['result-banner', remoteBannerClass]">
-            <i :class="remoteBannerIcon"></i> {{ remoteBannerText }}
-          </div>
-
-          <!-- 样例测试详情 -->
-          <div class="sample-section">
-            <div class="sample-header">
-              <h4>本地样例自测详情</h4>
-              <el-tag size="small">{{ sampleSummary }}</el-tag>
+          <!-- 日志区 -->
+          <el-card class="log-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <i class="el-icon-document"></i> 系统日志
             </div>
-            <div class="sample-list">
-              <div v-for="sample in sampleResults" :key="sample.id" class="sample-item">
-                <div class="sample-item-header" @click="toggleSample(sample.id)">
-                  <span>样例 {{ sample.id }}</span>
-                  <span>
-                    <i :class="sample.is_ok ? 'el-icon-success' : 'el-icon-error'"
-                       :style="{color: sample.is_ok ? '#67C23A' : '#F56C6C'}"></i>
-                    {{ sample.is_ok ? '通过' : '失败' }}
+            <div class="log-area" ref="logArea">
+              <div v-for="(log, index) in logs" :key="index" class="log-line">
+                <span class="log-time">[{{ log.time }}]</span> {{ log.msg }}
+              </div>
+            </div>
+          </el-card>
+
+          <!-- 历史记录 -->
+          <el-card class="history-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <i class="el-icon-time"></i> 本地记录
+            </div>
+            <el-table :data="historyList" size="small" stripe style="width: 100%">
+              <el-table-column prop="username" label="用户" width="80"></el-table-column>
+              <el-table-column label="远程结果" width="100">
+                <template slot-scope="scope">
+                  <el-tag :type="getResultType(scope.row.result)" size="mini">
+                    {{ scope.row.result }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="本地自测" width="100">
+                <template slot-scope="scope">
+                  <el-tag :type="getLocalResultType(scope.row.local_info)" size="mini">
+                    {{ scope.row.local_info || '-' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="耗时/内存" width="100">
+                <template slot-scope="scope">
+                  <span style="font-size: 11px; color: #909399">
+                    {{ scope.row.time_used || '--' }} / {{ scope.row.memory_used || '--' }}
                   </span>
-                </div>
-                <div v-show="expandedSamples[sample.id]" class="sample-item-detail">
-                  <div><strong>输入:</strong><pre class="code-block">{{ sample.input }}</pre></div>
-                  <div><strong>预期:</strong><pre class="code-block">{{ sample.expected }}</pre></div>
-                  <div><strong>输出:</strong><pre class="code-block">{{ sample.output }}</pre></div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="language" label="语言" width="60">
+                <template slot-scope="scope">
+                  {{ simplifyLanguage(scope.row.language) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="提交时间" width="120">
+                <template slot-scope="scope">
+                  {{ formatTime(scope.row.submit_time) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="代码" width="60" align="center">
+                <template slot-scope="scope">
+                  <el-button type="text" size="mini" @click="showCode(scope.row)">
+                    <i class="el-icon-view"></i>
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div style="margin-top: 10px; text-align: center">
+              <el-pagination
+                @current-change="handleHistoryPageChange"
+                :current-page="historyPagination.currentPage"
+                :page-size="historyPagination.pageSize"
+                :total="historyPagination.total"
+                layout="prev, pager, next, total"
+                small
+              >
+              </el-pagination>
+            </div>
+          </el-card>
+        </el-col>
+
+        <!-- 右侧栏 -->
+        <el-col :span="14">
+          <!-- 题目详情 -->
+          <el-card class="problem-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <span><i class="el-icon-document"></i> 题目详情</span>
+              <el-tag v-if="problemInfo.displayId" type="primary" size="small">
+                {{ problemInfo.displayId }}
+              </el-tag>
+            </div>
+            <div class="problem-content" v-if="problemInfo.problem">
+              <h3 class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</h3>
+              <!-- 判题模式显示 -->
+              <div class="problem-info-bar">
+                <el-tag size="small" type="primary">
+                  判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
+                </el-tag>
+                <el-tag size="small" type="primary" style="margin-left: 10px">
+                  时间限制: {{ problemInfo.problem.timeLimit }}ms
+                </el-tag>
+                <el-tag size="small" type="primary" style="margin-left: 10px">
+                  内存限制: {{ problemInfo.problem.memoryLimit }}MB
+                </el-tag>
+              </div>
+              <div v-if="problemInfo.problem.description" class="problem-section">
+                <h4><i class="el-icon-tickets"></i> 描述</h4>
+                <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
+              </div>
+              <div v-if="problemInfo.problem.input" class="problem-section">
+                <h4><i class="el-icon-download"></i> 输入</h4>
+                <div v-html="renderMarkdown(problemInfo.problem.input)"></div>
+              </div>
+              <div v-if="problemInfo.problem.output" class="problem-section">
+                <h4><i class="el-icon-upload2"></i> 输出</h4>
+                <div v-html="renderMarkdown(problemInfo.problem.output)"></div>
+              </div>
+              <div v-if="problemInfo.problem.hint" class="problem-section">
+                <h4><i class="el-icon-info"></i> 提示</h4>
+                <div v-html="renderMarkdown(problemInfo.problem.hint)"></div>
+              </div>
+              <div v-if="examples.length > 0" class="problem-section">
+                <h4><i class="el-icon-document-copy"></i> 样例</h4>
+                <el-row :gutter="10" v-for="(example, index) in examples" :key="index" style="margin-bottom: 10px">
+                  <el-col :span="12">
+                    <div class="example-box">
+                      <div class="example-title">样例 {{ index + 1 }} 输入:</div>
+                      <pre>{{ example.input }}</pre>
+                    </div>
+                  </el-col>
+                  <el-col :span="12">
+                    <div class="example-box">
+                      <div class="example-title">样例 {{ index + 1 }} 输出:</div>
+                      <pre>{{ example.output }}</pre>
+                    </div>
+                  </el-col>
+                </el-row>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <i class="el-icon-arrow-left"></i> 请先在左侧输入ID并获取题目
+            </div>
+          </el-card>
+
+          <!-- 结果面板 -->
+          <el-card v-if="showResult" class="result-card" shadow="hover">
+            <div slot="header" class="card-header">
+              <i class="el-icon-data-analysis"></i> 判题结果报告
+            </div>
+
+            <!-- 远程结果 Banner -->
+            <div :class="['result-banner', remoteBannerClass]">
+              <i :class="remoteBannerIcon"></i> {{ remoteBannerText }}
+            </div>
+
+            <!-- 样例测试详情 -->
+            <div class="sample-section">
+              <div class="sample-header">
+                <h4>本地样例自测详情</h4>
+                <el-tag size="small">{{ sampleSummary }}</el-tag>
+              </div>
+              <div class="sample-list">
+                <div v-for="sample in sampleResults" :key="sample.id" class="sample-item">
+                  <div class="sample-item-header" @click="toggleSample(sample.id)">
+                    <span>样例 {{ sample.id }}</span>
+                    <span>
+                      <i :class="sample.is_ok ? 'el-icon-success' : 'el-icon-error'"
+                         :style="{color: sample.is_ok ? '#67C23A' : '#F56C6C'}"></i>
+                      {{ sample.is_ok ? '通过' : '失败' }}
+                    </span>
+                  </div>
+                  <div v-show="expandedSamples[sample.id]" class="sample-item-detail">
+                    <div><strong>输入:</strong><pre class="code-block">{{ sample.input }}</pre></div>
+                    <div><strong>预期:</strong><pre class="code-block">{{ sample.expected }}</pre></div>
+                    <div><strong>输出:</strong><pre class="code-block">{{ sample.output }}</pre></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+          </el-card>
+        </el-col>
+      </el-row>
 
-    <!-- 代码预览对话框 -->
-    <el-dialog title="提交代码预览" :visible.sync="codeDialogVisible" width="60%">
-      <pre class="code-preview">{{ currentCode }}</pre>
+      <!-- 代码预览对话框 -->
+      <el-dialog title="提交代码预览" :visible.sync="codeDialogVisible" width="60%" append-to-body>
+        <pre class="code-preview">{{ currentCode }}</pre>
+      </el-dialog>
     </el-dialog>
   </div>
 </template>
@@ -271,13 +281,14 @@ const md = new MarkdownIt()
 md.use(MarkdownItKatex)
 
 export default {
-  name: 'JudgeTerminal',
+  name: 'JudgeTerminalTool',
   data() {
     return {
+      dialogVisible: false,
       form: {
         username: '',
         password: '',
-        mode: 'normal', // 固定为普通模式
+        mode: 'normal',
         pid: '',
         language: 'C++ 17 With O2',
         code: ''
@@ -307,11 +318,13 @@ export default {
       currentCode: ''
     }
   },
-  mounted() {
-    // 从 localStorage 读取用户凭据
-    this.loadUserCredentials()
-  },
   methods: {
+    // 打开对话框
+    open() {
+      this.dialogVisible = true
+      this.loadUserCredentials()
+    },
+
     // 从 localStorage 加载用户凭据
     loadUserCredentials() {
       try {
@@ -340,9 +353,10 @@ export default {
         console.log('凭据已保存到本地')
       } catch (error) {
         console.error('保存凭据失败:', error)
-        this.$message.warning('凭据保存失败，请检查浏览器设置')
+        this.$message.warning('凭据保存失败,请检查浏览器设置')
       }
     },
+
     // 获取题目信息
     async fetchProblemInfo() {
       if (!this.form.pid) {
@@ -350,7 +364,6 @@ export default {
         return
       }
 
-      // 验证用户名和密码
       if (!this.form.username || !this.form.password) {
         this.$message.warning('请输入用户名和密码')
         return
@@ -368,12 +381,10 @@ export default {
         })
 
         if (res.code === 200) {
-          // 保存凭据到本地
           this.saveUserCredentials()
-
           this.problemInfo = res.data
-          this.historyPagination.currentPage = 1 // 重置到第一页
-          await this.fetchHistory() // 获取分页历史记录
+          this.historyPagination.currentPage = 1
+          await this.fetchHistory()
           this.extractExamples()
           this.addLog('获取题目成功')
           this.$message.success('获取题目成功')
@@ -420,13 +431,11 @@ export default {
         return
       }
 
-      // 验证用户名和密码
       if (!this.form.username || !this.form.password) {
         this.$message.warning('请输入用户名和密码')
         return
       }
 
-      // 保存凭据
       this.saveUserCredentials()
 
       this.isRunning = true
@@ -437,7 +446,6 @@ export default {
       this.remoteBannerClass = 'bg-pending'
       this.remoteBannerIcon = 'el-icon-loading'
 
-      // 滚动到结果面板
       this.$nextTick(() => {
         const resultCard = document.querySelector('.result-card')
         if (resultCard) {
@@ -492,7 +500,6 @@ export default {
     // 处理 SSE 完成
     handleSSEComplete() {
       this.isRunning = false
-      // 刷新历史记录
       if (this.problemInfo.displayId) {
         this.fetchProblemInfo()
       }
@@ -571,18 +578,15 @@ export default {
       return language
     },
 
-    // 格式化时间（北京时间）
+    // 格式化时间
     formatTime(time) {
       if (!time) return '--'
       try {
-        // 处理 ISO 8601 格式的时间字符串
         const date = new Date(time)
         if (isNaN(date.getTime())) return '--'
 
-        // 转换为北京时间（UTC+8）
         const beijingTime = new Date(date.getTime() + (8 * 60 * 60 * 1000))
 
-        // 格式化为 YYYY-MM-DD HH:mm:ss
         const year = beijingTime.getUTCFullYear()
         const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0')
         const day = String(beijingTime.getUTCDate()).padStart(2, '0')
@@ -649,13 +653,17 @@ export default {
 <style>
 /* 引入 KaTeX 样式 */
 @import '~katex/dist/katex.min.css';
+
+.judge-terminal-dialog .el-dialog__body {
+  padding: 10px 20px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
 </style>
 
 <style scoped>
-.judge-terminal {
-  padding: 20px;
-  background-color: #f5f7fa;
-  min-height: calc(100vh - 100px);
+.judge-terminal-tool {
+  display: inline;
 }
 
 .section-title {
