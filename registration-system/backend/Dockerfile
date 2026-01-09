@@ -4,6 +4,10 @@ FROM golang:1.21-alpine AS builder
 # 设置工作目录
 WORKDIR /app
 
+# 设置 Go 代理（加速依赖下载）
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GO111MODULE=on
+
 # 复制 go mod 文件
 COPY go.mod go.sum ./
 

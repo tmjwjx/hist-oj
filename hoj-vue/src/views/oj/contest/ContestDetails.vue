@@ -45,11 +45,11 @@
                style="margin-left:10px;"
              >
                <el-tag
-                 effect="dark"
-                 size="medium"
-                 class="rating-tag"
+                 type="danger"
+                 effect="plain"
+                 style="font-size:13px; background-color: #fff !important;"
                >
-                 <i class="el-icon-trophy"></i> Rating
+                 <i class="fa fa-star"></i> Rating
                </el-tag>
              </el-tooltip>
             </el-col>
@@ -620,25 +620,20 @@ export default {
 };
 </script>
 <style scoped>
-.rating-tag {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  border: none !important;
-  color: #fff !important;
-  font-weight: 600 !important;
-  padding: 6px 14px !important;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4) !important;
-  transition: all 0.3s ease !important;
-  font-size: 13px !important;
+/* Rating 标签样式：红色边框、白色底色，鼠标悬停不变色 */
+.el-tag--danger.el-tag--plain {
+  background-color: #fff !important;
+  border-color: #F56C6C !important;
+  color: #F56C6C !important;
 }
-.rating-tag:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5) !important;
+
+/* 确保鼠标悬停时保持相同的样式 */
+.el-tag--danger.el-tag--plain:hover {
+  background-color: #fff !important;
+  border-color: #F56C6C !important;
+  color: #F56C6C !important;
 }
-.rating-tag i {
-  margin-right: 4px;
-  font-size: 14px;
-  vertical-align: middle;
-}
+
 .panel-title {
   font-size: 1.5rem !important;
   font-weight: 500;
