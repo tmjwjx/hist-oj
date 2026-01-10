@@ -80,6 +80,18 @@ export function joinRoom(data) {
 }
 
 /**
+ * 准备对战（挑战者准备/取消准备）
+ * @param {Object} data - { roomId: string, ready: boolean }
+ */
+export function readyBattle(data) {
+  return battleRequest({
+    url: '/battle/ready',
+    method: 'post',
+    data
+  });
+}
+
+/**
  * 获取房间信息
  * @param {String} roomId - 房间号
  */

@@ -125,6 +125,7 @@ func (s *BattleService) JoinRoom(roomID, challengerID, challengerUsername string
 	// 更新房间信息
 	room.ChallengerID = &challengerID
 	room.ChallengerUsername = &challengerUsername
+	room.ChallengerReady = false // 新加入的挑战者默认未准备
 
 	if err := s.db.Save(&room).Error; err != nil {
 		logger.Error("加入房间失败",
@@ -138,6 +139,56 @@ func (s *BattleService) JoinRoom(roomID, challengerID, challengerUsername string
 		zap.String("room_id", roomID),
 		zap.String("challenger_id", challengerID))
 	return &room, nil
+}
+
+// ReadyBattle 准备对战（挑战者准备/取消准备）
+func (s *BattleService) ReadyBattle(roomID, userID string, ready bool) (*model.BattleRoom, error) {
+	logger := utils.GetLogger()
+
+	// 查询房间
+	var room model.BattleRoom
+	if err := s.db.Where("room_id = ?", roomID).First(&room).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("房间不存在")
+		}
+		logger.Error("查询房间失败",
+			zap.String("room_id", roomID),
+			zap.Error(err))
+		return nil, fmt.Errorf("查询房间失败: %w", err)
+	}
+
+	// 检查房间状态
+	if room.Status != model.BattleStatusWaiting {
+		return nil, fmt.Errorf("房间已开始或已结束")
+	}
+
+	// 检查是否是挑战者
+	if room.ChallengerID == nil {
+		return nil, fmt.Errorf("等待挑战者加入")
+	}
+
+	if *room.ChallengerID != userID {
+		return nil, fmt.Errorf("只有挑战者可以准备")
+	}
+
+	// 更新准备状态
+	room.ChallengerReady = ready
+
+	if err := s.db.Save(&room).Error; err != nil {
+		logger.Error("更新准备状态失败",
+			zap.String("room_id", roomID),
+			zap.String("user_id", userID),
+			zap.Bool("ready", ready),
+			zap.Error(err))
+		return nil, fmt.Errorf("更新准备状态失败: %w", err)
+	}
+
+	logger.Info("更新准备状态成功",
+		zap.String("room_id", roomID),
+		zap.String("user_id", userID),
+		zap.Bool("ready", ready))
+
+	return s.GetRoomInfo(roomID)
 }
 
 // GetRoomInfo 获取房间信息
@@ -185,6 +236,11 @@ func (s *BattleService) StartBattle(roomID string) (*model.BattleRoom, *client.P
 	// 检查是否有挑战者
 	if room.ChallengerID == nil {
 		return nil, nil, fmt.Errorf("等待挑战者加入")
+	}
+
+	// 检查挑战者是否已准备
+	if !room.ChallengerReady {
+		return nil, nil, fmt.Errorf("挑战者未准备")
 	}
 
 	// 智能选题：获取双方都未AC的题目（返回显示ID）
@@ -911,6 +967,7 @@ func (s *BattleService) LeaveRoom(roomID, userID string) error {
 			room.HostUsername = newHostUsername
 			room.ChallengerID = nil
 			room.ChallengerUsername = nil
+			room.ChallengerReady = false // 清除准备状态
 
 			if err := s.db.Save(&room).Error; err != nil {
 				logger.Error("转移房主身份失败",
@@ -952,6 +1009,7 @@ func (s *BattleService) LeaveRoom(roomID, userID string) error {
 	// 挑战者退出：清空挑战者信息
 	room.ChallengerID = nil
 	room.ChallengerUsername = nil
+	room.ChallengerReady = false // 清除准备状态
 
 	if err := s.db.Save(&room).Error; err != nil {
 		logger.Error("退出房间失败",
@@ -1043,6 +1101,7 @@ func (s *BattleService) ResetRoom(roomID, userID string) error {
 	room.EndReason = nil
 	room.StartTime = nil
 	room.EndTime = nil
+	room.ChallengerReady = false // 清除准备状态
 
 	if err := s.db.Save(&room).Error; err != nil {
 		logger.Error("重置房间失败",

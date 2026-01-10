@@ -40,7 +40,11 @@
             <div class="player-info">
               <h3 v-if="room.challengerUsername" :style="{ color: getRatingColor(room.challengerRating) }">{{ room.challengerUsername }}</h3>
               <h3 v-else>等待玩家加入...</h3>
-              <el-tag v-if="room.challengerUsername" type="warning">挑战者</el-tag>
+              <div v-if="room.challengerUsername">
+                <el-tag type="warning">挑战者</el-tag>
+                <el-tag v-if="room.challengerReady" type="success" style="margin-left: 5px;">已准备</el-tag>
+                <el-tag v-else type="info" style="margin-left: 5px;">未准备</el-tag>
+              </div>
             </div>
           </div>
         </div>
@@ -49,11 +53,19 @@
           <el-button
             type="primary"
             size="large"
-            :disabled="!room.challengerUsername"
+            :disabled="!room.challengerUsername || !room.challengerReady"
             @click="handleStartBattle"
           >
             <i class="fa fa-play"></i> 开始对战
           </el-button>
+          <el-alert
+            v-if="room.challengerUsername && !room.challengerReady"
+            title="等待挑战者准备"
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-top: 10px;"
+          ></el-alert>
           <el-button
             type="info"
             size="large"
@@ -64,11 +76,22 @@
           </el-button>
         </div>
         <div v-else class="action-section">
+          <el-button
+            v-if="room.challengerUsername"
+            :type="room.challengerReady ? 'warning' : 'success'"
+            size="large"
+            @click="handleReady"
+          >
+            <i class="fa" :class="room.challengerReady ? 'fa-times' : 'fa-check'"></i>
+            {{ room.challengerReady ? '取消准备' : '准备' }}
+          </el-button>
           <el-alert
-            title="等待房主开始对战"
-            type="info"
+            v-if="room.challengerReady"
+            title="已准备,等待房主开始对战"
+            type="success"
             :closable="false"
             show-icon
+            style="margin-top: 10px;"
           ></el-alert>
           <el-button
             type="danger"
@@ -184,7 +207,7 @@
 </template>
 
 <script>
-import { getRoomInfo, startBattle, giveupBattle, dissolveRoom, leaveRoom, resetRoom } from '@/api/battle';
+import { getRoomInfo, startBattle, giveupBattle, dissolveRoom, leaveRoom, resetRoom, readyBattle } from '@/api/battle';
 import { getRatingColor } from '@/common/rating-utils';
 
 export default {
@@ -198,6 +221,7 @@ export default {
         hostUsername: '',
         challengerId: '',
         challengerUsername: '',
+        challengerReady: false, // 挑战者准备状态
         problemId: null
       },
       problem: {},
@@ -249,11 +273,12 @@ export default {
     }
   },
   beforeDestroy() {
+    console.log('[BattleRoom] 组件销毁,停止轮询');
     this.stopPolling();
     // 清除房间记录（如果是对战结束或退出房间）
     const userId = this.$store.getters.userInfo?.uid;
-    if (userId && this.battleResult) {
-      // 对战结束了，清除记录
+    if (userId) {
+      // 无论如何都清除记录，防止残留
       sessionStorage.removeItem(`battle_room_${userId}`);
     }
   },
@@ -290,9 +315,21 @@ export default {
       return getRatingColor(rating);
     },
     async loadRoomInfo() {
+      // 如果组件已经销毁或正在销毁过程中，不要执行请求
+      if (this._isDestroyed) {
+        console.log('[BattleRoom] 组件已销毁，跳过房间信息加载');
+        return;
+      }
+
       try {
         console.log('[BattleRoom] 开始加载房间信息, roomId:', this.roomId);
         const res = await getRoomInfo(this.roomId);
+
+        // 如果在请求过程中组件被销毁了，直接返回
+        if (this._isDestroyed) {
+          console.log('[BattleRoom] 请求返回时组件已销毁');
+          return;
+        }
 
         console.log('[BattleRoom] 房间信息响应:', res.data);
 
@@ -330,8 +367,12 @@ export default {
             this.$message.warning('挑战者已退出房间');
           }
 
+          // 检查挑战者状态变化（加入或退出）- 需要调整轮询频率
+          const challengerChanged = this.room.challengerUsername !== newRoom.challengerUsername;
           // 检查房间状态变化
-          if (this.room.status !== newRoom.status) {
+          const statusChanged = this.room.status !== newRoom.status;
+
+          if (statusChanged) {
             // 房间状态发生变化，更新状态
             if (newRoom.status === 2) {
               // 对战结束，设置结果
@@ -356,6 +397,11 @@ export default {
 
               return; // 提前返回，避免下面的重复更新
             }
+          } else if (challengerChanged && this.room.status === 0) {
+            // 挑战者状态变化（加入或退出）且处于等待状态 - 重新启动轮询以应用新的频率
+            console.log('[BattleRoom] 挑战者状态变化，重新启动轮询以调整频率');
+            this.stopPolling();
+            this.startPolling();
           }
 
           // 更新房间信息
@@ -364,6 +410,12 @@ export default {
           // 注意：题目信息已经在响应中获取，不需要再次请求
         }
       } catch (error) {
+        // 如果组件已经销毁，不处理错误
+        if (this._isDestroyed) {
+          console.log('[BattleRoom] 请求出错时组件已销毁');
+          return;
+        }
+
         // 处理网络错误 - 轮询期间完全静默处理，避免控制台报错
         if (error.response) {
           const status = error.response.status;
@@ -412,12 +464,47 @@ export default {
           this.problem = res.data.data.problem;
           this.hasRedirectedToProblem = true; // 标记已跳转
 
-          // 不再自动跳转到题目页面，让用户手动点击"进入题目"按钮
+          // 立即重新启动轮询,使用对战的频率(3秒)
+          this.stopPolling();
+          this.startPolling();
         } else {
           this.$message.error(res.data.msg || '开始对战失败');
         }
       } catch (error) {
         this.$message.error('开始对战失败');
+      }
+    },
+
+    async handleReady() {
+      // 挑战者准备/取消准备 (乐观更新 - 立即响应)
+      try {
+        const userId = this.$store.getters.userInfo?.uid;
+        const oldReadyState = this.room.challengerReady;
+        const newReadyState = !oldReadyState;
+
+        // 乐观更新: 立即更新本地状态,提供即时反馈
+        this.room.challengerReady = newReadyState;
+        this.$message.success(newReadyState ? '已准备' : '已取消准备');
+
+        // 异步调用 API
+        const res = await readyBattle({
+          roomId: this.roomId,
+          userId: userId,
+          ready: newReadyState
+        });
+
+        // 检查后端响应
+        if (res.data.code !== 0) {
+          // 失败时回滚状态
+          this.room.challengerReady = oldReadyState;
+          this.$message.error(res.data.msg || '操作失败,请重试');
+        }
+        // 成功则保持乐观更新的状态,无需额外操作
+      } catch (error) {
+        // 失败时回滚状态
+        const oldReadyState = this.room.challengerReady;
+        this.room.challengerReady = !oldReadyState;
+        this.$message.error('网络错误,请检查连接后重试');
       }
     },
 
@@ -502,18 +589,52 @@ export default {
     },
 
     startPolling() {
-      // 根据房间状态设置不同的轮询频率
-      // 等待中：5秒轮询一次
-      // 对战中：3秒轮询一次（需要及时检测AC）
+      // 如果组件已销毁，不要启动轮询
+      if (this._isDestroyed) {
+        console.log('[BattleRoom] 组件已销毁，不启动轮询');
+        return;
+      }
+
+      // 先停止旧的轮询
+      this.stopPolling();
+
+      // 根据房间状态和挑战者状态设置动态轮询频率
+      // 等待中且有挑战者(status=0 && challenger存在)：500ms - 快速检测挑战者进出/准备状态变化
+      // 等待中但无挑战者(status=0 && challenger不存在)：1秒 - 正常等待加入
+      // 对战中(status=1)：2秒 - 需要及时检测AC
+      // 已结束(status=2)：不轮询 - 不需要更新
+      if (this.room.status === 2) {
+        console.log('[BattleRoom] 对战已结束，不启动轮询');
+        return;
+      }
+
+      // 动态轮询频率：等待状态且有挑战者时使用更快的轮询来快速检测进出变化
+      let interval;
+      if (this.room.status === 1) {
+        interval = 2000; // 对战中：2秒
+      } else if (this.room.status === 0 && this.room.challengerUsername) {
+        interval = 500;  // 等待中且有挑战者：500ms - 快速检测进出/准备状态
+      } else {
+        interval = 1000; // 等待中但无挑战者：1秒
+      }
       this.pollingInterval = setInterval(() => {
+        // 在执行前再次检查组件是否已销毁
+        if (this._isDestroyed) {
+          console.log('[BattleRoom] 轮询执行时发现组件已销毁，停止轮询');
+          this.stopPolling();
+          return;
+        }
         this.loadRoomInfo();
-      }, this.room.status === 1 ? 3000 : 5000);
+      }, interval);
+
+      console.log('[BattleRoom] 启动轮询,间隔:', interval + 'ms, 状态:', this.getRoomStatusText(this.room.status));
     },
 
     stopPolling() {
       if (this.pollingInterval) {
         clearInterval(this.pollingInterval);
         this.pollingInterval = null;
+        console.log('[BattleRoom] 停止轮询');
       }
     },
 
@@ -604,6 +725,15 @@ export default {
     getDifficultyText(difficulty) {
       const map = { 1: '入门', 2: '入门', 3: '中等', 4: '困难', 5: '困难' };
       return map[difficulty] || '未知';
+    },
+
+    getRoomStatusText(status) {
+      const map = {
+        0: '等待中',
+        1: '对战中',
+        2: '已结束'
+      };
+      return map[status] || '未知';
     },
 
     getStatusText(status) {

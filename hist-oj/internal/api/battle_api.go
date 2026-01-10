@@ -38,6 +38,13 @@ type JoinRoomRequest struct {
 	Username string `json:"username" binding:"required"`
 }
 
+// ReadyBattleRequest 准备对战请求
+type ReadyBattleRequest struct {
+	RoomID string `json:"roomId" binding:"required"`
+	UserID string `json:"userId" binding:"required"`
+	Ready  bool   `json:"ready"` // true-准备, false-取消准备
+}
+
 // StartBattleRequest 开始对战请求
 type StartBattleRequest struct {
 	RoomID string `json:"roomId" binding:"required"`
@@ -168,6 +175,51 @@ func (api *BattleAPI) JoinRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, CommonResponse{
 		Code:    0,
 		Message: "加入成功",
+		Data:    room,
+	})
+}
+
+// ReadyBattle 准备对战
+// @Summary 准备对战
+// @Description 挑战者准备/取消准备
+// @Tags Battle
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ReadyBattleRequest true "准备对战请求"
+// @Success 200 {object} CommonResponse
+// @Router /api/battle/ready [post]
+func (api *BattleAPI) ReadyBattle(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req ReadyBattleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("请求参数绑定失败",
+			zap.Error(err))
+		c.JSON(http.StatusOK, CommonResponse{
+			Code:    1,
+			Message: "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	// 准备/取消准备
+	room, err := api.battleService.ReadyBattle(req.RoomID, req.UserID, req.Ready)
+	if err != nil {
+		logger.Warn("准备对战失败",
+			zap.String("room_id", req.RoomID),
+			zap.String("user_id", req.UserID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, CommonResponse{
+			Code:    1,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, CommonResponse{
+		Code:    0,
+		Message: map[bool]string{true: "已准备", false: "已取消准备"}[req.Ready],
 		Data:    room,
 	})
 }
@@ -723,6 +775,7 @@ func RegisterBattleRoutes(router *gin.RouterGroup) {
 	{
 		battle.POST("/create-room", battleAPI.CreateRoom)
 		battle.POST("/join-room", battleAPI.JoinRoom)
+		battle.POST("/ready", battleAPI.ReadyBattle) // 准备/取消准备
 		battle.GET("/room-info", battleAPI.GetRoomInfo)
 		battle.POST("/start-battle", battleAPI.StartBattle)
 		battle.POST("/giveup", battleAPI.GiveupBattle)

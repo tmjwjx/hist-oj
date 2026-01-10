@@ -14,6 +14,7 @@ type BattleRoom struct {
 	ChallengerID        *string    `json:"challengerId" gorm:"column:challenger_id"`
 	ChallengerUsername  *string    `json:"challengerUsername" gorm:"column:challenger_username"`
 	ChallengerRating    *int       `json:"challengerRating" gorm:"-"` // 从 user_record 表关联查询
+	ChallengerReady     bool       `json:"challengerReady" gorm:"column:challenger_ready;default:false"` // 挑战者是否已准备
 	ProblemID           *string    `json:"problemId" gorm:"column:problem_id"` // 显示ID（如 0051, Z001）
 	Status              BattleStatus `json:"status" gorm:"column:status;index:idx_status;default:0"`
 	WinnerID            *string    `json:"winnerId" gorm:"column:winner_id"`

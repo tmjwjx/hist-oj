@@ -1807,10 +1807,10 @@ export default {
       if (this.battlePollingTimer) {
         clearInterval(this.battlePollingTimer);
       }
-      // 每3秒轮询一次对战状态
+      // 每2秒轮询一次对战状态 - 及时检测对战结束
       this.battlePollingTimer = setInterval(() => {
         this.checkBattleStatus();
-      }, 3000);
+      }, 2000);
     },
     stopBattlePolling() {
       if (this.battlePollingTimer) {
