@@ -6,6 +6,7 @@ const Dashboard= ()=>import('@/views/admin/Dashboard')
 const User= ()=>import('@/views/admin/general/User')
 const RatingManagement= ()=>import('@/views/admin/general/RatingManagement')
 const JudgeTerminalPage= ()=>import('@/views/admin/general/JudgeTerminalPage')
+const BattleRecordsAdmin= ()=>import('@/views/admin/toolbox/BattleRecordsAdmin')
 const Announcement= ()=>import('@/views/admin/general/Announcement')
 const SysNotice= ()=>import('@/views/admin/general/SysNotice')
 const SystemConfig= ()=>import('@/views/admin/general/SystemConfig')
@@ -65,6 +66,12 @@ const adminRoutes= [
           name: 'admin-judge-terminal-page',
           component: JudgeTerminalPage,
           meta: { requireSuperAdmin: true,title:'Judge Terminal'},
+      },
+      {
+          path: 'battle-records',
+          name: 'admin-battle-records',
+          component: BattleRecordsAdmin,
+          meta: { requireSuperAdmin: true,title:'Battle Records Admin'},
       },
         {
           path: 'announcement',

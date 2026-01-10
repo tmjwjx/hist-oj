@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# HOJ2 + 报名系统自动化部署脚本
-# 用途：一键构建、打包、上传、部署 hist-oj、hoj-frontend 和 registration-backend 服务
+# HOJ2 + 报名系统 + 代码对战自动化部署脚本
+# 用途：一键构建、打包、上传、部署 hist-oj、hoj-frontend、registration-backend 和代码对战服务
 
 set -e  # 遇到错误立即退出
 
@@ -54,6 +54,14 @@ build_images() {
 
     cd "$PROJECT_DIR"
 
+    # 先清理旧的构建文件和 Docker 缓存（在构建之前）
+    log_info "清理旧的构建文件和 Docker 缓存..."
+    cd hoj-vue
+    rm -rf dist node_modules/.cache
+    cd "$PROJECT_DIR"
+    docker builder prune -af
+    docker system prune -af --volumes 2>/dev/null || true
+
     # 构建 hist-oj
     log_info "构建 hist-oj 镜像（不使用缓存）..."
     cd hist-oj
@@ -73,14 +81,8 @@ build_images() {
     log_info "✓ registration-backend 镜像构建成功"
 
     # 构建前端
-    log_info "构建 hoj-frontend 镜像（注意：这将清理旧的构建缓存）..."
+    log_info "构建 hoj-frontend 镜像（不使用缓存）..."
     cd ../../hoj-vue
-
-    # 清理旧的构建文件和 Docker 缓存
-    log_info "清理旧的构建文件和 Docker 缓存..."
-    rm -rf dist node_modules/.cache
-    docker builder prune -af
-    docker system prune -af --volumes 2>/dev/null || true
 
     # 记录构建前的镜像 ID（用于验证）
     FRONTEND_IMAGE_BEFORE=$(docker images hoj-frontend:latest --format "{{.ID}}" 2>/dev/null || echo "")
@@ -165,7 +167,7 @@ save_images() {
     if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
         # 保存 hist-oj
         log_info "保存 hist-oj 镜像..."
-        docker save hist-oj:latest | gzip > hist-oj.tar.gz || {
+        docker save hist-oj:latest | gzip -9 > hist-oj.tar.gz || {
             log_error "hist-oj 镜像保存失败"
             exit 1
         }
@@ -175,7 +177,7 @@ save_images() {
     if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "registration" ]; then
         # 保存报名系统
         log_info "保存 registration-backend 镜像..."
-        docker save registration-backend:latest | gzip > registration-backend.tar.gz || {
+        docker save registration-backend:latest | gzip -9 > registration-backend.tar.gz || {
             log_error "registration-backend 镜像保存失败"
             exit 1
         }
@@ -183,13 +185,14 @@ save_images() {
     fi
 
     if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
-        # 保存前端
-        log_info "保存 hoj-frontend 镜像..."
-        docker save hoj-frontend:latest | gzip > hoj-frontend.tar.gz || {
+        # 保存前端（使用最高压缩级别 -9）
+        log_info "保存 hoj-frontend 镜像（使用最大压缩以减小上传体积）..."
+        docker save hoj-frontend:latest | gzip -9 > hoj-frontend.tar.gz || {
             log_error "hoj-frontend 镜像保存失败"
             exit 1
         }
-        log_info "✓ hoj-frontend 镜像已保存 ($(du -h hoj-frontend.tar.gz | cut -f1))"
+        local SIZE=$(du -h hoj-frontend.tar.gz | cut -f1)
+        log_info "✓ hoj-frontend 镜像已保存（压缩后大小: $SIZE）"
     fi
 }
 
@@ -221,9 +224,9 @@ upload_images() {
     fi
 
     if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
-        # 上传前端
-        log_info "上传 hoj-frontend 镜像..."
-        sshpass -p "$SERVER_PASS" scp hoj-frontend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
+        # 上传前端（使用 rsync -z 压缩传输，比 scp 更快）
+        log_info "上传 hoj-frontend 镜像（使用 rsync 压缩传输）..."
+        sshpass -p "$SERVER_PASS" rsync -avz --progress hoj-frontend.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
             log_error "hoj-frontend 镜像上传失败"
             exit 1
         }
@@ -239,9 +242,28 @@ upload_images() {
             log_warn "Rating 迁移脚本上传失败（可能不存在）"
         }
 
-        # 上传报名系统迁移脚本（新增）
+        # 上传报名系统迁移脚本
         sshpass -p "$SERVER_PASS" scp registration-system/migrations/001_add_last_view_time_fields.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
             log_warn "报名系统迁移脚本上传失败（可能不存在）"
+        }
+
+        # 上传代码对战系统迁移脚本（所有相关脚本）
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/battle.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "代码对战初始表脚本上传失败（可能不存在）"
+        }
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/alter_battle_problem_id.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "代码对战 problem_id 修改脚本上传失败（可能不存在）"
+        }
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/alter_battle_tables.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "代码对战表字段修改脚本上传失败（可能不存在）"
+        }
+        # 上传新增的 opponent_rating 字段迁移脚本
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/add_battle_record_opponent_rating.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "代码对战 opponent_rating 字段脚本上传失败（可能不存在）"
+        }
+        # 上传回填旧数据的脚本
+        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/backfill_opponent_rating.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "代码对战 opponent_rating 回填脚本上传失败（可能不存在）"
         }
 
         log_info "✓ 数据库迁移脚本上传完成"
@@ -303,7 +325,7 @@ deploy_on_server() {
         # 执行数据库迁移（如果迁移脚本存在且字段未添加）
         echo "[INFO] 检查数据库迁移..."
 
-        # 检查 last_view_time 和 admin_last_view_time 字段是否已存在
+        # 检查 last_view_time 和 admin_last_view_time 字段是否已存在（报名系统）
         FIELD_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS \
              WHERE TABLE_SCHEMA='hoj' \
@@ -311,9 +333,9 @@ deploy_on_server() {
              AND COLUMN_NAME IN ('last_view_time', 'admin_last_view_time')" 2>/dev/null || echo "0")
 
         if [ "$FIELD_EXISTS" -ge "2" ]; then
-            echo "[INFO] ✓ 数据库字段已存在，跳过迁移"
+            echo "[INFO] ✓ 报名系统数据库字段已存在"
         else
-            echo "[INFO] 需要执行数据库迁移..."
+            echo "[INFO] 需要执行报名系统数据库迁移..."
 
             # Rating 系统迁移
             if [ -f "/opt/005_add_manual_rating_fields.sql" ]; then
@@ -325,6 +347,109 @@ deploy_on_server() {
             if [ -f "/opt/001_add_last_view_time_fields.sql" ]; then
                 echo "[INFO] 执行报名系统数据库迁移..."
                 mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/001_add_last_view_time_fields.sql && echo "[INFO] ✓ 报名系统迁移成功" || echo "[WARN] 报名系统迁移失败"
+            fi
+        fi
+
+        # 检查代码对战系统表是否已存在
+        BATTLE_TABLE_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='battle_room'" 2>/dev/null || echo "0")
+
+        if [ "$BATTLE_TABLE_EXISTS" -ge "1" ]; then
+            echo "[INFO] ✓ 代码对战系统数据库表已存在，检查是否需要更新表结构..."
+
+            # 检查 problem_id 字段类型（需要 VARCHAR(255) 而不是 BIGINT）
+            PROBLEM_ID_TYPE=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+                "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS \
+                 WHERE TABLE_SCHEMA='hoj' \
+                 AND TABLE_NAME='battle_room' \
+                 AND COLUMN_NAME='problem_id'" 2>/dev/null || echo "")
+
+            if [ "$PROBLEM_ID_TYPE" = "bigint" ]; then
+                echo "[INFO] 检测到旧版本表结构，需要更新 problem_id 字段类型..."
+
+                # 执行表结构更新
+                mysql -h43.143.133.62 -uroot -phist2025 hoj << 'SQLEOF'
+ALTER TABLE battle_room MODIFY COLUMN problem_id VARCHAR(255) DEFAULT NULL COMMENT '对战题目ID（显示ID，如 0051, Z001）';
+ALTER TABLE battle_record MODIFY COLUMN problem_id VARCHAR(255) NOT NULL COMMENT '对战题目ID（显示ID）';
+ALTER TABLE battle_room MODIFY COLUMN host_id VARCHAR(64) NOT NULL COMMENT '房主用户ID';
+ALTER TABLE battle_room MODIFY COLUMN challenger_id VARCHAR(64) DEFAULT NULL COMMENT '挑战者用户ID';
+ALTER TABLE battle_room MODIFY COLUMN winner_id VARCHAR(64) DEFAULT NULL COMMENT '获胜者用户ID';
+ALTER TABLE battle_record MODIFY COLUMN user_id VARCHAR(64) NOT NULL COMMENT '用户ID';
+ALTER TABLE battle_record MODIFY COLUMN opponent_id VARCHAR(64) NOT NULL COMMENT '对手用户ID';
+ALTER TABLE user_battle_stats MODIFY COLUMN user_id VARCHAR(64) NOT NULL COMMENT '用户ID';
+SQLEOF
+
+                if [ $? -eq 0 ]; then
+                    echo "[INFO] ✓ 代码对战系统表结构更新成功"
+                else
+                    echo "[WARN] 代码对战系统表结构更新失败"
+                fi
+            else
+                echo "[INFO] ✓ 代码对战系统表结构已是最新版本"
+            fi
+        else
+            echo "[INFO] 需要执行代码对战系统数据库迁移..."
+
+            # 1. 执行初始表创建
+            if [ -f "/opt/battle.sql" ]; then
+                echo "[INFO] 执行代码对战系统初始表创建..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/battle.sql && echo "[INFO] ✓ 初始表创建成功" || echo "[WARN] 初始表创建失败"
+            else
+                echo "[WARN] 初始表创建脚本不存在"
+            fi
+
+            # 2. 修改 problem_id 字段类型（支持显示ID）
+            if [ -f "/opt/alter_battle_problem_id.sql" ]; then
+                echo "[INFO] 执行 problem_id 字段类型修改..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/alter_battle_problem_id.sql && echo "[INFO] ✓ problem_id 字段修改成功" || echo "[WARN] problem_id 字段修改失败"
+            else
+                echo "[INFO] problem_id 字段修改脚本不存在（可能已执行）"
+            fi
+
+            # 3. 扩展用户ID字段长度（支持32字符UID）
+            if [ -f "/opt/alter_battle_tables.sql" ]; then
+                echo "[INFO] 执行用户ID字段长度扩展..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/alter_battle_tables.sql && echo "[INFO] ✓ 用户ID字段扩展成功" || echo "[WARN] 用户ID字段扩展失败"
+            else
+                echo "[INFO] 用户ID字段扩展脚本不存在（可能已执行）"
+            fi
+
+            # 4. 添加 opponent_rating 字段（支持显示对手rating颜色）
+            if [ -f "/opt/add_battle_record_opponent_rating.sql" ]; then
+                echo "[INFO] 执行 opponent_rating 字段添加..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/add_battle_record_opponent_rating.sql && echo "[INFO] ✓ opponent_rating 字段添加成功" || echo "[WARN] opponent_rating 字段添加失败"
+            else
+                echo "[INFO] opponent_rating 字段添加脚本不存在（可能已执行）"
+            fi
+
+            # 5. 回填旧记录的 opponent_rating 数据
+            if [ -f "/opt/backfill_opponent_rating.sql" ]; then
+                echo "[INFO] 回填旧记录的 opponent_rating 数据..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/backfill_opponent_rating.sql && echo "[INFO] ✓ opponent_rating 数据回填成功" || echo "[WARN] opponent_rating 数据回填失败"
+            else
+                echo "[INFO] opponent_rating 数据回填脚本不存在（可能已执行）"
+            fi
+        fi
+
+        # 检查是否需要添加 opponent_rating 字段（对于已存在的旧表）
+        OPPONENT_RATING_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='battle_record' \
+             AND COLUMN_NAME='opponent_rating'" 2>/dev/null || echo "0")
+
+        if [ "$OPPONENT_RATING_EXISTS" -lt "1" ]; then
+            echo "[INFO] 检测到缺少 opponent_rating 字段，正在添加..."
+            mysql -h43.143.133.62 -uroot -phist2025 hoj << 'SQLEOF'
+ALTER TABLE battle_record ADD COLUMN opponent_rating INT NULL DEFAULT NULL COMMENT '对手的rating值' AFTER opponent_username;
+ALTER TABLE battle_record ADD INDEX idx_opponent_rating (opponent_rating);
+SQLEOF
+            if [ $? -eq 0 ]; then
+                echo "[INFO] ✓ opponent_rating 字段添加成功"
+            else
+                echo "[WARN] opponent_rating 字段添加失败"
             fi
         fi
 
@@ -437,11 +562,20 @@ deploy_on_server() {
         echo "[INFO] 测试前端访问 hist-oj..."
         docker exec hoj-frontend curl -s http://hist-oj:9527/health || echo "前端访问 hist-oj 失败"
 
+        echo "[INFO] 测试代码对战 API..."
+        docker exec hoj-frontend curl -s http://hist-oj:9527/api/battle/rank || echo "代码对战 API 测试失败"
+
         echo "[INFO] 测试工具箱路由（用户端）..."
         docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/toolbox | grep -q "200" && echo "[INFO] ✓ 用户工具箱路由正常" || echo "[WARN] 用户工具箱路由异常"
 
         echo "[INFO] 测试工具箱路由（管理端）..."
         docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/admin/toolbox | grep -q "200" && echo "[INFO] ✓ 管理员工具箱路由正常" || echo "[WARN] 管理员工具箱路由异常"
+
+        echo "[INFO] 测试代码对战路由..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/battle | grep -q "200" && echo "[INFO] ✓ 代码对战路由正常" || echo "[WARN] 代码对战路由异常（可能需要登录）"
+
+        echo "[INFO] 测试代码对战排行榜路由..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/battle/rank | grep -q "200" && echo "[INFO] ✓ 代码对战排行榜路由正常" || echo "[WARN] 代码对战排行榜路由异常"
 
         echo "[INFO] 验证工具箱组件文件是否在容器中..."
         # 查找实际的 app.js 文件（文件名带有 hash）
@@ -467,6 +601,11 @@ deploy_on_server() {
                 echo "[WARN] 工具箱代码未找到，可能构建有问题"
             fi
 
+            # 检查代码对战功能
+            if docker exec hoj-frontend grep -q "BattleHome\|BattleRoom\|代码对战" "$APP_JS" 2>/dev/null; then
+                echo "[INFO] ✓ 代码对战功能已包含"
+            fi
+
             # 检查新图标
             if docker exec hoj-frontend grep -q "el-icon-s-grid" "$APP_JS" 2>/dev/null; then
                 echo "[INFO] ✓ 新图标 el-icon-s-grid 已包含"
@@ -490,6 +629,15 @@ deploy_on_server() {
                 fi
                 if docker exec hoj-frontend grep -q "JudgeTerminalTool" "$CHUNK_JS" 2>/dev/null; then
                     echo "[INFO] ✓ 判题终端组件已包含"
+                fi
+            fi
+
+            # 检查代码对战相关组件
+            BATTLE_CHUNK_JS=$(docker exec hoj-frontend find /usr/share/nginx/html/assets/js -name "chunk-*.js" -type f -exec grep -l "BattleHome\|BattleRoom" {} \; 2>/dev/null | head -1)
+            if [ -n "$BATTLE_CHUNK_JS" ]; then
+                echo "[INFO] 找到代码对战 chunk: $(basename $BATTLE_CHUNK_JS)"
+                if docker exec hoj-frontend grep -q "fa-gamepad\|代码对战" "$BATTLE_CHUNK_JS" 2>/dev/null; then
+                    echo "[INFO] ✓ 代码对战功能已包含"
                 fi
             fi
         else
@@ -520,7 +668,10 @@ cleanup_server() {
     log_info "清理服务器上的临时文件..."
     sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
         cd /opt
-        rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz 005_add_manual_rating_fields.sql 001_add_last_view_time_fields.sql
+        rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz \
+              005_add_manual_rating_fields.sql 001_add_last_view_time_fields.sql \
+              battle.sql alter_battle_problem_id.sql alter_battle_tables.sql \
+              add_battle_record_opponent_rating.sql backfill_opponent_rating.sql
         echo "[INFO] ✓ 服务器清理完成"
 ENDSSH
 }
@@ -595,6 +746,8 @@ show_result() {
     log_info "  - hist-oj API: http://${SERVER_IP}:9527"
     log_info "  - 用户工具箱: http://${SERVER_IP}/toolbox"
     log_info "  - 管理员工具箱: http://${SERVER_IP}/admin/toolbox"
+    log_info "  - 代码对战: http://${SERVER_IP}/battle"
+    log_info "  - 对战排行榜: http://${SERVER_IP}/battle/rank"
     log_info "  - 报名系统: http://${SERVER_IP}/toolbox -> 赛事报名系统"
     log_info "  - 报名管理: http://${SERVER_IP}/admin/toolbox -> 赛事报名系统管理"
     log_info ""
@@ -610,25 +763,43 @@ show_result() {
     log_info "     - 管理员工具箱: /admin/toolbox"
     log_info "     - 卡片式布局，易于扩展"
     log_info ""
-    log_info "  2. 判题终端（管理员工具箱）"
+    log_info "  2. 代码对战系统（新增）"
+    log_info "     - 访问路径: /battle"
+    log_info "     - 创建房间、加入房间、1v1实时对战"
+    log_info "     - 智能选题：从双方都未AC的题目中随机选择"
+    log_info "     - 对战排行榜：按胜场数排名"
+    log_info "     - API: http://${SERVER_IP}:9527/api/battle/*"
+    log_info ""
+    log_info "  3. 判题终端（管理员工具箱）"
     log_info "     - 访问路径: 管理员工具箱 -> 判题终端"
     log_info "     - 支持本地样例自测和远程判题提交"
     log_info "     - 自动保存用户凭据"
     log_info "     - 实时查看判题结果和历史记录"
     log_info ""
-    log_info "  3. 手动调整 Rating"
+    log_info "  4. 手动调整 Rating"
     log_info "     - API: POST http://${SERVER_IP}:9527/api/rating/admin/adjust"
     log_info "     - 文档: hist-oj/MANUAL_RATING_ADJUST.md"
     log_info ""
-    log_info "  4. 持久化消息已读状态（解决浏览器缓存清除问题）"
+    log_info "  5. 持久化消息已读状态（解决浏览器缓存清除问题）"
     log_info "     - 用户和管理员的已读状态分别存储在数据库"
     log_info "     - 支持跨设备同步已读状态"
     log_info "     - 新增字段: last_view_time, admin_last_view_time"
     log_info ""
+    log_info "  6. 对战记录对手Rating显示（新增）"
+    log_info "     - 对战历史记录中对手名字根据rating显示不同颜色"
+    log_info "     - 对战结果标签完美居中对齐"
+    log_info "     - 新增字段: battle_record.opponent_rating"
+    log_info ""
     log_info "验证命令："
     log_info "  curl http://${SERVER_IP}:9527/health"
     log_info "  curl http://${SERVER_IP}/api/rating/contest/info/1002"
+    log_info "  curl http://${SERVER_IP}/api/battle/rank"
     log_info "  curl http://${SERVER_IP}/registration-api/competitions"
+    log_info ""
+    log_info "测试代码对战功能："
+    log_info "  - 对战首页: curl -I http://${SERVER_IP}/battle"
+    log_info "  - 对战排行榜: curl -I http://${SERVER_IP}/battle/rank"
+    log_info "  - 对战API: curl http://${SERVER_IP}:9527/api/battle/rank"
     log_info ""
     log_info "测试工具箱访问："
     log_info "  - 用户端: curl -I http://${SERVER_IP}/toolbox"
@@ -641,28 +812,36 @@ show_result() {
     log_warn "  - 或清除浏览器缓存后重新访问"
     log_warn ""
     log_info ""
-    log_info "测试手动调整功能："
-    log_info "  curl -X POST http://${SERVER_IP}:9527/api/rating/admin/adjust \\"
-    log_info "    -H 'Content-Type: application/json' \\"
-    log_info "    -H 'X-Operator-UID: admin' \\"
-    log_info "    -d '{\"username\": \"user\", \"ratingChange\": -100, \"reason\": \"测试\"}'"
-    log_info ""
     log_info "数据库迁移："
-    log_info "  - 已执行: 001_add_last_view_time_fields.sql"
-    log_info "  - 新增字段验证:"
+    log_info "  - 报名系统: 001_add_last_view_time_fields.sql"
+    log_info "  - 代码对战: battle.sql (新增)"
+    log_info "  - 对战记录对手rating: add_battle_record_opponent_rating.sql (新增)"
+    log_info "  - 回填旧记录rating数据: backfill_opponent_rating.sql (新增)"
+    log_info "  - 验证对战表:"
+    log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
+    log_info "      'SHOW TABLES LIKE \"battle%\"' hoj"
+    log_info "  - 验证opponent_rating字段:"
     log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
     log_info "      'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \\"
-    log_info "       WHERE TABLE_NAME=\"histcontest_register_registrations\" \\"
-    log_info "       AND COLUMN_NAME IN (\"last_view_time\", \"admin_last_view_time\")' hoj"
+    log_info "       WHERE TABLE_SCHEMA=\"hoj\" AND TABLE_NAME=\"battle_record\" \\"
+    log_info "       AND COLUMN_NAME=\"opponent_rating\"' hoj"
     log_info ""
-    log_info "代码变更："
-    log_info "  - 新增: hoj-vue/src/views/oj/toolbox/Toolbox.vue"
-    log_info "  - 新增: hoj-vue/src/views/admin/toolbox/ToolboxAdmin.vue"
-    log_info "  - 新增: hoj-vue/src/components/admin/toolbox/JudgeTerminalTool.vue"
-    log_info "  - 修改: hoj-vue/src/components/oj/common/NavBar.vue (导航菜单)"
-    log_info "  - 修改: hoj-vue/src/views/admin/Home.vue (管理菜单)"
-    log_info "  - 修改: hoj-vue/src/router/ojRoutes.js (用户路由)"
-    log_info "  - 修改: hoj-vue/src/router/adminRoutes.js (管理员路由)"
+    log_info "代码变更（代码对战系统）："
+    log_info "  - 后端:"
+    log_info "    - hist-oj/internal/model/battle.go (数据模型)"
+    log_info "    - hist-oj/internal/service/battle_service.go (业务逻辑)"
+    log_info "    - hist-oj/internal/api/battle_api.go (API接口)"
+    log_info "    - hist-oj/internal/api/routes.go (路由注册)"
+    log_info "    - hist-oj/internal/client/hoj_api.go (扩展HOJ API客户端)"
+    log_info "  - 前端:"
+    log_info "    - hoj-vue/src/views/oj/battle/BattleHome.vue (对战大厅)"
+    log_info "    - hoj-vue/src/views/oj/battle/BattleRoom.vue (对战房间)"
+    log_info "    - hoj-vue/src/views/oj/battle/BattleRank.vue (对战排行榜)"
+    log_info "    - hoj-vue/src/views/oj/battle/BattleMyRecords.vue (我的战绩)"
+    log_info "    - hoj-vue/src/api/battle.js (API封装)"
+    log_info "    - hoj-vue/src/router/ojRoutes.js (路由配置)"
+    log_info "    - hoj-vue/vue.config.js (代理配置)"
+    log_info ""
     log_info "=========================================="
 }
 

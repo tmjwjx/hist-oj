@@ -1,8 +1,8 @@
 # 依赖
-node_modules/
+node_modules
 
 # 构建输出
-dist/
+dist
 
 # Git
 .git
@@ -28,3 +28,14 @@ coverage/
 # 其他
 .DS_Store
 *.md
+
+# Docker 相关
+Dockerfile
+.dockerignore
+
+# 文档
+docs
+
+# 缓存
+*.cache
+.eslintcache

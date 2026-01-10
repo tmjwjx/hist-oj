@@ -3,8 +3,13 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# 安装必要的构建工具
-RUN apk add --no-cache git
+# 使用阿里云镜像源（加速国内访问）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 安装必要的构建工具（重试机制）
+RUN apk add --no-cache git || \
+    apk add --no-cache git || \
+    apk add --no-cache git
 
 # 设置 Go 代理（加速依赖下载）
 ENV GOPROXY=https://goproxy.cn,direct
@@ -23,8 +28,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o hist-oj-service .
 # 运行阶段
 FROM alpine:3.18
 
-# 安装必要的运行时依赖
-RUN apk --no-cache add ca-certificates tzdata
+# 使用阿里云镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 安装必要的运行时依赖（重试机制）
+RUN apk add --no-cache ca-certificates tzdata || \
+    apk add --no-cache ca-certificates tzdata
 
 # 设置时区
 ENV TZ=Asia/Shanghai

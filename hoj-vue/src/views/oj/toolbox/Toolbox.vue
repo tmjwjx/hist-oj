@@ -46,6 +46,13 @@ export default {
     return {
       tools: [
         {
+          title: '代码对战',
+          description: '1v1实时代码对战，挑战对手',
+          icon: 'fa fa-gamepad',
+          iconColor: '#FF6B6B',
+          url: '/battle'
+        },
+        {
           title: '赛事报名系统',
           description: '查看和管理赛事报名信息',
           icon: 'fa fa-trophy',

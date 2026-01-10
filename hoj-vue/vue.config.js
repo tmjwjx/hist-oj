@@ -117,6 +117,13 @@ module.exports={
         pathRewrite: {
           '^/judge-api': '/api'                //   将 /judge-api 重写为 /api
         }
+      },
+      '/battle-api': {                         //   代码对战服务代理
+        target: 'http://localhost:9527',       //   本地开发环境 hist-oj 服务
+        changeOrigin: true,
+        pathRewrite: {
+          '^/battle-api': '/api'               //   将 /battle-api 重写为 /api
+        }
       }
     },
     disableHostCheck: true,

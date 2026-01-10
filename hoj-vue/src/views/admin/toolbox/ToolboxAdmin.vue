@@ -66,6 +66,13 @@ export default {
           icon: 'fa fa-terminal',
           iconColor: '#409EFF',
           action: 'openJudgeTerminal'
+        },
+        {
+          title: '对战记录查询',
+          description: '查询所有用户的对战记录',
+          icon: 'fa fa-gamepad',
+          iconColor: '#E6A23C',
+          action: 'openBattleRecords'
         }
       ]
     };
@@ -80,6 +87,9 @@ export default {
         } else if (tool.action === 'openJudgeTerminal') {
           // 跳转到判题终端页面
           this.$router.push({ name: 'admin-judge-terminal-page' });
+        } else if (tool.action === 'openBattleRecords') {
+          // 跳转到对战记录查询页面
+          this.$router.push({ name: 'admin-battle-records' });
         }
       } else if (tool.url) {
         if (tool.url.startsWith('http')) {

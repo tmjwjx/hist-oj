@@ -49,6 +49,9 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			judge.POST("/get-history", judgeHandler.GetHistory)
 			judge.POST("/run-combined", judgeHandler.RunCombined)
 		}
+
+		// 注册对战相关路由
+		RegisterBattleRoutes(api)
 	}
 
 	router.GET("/health", handler.HealthCheck)

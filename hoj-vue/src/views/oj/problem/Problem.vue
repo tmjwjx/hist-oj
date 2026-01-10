@@ -113,6 +113,17 @@
                   </div>
                   
                   <div class="problem-menu">
+                    <span v-if="isBattleMode">
+                      <el-link
+                        type="warning"
+                        :underline="false"
+                        @click="returnToBattleRoom"
+                      ><i
+                          class="fa fa-arrow-left"
+                          aria-hidden="true"
+                        ></i>
+                        返回对战房间</el-link>
+                    </span>
                     <span v-if="isShowProblemDiscussion">
                       <el-link
                         type="primary"
@@ -851,6 +862,7 @@ import { pie, largePie } from "./chartData";
 import api from "@/common/api";
 import myMessage from "@/common/message";
 import { addCodeBtn } from "@/common/codeblock";
+import { getRoomInfo, submitAC as battleSubmitAC, leaveRoom } from "@/api/battle";
 import CodeMirror from "@/components/oj/common/CodeMirror.vue";
 import Pagination from "@/components/oj/common/Pagination";
 import ProblemHorizontalMenu from "@/components/oj/common/ProblemHorizontalMenu";
@@ -930,6 +942,11 @@ export default {
       openTestCaseDrawer: false,
       openFocusMode: false,
       showProblemHorizontalMenu: false,
+      // 对战相关
+      isBattleMode: false,
+      battleRoomId: null,
+      battlePollingTimer: null,
+      battleEnded: false,
     };
   },
   created() {
@@ -958,6 +975,12 @@ export default {
     window.onresize = () => {
       this.resizeWatchHeight();
     };
+    // 检查是否在对战模式
+    this.checkBattleMode();
+  },
+  beforeDestroy() {
+    // 清理对战轮询定时器
+    this.stopBattlePolling();
   },
   methods: {
     ...mapActions(["changeDomTitle"]),
@@ -1534,6 +1557,12 @@ export default {
                 this.submitting = false;
                 this.submitted = false;
                 clearTimeout(this.refreshStatus);
+
+                // 检查是否AC，如果是对战模式则处理
+                if (this.result.status === 0 && this.isBattleMode) {
+                  this.handleBattleAC();
+                }
+
                 this.init();
                 if(this.showProblemHorizontalMenu){
                   this.$refs.problemHorizontalMenu.getFullScreenProblemList();
@@ -1743,6 +1772,232 @@ export default {
           groupID: this.groupID,
         },
       });
+    },
+    // 对战相关方法
+    async checkBattleMode() {
+      // 检查URL参数中是否包含battle参数
+      const battleRoomId = this.$route.query.battle;
+      if (battleRoomId) {
+        // 先验证房间是否存在
+        try {
+          const res = await getRoomInfo(battleRoomId);
+          // 房间不存在或已被解散
+          if (res.data.code === 1 || !res.data.data) {
+            // 清除URL中的battle参数
+            this.$router.replace({ query: {} });
+            return;
+          }
+          // 房间存在，设置对战模式
+          this.isBattleMode = true;
+          this.battleRoomId = battleRoomId;
+          // 保存到sessionStorage
+          const userId = this.$store.getters.userInfo?.uid;
+          if (userId) {
+            sessionStorage.setItem(`battle_room_${userId}`, battleRoomId);
+          }
+          // 开始轮询对战状态
+          this.startBattlePolling();
+        } catch (error) {
+          // 房间不存在或请求失败，清除URL中的battle参数
+          this.$router.replace({ query: {} });
+        }
+      }
+    },
+    startBattlePolling() {
+      if (this.battlePollingTimer) {
+        clearInterval(this.battlePollingTimer);
+      }
+      // 每3秒轮询一次对战状态
+      this.battlePollingTimer = setInterval(() => {
+        this.checkBattleStatus();
+      }, 3000);
+    },
+    stopBattlePolling() {
+      if (this.battlePollingTimer) {
+        clearInterval(this.battlePollingTimer);
+        this.battlePollingTimer = null;
+      }
+    },
+    async checkBattleStatus() {
+      if (!this.battleRoomId || this.battleEnded) {
+        return;
+      }
+      try {
+        const res = await getRoomInfo(this.battleRoomId);
+
+        // 房间不存在（被解散）
+        if (res.data.code === 1 || !res.data.data) {
+          this.battleEnded = true;
+          this.stopBattlePolling();
+          // 清除对战模式和房间ID
+          this.isBattleMode = false;
+          this.battleRoomId = null;
+          // 清除 sessionStorage 中的房间记录
+          const userId = this.$store.getters.userInfo?.uid;
+          if (userId) {
+            sessionStorage.removeItem(`battle_room_${userId}`);
+          }
+          // 房间解散后不做任何提示和跳转，保持用户在当前页面
+          return;
+        }
+
+        if (res.data.code === 0 && res.data.data) {
+          const room = res.data.data.room;
+          // 检查对战是否已结束（status = 2）
+          if (room.status === 2 && room.winnerId) {
+            this.battleEnded = true;
+            this.stopBattlePolling();
+            const currentUserId = this.$store.getters.userInfo?.uid;
+            const isWinner = room.winnerId === currentUserId;
+            const endReason = room.endReason || 'ac'; // 默认为ac
+
+            // 根据胜负和结束原因显示不同的消息
+            let message, title, type;
+            if (isWinner) {
+              title = '对局胜利';
+              if (endReason === 'ac') {
+                message = '🎉 对战胜利，成功解决题目！';
+              } else if (endReason === 'giveup') {
+                message = '🎉 对局胜利，对方放弃！';
+              } else if (endReason === 'timeout') {
+                message = '🎉 对局胜利，对方超时！';
+              } else {
+                message = '🎉 对局胜利！';
+              }
+              type = 'success';
+            } else {
+              title = '对局失败';
+              if (endReason === 'ac') {
+                message = '😔 对战失败，对手已成功解决题目！';
+              } else if (endReason === 'giveup') {
+                message = '😔 对局失败，你选择放弃对战';
+              } else if (endReason === 'timeout') {
+                message = '😔 对局失败，你超时了！';
+              } else {
+                message = '😔 对局失败！';
+              }
+              type = 'warning';
+            }
+
+            // 显示通知
+            this.$notify({
+              title: title,
+              message: message,
+              type: type,
+              duration: 2000,
+              position: 'top-right'
+            });
+
+            // 2秒后自动返回对战房间
+            setTimeout(() => {
+              this.returnToBattleRoom();
+            }, 2000);
+          }
+        }
+      } catch (error) {
+        // 房间不存在或已被解散
+        if (error.response && (error.response.status === 404 || error.response.status === 400)) {
+          this.battleEnded = true;
+          this.stopBattlePolling();
+          // 清除对战模式和房间ID
+          this.isBattleMode = false;
+          this.battleRoomId = null;
+          // 清除 sessionStorage 中的房间记录
+          const userId = this.$store.getters.userInfo?.uid;
+          if (userId) {
+            sessionStorage.removeItem(`battle_room_${userId}`);
+          }
+          // 房间解散后不做任何提示和跳转，保持用户在当前页面
+        }
+        // 其他错误静默处理
+      }
+    },
+    async returnToBattleRoom() {
+      if (!this.battleRoomId) {
+        return;
+      }
+
+      try {
+        // 先检查房间是否存在
+        const res = await getRoomInfo(this.battleRoomId);
+
+        // 房间不存在或已被解散
+        if (res.data.code === 1 || !res.data.data) {
+          // 立即隐藏"返回对战房间"链接
+          this.isBattleMode = false;
+          this.battleEnded = true;
+          this.battleRoomId = null;
+          this.stopBattlePolling();
+          // 清除 sessionStorage
+          const userId = this.$store.getters.userInfo?.uid;
+          if (userId) {
+            sessionStorage.removeItem(`battle_room_${userId}`);
+          }
+          // 房间解散后不做任何提示，静默返回大厅
+          this.$router.push({ name: 'BattleHome' });
+          return;
+        }
+
+        // 房间存在，跳转回房间
+        this.$router.push({
+          name: 'BattleRoom',
+          params: { roomId: this.battleRoomId }
+        });
+      } catch (error) {
+        // 房间不存在或已被解散 - 立即隐藏链接
+        this.isBattleMode = false;
+        this.battleEnded = true;
+        this.battleRoomId = null;
+        this.stopBattlePolling();
+        // 清除 sessionStorage
+        const userId = this.$store.getters.userInfo?.uid;
+        if (userId) {
+          sessionStorage.removeItem(`battle_room_${userId}`);
+        }
+        // 房间解散后不做任何提示，静默返回大厅
+        this.$router.push({ name: 'BattleHome' });
+      }
+    },
+    async leaveBattleRoomAndReturnHome() {
+      try {
+        // 调用退出房间API
+        const res = await leaveRoom({ roomId: this.battleRoomId });
+        if (res.data.code === 0) {
+          this.$message.success('已退出房间');
+        }
+      } catch (error) {
+        // 退出失败也静默处理,不影响返回大厅
+      } finally {
+        // 无论API调用成功与否,都清除本地状态并返回大厅
+        this.isBattleMode = false;
+        this.battleEnded = true;
+        this.battleRoomId = null;
+        this.stopBattlePolling();
+
+        // 清除 sessionStorage
+        const userId = this.$store.getters.userInfo?.uid;
+        if (userId) {
+          sessionStorage.removeItem(`battle_room_${userId}`);
+        }
+
+        // 返回对战大厅
+        this.$router.push({ name: 'BattleHome' });
+      }
+    },
+    async handleBattleAC() {
+      if (!this.isBattleMode || !this.battleRoomId || this.battleEnded) {
+        return;
+      }
+      try {
+        const userId = this.$store.getters.userInfo?.uid;
+        await battleSubmitAC({
+          roomId: this.battleRoomId,
+          problemId: this.problemID
+        });
+        // AC提交成功，继续轮询以获取对战结果
+      } catch (error) {
+        // 静默处理错误
+      }
     },
     beforeLeaveDo(cid){
       clearInterval(this.refreshStatus);

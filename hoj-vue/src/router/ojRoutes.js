@@ -29,6 +29,10 @@ import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
 import Registration from "@/views/oj/registration/Registration.vue"
 import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
+import BattleHome from "@/views/oj/battle/BattleHome.vue"
+import BattleRoom from "@/views/oj/battle/BattleRoom.vue"
+import BattleRank from "@/views/oj/battle/BattleRank.vue"
+import BattleMyRecords from "@/views/oj/battle/BattleMyRecords.vue"
 import Message from "@/views/oj/message/message.vue"
 import UserMsg from "@/views/oj/message/UserMsg.vue"
 import SysMsg from "@/views/oj/message/SysMsg.vue"
@@ -427,6 +431,30 @@ const ojRoutes = [
     name: 'Toolbox',
     component: Toolbox,
     meta: { title: 'Toolbox' }
+  },
+  {
+    path: '/battle',
+    name: 'BattleHome',
+    component: BattleHome,
+    meta: { title: 'Code Battle', requireAuth: true }
+  },
+  {
+    path: '/battle/room/:roomId',
+    name: 'BattleRoom',
+    component: BattleRoom,
+    meta: { title: 'Battle Room', requireAuth: true }
+  },
+  {
+    path: '/battle/rank',
+    name: 'BattleRank',
+    component: BattleRank,
+    meta: { title: 'Battle Rank' }
+  },
+  {
+    path: '/battle/my-records',
+    name: 'BattleMyRecords',
+    component: BattleMyRecords,
+    meta: { title: 'My Battle Records', requireAuth: true }
   },
   {
     path: '/about-us',
