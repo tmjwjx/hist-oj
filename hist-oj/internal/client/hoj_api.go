@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/go-resty/resty/v2"
 	"go.uber.org/zap"
 
@@ -388,5 +389,72 @@ type UserInfoBasic struct {
 	Username string `json:"username"`
 	Nickname string `json:"nickname"`
 	Avatar   string `json:"avatar"`
+}
+
+// UserAuthInfoResponse 用户认证信息响应
+type UserAuthInfoResponse struct {
+	CommonResult
+	Data *UserAuthInfo `json:"data"`
+}
+
+// UserAuthInfo 用户认证信息
+type UserAuthInfo struct {
+	UID      string   `json:"uid"`
+	Username string   `json:"username"`
+	Roles    []string `json:"roles"`
+}
+
+// ValidateToken 验证token并获取用户信息
+// 直接从JWT token中解析用户信息，避免调用HOJ API
+func ValidateToken(tokenString string) (*UserAuthInfo, error) {
+	logger := utils.GetLogger()
+
+	// 去掉 "Bearer " 前缀
+	if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
+		tokenString = tokenString[7:]
+	}
+
+	logger.Debug("解析JWT token", zap.String("token_prefix", tokenString[:min(20, len(tokenString))]))
+
+	// 解析JWT token（不验证签名，因为是内部服务）
+	token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		logger.Warn("JWT解析失败", zap.Error(err))
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	// 提取claims
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		// 从claims中提取用户信息
+		uid, _ := claims["sub"].(string)
+		username, _ := claims["username"].(string)
+
+		if uid == "" {
+			logger.Warn("JWT中没有uid信息")
+			return nil, fmt.Errorf("no uid in token")
+		}
+
+		// 如果token中没有username，从数据库查询
+		if username == "" {
+			logger.Debug("JWT中没有username，从数据库查询", zap.String("uid", uid))
+			userInfo, err := GetUserInfo(uid)
+			if err != nil {
+				logger.Warn("从数据库获取用户信息失败", zap.String("uid", uid), zap.Error(err))
+				return nil, fmt.Errorf("failed to get user info: %w", err)
+			}
+			username = userInfo.Username
+		}
+
+		logger.Debug("JWT验证成功", zap.String("uid", uid), zap.String("username", username))
+
+		return &UserAuthInfo{
+			UID:      uid,
+			Username: username,
+			Roles:    []string{"user"}, // 默认角色，后续可以从数据库查询具体角色
+		}, nil
+	}
+
+	logger.Warn("JWT无效")
+	return nil, fmt.Errorf("invalid token")
 }
 

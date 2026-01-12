@@ -3,6 +3,7 @@ import VueRouter from 'vue-router'
 import { sync } from 'vuex-router-sync'
 import adminRoutes from '@/router/adminRoutes'
 import ojRoutes from '@/router/ojRoutes'
+import classroomRoutes from '@/router/classroomRoutes'
 import mMessage from '@/common/message'
 import store from '@/store'
 import NProgress from 'nprogress' // nprogress插件
@@ -21,7 +22,7 @@ VueRouter.prototype.push = function push(location) {
    return originalPush.call(this, location).catch(err => err)
 }
 
-let routes = new Set([...ojRoutes, ...adminRoutes]);
+let routes = new Set([...ojRoutes, ...adminRoutes, classroomRoutes]);
 const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,

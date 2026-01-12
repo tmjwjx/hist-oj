@@ -53,6 +53,13 @@ export default {
           url: '/battle'
         },
         {
+          title: '班级管理',
+          description: '教师班级管理，学生作业提交',
+          icon: 'el-icon-s-operation',
+          iconColor: '#67C23A',
+          url: '/classroom'
+        },
+        {
           title: '赛事报名系统',
           description: '查看和管理赛事报名信息',
           icon: 'fa fa-trophy',

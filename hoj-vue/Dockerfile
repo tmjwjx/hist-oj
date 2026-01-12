@@ -7,9 +7,10 @@ WORKDIR /build
 # 复制 package 文件
 COPY package*.json ./
 
-# 删除可能包含错误镜像源的 package-lock.json，重新安装依赖
+# 设置 npm 镜像源（支持构建参数）
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN rm -f package-lock.json && \
-    npm config set registry https://registry.npmjs.org && \
+    npm config set registry ${NPM_REGISTRY} && \
     npm config set strict-ssl false && \
     npm install --legacy-peer-deps --no-audit
 
@@ -17,7 +18,7 @@ RUN rm -f package-lock.json && \
 COPY . .
 
 # 构建生产版本
-RUN npm run build
+RUN rm -rf dist node_modules/.cache && npm run build
 
 # 运行阶段 - 使用 Nginx
 FROM nginx:alpine

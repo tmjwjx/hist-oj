@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# HOJ2 + 报名系统 + 代码对战自动化部署脚本
-# 用途：一键构建、打包、上传、部署 hist-oj、hoj-frontend、registration-backend 和代码对战服务
+# HOJ2 + 报名系统 + 代码对战 + 班级管理系统自动化部署脚本
+# 用途：一键构建、打包、上传、部署 hist-oj、hoj-frontend、registration-backend
+#       hist-oj 包含：Rating计算、代码对战、班级管理等功能
 
 set -e  # 遇到错误立即退出
 
@@ -266,6 +267,11 @@ upload_images() {
             log_warn "代码对战 opponent_rating 回填脚本上传失败（可能不存在）"
         }
 
+        # 上传班级系统迁移脚本
+        sshpass -p "$SERVER_PASS" scp sqlAndsetting/classroom.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "班级系统迁移脚本上传失败（可能不存在）"
+        }
+
         log_info "✓ 数据库迁移脚本上传完成"
     fi
 }
@@ -286,13 +292,17 @@ deploy_on_server() {
         # 记录加载前的镜像 ID
         FRONTEND_IMAGE_BEFORE=$(docker images hoj-frontend:latest --format "{{.ID}}" 2>/dev/null || echo "")
 
-        # 加载 hist-oj 镜像
-        echo "[INFO] 加载 hist-oj 镜像..."
-        gunzip -c hist-oj.tar.gz | docker load
+        # 加载 hist-oj 镜像（如果文件存在）
+        if [ -f "hist-oj.tar.gz" ]; then
+            echo "[INFO] 加载 hist-oj 镜像..."
+            gunzip -c hist-oj.tar.gz | docker load
+        fi
 
-        # 加载报名系统镜像
-        echo "[INFO] 加载 registration-backend 镜像..."
-        gunzip -c registration-backend.tar.gz | docker load
+        # 加载报名系统镜像（如果文件存在）
+        if [ -f "registration-backend.tar.gz" ]; then
+            echo "[INFO] 加载 registration-backend 镜像..."
+            gunzip -c registration-backend.tar.gz | docker load
+        fi
 
         # 加载前端镜像
         echo "[INFO] 加载 hoj-frontend 镜像..."
@@ -453,6 +463,52 @@ SQLEOF
             fi
         fi
 
+        # 检查班级系统表是否已存在
+        CLASSROOM_TABLE_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='classroom'" 2>/dev/null || echo "0")
+
+        if [ "$CLASSROOM_TABLE_EXISTS" -lt "1" ]; then
+            echo "[INFO] 需要执行班级系统数据库迁移..."
+            if [ -f "/opt/classroom.sql" ]; then
+                echo "[INFO] 执行班级系统数据库迁移..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/classroom.sql && echo "[INFO] ✓ 班级系统迁移成功" || echo "[WARN] 班级系统迁移失败"
+            else
+                echo "[WARN] 班级系统迁移脚本不存在"
+            fi
+        else
+            echo "[INFO] ✓ 班级系统数据库表已存在"
+        fi
+
+        # 检查 homework_submit 表是否需要添加 is_officially_submitted 字段
+        IS_OFFICIALLY_SUBMITTED_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='homework_submit' \
+             AND COLUMN_NAME='is_officially_submitted'" 2>/dev/null || echo "0")
+
+        if [ "$IS_OFFICIALLY_SUBMITTED_EXISTS" -lt "1" ]; then
+            echo "[INFO] 需要添加 homework_submit.is_officially_submitted 字段..."
+            if [ -f "/opt/add_is_officially_submitted.sql" ]; then
+                echo "[INFO] 执行 is_officially_submitted 字段添加..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/add_is_officially_submitted.sql && echo "[INFO] ✓ is_officially_submitted 字段添加成功" || echo "[WARN] is_officially_submitted 字段添加失败"
+            else
+                echo "[INFO] 直接添加 is_officially_submitted 字段..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj << 'SQLEOF'
+ALTER TABLE homework_submit ADD COLUMN is_officially_submitted INT(1) NOT NULL DEFAULT 0 COMMENT '是否已正式提交（0=草稿自动保存，1=用户点击提交）' AFTER is_scored;
+ALTER TABLE homework_submit ADD INDEX idx_is_officially_submitted (is_officially_submitted);
+SQLEOF
+                if [ $? -eq 0 ]; then
+                    echo "[INFO] ✓ is_officially_submitted 字段添加成功"
+                else
+                    echo "[WARN] is_officially_submitted 字段添加失败"
+                fi
+            fi
+        else
+            echo "[INFO] ✓ homework_submit.is_officially_submitted 字段已存在"
+        fi
+
         echo "[INFO] 停止并删除旧容器..."
 
         # 根据部署目标选择性停止容器
@@ -494,8 +550,14 @@ SQLEOF
             docker run -d \
                 --name hist-oj \
                 --network hoj_hoj-network \
-                -p 9527:9527 \
-                -v /workspace/hoj-deploy/distributed/main/hist-oj/configs:/app/configs \
+                -e DATABASE_HOST=43.143.133.62 \
+                -e DATABASE_PORT=3306 \
+                -e DATABASE_USER=root \
+                -e DATABASE_PASSWORD=hist2025 \
+                -e DATABASE_DBNAME=hoj \
+                -e HOJ_API_BASE_URL=http://hoj-backserver:6688 \
+                -e JWT_SECRET=hoj-secret-init \
+                -e TZ=Asia/Shanghai \
                 --restart unless-stopped \
                 hist-oj:latest
         fi
@@ -523,10 +585,11 @@ SQLEOF
         fi
 
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
-            echo "[INFO] 启动 hoj-frontend 容器..."
+            echo "[INFO] 启动 hoj-frontend 容器（连接到两个网络）..."
             docker run -d \
                 --name hoj-frontend \
                 --network hoj_hoj-network \
+                --network main_hoj-network \
                 -p 80:80 \
                 -p 443:443 \
                 --restart unless-stopped \
@@ -562,6 +625,10 @@ SQLEOF
         echo "[INFO] 测试前端访问 hist-oj..."
         docker exec hoj-frontend curl -s http://hist-oj:9527/health || echo "前端访问 hist-oj 失败"
 
+        echo "[INFO] 测试前端访问 hoj-backend（主要 API 服务）..."
+        docker exec hoj-frontend getent hosts hoj-backend > /dev/null 2>&1 && echo "[INFO] ✓ hoj-backend 可以解析" || echo "[ERROR] ✗ hoj-backend 无法解析（网络问题）"
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://hoj-backend/api/common/getUserInfo | grep -q "200" && echo "[INFO] ✓ hoj-backend API 可访问" || echo "[WARN] hoj-backend API 访问异常（可能需要认证）"
+
         echo "[INFO] 测试代码对战 API..."
         docker exec hoj-frontend curl -s http://hist-oj:9527/api/battle/rank || echo "代码对战 API 测试失败"
 
@@ -576,6 +643,12 @@ SQLEOF
 
         echo "[INFO] 测试代码对战排行榜路由..."
         docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/battle/rank | grep -q "200" && echo "[INFO] ✓ 代码对战排行榜路由正常" || echo "[WARN] 代码对战排行榜路由异常"
+
+        echo "[INFO] 测试班级管理系统路由（教师端）..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/classroom/teacher | grep -q "200" && echo "[INFO] ✓ 教师工作台路由正常" || echo "[WARN] 教师工作台路由异常"
+
+        echo "[INFO] 测试班级管理系统路由（学生端）..."
+        docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/classroom/student | grep -q "200" && echo "[INFO] ✓ 学生工作台路由正常" || echo "[WARN] 学生工作台路由异常"
 
         echo "[INFO] 验证工具箱组件文件是否在容器中..."
         # 查找实际的 app.js 文件（文件名带有 hash）
@@ -671,7 +744,8 @@ cleanup_server() {
         rm -f hist-oj.tar.gz registration-backend.tar.gz hoj-frontend.tar.gz \
               005_add_manual_rating_fields.sql 001_add_last_view_time_fields.sql \
               battle.sql alter_battle_problem_id.sql alter_battle_tables.sql \
-              add_battle_record_opponent_rating.sql backfill_opponent_rating.sql
+              add_battle_record_opponent_rating.sql backfill_opponent_rating.sql \
+              classroom.sql
         echo "[INFO] ✓ 服务器清理完成"
 ENDSSH
 }
@@ -748,6 +822,8 @@ show_result() {
     log_info "  - 管理员工具箱: http://${SERVER_IP}/admin/toolbox"
     log_info "  - 代码对战: http://${SERVER_IP}/battle"
     log_info "  - 对战排行榜: http://${SERVER_IP}/battle/rank"
+    log_info "  - 教师工作台: http://${SERVER_IP}/classroom/teacher"
+    log_info "  - 学生工作台: http://${SERVER_IP}/classroom/student"
     log_info "  - 报名系统: http://${SERVER_IP}/toolbox -> 赛事报名系统"
     log_info "  - 报名管理: http://${SERVER_IP}/admin/toolbox -> 赛事报名系统管理"
     log_info ""
@@ -790,11 +866,24 @@ show_result() {
     log_info "     - 对战结果标签完美居中对齐"
     log_info "     - 新增字段: battle_record.opponent_rating"
     log_info ""
+    log_info "  7. 班级管理系统（新增）"
+    log_info "     - 班级管理：创建班级、学生管理、教师管理"
+    log_info "     - 签到系统：上课签到、签到统计"
+    log_info "     - 题库管理：班级题目、作业题库"
+    log_info "     - 作业系统：发布作业、提交作业、批改作业"
+    log_info "     - 资料库：课程资料上传、下载"
+    log_info "     - 随机选人：课堂随机提问功能"
+    log_info "     - 即时通讯：班级群聊、私信"
+    log_info "     - API: http://${SERVER_IP}:9527/api/classroom/*"
+    log_info ""
     log_info "验证命令："
     log_info "  curl http://${SERVER_IP}:9527/health"
     log_info "  curl http://${SERVER_IP}/api/rating/contest/info/1002"
     log_info "  curl http://${SERVER_IP}/api/battle/rank"
+    log_info "  curl http://${SERVER_IP}:9527/api/classroom/list"
     log_info "  curl http://${SERVER_IP}/registration-api/competitions"
+    log_info "  curl -I http://${SERVER_IP}/classroom/teacher"
+    log_info "  curl -I http://${SERVER_IP}/classroom/student"
     log_info ""
     log_info "测试代码对战功能："
     log_info "  - 对战首页: curl -I http://${SERVER_IP}/battle"
@@ -817,6 +906,7 @@ show_result() {
     log_info "  - 代码对战: battle.sql (新增)"
     log_info "  - 对战记录对手rating: add_battle_record_opponent_rating.sql (新增)"
     log_info "  - 回填旧记录rating数据: backfill_opponent_rating.sql (新增)"
+    log_info "  - 班级管理系统: classroom.sql (新增)"
     log_info "  - 验证对战表:"
     log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
     log_info "      'SHOW TABLES LIKE \"battle%\"' hoj"
@@ -825,6 +915,9 @@ show_result() {
     log_info "      'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \\"
     log_info "       WHERE TABLE_SCHEMA=\"hoj\" AND TABLE_NAME=\"battle_record\" \\"
     log_info "       AND COLUMN_NAME=\"opponent_rating\"' hoj"
+    log_info "  - 验证班级系统表:"
+    log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
+    log_info "      'SHOW TABLES LIKE \"classroom%\"' hoj"
     log_info ""
     log_info "代码变更（代码对战系统）："
     log_info "  - 后端:"
@@ -842,13 +935,21 @@ show_result() {
     log_info "    - hoj-vue/src/router/ojRoutes.js (路由配置)"
     log_info "    - hoj-vue/vue.config.js (代理配置)"
     log_info ""
+    log_info "代码变更（班级管理系统）："
+    log_info "  - 后端:"
+    log_info "    - hist-oj/internal/model/classroom.go (数据模型)"
+    log_info "    - hist-oj/internal/api/classroom_api.go (API接口)"
+    log_info "    - hist-oj/internal/api/classroom_api_part2.go (API接口扩展)"
+    log_info "    - hist-oj/internal/api/routes.go (路由注册)"
+    log_info "    - sqlAndsetting/classroom.sql (数据库表结构)"
+    log_info ""
     log_info "=========================================="
 }
 
 # 主函数
 main() {
     log_info "=========================================="
-    log_info "HOJ2 + 报名系统自动化部署"
+    log_info "HOJ2 + 报名系统 + 代码对战 + 班级管理自动化部署"
     log_info "=========================================="
 
     # 解析参数

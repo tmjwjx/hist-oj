@@ -24,6 +24,7 @@ const TrainingProblemList= ()=>import('@/views/admin/training/TrainingProblemLis
 const TrainingCategory= ()=>import('@/views/admin/training/Category')
 const DiscussionList= ()=>import('@/views/admin/discussion/Discussion')
 const RegistrationAdmin= ()=>import('@/views/admin/registration/RegistrationAdmin')
+const UserRoleManagement= ()=>import('@/views/admin/classroom/UserRoleManagement')
 const ToolboxAdmin= ()=>import('@/views/admin/toolbox/ToolboxAdmin')
 const adminRoutes= [
     {
@@ -210,6 +211,12 @@ const adminRoutes= [
           name: 'admin-discussion-list',
           component: DiscussionList,
           meta: { title:'Discussion Admin'}
+        },
+        {
+          path: 'user-role-management',
+          name: 'admin-user-role-management',
+          component: UserRoleManagement,
+          meta: { title: 'User Role Management'}
         },
         {
           path: 'toolbox',

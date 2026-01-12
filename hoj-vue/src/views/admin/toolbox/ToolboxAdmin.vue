@@ -54,6 +54,20 @@ export default {
           url: '/registration/admin.html'
         },
         {
+          title: '班级管理',
+          description: '查看和管理所有班级信息',
+          icon: 'el-icon-s-operation',
+          iconColor: '#67C23A',
+          action: 'openClassroomManagement'
+        },
+        {
+          title: '用户角色管理',
+          description: '为用户分配教师/学生角色',
+          icon: 'fa fa-user-plus',
+          iconColor: '#409EFF',
+          action: 'openUserRoleManagement'
+        },
+        {
           title: 'Rating 管理',
           description: '手动调整用户 Rating 和查看历史记录',
           icon: 'fa fa-line-chart',
@@ -81,7 +95,13 @@ export default {
     openTool(tool) {
       if (tool.action) {
         // 执行特定动作
-        if (tool.action === 'openRatingManagement') {
+        if (tool.action === 'openClassroomManagement') {
+          // 跳转到班级管理页面
+          this.$router.push({ name: 'admin-classroom' });
+        } else if (tool.action === 'openUserRoleManagement') {
+          // 跳转到用户角色管理页面
+          this.$router.push({ name: 'admin-user-role-management' });
+        } else if (tool.action === 'openRatingManagement') {
           // 动态加载 RatingManagement 组件
           this.$router.push({ name: 'admin-rating' });
         } else if (tool.action === 'openJudgeTerminal') {

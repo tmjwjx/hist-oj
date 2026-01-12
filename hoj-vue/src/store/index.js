@@ -4,6 +4,7 @@ import user from '@/store/user'
 import contest from "@/store/contest"
 import training from "@/store/training"
 import group from "@/store/group"
+import classroom from "@/store/classroom"
 import api from '@/common/api'
 import i18n from '@/i18n'
 import storage from '@/common/storage'
@@ -44,6 +45,13 @@ const rootGetters = {
   },
   'webLanguage'(state){
     return state.language
+  },
+  // 暴露 classroom 模块的 getters
+  'isTeacher'(state, getters) {
+    return getters['classroom/isTeacher']
+  },
+  'isStudent'(state, getters) {
+    return getters['classroom/isStudent']
   }
 }
 
@@ -130,7 +138,8 @@ export default new Vuex.Store({
     user,
     contest,
     training,
-    group
+    group,
+    classroom
   },
   state: rootState,
   getters: rootGetters,

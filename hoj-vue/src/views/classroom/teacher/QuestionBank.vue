@@ -1,0 +1,637 @@
+<template>
+  <div class="question-bank-panel">
+    <div class="page-header">
+      <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
+      <h3>{{ $t('m.Question_Bank') }}</h3>
+    </div>
+    <div class="action-bar">
+      <el-button type="primary" icon="el-icon-plus" @click="showCreateDialog = true">
+        {{ $t('m.Create_Question') }}
+      </el-button>
+    </div>
+
+    <el-table :data="questions" v-loading="loading" stripe>
+      <el-table-column prop="title" :label="$t('m.Question_Title')" />
+      <el-table-column prop="type" :label="$t('m.Question_Type')" width="100">
+        <template slot-scope="{ row }">
+          <el-tag :type="getQuestionTypeColor(row.type)">
+            {{ getQuestionTypeName(row.type) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100">
+        <template slot-scope="{ row }">
+          <el-rate v-model="row.difficulty" disabled />
+        </template>
+      </el-table-column>
+      <el-table-column prop="isShared" :label="$t('m.Shared')" width="80">
+        <template slot-scope="{ row }">
+          <el-tag :type="row.isShared ? 'success' : 'info'">
+            {{ row.isShared ? $t('m.Yes') : $t('m.No') }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('m.Operation')" width="200">
+        <template slot-scope="{ row }">
+          <el-button size="small" @click="handleEdit(row)">{{ $t('m.Edit') }}</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(row)">
+            {{ $t('m.Delete') }}
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="800px">
+      <el-form :model="createForm" ref="createForm" label-width="120px">
+        <el-form-item :label="$t('m.Question_Type')" prop="type">
+          <el-select v-model="createForm.type" @change="handleTypeChange">
+            <el-option :label="$t('m.Single_Choice')" value="single_choice" />
+            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
+            <el-option :label="$t('m.Judge')" value="judge" />
+            <el-option :label="$t('m.Subjective')" value="subjective" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('m.Question_Title')" prop="title">
+          <el-input v-model="createForm.title" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Content')" prop="content">
+          <el-input type="textarea" v-model="createForm.content" :rows="4" />
+        </el-form-item>
+
+        <!-- 单选题：固定4个选项，单选 -->
+        <template v-if="createForm.type === 'single_choice'">
+          <el-form-item :label="$t('m.Options')" required>
+            <div class="options-container">
+              <div v-for="(option, index) in createForm.choiceOptions" :key="index" class="option-item">
+                <el-radio v-model="createForm.correctAnswer" :label="index" class="option-radio">
+                  {{ ['A', 'B', 'C', 'D'][index] }}
+                </el-radio>
+                <el-input v-model="createForm.choiceOptions[index]" :placeholder="`${['A', 'B', 'C', 'D'][index]}. ${$t('m.Option_Content')}`" />
+              </div>
+            </div>
+            <div class="answer-tip">
+              <i class="el-icon-info"></i>
+              {{ $t('m.Select_Correct_Answer_Tip') }}
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 多选题：固定4个选项，多选 -->
+        <template v-if="createForm.type === 'multiple_choice'">
+          <el-form-item :label="$t('m.Options')" required>
+            <div class="options-container">
+              <div v-for="(option, index) in createForm.choiceOptions" :key="index" class="option-item">
+                <el-checkbox v-model="createForm.correctAnswers[index]" :label="index" class="option-checkbox">
+                  {{ ['A', 'B', 'C', 'D'][index] }}
+                </el-checkbox>
+                <el-input v-model="createForm.choiceOptions[index]" :placeholder="`${['A', 'B', 'C', 'D'][index]}. ${$t('m.Option_Content')}`" />
+              </div>
+            </div>
+            <div class="answer-tip">
+              <i class="el-icon-info"></i>
+              {{ $t('m.Select_Correct_Answers_Tip') }}
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 判断题：选择对/错 -->
+        <template v-if="createForm.type === 'judge'">
+          <el-form-item :label="$t('m.Correct_Answer')" required>
+            <el-radio-group v-model="createForm.correctAnswer">
+              <el-radio label="true">{{ $t('m.True') }}</el-radio>
+              <el-radio label="false">{{ $t('m.False') }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </template>
+
+        <!-- 主观题：需要人工打分 -->
+        <template v-if="createForm.type === 'subjective'">
+          <el-form-item :label="$t('m.Reference_Answer')">
+            <el-input type="textarea" v-model="createForm.referenceAnswer" :rows="4" :placeholder="$t('m.Reference_Answer_Tip')" />
+          </el-form-item>
+        </template>
+
+        <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
+          <el-rate v-model="createForm.difficulty" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Score')" prop="score">
+          <el-input-number v-model="createForm.score" :min="1" :max="100" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Share_To_Question_Pool')">
+          <el-switch v-model="createForm.isShared" />
+          <div class="form-tip">
+            <i class="el-icon-info"></i>
+            {{ $t('m.Share_To_Question_Pool_Tip') }}
+          </div>
+        </el-form-item>
+      </el-form>
+      <span slot="footer">
+        <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="createQuestion">{{ $t('m.Confirm') }}</el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 编辑题目对话框 -->
+    <el-dialog :title="$t('m.Edit_Question')" :visible.sync="showEditDialog" width="800px">
+      <el-form :model="editForm" ref="editForm" label-width="120px">
+        <el-form-item :label="$t('m.Question_Type')" prop="type">
+          <el-select v-model="editForm.type" @change="handleEditTypeChange">
+            <el-option :label="$t('m.Single_Choice')" value="single_choice" />
+            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
+            <el-option :label="$t('m.Judge')" value="judge" />
+            <el-option :label="$t('m.Subjective')" value="subjective" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('m.Question_Title')" prop="title">
+          <el-input v-model="editForm.title" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Content')" prop="content">
+          <el-input type="textarea" v-model="editForm.content" :rows="4" />
+        </el-form-item>
+
+        <!-- 单选题 -->
+        <template v-if="editForm.type === 'single_choice'">
+          <el-form-item :label="$t('m.Options')" required>
+            <div class="options-container">
+              <div v-for="(option, index) in editForm.choiceOptions" :key="index" class="option-item">
+                <el-radio v-model="editForm.correctAnswer" :label="index" class="option-radio">
+                  {{ ['A', 'B', 'C', 'D'][index] }}
+                </el-radio>
+                <el-input v-model="editForm.choiceOptions[index]" :placeholder="`${['A', 'B', 'C', 'D'][index]}. ${$t('m.Option_Content')}`" />
+              </div>
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 多选题 -->
+        <template v-if="editForm.type === 'multiple_choice'">
+          <el-form-item :label="$t('m.Options')" required>
+            <div class="options-container">
+              <div v-for="(option, index) in editForm.choiceOptions" :key="index" class="option-item">
+                <el-checkbox v-model="editForm.correctAnswers[index]" :label="index" class="option-checkbox">
+                  {{ ['A', 'B', 'C', 'D'][index] }}
+                </el-checkbox>
+                <el-input v-model="editForm.choiceOptions[index]" :placeholder="`${['A', 'B', 'C', 'D'][index]}. ${$t('m.Option_Content')}`" />
+              </div>
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 判断题 -->
+        <template v-if="editForm.type === 'judge'">
+          <el-form-item :label="$t('m.Correct_Answer')" required>
+            <el-radio-group v-model="editForm.correctAnswer">
+              <el-radio label="true">{{ $t('m.True') }}</el-radio>
+              <el-radio label="false">{{ $t('m.False') }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </template>
+
+        <!-- 主观题 -->
+        <template v-if="editForm.type === 'subjective'">
+          <el-form-item :label="$t('m.Reference_Answer')">
+            <el-input type="textarea" v-model="editForm.referenceAnswer" :rows="4" :placeholder="$t('m.Reference_Answer_Tip')" />
+          </el-form-item>
+        </template>
+
+        <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
+          <el-rate v-model="editForm.difficulty" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Score')" prop="score">
+          <el-input-number v-model="editForm.score" :min="1" :max="100" />
+        </el-form-item>
+        <el-form-item :label="$t('m.Share_To_Question_Pool')">
+          <el-switch v-model="editForm.isShared" />
+          <div class="form-tip">
+            <i class="el-icon-info"></i>
+            {{ $t('m.Share_To_Question_Pool_Tip') }}
+          </div>
+        </el-form-item>
+      </el-form>
+      <span slot="footer">
+        <el-button @click="showEditDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="updateQuestion">{{ $t('m.Confirm') }}</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'QuestionBank',
+  props: {
+    classroomId: {
+      type: [String, Number],
+      required: false
+    }
+  },
+  data() {
+    return {
+      loading: false,
+      questions: [],
+      showCreateDialog: false,
+      showEditDialog: false,
+      currentEditId: null,
+      createForm: {
+        type: 'single_choice',
+        title: '',
+        content: '',
+        choiceOptions: ['', '', '', ''], // 4个选项的内容
+        correctAnswer: 0, // 单选题正确答案（0-3）
+        correctAnswers: [false, false, false, false], // 多选题正确答案（数组）
+        referenceAnswer: '', // 主观题参考答案
+        difficulty: 1,
+        score: 10,
+        isShared: false
+      },
+      editForm: {
+        type: 'single_choice',
+        title: '',
+        content: '',
+        choiceOptions: ['', '', '', ''],
+        correctAnswer: 0,
+        correctAnswers: [false, false, false, false],
+        referenceAnswer: '',
+        difficulty: 1,
+        score: 10,
+        isShared: false
+      }
+    }
+  },
+  mounted() {
+    this.loadQuestions()
+  },
+  methods: {
+    handleTypeChange() {
+      this.handleFormTypeChange(this.createForm)
+    },
+    handleEditTypeChange() {
+      this.handleFormTypeChange(this.editForm)
+    },
+    handleFormTypeChange(form) {
+      // 切换题目类型时重置答案相关字段
+      if (form.type === 'single_choice') {
+        form.correctAnswer = 0
+        form.correctAnswers = [false, false, false, false]
+      } else if (form.type === 'multiple_choice') {
+        form.correctAnswer = 0
+        form.correctAnswers = [false, false, false, false]
+      } else if (form.type === 'judge') {
+        form.correctAnswer = 'true'
+        form.correctAnswers = [false, false, false, false]
+      } else {
+        form.correctAnswer = 0
+        form.correctAnswers = [false, false, false, false]
+      }
+      form.referenceAnswer = ''
+    },
+    async loadQuestions() {
+      this.loading = true
+      try {
+        const res = await this.$store.dispatch('classroom/getQuestionBank', {
+          classroomId: this.classroomId,
+          page: 1,
+          limit: 50
+        })
+        if (res.code === 200) {
+          this.questions = res.data.questions || res.data || []
+        }
+      } catch (error) {
+        this.$message.error(this.$t('m.Load_Failed'))
+      } finally {
+        this.loading = false
+      }
+    },
+    async createQuestion() {
+      // 验证必填字段
+      if (!this.createForm.title || !this.createForm.title.trim()) {
+        this.$message.warning('请输入题目标题')
+        return
+      }
+      if (!this.createForm.content || !this.createForm.content.trim()) {
+        this.$message.warning('请输入题目内容')
+        return
+      }
+
+      // 构建提交数据
+      const submitData = {
+        classroomId: this.classroomId,
+        type: this.createForm.type,
+        title: this.createForm.title,
+        content: this.createForm.content,
+        difficulty: this.createForm.difficulty || 1,
+        score: this.createForm.score || 2,
+        isShared: this.createForm.isShared ? 1 : 0
+      }
+
+      // 根据题型设置答案格式
+      if (this.createForm.type === 'single_choice') {
+        // 单选题
+        const optionsArray = this.createForm.choiceOptions.map((opt, idx) =>
+          `${['A', 'B', 'C', 'D'][idx]}. ${opt}`
+        )
+        submitData.options = JSON.stringify(optionsArray)
+        submitData.answer = ['A', 'B', 'C', 'D'][this.createForm.correctAnswer]
+      } else if (this.createForm.type === 'multiple_choice') {
+        // 多选题
+        const optionsArray = this.createForm.choiceOptions.map((opt, idx) =>
+          `${['A', 'B', 'C', 'D'][idx]}. ${opt}`
+        )
+        submitData.options = JSON.stringify(optionsArray)
+        // 多选题答案：保存为 JSON 数组格式，如 ["A","B","C"]
+        const selectedAnswers = this.createForm.correctAnswers
+          .map((selected, idx) => selected ? ['A', 'B', 'C', 'D'][idx] : null)
+          .filter(Boolean)
+        submitData.answer = JSON.stringify(selectedAnswers)
+      } else if (this.createForm.type === 'judge') {
+        // 判断题 - 确保 correctAnswer 是字符串类型
+        const answerValue = String(this.createForm.correctAnswer)
+        submitData.answer = answerValue === 'true' ? '对' : '错'
+        submitData.options = null // 判断题不需要选项
+      } else if (this.createForm.type === 'subjective') {
+        // 主观题
+        submitData.answer = this.createForm.referenceAnswer || '需人工评分'
+        submitData.options = null // 主观题不需要选项
+      }
+
+      try {
+        const res = await this.$store.dispatch('classroom/createQuestion', submitData)
+        if (res.code === 200) {
+          this.$message.success(this.$t('m.Create_Success'))
+          this.showCreateDialog = false
+          this.resetForm()
+          this.loadQuestions()
+        } else {
+          this.$message.error(res.message || this.$t('m.Create_Failed'))
+        }
+      } catch (error) {
+        this.$message.error(this.$t('m.Create_Failed'))
+      }
+    },
+    resetForm() {
+      this.createForm = {
+        type: 'single_choice',
+        title: '',
+        content: '',
+        choiceOptions: ['', '', '', ''],
+        correctAnswer: 0,
+        correctAnswers: [false, false, false, false],
+        referenceAnswer: '',
+        difficulty: 1,
+        score: 10,
+        isShared: false
+      }
+    },
+    handleEdit(question) {
+      this.currentEditId = question.id
+      // 解析题目数据并填充到编辑表单
+      this.editForm = {
+        type: question.type,
+        title: question.title,
+        content: question.content || '',
+        difficulty: question.difficulty,
+        score: question.score,
+        isShared: question.isShared === 1,
+        choiceOptions: ['', '', '', ''],
+        correctAnswer: 0,
+        correctAnswers: [false, false, false, false],
+        referenceAnswer: ''
+      }
+
+      // 解析选项和答案
+      if (question.type === 'single_choice' || question.type === 'multiple_choice') {
+        // 解析选项 JSON
+        if (question.options) {
+          try {
+            const optionsArray = JSON.parse(question.options)
+            this.editForm.choiceOptions = optionsArray.map(opt => {
+              // 去掉 "A. " 这样的前缀
+              return opt.replace(/^[A-D]\.\s*/, '')
+            })
+          } catch (e) {
+            console.error('解析选项失败', e)
+          }
+        }
+
+        // 解析答案
+        if (question.type === 'single_choice') {
+          const answerMap = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 }
+          this.editForm.correctAnswer = answerMap[question.answer] || 0
+        } else {
+          // 多选题
+          const answerMap = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 }
+          this.editForm.correctAnswers = [false, false, false, false]
+
+          // 尝试解析 JSON 数组格式
+          try {
+            const answers = JSON.parse(question.answer)
+            if (Array.isArray(answers)) {
+              answers.forEach(ans => {
+                const idx = answerMap[ans]
+                if (idx !== undefined) {
+                  this.editForm.correctAnswers[idx] = true
+                }
+              })
+            }
+          } catch (e) {
+            // 兼容旧的逗号分隔格式
+            const answers = question.answer.split(',')
+            answers.forEach(ans => {
+              const idx = answerMap[ans.trim()]
+              if (idx !== undefined) {
+                this.editForm.correctAnswers[idx] = true
+              }
+            })
+          }
+        }
+      } else if (question.type === 'judge') {
+        this.editForm.correctAnswer = question.answer === '对' ? 'true' : 'false'
+      } else if (question.type === 'subjective') {
+        this.editForm.referenceAnswer = question.answer || ''
+      }
+
+      this.showEditDialog = true
+    },
+    async updateQuestion() {
+      // 验证必填字段
+      if (!this.editForm.title || !this.editForm.title.trim()) {
+        this.$message.warning('请输入题目标题')
+        return
+      }
+      if (!this.editForm.content || !this.editForm.content.trim()) {
+        this.$message.warning('请输入题目内容')
+        return
+      }
+
+      const submitData = {
+        type: this.editForm.type,
+        title: this.editForm.title,
+        content: this.editForm.content,
+        difficulty: this.editForm.difficulty || 1,
+        score: this.editForm.score || 2,
+        isShared: this.editForm.isShared ? 1 : 0
+      }
+
+      // 根据题型设置答案格式
+      if (this.editForm.type === 'single_choice') {
+        const optionsArray = this.editForm.choiceOptions.map((opt, idx) =>
+          `${['A', 'B', 'C', 'D'][idx]}. ${opt}`
+        )
+        submitData.options = JSON.stringify(optionsArray)
+        submitData.answer = ['A', 'B', 'C', 'D'][this.editForm.correctAnswer]
+      } else if (this.editForm.type === 'multiple_choice') {
+        const optionsArray = this.editForm.choiceOptions.map((opt, idx) =>
+          `${['A', 'B', 'C', 'D'][idx]}. ${opt}`
+        )
+        submitData.options = JSON.stringify(optionsArray)
+        // 多选题答案：保存为 JSON 数组格式，如 ["A","B","C"]
+        const selectedAnswers = this.editForm.correctAnswers
+          .map((selected, idx) => selected ? ['A', 'B', 'C', 'D'][idx] : null)
+          .filter(Boolean)
+        submitData.answer = JSON.stringify(selectedAnswers)
+      } else if (this.editForm.type === 'judge') {
+        // 判断题 - 确保 correctAnswer 是字符串类型
+        const answerValue = String(this.editForm.correctAnswer)
+        submitData.answer = answerValue === 'true' ? '对' : '错'
+        submitData.options = null // 判断题不需要选项
+      } else if (this.editForm.type === 'subjective') {
+        submitData.answer = this.editForm.referenceAnswer || '需人工评分'
+        submitData.options = null // 主观题不需要选项
+      }
+
+      try {
+        const res = await this.$store.dispatch('classroom/updateQuestion', {
+          questionId: this.currentEditId,
+          data: submitData
+        })
+        if (res.code === 200) {
+          this.$message.success(this.$t('m.Update_Success'))
+          this.showEditDialog = false
+          this.loadQuestions()
+        } else {
+          this.$message.error(res.message || this.$t('m.Update_Failed'))
+        }
+      } catch (error) {
+        this.$message.error(this.$t('m.Update_Failed'))
+      }
+    },
+    async handleDelete(question) {
+      this.$confirm(this.$t('m.Confirm_Delete_Question'), this.$t('m.Warning'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
+        type: 'warning'
+      }).then(async () => {
+        try {
+          const res = await this.$store.dispatch('classroom/deleteQuestion', question.id)
+          if (res.code === 200) {
+            this.$message.success(this.$t('m.Delete_Success'))
+            this.loadQuestions()
+          } else {
+            this.$message.error(res.message || this.$t('m.Delete_Failed'))
+          }
+        } catch (error) {
+          this.$message.error(this.$t('m.Delete_Failed'))
+        }
+      })
+    },
+    getQuestionTypeName(type) {
+      const map = {
+        single_choice: this.$t('m.Single_Choice'),
+        multiple_choice: this.$t('m.Multiple_Choice'),
+        judge: this.$t('m.Judge'),
+        subjective: this.$t('m.Subjective'),
+        programming: this.$t('m.Programming')
+      }
+      return map[type] || type
+    },
+    getQuestionTypeColor(type) {
+      const map = {
+        single_choice: 'primary',
+        multiple_choice: 'success',
+        judge: 'warning',
+        subjective: 'info',
+        programming: 'danger'
+      }
+      return map[type] || ''
+    },
+    goBack() {
+      this.$router.push({ name: 'TeacherDashboard' })
+    }
+  }
+}
+</script>
+
+<style scoped>
+.question-bank-panel {
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.page-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #303133;
+}
+
+.action-bar {
+  margin-bottom: 20px;
+}
+
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.option-radio {
+  margin-right: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  min-width: 30px;
+}
+
+.option-checkbox {
+  margin-right: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  min-width: 30px;
+}
+
+.answer-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.answer-tip i {
+  font-size: 14px;
+}
+
+.form-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-tip i {
+  font-size: 14px;
+}
+</style>

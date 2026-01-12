@@ -83,6 +83,14 @@ func main() {
 
 	api.SetupRoutes(router, handler, cfg, db)
 
+	// 静态文件服务（用于资料下载）
+	// 创建上传目录
+	uploadDir := "./uploads"
+	if err := os.MkdirAll(uploadDir+"/classroom", 0755); err != nil {
+		logger.Warn("Failed to create upload directory", zap.Error(err))
+	}
+	router.Static("/uploads", uploadDir)
+
 	// 创建HTTP服务器
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),

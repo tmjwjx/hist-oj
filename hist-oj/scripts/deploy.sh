@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# HOJ Rating 系统部署脚本
+# HOJ Rating & Classroom 系统部署脚本
+# 功能: Rating 计算 + 班级管理（班级、签到、题库、作业、资料库）
 # 用法: ./deploy.sh [server-ip] [ssh-user]
 
 set -e
@@ -18,12 +19,21 @@ DEPLOY_DIR="/opt/hist-oj"
 SERVICE_NAME="hist-oj"
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}HOJ Rating 系统部署脚本${NC}"
+echo -e "${GREEN}HOJ Rating & Classroom 系统部署${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "服务器: ${SERVER_IP}"
 echo "用户: ${SSH_USER}"
 echo "部署目录: ${DEPLOY_DIR}"
+echo ""
+echo -e "${YELLOW}功能模块:${NC}"
+echo "  - Rating 计算系统"
+echo "  - 班级管理系统（班级、签到、题库、作业、资料库、随机选人、即时通讯）"
+echo ""
+echo -e "${YELLOW}部署前检查:${NC}"
+echo "  1. 确保 MySQL 数据库已创建 hoj 数据库"
+echo "  2. 如需初始化班级系统表，请先执行: mysql -u root -p hoj < sqlAndsetting/classroom.sql"
+echo "  3. 确保 configs/config.yaml 已正确配置数据库连接"
 echo ""
 
 # 检查本地环境

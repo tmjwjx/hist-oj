@@ -135,6 +135,10 @@ func InitTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&SubmissionHistory{}); err != nil {
 		return err
 	}
+	// 创建班级相关表
+	if err := InitClassroomTables(db); err != nil {
+		return err
+	}
 	return nil
 }
 

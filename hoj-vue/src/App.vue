@@ -207,6 +207,7 @@ export default {
 
     if(this.isAuthenticated){
       this.$store.dispatch("refreshUserAuthInfo");
+      this.$store.dispatch("classroom/loadUserRoles");
     }
 
     this.showFooter = !(this.$route.name == 'ProblemDetails'|| utils.isFocusModePage(this.$route.name));

@@ -5,14 +5,21 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # 设置 Go 代理（加速依赖下载）
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=https://goproxy.io,https://goproxy.cn,https://proxy.golang.org,direct
 ENV GO111MODULE=on
+
+# 安装 ca-certificates（避免 TLS 证书问题）
+RUN apk --no-cache add ca-certificates git
 
 # 复制 go mod 文件
 COPY go.mod go.sum ./
 
-# 下载依赖
-RUN go mod download
+# 下载依赖（添加重试机制）
+RUN go mod download || \
+    (echo "Retrying with different proxy..." && \
+     GOPROXY=https://proxy.golang.org,https://goproxy.cn,direct go mod download) || \
+    (echo "Retrying one more time..." && \
+     GOPROXY=https://goproxy.cn,direct go mod download)
 
 # 复制源代码
 COPY . .
@@ -21,7 +28,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
 # 最终镜像
-FROM alpine:latest
+FROM alpine:3.18
 
 # 安装 ca-certificates、curl 和时区数据
 RUN apk --no-cache add ca-certificates curl tzdata
