@@ -18,78 +18,195 @@
 
         <!-- 题目列表 -->
         <div v-for="(submit, index) in studentSubmission.questions" :key="submit.id" class="question-item">
-          <div class="question-header">
-            <span class="question-number">{{ index + 1 }}.</span>
-            <el-tag :type="getQuestionTypeTag(submit.question?.type)" size="small">
-              {{ getQuestionTypeText(submit.question?.type) }}
-            </el-tag>
-            <span class="question-score">{{ submit.question?.score || 0 }}分</span>
-          </div>
-
-          <div class="question-title">{{ submit.question?.title }}</div>
-
-          <!-- 显示题目选项（单选、多选、判断题） -->
-          <div v-if="submit.question?.type === 'single_choice' || submit.question?.type === 'multiple_choice'" class="question-options">
-            <div v-for="option in parseOptions(submit.question.options)" :key="option.letter" class="option-item">
-              <el-tag :type="isOptionSelected(submit.answer, option.letter, submit.question.type) ? 'primary' : 'info'" size="small">
-                {{ option.letter }}. {{ option.text }}
+          <!-- 编程题 -->
+          <div v-if="submit.problemId" class="programming-question-item">
+            <div class="question-header">
+              <span class="question-number">{{ index + 1 }}.</span>
+              <el-tag type="warning" size="small">
+                {{ $t('m.Programming') }}
               </el-tag>
+              <span class="question-score">{{ submit.score || 0 }}分</span>
+            </div>
+            <div class="question-title">HOJ 编程题 - {{ submit.problemId }}</div>
+
+            <!-- 解析学生答案（JSON格式，包含code和language） -->
+            <div v-if="submit.answer" class="programming-answer">
+              <div v-if="parseProgrammingAnswer(submit.answer)" class="code-info">
+                <p><strong>编程语言:</strong> {{ parseProgrammingAnswer(submit.answer).language }}</p>
+                <el-divider></el-divider>
+                <p><strong>学生代码:</strong></p>
+                <pre class="code-block">{{ parseProgrammingAnswer(submit.answer).code }}</pre>
+              </div>
+            </div>
+
+            <!-- 评测结果 -->
+            <div v-if="submit.judgeResult" class="judge-result">
+              <p><strong>评测结果:</strong></p>
+              <el-tag :type="getJudgeResultType(submit.judgeResult)" size="small">
+                {{ submit.judgeResult }}
+              </el-tag>
+            </div>
+
+            <!-- 评分区域 - 编程题由系统自动评分，不显示手动评分按钮 -->
+            <div class="grading-area">
+              <el-tag :type="submit.isScored === 1 ? 'success' : 'warning'" size="small">
+                {{ submit.isScored === 1 ? $t('m.Graded') : $t('m.Not_Graded') }}
+              </el-tag>
+              <span class="current-score">
+                {{ $t('m.Current_Score') }}: {{ submit.score }}
+              </span>
+              <span style="margin-left: 10px; color: #909399; font-size: 12px;">
+                <i class="el-icon-info"></i> 编程题由系统自动评分
+              </span>
             </div>
           </div>
 
-          <!-- 判断题选项 -->
-          <div v-if="submit.question?.type === 'judge'" class="question-options">
-            <el-tag :type="submit.answer === 'true' ? 'primary' : 'info'" size="small">
-              {{ submit.answer === 'true' ? $t('m.True') : $t('m.False') }}
-            </el-tag>
-          </div>
+          <!-- 普通题目 -->
+          <div v-else-if="submit.question">
+            <div class="question-header">
+              <span class="question-number">{{ index + 1 }}.</span>
+              <el-tag :type="getQuestionTypeTag(submit.question.type)" size="small">
+                {{ getQuestionTypeText(submit.question.type) }}
+              </el-tag>
+              <span class="question-score">{{ submit.question.score || 0 }}分</span>
+            </div>
 
-          <!-- 主观题答案 -->
-          <div v-if="submit.question?.type === 'subjective'" class="subjective-answer">
-            <p><strong>{{ $t('m.Student_Answer') }}:</strong></p>
-            <div class="answer-content">{{ submit.answer || $t('m.No_Answer') }}</div>
-          </div>
+            <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)"></div>
+            <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)"></div>
 
-          <!-- 答案对比 -->
-          <div class="answer-comparison">
-            <p><strong>{{ $t('m.Correct_Answer') }}:</strong>
-              <span v-if="submit.question?.type === 'single_choice' || submit.question?.type === 'judge'">
-                {{ submit.question?.answer }}
-              </span>
-              <span v-else-if="submit.question?.type === 'multiple_choice'">
-                {{ parseMultipleChoiceAnswer(submit.question?.answer) }}
-              </span>
-              <span v-else>
-                {{ submit.question?.answer || '-' }}
-              </span>
-            </p>
-            <p><strong>{{ $t('m.Student_Answer') }}:</strong>
-              <span v-if="submit.question?.type === 'multiple_choice'">
-                {{ parseMultipleChoiceAnswer(submit.answer) }}
-              </span>
-              <span v-else>
-                {{ submit.answer }}
-              </span>
-            </p>
-          </div>
+            <!-- 显示题目选项（单选、多选） -->
+            <div v-if="submit.question.type === 'single_choice' || submit.question.type === 'multiple_choice'" class="question-options">
+              <div v-for="option in parseOptions(submit.question.options)" :key="option.letter" class="option-item">
+                <div class="option-display">
+                  <el-tag
+                    :type="isOptionSelected(submit.answer, option.letter, submit.question.type) ? 'primary' : 'info'"
+                    size="small"
+                    effect="plain"
+                  >
+                    <span class="option-letter">{{ option.letter }}</span>
+                  </el-tag>
+                  <span v-html="renderMarkdown(option.text)" class="markdown-body option-text"></span>
+                  <!-- 正确答案标识 -->
+                  <el-tag v-if="isCorrectAnswer(submit.question.answer, option.letter, submit.question.type)"
+                    type="success"
+                    size="mini"
+                    style="margin-left: 8px;">
+                    ✓ {{ $t('m.Correct_Answer') }}
+                  </el-tag>
+                  <!-- 学生选择标识 -->
+                  <el-tag v-if="isOptionSelected(submit.answer, option.letter, submit.question.type)"
+                    type="primary"
+                    size="mini"
+                    style="margin-left: 4px;">
+                    {{ $t('m.Selected') }}
+                  </el-tag>
+                </div>
+              </div>
+            </div>
 
-          <!-- 评分区域 -->
-          <div class="grading-area">
-            <el-tag :type="submit.isScored === 1 ? 'success' : 'warning'" size="small">
-              {{ submit.isScored === 1 ? $t('m.Graded') : $t('m.Not_Graded') }}
-            </el-tag>
-            <span class="current-score">
-              {{ $t('m.Current_Score') }}: {{ submit.score }}
-            </span>
+            <!-- 判断题选项 -->
+            <div v-if="submit.question.type === 'judge'" class="question-options">
+              <div class="option-display">
+                <el-tag
+                  :type="parseJudgeAnswer(submit.answer) ? 'primary' : 'info'"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ $t('m.True') }}
+                </el-tag>
+                <!-- 正确答案标识 -->
+                <el-tag v-if="parseJudgeAnswer(submit.question.answer)"
+                  type="success"
+                  size="mini"
+                  style="margin-left: 8px;">
+                  ✓ {{ $t('m.Correct_Answer') }}
+                </el-tag>
+                <!-- 学生选择标识 -->
+                <el-tag v-if="parseJudgeAnswer(submit.answer)"
+                  type="primary"
+                  size="mini"
+                  style="margin-left: 4px;">
+                  {{ $t('m.Selected') }}
+                </el-tag>
+              </div>
+              <div class="option-display">
+                <el-tag
+                  :type="!parseJudgeAnswer(submit.answer) ? 'primary' : 'info'"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ $t('m.False') }}
+                </el-tag>
+                <!-- 正确答案标识 -->
+                <el-tag v-if="!parseJudgeAnswer(submit.question.answer)"
+                  type="success"
+                  size="mini"
+                  style="margin-left: 8px;">
+                  ✓ {{ $t('m.Correct_Answer') }}
+                </el-tag>
+                <!-- 学生选择标识 -->
+                <el-tag v-if="!parseJudgeAnswer(submit.answer)"
+                  type="primary"
+                  size="mini"
+                  style="margin-left: 4px;">
+                  {{ $t('m.Selected') }}
+                </el-tag>
+              </div>
+            </div>
 
-            <!-- 操作按钮 -->
-            <div class="action-buttons">
-              <el-button size="small" type="primary" @click="openGradeDialog(submit)">
-                <i class="el-icon-edit"></i> {{ $t('m.Grade') }}
-              </el-button>
-              <el-button size="small" @click="recalculateScore(submit)">
-                <i class="el-icon-refresh"></i> {{ $t('m.Recalculate') }}
-              </el-button>
+            <!-- 主观题答案 -->
+            <div v-if="submit.question.type === 'subjective'" class="subjective-answer">
+              <p><strong>{{ $t('m.Student_Answer') }}:</strong></p>
+              <div class="answer-content">{{ submit.answer || $t('m.No_Answer') }}</div>
+            </div>
+
+            <!-- 答案对比 -->
+            <div class="answer-comparison">
+              <p><strong>{{ $t('m.Correct_Answer') }}:</strong>
+                <span v-if="submit.question.type === 'single_choice'">
+                  {{ submit.question.answer }}
+                </span>
+                <span v-else-if="submit.question.type === 'judge'">
+                  {{ parseJudgeAnswer(submit.question.answer) ? $t('m.True') : $t('m.False') }}
+                </span>
+                <span v-else-if="submit.question.type === 'multiple_choice'">
+                  {{ parseMultipleChoiceAnswer(submit.question.answer) }}
+                </span>
+                <span v-else>
+                  {{ submit.question.answer || '-' }}
+                </span>
+              </p>
+              <p><strong>{{ $t('m.Student_Answer') }}:</strong>
+                <span v-if="submit.question.type === 'judge'">
+                  {{ parseJudgeAnswer(submit.answer) ? $t('m.True') : $t('m.False') }}
+                </span>
+                <span v-else-if="submit.question.type === 'multiple_choice'">
+                  {{ parseMultipleChoiceAnswer(submit.answer) }}
+                </span>
+                <span v-else>
+                  {{ submit.answer }}
+                </span>
+              </p>
+            </div>
+
+            <!-- 评分区域 -->
+            <div class="grading-area">
+              <el-tag :type="submit.isScored === 1 ? 'success' : 'warning'" size="small">
+                {{ submit.isScored === 1 ? $t('m.Graded') : $t('m.Not_Graded') }}
+              </el-tag>
+              <span class="current-score">
+                {{ $t('m.Current_Score') }}: {{ submit.score }}
+              </span>
+
+              <!-- 操作按钮 -->
+              <div class="action-buttons">
+                <el-button size="small" type="primary" @click="openGradeDialog(submit)">
+                  <i class="el-icon-edit"></i> {{ $t('m.Grade') }}
+                </el-button>
+                <el-button size="small" @click="recalculateScore(submit)">
+                  <i class="el-icon-refresh"></i> {{ $t('m.Recalculate') }}
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -104,20 +221,23 @@
     >
       <el-form :model="gradeForm" label-width="100px">
         <el-form-item :label="$t('m.Question_Type')">
-          <el-tag>{{ getQuestionTypeText(currentQuestion?.question?.type) }}</el-tag>
+          <el-tag v-if="currentQuestion?.problemId" type="warning">{{ $t('m.Programming') }}</el-tag>
+          <el-tag v-else :type="getQuestionTypeTag(currentQuestion?.question?.type)">
+            {{ getQuestionTypeText(currentQuestion?.question?.type) }}
+          </el-tag>
         </el-form-item>
         <el-form-item :label="$t('m.Question_Score')">
-          <span>{{ currentQuestion?.question?.score || 0 }} {{ $t('m.Points') }}</span>
+          <span>{{ getCurrentQuestionScore() }} {{ $t('m.Points') }}</span>
         </el-form-item>
         <el-form-item :label="$t('m.Enter_Score')">
           <el-input-number
             v-model="gradeForm.score"
             :min="0"
-            :max="currentQuestion?.question?.score || 0"
+            :max="getCurrentQuestionScore()"
             :precision="1"
           ></el-input-number>
           <span style="margin-left: 10px; color: #909399;">
-            (0 - {{ currentQuestion?.question?.score || 0 }})
+            (0 - {{ getCurrentQuestionScore() }})
           </span>
         </el-form-item>
       </el-form>
@@ -133,6 +253,17 @@
 
 <script>
 import moment from 'moment'
+import MarkdownIt from 'markdown-it'
+import katex from '@iktakahiro/markdown-it-katex'
+import 'katex/dist/katex.min.css'
+
+// 配置 markdown-it 支持 KaTeX
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+})
+md.use(katex)
 
 export default {
   name: 'StudentSubmissionDetail',
@@ -207,8 +338,26 @@ export default {
     parseOptions(optionsStr) {
       if (!optionsStr) return []
       try {
-        return JSON.parse(optionsStr)
+        const options = JSON.parse(optionsStr)
+        // 如果已经是数组对象格式 [{letter: 'A', text: '...'}]
+        if (Array.isArray(options) && options.length > 0 && options[0].letter) {
+          return options
+        }
+        // 如果是字符串数组格式 ["A. 选项1", "B. 选项2"]
+        if (Array.isArray(options) && typeof options[0] === 'string') {
+          return options.map((opt, idx) => {
+            // 尝试匹配 "A. xxx" 或 "A、xxx" 等格式
+            const match = opt.match(/^([A-Z])[\.\、]\s*(.*)$/)
+            if (match) {
+              return { letter: match[1], text: match[2] }
+            }
+            // 如果没有匹配到，生成字母（A, B, C...）
+            return { letter: String.fromCharCode(65 + idx), text: opt }
+          })
+        }
+        return []
       } catch (e) {
+        console.error('解析选项失败:', e, optionsStr)
         return []
       }
     },
@@ -221,6 +370,59 @@ export default {
         return answer
       }
     },
+    parseJudgeAnswer(answer) {
+      // 处理判断题答案，返回布尔值
+      // 支持多种格式：true/false, 1/0, 对/错, True/False
+      if (answer === true || answer === 'true' || answer === 1 || answer === '1' || answer === '对' || answer === 'True' || answer === 'TRUE') {
+        return true
+      }
+      if (answer === false || answer === 'false' || answer === 0 || answer === '0' || answer === '错' || answer === 'False' || answer === 'FALSE') {
+        return false
+      }
+      // 默认返回 false
+      return false
+    },
+    // 渲染 Markdown
+    renderMarkdown(content) {
+      if (!content) return ''
+      try {
+        return md.render(content)
+      } catch (e) {
+        console.error('Markdown渲染失败:', e)
+        return content
+      }
+    },
+    // 解析编程题答案（JSON格式，包含code和language）
+    parseProgrammingAnswer(answer) {
+      if (!answer) return null
+      try {
+        const parsed = JSON.parse(answer)
+        return parsed
+      } catch (e) {
+        return null
+      }
+    },
+    // 获取评测结果的标签类型
+    getJudgeResultType(result) {
+      if (!result) return 'info'
+      const resultMap = {
+        'Accepted': 'success',
+        'AC': 'success',
+        'Presentation Error': 'warning',
+        'PE': 'warning',
+        'Wrong Answer': 'danger',
+        'WA': 'danger',
+        'Time Limit Exceeded': 'warning',
+        'TLE': 'warning',
+        'Memory Limit Exceeded': 'warning',
+        'MLE': 'warning',
+        'Runtime Error': 'danger',
+        'RE': 'danger',
+        'Compilation Error': 'danger',
+        'CE': 'danger'
+      }
+      return resultMap[result] || 'info'
+    },
     isOptionSelected(answer, optionLetter, questionType) {
       if (questionType === 'single_choice' || questionType === 'judge') {
         return answer === optionLetter
@@ -228,6 +430,19 @@ export default {
         try {
           const selected = JSON.parse(answer || '[]')
           return selected.includes(optionLetter)
+        } catch (e) {
+          return false
+        }
+      }
+      return false
+    },
+    isCorrectAnswer(correctAnswer, optionLetter, questionType) {
+      if (questionType === 'single_choice' || questionType === 'judge') {
+        return correctAnswer === optionLetter
+      } else if (questionType === 'multiple_choice') {
+        try {
+          const correct = JSON.parse(correctAnswer || '[]')
+          return correct.includes(optionLetter)
         } catch (e) {
           return false
         }
@@ -248,11 +463,18 @@ export default {
         return
       }
 
+      // 使用 homeworkQuestionId（后端返回的新字段）
+      const questionId = this.currentQuestion.homeworkQuestionId || this.currentQuestion.questionId
+      if (!questionId) {
+        this.$message.error('无法获取题目ID')
+        return
+      }
+
       this.grading = true
       try {
         const res = await this.$store.dispatch('classroom/gradeHomework', {
           homeworkId: parseInt(this.$route.params.homeworkId),
-          questionId: this.currentQuestion.questionId,
+          questionId: questionId,
           uid: this.currentQuestion.uid,
           score: scoreValue
         })
@@ -336,6 +558,22 @@ export default {
         programming: 'danger'
       }
       return map[type] || ''
+    },
+    getCurrentQuestionScore() {
+      // 编程题：从 homeworkQuestionId 关联查询分数
+      if (this.currentQuestion?.problemId) {
+        // 需要从 homework.questions 中查找对应的分数
+        const homeworkQuestion = this.homework?.questions?.find(q => {
+          // 编程题匹配 problemId
+          if (this.currentQuestion.problemId) {
+            return q.problemId === this.currentQuestion.problemId
+          }
+          return false
+        })
+        return homeworkQuestion?.score || 0
+      }
+      // 普通题目：直接从 question 获取
+      return this.currentQuestion?.question?.score || 0
     }
   }
 }
@@ -439,5 +677,157 @@ export default {
 
 .action-buttons {
   margin-left: auto;
+}
+
+/* 编程题样式 */
+.programming-question-item {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.programming-answer {
+  margin-top: 15px;
+}
+
+.code-info {
+  background: #f5f7fa;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.code-block {
+  background: #282c34;
+  color: #abb2bf;
+  padding: 15px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.judge-result {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f0f9ff;
+  border-radius: 4px;
+}
+
+/* 选项样式优化 */
+.option-item {
+  margin-bottom: 12px;
+}
+
+.option-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #F5F7FA;
+  border-radius: 4px;
+  border: 1px solid #E4E7ED;
+  transition: all 0.3s;
+}
+
+.option-display:hover {
+  background: #ECF5FF;
+  border-color: #409EFF;
+}
+
+.option-text {
+  flex: 1;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.question-options .option-letter {
+  font-weight: bold;
+  font-size: 14px;
+  min-width: 24px;
+}
+</style>
+
+<!-- 非scoped样式，确保markdown-body样式生效 -->
+<style>
+.submission-detail .markdown-body {
+  font-size: 15px !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.8 !important;
+  color: #606266 !important;
+}
+
+.submission-detail .markdown-body h1,
+.submission-detail .markdown-body h2,
+.submission-detail .markdown-body h3,
+.submission-detail .markdown-body h4,
+.submission-detail .markdown-body h5,
+.submission-detail .markdown-body h6 {
+  position: relative !important;
+  margin-top: 1em !important;
+  margin-bottom: 16px !important;
+  font-weight: bold !important;
+  line-height: 1.4 !important;
+}
+
+.submission-detail .markdown-body h1 {
+  padding-bottom: 0.3em !important;
+  font-size: 1.86em !important;
+  line-height: 1.2 !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+.submission-detail .markdown-body h2 {
+  font-size: 1.45em !important;
+  line-height: 1.425 !important;
+  border-bottom: 1px solid #eee !important;
+  background: #cce5ff !important;
+  padding: 8px 10px !important;
+  color: #545857 !important;
+  border-radius: 3px !important;
+}
+
+.submission-detail .markdown-body h3 {
+  font-size: 1.3em !important;
+  line-height: 1.43 !important;
+}
+
+.submission-detail .markdown-body h3:before {
+  content: "" !important;
+  border-left: 4px solid #03a9f4 !important;
+  padding-left: 6px !important;
+}
+
+.submission-detail .markdown-body p {
+  margin-bottom: 16px !important;
+}
+
+.submission-detail .markdown-body strong {
+  font-weight: bold !important;
+}
+
+.submission-detail .markdown-body em {
+  font-style: italic !important;
+}
+
+.submission-detail .markdown-body code {
+  background: #f8f8f9 !important;
+  padding: 2px 6px !important;
+  border-radius: 3px !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+}
+
+.submission-detail .markdown-body pre {
+  padding: 5px 10px !important;
+  white-space: pre-wrap !important;
+  margin-top: 15px !important;
+  margin-bottom: 15px !important;
+  background: #f8f8f9 !important;
+  border: 1px dashed #e9eaec !important;
+  border-radius: 3px !important;
 }
 </style>

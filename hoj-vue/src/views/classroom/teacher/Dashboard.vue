@@ -22,41 +22,49 @@
       <p>点击上方按钮创建您的第一个班级吧！</p>
     </div>
 
-    <!-- 班级列表 -->
-    <el-table
-      v-else
-      :data="safeClassrooms"
-      v-loading="loading"
-      stripe
-      class="classroom-table"
-    >
-      <el-table-column prop="className" label="班级名称" />
-      <el-table-column prop="classBelong" label="班级所属" />
-      <el-table-column label="班级代码" width="250">
-        <template slot-scope="{ row }">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-family: monospace; font-size: 14px;">{{ row.classCode }}</span>
+    <!-- 班级卡片列表 -->
+    <el-row v-else :gutter="20" class="classroom-list" v-loading="loading">
+      <el-col :span="8" v-for="classroom in safeClassrooms" :key="classroom.id">
+        <el-card class="classroom-card" shadow="hover">
+          <div class="card-header" @click="viewClassroom(classroom)">
+            <div class="class-name">{{ classroom.className }}</div>
+            <el-tag size="small" type="success">{{ classroom.classBelong }}</el-tag>
+          </div>
+          <div class="card-content" @click="viewClassroom(classroom)">
+            <div class="info-item">
+              <i class="el-icon-key"></i>
+              <span>班级代码: {{ classroom.classCode }}</span>
+              <el-button
+                type="text"
+                icon="el-icon-document-copy"
+                size="mini"
+                @click.stop="copyClassCode(classroom.classCode)"
+                style="margin-left: auto;"
+              >
+              </el-button>
+            </div>
+          </div>
+          <div class="card-footer">
             <el-button
-              type="text"
-              icon="el-icon-document-copy"
-              @click="copyClassCode(row.classCode)"
-              style="padding: 0;"
+              type="primary"
+              size="small"
+              icon="el-icon-setting"
+              @click="viewClassroom(classroom)"
             >
+              管理
+            </el-button>
+            <el-button
+              type="danger"
+              size="small"
+              icon="el-icon-delete"
+              @click="handleDelete(classroom)"
+            >
+              删除
             </el-button>
           </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="250">
-        <template slot-scope="{ row }">
-          <el-button size="small" @click="viewClassroom(row)">
-            管理
-          </el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">
-            删除
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
 
     <!-- 创建班级对话框 -->
     <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px">
@@ -262,24 +270,66 @@ export default {
   margin: 0;
 }
 
-/* 表格样式 */
-.classroom-table {
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
+/* 班级卡片列表样式 */
+.classroom-list {
+  margin-top: 20px;
 }
 
-/* 增加班级列表表格字体大小 */
-.teacher-dashboard ::v-deep .el-table {
-  font-size: 15px;
+.classroom-card {
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 20px;
+  border: 1px solid #EBEEF5;
 }
 
-.teacher-dashboard ::v-deep .el-table th {
-  font-size: 15px;
+.classroom-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #EBEEF5;
+}
+
+.class-name {
+  font-size: 18px;
   font-weight: 600;
+  color: #303133;
+  flex: 1;
 }
 
-.teacher-dashboard ::v-deep .el-table td {
-  font-size: 15px;
+.card-content {
+  margin-bottom: 15px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.info-item i {
+  color: #909399;
+  font-size: 16px;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #EBEEF5;
+}
+
+.card-footer .el-button {
+  flex: 1;
 }
 </style>

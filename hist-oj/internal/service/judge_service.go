@@ -44,8 +44,9 @@ type GetInfoRequest struct {
 	PID      string `json:"pid" binding:"required"`
 	CID      string `json:"cid"`
 	Mode     string `json:"mode" binding:"required"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username"`    // 用户名（可选，用于日志）
+	Password string `json:"password"`    // 密码（可选，用于手动登录）
+	Token    string `json:"token"`       // 已登录用户的token（优先使用）
 }
 
 // GetInfoResponse 获取题目信息响应
@@ -57,10 +58,20 @@ type GetInfoResponse struct {
 
 // GetInfo 获取题目信息
 func (s *JudgeService) GetInfo(req *GetInfoRequest) (*GetInfoResponse, error) {
-	// 登录
-	if err := s.bingoJClient.Login(req.Username, req.Password); err != nil {
-		s.logger.Error("登录失败", zap.Error(err))
-		return nil, fmt.Errorf("登录失败: %w", err)
+	// 优先使用 token（已登录用户场景）
+	if req.Token != "" {
+		s.bingoJClient.SetToken(req.Token)
+		s.logger.Info("使用提供的 Token", zap.String("username", req.Username))
+	} else if req.Password != "" {
+		// 如果没有 token 但提供了密码，则使用密码登录
+		if err := s.bingoJClient.Login(req.Username, req.Password); err != nil {
+			s.logger.Error("登录失败", zap.Error(err))
+			return nil, fmt.Errorf("登录失败: %w", err)
+		}
+	} else {
+		// 既没有 token 也没有密码，返回错误
+		s.logger.Error("未提供 Token 或密码")
+		return nil, fmt.Errorf("未提供认证信息（Token 或密码）")
 	}
 
 	var problem *client.ProblemDetail

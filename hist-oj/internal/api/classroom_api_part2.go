@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"path/filepath"
@@ -37,13 +39,24 @@ func compareArrays(a, b []string) bool {
 
 // ==================== 作业/考试功能 ====================
 
-// CreateHomework 创建作业（教师）
+// CreateHomework 创建作业(教师)
 func (h *Handler) CreateHomework(c *gin.Context) {
 	logger := utils.GetLogger()
 
+	// 读取请求体用于调试
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = c.GetRawData()
+		logger.Info("收到创建作业请求", zap.String("requestBody", string(bodyBytes)))
+		// 重新设置请求体,以便后续读取
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	}
+
 	type HomeworkQuestionItem struct {
-		QuestionID uint64 `json:"questionId" binding:"required"`
-		Score      int    `json:"score"`
+		QuestionID   *uint64 `json:"questionId"`   // 题库题目ID(可选)
+		ProblemID    *string `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型支持"0001"等格式)
+		QuestionType string  `json:"questionType"` // 题目类型(可选,用于设置默认分数)
+		Score        int     `json:"score"`        // 分值(可选,默认根据题型设置)
 	}
 
 	var req struct {
@@ -54,12 +67,13 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 		EndTime      string                 `json:"endTime" binding:"required"`   // RFC3339 format
 		ShowScore    int                    `json:"showScore"`
 		ShowHomework int                    `json:"showHomework"`
+		ShowAnswer   int                    `json:"showAnswer"`
 		Questions    []HomeworkQuestionItem `json:"questions" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("请求参数错误", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		logger.Warn("请求参数错误", zap.Error(err), zap.String("detail", err.Error()))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误: "+err.Error()))
 		return
 	}
 
@@ -91,6 +105,7 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 		EndTime:      endTime,
 		ShowScore:    req.ShowScore,
 		ShowHomework: req.ShowHomework,
+		ShowAnswer:   req.ShowAnswer,
 		Status:       1,
 	}
 
@@ -104,12 +119,44 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 	for i, q := range req.Questions {
 		score := q.Score
 		if score == 0 {
-			score = 2 // 默认2分
+			// 根据题型设置默认分数
+			switch q.QuestionType {
+			case "single_choice":
+				score = 2 // 单选题默认2分
+			case "multiple_choice":
+				score = 5 // 多选题默认5分
+			case "judge":
+				score = 1 // 判断题默认1分
+			case "subjective":
+				score = 5 // 主观题默认5分
+			case "programming":
+				score = 20 // 编程题默认20分
+			default:
+				score = 2 // 默认2分
+			}
+		}
+
+		// 验证至少提供一个ID
+		if q.QuestionID == nil && q.ProblemID == nil {
+			logger.Error("题目必须提供questionId或problemId")
+			c.JSON(http.StatusOK, errorResponse(400, "题目必须提供questionId或problemId"))
+			return
+		}
+
+		// 如果是编程题(有problemId),不添加到题库中,只使用ProblemID
+		var questionIDPtr *uint64
+		if q.ProblemID != nil {
+			// 编程题: 不创建题库记录,QuestionID为nil
+			questionIDPtr = nil
+		} else {
+			// 普通题目
+			questionIDPtr = q.QuestionID
 		}
 
 		homeworkQuestion := &model.HomeworkQuestion{
 			HomeworkID:    homework.ID,
-			QuestionID:    q.QuestionID,
+			QuestionID:    questionIDPtr,  // 使用指针,编程题时为nil
+			ProblemID:     q.ProblemID,    // HOJ题目ID
 			QuestionOrder: i + 1,
 			Score:         score,
 		}
@@ -125,22 +172,25 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(homework))
 }
 
-// UpdateHomework 更新作业（教师）
+// UpdateHomework 更新作业(教师)
 func (h *Handler) UpdateHomework(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		ID          uint64 `json:"id" binding:"required"`
-		ClassroomID uint64 `json:"classroomId"`
-		Title       string `json:"title" binding:"required"`
-		Description string `json:"description"`
-		StartTime   string `json:"startTime" binding:"required"`
-		EndTime     string `json:"endTime" binding:"required"`
+		ID           uint64 `json:"id" binding:"required"`
+		ClassroomID  uint64 `json:"classroomId"`
+		Title        string `json:"title" binding:"required"`
+		Description  string `json:"description"`
+		StartTime    string `json:"startTime" binding:"required"`
+		EndTime      string `json:"endTime" binding:"required"`
 		ShowHomework int    `json:"showHomework"`
 		ShowScore    int    `json:"showScore"`
-		Questions   []struct {
-			QuestionID uint64 `json:"questionId" binding:"required"`
-			Score       int    `json:"score" binding:"required"`
+		ShowAnswer   int    `json:"showAnswer"`
+		Questions    []struct {
+			QuestionID   *uint64 `json:"questionId"`   // 题库题目ID(可选)
+			ProblemID    *string `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型)
+			QuestionType string  `json:"questionType"` // 题目类型(可选,用于设置默认分数)
+			Score        int     `json:"score"`        // 分值(可选,默认根据题型设置)
 		} `json:"questions" binding:"required"`
 	}
 
@@ -191,6 +241,7 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 	homework.EndTime = endTime
 	homework.ShowHomework = req.ShowHomework
 	homework.ShowScore = req.ShowScore
+	homework.ShowAnswer = req.ShowAnswer
 
 	// 更新状态
 	now := time.Now()
@@ -221,12 +272,45 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 	for i, q := range req.Questions {
 		score := q.Score
 		if score <= 0 {
-			score = 10 // 默认分值
+			// 根据题型设置默认分数
+			switch q.QuestionType {
+			case "single_choice":
+				score = 2 // 单选题默认2分
+			case "multiple_choice":
+				score = 5 // 多选题默认5分
+			case "judge":
+				score = 1 // 判断题默认1分
+			case "subjective":
+				score = 5 // 主观题默认5分
+			case "programming":
+				score = 20 // 编程题默认20分
+			default:
+				score = 2 // 默认2分
+			}
+		}
+
+		// 验证至少提供一个ID
+		if q.QuestionID == nil && q.ProblemID == nil {
+			logger.Error("题目必须提供questionId或problemId")
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(400, "题目必须提供questionId或problemId"))
+			return
+		}
+
+		// 如果是编程题(有problemId),不添加到题库中,只使用ProblemID
+		var questionIDPtr *uint64
+		if q.ProblemID != nil {
+			// 编程题: 不创建题库记录,QuestionID为nil
+			questionIDPtr = nil
+		} else {
+			// 普通题目
+			questionIDPtr = q.QuestionID
 		}
 
 		homeworkQuestion := &model.HomeworkQuestion{
 			HomeworkID:    req.ID,
-			QuestionID:    q.QuestionID,
+			QuestionID:    questionIDPtr,  // 使用指针,编程题时为nil
+			ProblemID:     q.ProblemID,    // HOJ题目ID
 			QuestionOrder: i + 1,
 			Score:         score,
 		}
@@ -287,11 +371,17 @@ func (h *Handler) GetHomeworkList(c *gin.Context) {
 
 		// 如果是学生请求，检查是否已提交
 		if hasUser {
-			var submitCount int64
-			db.Model(&model.HomeworkSubmit{}).
-				Where("homework_id = ? AND uid = ? AND is_officially_submitted = 1",
-					homeworks[i].ID, uid.(string)).
-				Count(&submitCount)
+			// 统计已作答的题目数（使用 DISTINCT 去重，统计 question_id 或 problem_id）
+			var submittedQuestionCount int64
+			db.Raw(`
+				SELECT COUNT(DISTINCT CASE
+					WHEN question_id IS NOT NULL THEN question_id
+					WHEN problem_id IS NOT NULL THEN problem_id
+					ELSE NULL
+				END) as count
+				FROM homework_submit
+				WHERE homework_id = ? AND uid = ? AND is_officially_submitted = 1
+			`, homeworks[i].ID, uid.(string)).Scan(&submittedQuestionCount)
 
 			// 获取该作业的总题目数
 			var questionCount int64
@@ -299,8 +389,8 @@ func (h *Handler) GetHomeworkList(c *gin.Context) {
 				Where("homework_id = ?", homeworks[i].ID).
 				Count(&questionCount)
 
-			// 判断是否已完成（提交的题目数等于总题目数）
-			homeworks[i].IsCompleted = submitCount > 0 && int(submitCount) == int(questionCount)
+			// 判断是否已完成（已作答的题目数等于总题目数）
+			homeworks[i].IsCompleted = submittedQuestionCount > 0 && int(submittedQuestionCount) >= int(questionCount)
 		}
 	}
 
@@ -423,7 +513,7 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 			// 创建新记录（草稿状态）
 			submit := &model.HomeworkSubmit{
 				HomeworkID:          req.HomeworkID,
-				QuestionID:          questionID,
+				QuestionID:          &questionID,  // 使用指针
 				UID:                 uid.(string),
 				Answer:              answer,
 				Score:               0, // 草稿不判分
@@ -599,7 +689,7 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			// 创建新提交
 			submit := &model.HomeworkSubmit{
 				HomeworkID:          req.HomeworkID,
-				QuestionID:          questionID,
+				QuestionID:          &questionID,  // 使用指针
 				UID:                 uid.(string),
 				Answer:              answer,
 				Score:               score,
@@ -621,6 +711,22 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			"isScored":   isScored,
 		})
 	}
+
+	// 将该用户的所有编程题记录也标记为正式提交
+	// 因为编程题是通过 SaveProgrammingSubmission 单独保存的
+	if err := tx.Model(&model.HomeworkSubmit{}).
+		Where("homework_id = ? AND uid = ? AND problem_id IS NOT NULL AND is_officially_submitted = 0",
+			req.HomeworkID, uid.(string)).
+		Update("is_officially_submitted", 1).Error; err != nil {
+		logger.Error("更新编程题正式提交状态失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "提交失败"))
+		return
+	}
+
+	logger.Info("批量提交作业（包括编程题）",
+		zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("uid", uid.(string)))
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
@@ -649,17 +755,89 @@ func (h *Handler) GetHomeworkSubmissions(c *gin.Context) {
 	db := client.GetDB()
 	var submissions []model.HomeworkSubmit
 
-	if err := db.Where("homework_id = ?", homeworkID).
+	// 查询所有提交记录（包括普通题目和编程题）
+	// 只显示已正式提交的记录（is_officially_submitted = 1）
+	if err := db.Where("homework_id = ? AND is_officially_submitted = 1", homeworkID).
 		Preload("Student").
 		Preload("Question").
-		Order("uid, question_id").
+		Order("uid, COALESCE(question_id, 0), COALESCE(problem_id, '')").
 		Find(&submissions).Error; err != nil {
 		logger.Error("查询作业提交失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
 
-	c.JSON(http.StatusOK, successResponse(submissions))
+	// 获取作业的所有题目，用于编程题映射 homeworkQuestionId
+	var homeworkQuestions []model.HomeworkQuestion
+	if err := db.Where("homework_id = ?", homeworkID).Find(&homeworkQuestions).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取作业所属的班级ID
+	var homework model.ClassroomHomework
+	if err := db.Where("id = ?", homeworkID).First(&homework).Error; err != nil {
+		logger.Error("查询作业失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取班级的所有学生（用于获取真实姓名）
+	var classroomStudents []model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND status = 1", homework.ClassroomID).
+		Find(&classroomStudents).Error; err != nil {
+		logger.Error("查询班级学生失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建 uid -> realName 的映射
+	studentRealNameMap := make(map[string]string)
+	for _, cs := range classroomStudents {
+		studentRealNameMap[cs.UID] = cs.RealName
+	}
+
+	// 构建 problemId -> homeworkQuestionId 的映射
+	problemToQuestionMap := make(map[string]uint64)
+	for _, hq := range homeworkQuestions {
+		if hq.ProblemID != nil && *hq.ProblemID != "" {
+			problemToQuestionMap[*hq.ProblemID] = hq.ID
+		}
+	}
+
+	// 构建返回结果，添加 homeworkQuestionId 和 realName 字段
+	type SubmissionWithHomeworkQuestionID struct {
+		model.HomeworkSubmit
+		HomeworkQuestionID *uint64 `json:"homeworkQuestionId,omitempty"` // 作业题目关联表ID（编程题评分时使用）
+		RealName           string `json:"realName,omitempty"`            // 班级学生真实姓名
+	}
+
+	result := make([]SubmissionWithHomeworkQuestionID, 0, len(submissions))
+	for _, submit := range submissions {
+		enhancedSubmit := SubmissionWithHomeworkQuestionID{
+			HomeworkSubmit: submit,
+			RealName:       studentRealNameMap[submit.UID], // 添加班级学生真实姓名
+		}
+
+		// 对于编程题，添加 homeworkQuestionId
+		if submit.ProblemID != nil && *submit.ProblemID != "" {
+			if hqID, exists := problemToQuestionMap[*submit.ProblemID]; exists {
+				enhancedSubmit.HomeworkQuestionID = &hqID
+			}
+		} else {
+			// 对于普通题目，homeworkQuestionId 就是 questionId
+			enhancedSubmit.HomeworkQuestionID = submit.QuestionID
+		}
+
+		result = append(result, enhancedSubmit)
+	}
+
+	logger.Info("查询作业提交成功",
+		zap.Uint64("homework_id", homeworkID),
+		zap.Int("count", len(result)))
+
+	c.JSON(http.StatusOK, successResponse(result))
 }
 
 // GetStudentHomeworkStatus 获取学生作业完成情况
@@ -713,9 +891,22 @@ func (h *Handler) GetStudentHomeworkStatus(c *gin.Context) {
 
 		for _, question := range questions {
 			var submit model.HomeworkSubmit
-			if err := db.Where("homework_id = ? AND question_id = ? AND uid = ?",
-				homeworkID, question.QuestionID, student.UID).
-				First(&submit).Error; err == nil {
+
+			// 根据题目类型查询不同的字段
+			var err error
+			if question.ProblemID != nil && *question.ProblemID != "" {
+				// 编程题：使用 problem_id 查询
+				err = db.Where("homework_id = ? AND problem_id = ? AND uid = ?",
+					homeworkID, question.ProblemID, student.UID).
+					First(&submit).Error
+			} else {
+				// 普通题目：使用 question_id 查询
+				err = db.Where("homework_id = ? AND question_id = ? AND uid = ?",
+					homeworkID, question.QuestionID, student.UID).
+					First(&submit).Error
+			}
+
+			if err == nil {
 				completed++
 				totalScore += submit.Score
 			}
@@ -781,7 +972,15 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 
 	for _, submission := range submissions {
 		// 将题目ID转为字符串作为key
-		questionIDStr := strconv.FormatUint(submission.QuestionID, 10)
+		var questionIDStr string
+		if submission.QuestionID != nil {
+			questionIDStr = strconv.FormatUint(*submission.QuestionID, 10)
+		} else if submission.ProblemID != nil {
+			// 编程题使用 ProblemID 作为 key
+			questionIDStr = *submission.ProblemID
+		} else {
+			continue // 跳过无效记录
+		}
 		answersMap[questionIDStr] = submission.Answer
 		scoresMap[questionIDStr] = submission.Score
 		isScoredMap[questionIDStr] = submission.IsScored == 1
@@ -1511,6 +1710,67 @@ func (h *Handler) GradeHomework(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(submit))
 }
 
+// GradeProgrammingHomework 教师批改编程题
+func (h *Handler) GradeProgrammingHomework(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		HomeworkID uint64  `json:"homeworkId" binding:"required"`
+		ProblemID  string  `json:"problemId" binding:"required"`
+		UID        string `json:"uid" binding:"required"`
+		Score      float64 `json:"score"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误: "+err.Error()))
+		return
+	}
+
+	logger.Info("教师评分编程题请求", zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("problem_id", req.ProblemID), zap.String("uid", req.UID), zap.Float64("score", req.Score))
+
+	db := client.GetDB()
+
+	// 查找提交记录
+	var submit model.HomeworkSubmit
+	if err := db.Where("homework_id = ? AND problem_id = ? AND uid = ?",
+		req.HomeworkID, req.ProblemID, req.UID).First(&submit).Error; err != nil {
+		logger.Error("提交记录不存在", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "提交记录不存在"))
+		return
+	}
+
+	// 获取题目分值限制
+	var homeworkQuestion model.HomeworkQuestion
+	if err := db.Where("homework_id = ? AND problem_id = ?",
+		req.HomeworkID, req.ProblemID).First(&homeworkQuestion).Error; err != nil {
+		logger.Error("题目不存在", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		return
+	}
+
+	// 验证分数
+	if req.Score < 0 || req.Score > float64(homeworkQuestion.Score) {
+		c.JSON(http.StatusOK, errorResponse(400, "分数必须在0到"+strconv.Itoa(homeworkQuestion.Score)+"之间"))
+		return
+	}
+
+	// 更新分数
+	submit.Score = req.Score
+	submit.IsScored = 1
+
+	if err := db.Save(&submit).Error; err != nil {
+		logger.Error("批改编程题失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "批改失败"))
+		return
+	}
+
+	logger.Info("批改编程题", zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("uid", req.UID), zap.Float64("score", req.Score))
+	c.JSON(http.StatusOK, successResponse(submit))
+}
+
 // RecalculateScore 重新计算客观题分数
 func (h *Handler) RecalculateScore(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -1760,4 +2020,417 @@ func (h *Handler) ClearMessages(c *gin.Context) {
 
 	logger.Info("清屏", zap.Uint64("classroom_id", classroomID), zap.String("user_id", uid.(string)))
 	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// ==================== 编程题提交记录 ====================
+
+// SaveProgrammingSubmission 保存编程题提交记录
+func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
+	logger := utils.GetLogger()
+	logger.Info("=== SaveProgrammingSubmission 被调用 ===")
+
+	var req struct {
+		HomeworkID uint64  `json:"homeworkId" binding:"required"`
+		ProblemID  string  `json:"problemId" binding:"required"` // 编程题ID
+		SubmitID   interface{} `json:"submitId" binding:"required"` // 支持字符串或数字
+		Code       string  `json:"code"`
+		Language   string  `json:"language"`
+		Token      string  `json:"token"` // BingOJ token
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 将 SubmitID 从 interface{} 转换为 uint64
+	var submitID uint64
+	switch v := req.SubmitID.(type) {
+	case float64:
+		submitID = uint64(v)
+	case int:
+		submitID = uint64(v)
+	case int64:
+		submitID = uint64(v)
+	case uint64:
+		submitID = v
+	case string:
+		// 尝试解析字符串
+		id, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			logger.Error("submitId 无法解析为数字", zap.String("value", v), zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(400, "submitId 必须是数字"))
+			return
+		}
+		submitID = id
+	default:
+		logger.Error("submitId 类型错误", zap.Any("type", fmt.Sprintf("%T", req.SubmitID)))
+		c.JSON(http.StatusOK, errorResponse(400, "submitId 格式错误"))
+		return
+	}
+
+	logger.Info("SaveProgrammingSubmission 参数解析成功",
+		zap.Uint64("homeworkId", req.HomeworkID),
+		zap.String("problemId", req.ProblemID),
+		zap.Uint64("submitId", submitID))
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 构建答案 JSON（包含提交ID、代码、语言）
+	answerData := map[string]interface{}{
+		"submitId": submitID,
+		"code":     req.Code,
+		"language": req.Language,
+	}
+	answerJSON, _ := json.Marshal(answerData)
+
+	// 调试日志：检查代码是否为空
+	logger.Info("准备保存编程题提交记录",
+		zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("problem_id", req.ProblemID),
+		zap.Uint64("submit_id", submitID),
+		zap.Int("code_length", len(req.Code)),
+		zap.String("language", req.Language),
+		zap.String("answer_json", string(answerJSON)))
+
+	// 查找是否已有提交记录（通过 problem_id 查询）
+	var existingSubmit model.HomeworkSubmit
+	checkErr := db.Where("homework_id = ? AND problem_id = ? AND uid = ?",
+		req.HomeworkID, req.ProblemID, uid.(string)).
+		First(&existingSubmit).Error
+
+	logger.Info("查询编程题提交记录",
+		zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("problem_id", req.ProblemID),
+		zap.String("uid", uid.(string)),
+		zap.String("found", fmt.Sprintf("%v", checkErr == nil)))
+
+	var submit *model.HomeworkSubmit
+	if checkErr == nil {
+		// 更新已有记录
+		existingSubmit.SubmitID = &submitID
+		existingSubmit.Answer = string(answerJSON)
+		// 注意：这里不设置 IsOfficiallySubmitted = 1
+		// 编程题提交代码只是草稿保存，只有点击"提交作业"才算正式提交
+		// 保持原有的分数
+		submit = &existingSubmit
+
+		if err := db.Save(&existingSubmit).Error; err != nil {
+			logger.Error("更新编程题提交记录失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "保存失败"))
+			return
+		}
+		logger.Info("更新编程题提交记录成功", zap.Uint64("submit_id", existingSubmit.ID))
+	} else {
+		// 创建新记录
+		submit = &model.HomeworkSubmit{
+			HomeworkID:            req.HomeworkID,
+			ProblemID:             &req.ProblemID, // 使用 ProblemID
+			UID:                   uid.(string),
+			Answer:                string(answerJSON),
+			SubmitID:              &submitID,
+			Score:                 0,
+			IsScored:              0,
+			IsOfficiallySubmitted: 0, // 编程题提交代码不算正式提交整个作业
+		}
+
+		if err := db.Create(submit).Error; err != nil {
+			logger.Error("保存编程题提交记录失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "保存失败"))
+			return
+		}
+		logger.Info("创建编程题提交记录成功", zap.Uint64("submit_id", submit.ID))
+	}
+
+	// 异步获取评测结果（不阻塞响应）
+	go func() {
+		bingoJClient := h.judgeService.GetBingoJClient()
+
+		// 设置 token（从请求中获取）
+		if req.Token != "" {
+			bingoJClient.SetToken(req.Token)
+			logger.Info("设置 BingOJ Token 成功")
+		} else {
+			logger.Warn("未提供 BingOJ Token，无法获取提交结果")
+			return
+		}
+
+		// 等待2秒，让 BingOJ 开始评测
+		time.Sleep(2 * time.Second)
+
+		// 轮询获取提交列表，查找当前提交的结果（最多重试20次，每次间隔2秒）
+		for i := 0; i < 20; i++ {
+			// 获取提交列表（仅看自己的，第一页，获取最新15条）
+			submissions, err := bingoJClient.GetSubmissionList(true, 1, 15)
+			if err != nil {
+				logger.Warn("获取提交列表失败", zap.Error(err), zap.Int("retry", i+1))
+				time.Sleep(3 * time.Second)
+				continue
+			}
+
+			// 查找当前提交的记录
+			var targetSubmission *client.SubmissionListItem
+			for j := range submissions {
+				submitIDStr := fmt.Sprintf("%v", submissions[j].SubmitID)
+				if submitIDStr == fmt.Sprintf("%d", submitID) {
+					targetSubmission = &submissions[j]
+					break
+				}
+			}
+
+			// 如果找到提交记录且判题完成
+			if targetSubmission != nil {
+				// BingOJ 状态码定义（来自 app.py）：
+				// status: -2=编译错误, -1=保留, 0=答案正确(AC), 1=答案错误(WA),
+				//         -3=格式错误(PE), 2=时间超限(TLE), 3=内存超限(MLE),
+				//         4=NO, 5=系统错误(SE), 6=等待中, 7=判题中, 8=部分正确(PC),
+				//         9=提交中, 10=提交失败
+				status := targetSubmission.Status
+
+				// 详细日志：打印从 BingOJ 获取的提交信息
+				logger.Info("从 BingOJ 获取到提交记录",
+					zap.Uint64("submit_id", submitID),
+					zap.Int("result", targetSubmission.Result),
+					zap.Int("status", status),
+					zap.String("score", fmt.Sprintf("%d", targetSubmission.Score)),
+					zap.String("language", targetSubmission.Language),
+					zap.String("celInfo", targetSubmission.CELInfo))
+
+				// 检查是否还在判题中或提交中（status 6=等待中, 7=判题中, 9=提交中）
+				if status == 6 || status == 7 || status == 9 {
+					logger.Debug("还在判题中，继续等待",
+						zap.Int("status", status))
+					time.Sleep(2 * time.Second)
+					continue
+				}
+
+				// 检查是否提交失败
+				if status == 10 {
+					logger.Warn("提交失败", zap.Uint64("submit_id", submitID))
+					return
+				}
+
+				// 判题完成，更新数据库
+				score := 0.0
+				judgeResult := ""
+
+				// 根据 status 判断评测结果
+				switch status {
+				case 0:
+					// AC - 满分
+					score = calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
+					judgeResult = "AC"
+				case -2:
+					// 编译错误
+					judgeResult = "CE"
+					score = 0
+				case -3:
+					// 格式错误
+					judgeResult = "PE"
+					score = 0
+				case 1:
+					// 答案错误
+					judgeResult = "WA"
+					score = 0
+				case 2:
+					// 时间超限
+					judgeResult = "TLE"
+					score = 0
+				case 3:
+					// 内存超限
+					judgeResult = "MLE"
+					score = 0
+				case 4:
+					// NO
+					judgeResult = "NO"
+					score = 0
+				case 5:
+					// 系统错误
+					judgeResult = "SE"
+					score = 0
+				case 8:
+					// 部分正确 - 按比例计算分数
+					fullScore := calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
+					score = float64(targetSubmission.Score) / 100.0 * fullScore
+					judgeResult = "PC"
+				default:
+					judgeResult = fmt.Sprintf("Unknown(%d)", status)
+				}
+
+				// 更新提交记录 - 只更新评测相关字段，不更新 answer
+				// 原因：answer 字段可能已经被新的提交覆盖了
+				// 我们应该保留数据库中最新的代码，而不是用旧代码覆盖
+				db.Model(submit).Updates(map[string]interface{}{
+					"score":        score,
+					"judge_result": judgeResult,
+					"is_scored":    1,
+				})
+
+				logger.Info("编程题评测完成",
+					zap.Uint64("homework_id", req.HomeworkID),
+					zap.String("problem_id", req.ProblemID),
+					zap.Uint64("submit_id", submitID),
+					zap.Int("status", status),
+					zap.String("judge_result", judgeResult),
+					zap.Float64("score", score))
+				return
+			}
+
+			logger.Debug("未找到提交记录，继续等待", zap.Uint64("submit_id", submitID))
+			time.Sleep(2 * time.Second)
+		}
+
+		logger.Warn("获取评测结果超时", zap.Uint64("submit_id", submitID))
+	}()
+
+	logger.Info("保存编程题提交记录", zap.Uint64("homework_id", req.HomeworkID),
+		zap.String("problem_id", req.ProblemID), zap.Uint64("submit_id", submitID))
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"message": "保存成功",
+	}))
+}
+
+// calculateQuestionScore 计算题目分数（用于普通题目，通过 question_id 查询）
+func calculateQuestionScore(homeworkID, questionID uint64) float64 {
+	db := client.GetDB()
+	var homeworkQuestion model.HomeworkQuestion
+	if err := db.Where("homework_id = ? AND question_id = ?", homeworkID, questionID).
+		First(&homeworkQuestion).Error; err != nil {
+		return 0
+	}
+	return float64(homeworkQuestion.Score)
+}
+
+// calculateQuestionScoreForProblem 计算编程题分数（通过 problem_id 查询）
+func calculateQuestionScoreForProblem(homeworkID uint64, problemID string) float64 {
+	db := client.GetDB()
+	var homeworkQuestion model.HomeworkQuestion
+	if err := db.Where("homework_id = ? AND problem_id = ?", homeworkID, problemID).
+		First(&homeworkQuestion).Error; err != nil {
+		return 0
+	}
+	return float64(homeworkQuestion.Score)
+}
+
+// GetProgrammingSubmissions 获取编程题提交历史
+func (h *Handler) GetProgrammingSubmissions(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	homeworkIDStr := c.Query("homeworkId")
+	questionIDStr := c.Query("questionId")
+
+	homeworkID, err := strconv.ParseUint(homeworkIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "homeworkId参数格式错误"))
+		return
+	}
+
+	questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "questionId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 先查询 homework_question 表，获取 problem_id
+	var homeworkQuestion model.HomeworkQuestion
+	if err := db.Where("id = ?", questionID).First(&homeworkQuestion).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err), zap.Uint64("question_id", questionID))
+		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		return
+	}
+
+	// 判断是编程题还是普通题目
+	var submissions []model.HomeworkSubmit
+	if homeworkQuestion.ProblemID != nil && *homeworkQuestion.ProblemID != "" {
+		// 编程题：使用 problem_id 查询
+		if err := db.Where("homework_id = ? AND problem_id = ? AND uid = ?",
+			homeworkID, homeworkQuestion.ProblemID, uid.(string)).
+			Order("create_time DESC").
+			Find(&submissions).Error; err != nil {
+			logger.Error("查询编程题提交历史失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			return
+		}
+	} else {
+		// 普通题目：使用 question_id 查询
+		if err := db.Where("homework_id = ? AND question_id = ? AND uid = ?",
+			homeworkID, homeworkQuestion.QuestionID, uid.(string)).
+			Order("create_time DESC").
+			Find(&submissions).Error; err != nil {
+			logger.Error("查询题目提交历史失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			return
+		}
+	}
+
+	// 解析答案中的代码和语言
+	type ProgrammingSubmission struct {
+		SubmitID   *uint64 `json:"submitId"`
+		Code       string  `json:"code"`
+		Language   string  `json:"language"`
+		SubmitTime string  `json:"submitTime"`
+		Result     string  `json:"result,omitempty"`
+	}
+
+	result := make([]ProgrammingSubmission, 0, len(submissions))
+	for _, sub := range submissions {
+		var answerData map[string]interface{}
+		if err := json.Unmarshal([]byte(sub.Answer), &answerData); err == nil {
+			// 安全地获取代码和语言
+			code := ""
+			if c, ok := answerData["code"].(string); ok {
+				code = c
+			}
+
+			language := ""
+			if l, ok := answerData["language"].(string); ok {
+				language = l
+			}
+
+			// 获取评测结果
+			resultStr := ""
+			if sub.JudgeResult != "" {
+				resultStr = sub.JudgeResult
+			}
+
+			// 使用 UpdatedAt 作为提交时间（因为可能会更新已有记录）
+			submitTime := sub.UpdatedAt.Format("2006-01-02 15:04:05")
+
+			logger.Debug("解析编程题提交记录",
+				zap.Uint64("submit_id", *sub.SubmitID),
+				zap.String("code_length", fmt.Sprintf("%d", len(code))),
+				zap.String("language", language),
+				zap.String("result", resultStr))
+
+			result = append(result, ProgrammingSubmission{
+				SubmitID:   sub.SubmitID,
+				Code:       code,
+				Language:   language,
+				SubmitTime: submitTime,
+				Result:     resultStr,
+			})
+		} else {
+			logger.Warn("解析答案JSON失败", zap.Error(err), zap.String("answer", sub.Answer))
+		}
+	}
+
+	logger.Info("返回编程题提交历史", zap.Int("count", len(result)))
+	c.JSON(http.StatusOK, successResponse(result))
 }

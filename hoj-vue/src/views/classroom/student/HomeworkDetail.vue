@@ -28,88 +28,135 @@
         <div v-if="canViewHomework" class="questions-container">
           <h4>{{ $t('m.Questions') }}</h4>
           <div v-for="(item, index) in homework.questions" :key="item.id" class="question-item">
-            <div class="question-header">
-              <span class="question-number">{{ index + 1 }}.</span>
-              <span class="question-type">({{ getQuestionTypeText(item.question.type) }})</span>
-              <span class="question-score">{{ item.score }}分</span>
-              <!-- 已提交后显示得分 -->
-              <span v-if="canViewScore && questionScores[item.question.id] !== undefined" class="question-score-earned">
-                得分: <span :style="{ color: questionScores[item.question.id] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.question.id] }}</span>
-                <span v-if="!questionIsScored[item.question.id]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
-              </span>
-            </div>
-            <div class="question-title">{{ item.question.title }}</div>
-            <div class="question-content" v-html="formatContent(item.question.content)"></div>
-
-            <!-- 单选题选项 -->
-            <div v-if="item.question.type === 'single_choice'" class="question-options">
-              <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
-                <el-radio
-                  v-model="answers[item.question.id]"
-                  :label="option.letter"
-                  @change="handleAnswerChange"
+            <!-- 编程题：使用 problemId 判断 -->
+            <div v-if="item.problemId" class="programming-question-wrapper">
+              <div class="question-header">
+                <span class="question-number">{{ index + 1 }}.</span>
+                <span class="question-type">(编程题)</span>
+                <span class="question-score">{{ item.score }}分</span>
+                <!-- 编程题作答状态 -->
+                <el-tag
+                  :type="programmingStatus[item.problemId] === 'submitted' ? 'success' : 'info'"
+                  size="small"
+                  style="margin-left: 10px"
                 >
-                  {{ option.letter }}. {{ option.text }}
-                </el-radio>
+                  <i v-if="programmingStatus[item.problemId] === 'checking'" class="el-icon-loading"></i>
+                  {{ programmingStatusText[item.problemId] || '未作答' }}
+                </el-tag>
+                <!-- 已提交后显示得分 -->
+                <span v-if="canViewScore && questionScores[item.problemId] !== undefined" class="question-score-earned">
+                  得分: <span :style="{ color: questionScores[item.problemId] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.problemId] }}</span>
+                  <span v-if="!questionIsScored[item.problemId]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
+                </span>
               </div>
-              <!-- 显示学生已选择的选项 -->
-              <div v-if="answers[item.question.id]" class="student-answer">
-                <el-tag type="info">已选: {{ answers[item.question.id] }}</el-tag>
-              </div>
-            </div>
-
-            <!-- 多选题选项 -->
-            <div v-if="item.question.type === 'multiple_choice'" class="question-options">
-              <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
-                <el-checkbox
-                  v-model="multipleAnswers[item.question.id]"
-                  :label="option.letter"
-                  @change="handleMultipleChoiceChange(item.question.id)"
-                >
-                  {{ option.letter }}. {{ option.text }}
-                </el-checkbox>
-              </div>
-              <!-- 显示学生已选择的选项（按字典序排列） -->
-              <div v-if="multipleAnswers[item.question.id] && multipleAnswers[item.question.id].length > 0" class="student-answer">
-                <el-tag type="info">已选: {{ [...multipleAnswers[item.question.id]].sort().join(', ') }}</el-tag>
-              </div>
-            </div>
-
-            <!-- 判断题 -->
-            <div v-if="item.question.type === 'judge'" class="question-options">
-              <el-radio
-                v-model="answers[item.question.id]"
-                label="true"
-                @change="handleAnswerChange"
-              >对</el-radio>
-              <el-radio
-                v-model="answers[item.question.id]"
-                label="false"
-                @change="handleAnswerChange"
-              >错</el-radio>
-              <!-- 显示学生已选择的选项 -->
-              <div v-if="answers[item.question.id]" class="student-answer">
-                <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '对' : '错' }}</el-tag>
-              </div>
-            </div>
-
-            <!-- 主观题 -->
-            <div v-if="item.question.type === 'subjective'" class="subjective-answer">
-              <el-input
-                v-model="answers[item.question.id]"
-                type="textarea"
-                :rows="4"
-                placeholder="请输入你的答案"
-                @blur="handleAnswerChange"
+              <ProgrammingQuestion
+                :problem-id="item.problemId"
+                :question-id="item.id"
+                :homework-id="homework.id"
+                :can-view-homework="canViewHomework"
+                :can-view-score="canViewScore"
+                :can-view-answer="canViewAnswer"
+                :is-submitted="isSubmitted"
               />
             </div>
 
-            <!-- 编程题 -->
-            <div v-if="item.question.type === 'programming'" class="programming-answer">
-              <p>此题为编程题，请在 HOJ 平台提交</p>
-              <el-button v-if="item.question.problemId" type="primary" @click="goToProblem(item.question.problemId)">
-                前往 HOJ 提交
-              </el-button>
+            <!-- 普通题目：使用 question 判断 -->
+            <div v-else-if="item.question">
+              <div class="question-header">
+                <span class="question-number">{{ index + 1 }}.</span>
+                <span class="question-type">({{ getQuestionTypeText(item.question.type) }})</span>
+                <span class="question-score">{{ item.score }}分</span>
+                <!-- 已提交后显示得分 -->
+                <span v-if="canViewScore && questionScores[item.question.id] !== undefined" class="question-score-earned">
+                  得分: <span :style="{ color: questionScores[item.question.id] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.question.id] }}</span>
+                  <span v-if="!questionIsScored[item.question.id]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
+                </span>
+              </div>
+              <div class="question-title markdown-body" v-html="formatContent(item.question.title)"></div>
+              <div class="question-content markdown-body" v-html="formatContent(item.question.content)"></div>
+
+              <!-- 单选题选项 -->
+              <div v-if="item.question.type === 'single_choice'" class="question-options">
+                <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
+                  <el-radio
+                    v-model="answers[item.question.id]"
+                    :label="option.letter"
+                    @change="handleAnswerChange"
+                  >
+                    <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
+                  </el-radio>
+                </div>
+                <!-- 显示学生已选择的选项 -->
+                <div v-if="answers[item.question.id]" class="student-answer">
+                  <el-tag type="info">已选: {{ answers[item.question.id] }}</el-tag>
+                </div>
+                <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                  <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
+                </div>
+              </div>
+
+              <!-- 多选题选项 -->
+              <div v-if="item.question.type === 'multiple_choice'" class="question-options">
+                <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
+                  <el-checkbox
+                    v-model="multipleAnswers[item.question.id]"
+                    :label="option.letter"
+                    @change="handleMultipleChoiceChange(item.question.id)"
+                  >
+                    <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
+                  </el-checkbox>
+                </div>
+                <!-- 显示学生已选择的选项（按字典序排列） -->
+                <div v-if="multipleAnswers[item.question.id] && multipleAnswers[item.question.id].length > 0" class="student-answer">
+                  <el-tag type="info">已选: {{ [...multipleAnswers[item.question.id]].sort().join(', ') }}</el-tag>
+                </div>
+                <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                  <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
+                </div>
+              </div>
+
+              <!-- 判断题 -->
+              <div v-if="item.question.type === 'judge'" class="question-options">
+                <el-radio
+                  v-model="answers[item.question.id]"
+                  label="true"
+                  @change="handleAnswerChange"
+                >对</el-radio>
+                <el-radio
+                  v-model="answers[item.question.id]"
+                  label="false"
+                  @change="handleAnswerChange"
+                >错</el-radio>
+                <!-- 显示学生已选择的选项 -->
+                <div v-if="answers[item.question.id]" class="student-answer">
+                  <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '对' : '错' }}</el-tag>
+                </div>
+                <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                  <el-tag type="success">正确答案: {{ item.question.answer === 'true' || item.question.answer === '对' ? '对' : '错' }}</el-tag>
+                </div>
+              </div>
+
+              <!-- 主观题 -->
+              <div v-if="item.question.type === 'subjective'" class="subjective-answer">
+                <el-input
+                  v-model="answers[item.question.id]"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请输入你的答案"
+                  @blur="handleAnswerChange"
+                />
+                <!-- 显示参考答案（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted" class="reference-answer">
+                  <div class="reference-answer-title">
+                    <i class="el-icon-document"></i> 参考答案：
+                  </div>
+                  <div v-if="item.question.answer" class="reference-answer-content markdown-body" v-html="formatContent(item.question.answer)"></div>
+                  <div v-else class="reference-answer-empty">教师未设置答案</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -186,9 +233,24 @@
 
 <script>
 import moment from 'moment'
+import MarkdownIt from 'markdown-it'
+import katex from '@iktakahiro/markdown-it-katex'
+import 'katex/dist/katex.min.css'
+import ProgrammingQuestion from '@/components/classroom/ProgrammingQuestion.vue'
+
+// 配置 markdown-it 支持 KaTeX
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+})
+md.use(katex)
 
 export default {
   name: 'HomeworkDetail',
+  components: {
+    ProgrammingQuestion
+  },
   data() {
     return {
       loading: false,
@@ -205,7 +267,10 @@ export default {
       answers: {}, // 单选题、判断题、主观题答案
       multipleAnswers: {}, // 多选题答案数组 { questionId: ['A', 'B'] }
       questionScores: {}, // 每题得分 { questionId: score }
-      questionIsScored: {} // 每题是否已评分 { questionId: boolean }
+      questionIsScored: {}, // 每题是否已评分 { questionId: boolean }
+      programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
+      programmingStatusText: {}, // 编程题状态文本 { problemId: '未作答' | '检测中...' | '已作答' }
+      pollingTimer: null // 轮询定时器
     }
   },
   computed: {
@@ -214,8 +279,9 @@ export default {
     },
     // 是否可以查看作业（题目和答案）
     canViewHomework() {
-      // 如果已提交，根据教师设置判断
+      // 已提交后，根据教师设置判断
       if (this.isSubmitted) {
+        // 如果教师允许查看作业内容（showHomework === 1），则可以查看
         return this.homework.showHomework === 1
       }
       // 未提交时，作业进行中可以查看
@@ -225,6 +291,11 @@ export default {
     canViewScore() {
       // 必须已提交且教师允许查看分数
       return this.isSubmitted && this.homework.showScore === 1
+    },
+    // 是否可以查看答案
+    canViewAnswer() {
+      // 必须已提交且教师允许查看答案
+      return this.isSubmitted && this.homework.showAnswer === 1
     }
   },
   mounted() {
@@ -234,6 +305,10 @@ export default {
     // 清除自动保存定时器
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer)
+    }
+    // 清除轮询定时器
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer)
     }
     // 页面退出前总是保存所有答案（确保不丢失数据）
     this.saveDraftSync()
@@ -248,6 +323,12 @@ export default {
           this.homework = res.data
           // 初始化所有题目的答案对象
           this.homework.questions.forEach(item => {
+            // 编程题跳过
+            if (item.problemId) return
+
+            // 普通题目处理
+            if (!item.question) return
+
             const qid = item.question.id
             if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
               // 使用 $set 确保响应式
@@ -261,6 +342,11 @@ export default {
           await this.loadSubmission()
           // 初始化答案（确保所有题目都有记录）
           await this.initializeAnswers()
+
+          // 初始化编程题状态检测
+          this.initializeProgrammingStatus()
+          // 启动轮询检测编程题提交状态
+          this.startPollingProgrammingStatus()
         }
       } catch (error) {
         this.$message.error(this.$t('m.Load_Failed'))
@@ -275,6 +361,12 @@ export default {
 
         if (res.code === 200 && res.data) {
           this.submission = res.data
+
+          // 根据后端返回的 isOfficiallySubmitted 字段设置提交状态
+          // 只要有正式提交（包括编程题提交），就设置为已提交
+          if (res.data.isOfficiallySubmitted) {
+            this.isSubmitted = true
+          }
 
           // 恢复已提交的答案
           if (res.data.answers) {
@@ -301,28 +393,22 @@ export default {
                 this.$set(this.answers, qid, answersData[qid])
               }
             })
+          }
 
-            // 恢复每题得分
-            if (res.data.scores) {
-              const scoresData = JSON.parse(res.data.scores || '{}')
-              Object.keys(scoresData).forEach(qid => {
-                this.$set(this.questionScores, qid, scoresData[qid])
-              })
-            }
+          // 恢复每题得分
+          if (res.data.scores) {
+            const scoresData = JSON.parse(res.data.scores || '{}')
+            Object.keys(scoresData).forEach(qid => {
+              this.$set(this.questionScores, qid, scoresData[qid])
+            })
+          }
 
-            // 恢复每题评分状态
-            if (res.data.isScoredMap) {
-              const isScoredData = JSON.parse(res.data.isScoredMap || '{}')
-              Object.keys(isScoredData).forEach(qid => {
-                this.$set(this.questionIsScored, qid, isScoredData[qid])
-              })
-            }
-
-            // 根据后端返回的 isOfficiallySubmitted 字段设置提交状态
-            // 只有正式提交后才显示分数和提交时间
-            if (res.data.isOfficiallySubmitted) {
-              this.isSubmitted = true
-            }
+          // 恢复每题评分状态
+          if (res.data.isScoredMap) {
+            const isScoredData = JSON.parse(res.data.isScoredMap || '{}')
+            Object.keys(isScoredData).forEach(qid => {
+              this.$set(this.questionIsScored, qid, isScoredData[qid])
+            })
           }
         }
       } catch (error) {
@@ -342,6 +428,12 @@ export default {
         // 初始化所有题目的答案（即使是空答案）
         const answersData = {}
         this.homework.questions.forEach(item => {
+          // 编程题跳过
+          if (item.problemId) return
+
+          // 普通题目处理
+          if (!item.question) return
+
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             // 如果已有答案就用已有的，否则用空字符串
@@ -395,6 +487,12 @@ export default {
 
         // 单选、判断、主观题答案（包括空值，确保保存所有题目的状态）
         this.homework.questions.forEach(item => {
+          // 编程题跳过
+          if (item.problemId) return
+
+          // 普通题目处理
+          if (!item.question) return
+
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
@@ -438,6 +536,12 @@ export default {
 
         // 单选、判断、主观题答案（包括空值）
         this.homework.questions.forEach(item => {
+          // 编程题跳过
+          if (item.problemId) return
+
+          // 普通题目处理
+          if (!item.question) return
+
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
@@ -487,7 +591,18 @@ export default {
     getUnansweredQuestions() {
       const unanswered = []
       this.homework.questions.forEach(item => {
-        if (item.question.type === 'programming') return // 编程题不需要在这里提交
+        // 编程题处理
+        if (item.problemId) {
+          // 检查编程题是否已提交
+          const status = this.programmingStatus[item.problemId]
+          if (status !== 'submitted') {
+            unanswered.push(`第${this.getQuestionIndex(item)}题 (编程题)`)
+          }
+          return
+        }
+
+        // 普通题目处理
+        if (!item.question) return
 
         const qid = item.question.id
         if (item.question.type === 'multiple_choice') {
@@ -520,6 +635,12 @@ export default {
 
         // 单选、判断、主观题答案
         this.homework.questions.forEach(item => {
+          // 编程题跳过
+          if (item.problemId) return
+
+          // 普通题目处理
+          if (!item.question) return
+
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
@@ -572,8 +693,13 @@ export default {
       }
     },
     formatContent(content) {
-      // 简单的内容格式化，可以根据需要扩展
-      return content
+      if (!content) return ''
+      try {
+        return md.render(content)
+      } catch (e) {
+        console.error('Markdown渲染失败:', e)
+        return content
+      }
     },
     goToProblem(problemId) {
       window.open(`/problem/${problemId}`, '_blank')
@@ -593,6 +719,61 @@ export default {
         programming: this.$t('m.Programming')
       }
       return map[type] || type
+    },
+    // 初始化编程题状态
+    async initializeProgrammingStatus() {
+      // 为所有编程题初始化状态
+      this.homework.questions.forEach(item => {
+        if (item.problemId) {
+          this.$set(this.programmingStatus, item.problemId, 'not_started')
+          this.$set(this.programmingStatusText, item.problemId, '未作答')
+        }
+      })
+
+      // 2秒后开始第一次检测
+      setTimeout(() => {
+        this.checkProgrammingStatus()
+      }, 2000)
+    },
+    // 启动轮询检测编程题提交状态
+    startPollingProgrammingStatus() {
+      // 每5秒检测一次
+      this.pollingTimer = setInterval(() => {
+        this.checkProgrammingStatus()
+      }, 5000)
+    },
+    // 检测编程题提交状态
+    async checkProgrammingStatus() {
+      try {
+        const homeworkId = this.$route.params.homeworkId
+
+        // 获取所有编程题
+        const programmingQuestions = this.homework.questions.filter(q => q.problemId)
+
+        for (const question of programmingQuestions) {
+          try {
+            // 调用后端API查询该题目的提交记录
+            const res = await this.$store.dispatch('classroom/getProgrammingSubmissions', {
+              homeworkId: homeworkId,
+              questionId: question.id
+            })
+
+            if (res.code === 200 && res.data && res.data.length > 0) {
+              // 有提交记录
+              this.$set(this.programmingStatus, question.problemId, 'submitted')
+              this.$set(this.programmingStatusText, question.problemId, '已作答')
+            } else {
+              // 没有提交记录，保持未作答状态
+              this.$set(this.programmingStatus, question.problemId, 'not_started')
+              this.$set(this.programmingStatusText, question.problemId, '未作答')
+            }
+          } catch (error) {
+            console.error('检测编程题状态失败:', error)
+          }
+        }
+      } catch (error) {
+        console.error('检测编程题状态失败:', error)
+      }
     }
   }
 }
@@ -686,5 +867,127 @@ export default {
   padding: 20px;
   background: #f0f9ff;
   border-radius: 4px;
+}
+</style>
+
+<!-- 非scoped样式，确保markdown-body样式生效 -->
+<style>
+.homework-detail .markdown-body {
+  font-size: 15px !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.8 !important;
+  color: #606266 !important;
+}
+
+.homework-detail .markdown-body h1,
+.homework-detail .markdown-body h2,
+.homework-detail .markdown-body h3,
+.homework-detail .markdown-body h4,
+.homework-detail .markdown-body h5,
+.homework-detail .markdown-body h6 {
+  position: relative !important;
+  margin-top: 1em !important;
+  margin-bottom: 16px !important;
+  font-weight: bold !important;
+  line-height: 1.4 !important;
+}
+
+.homework-detail .markdown-body h1 {
+  padding-bottom: 0.3em !important;
+  font-size: 1.86em !important;
+  line-height: 1.2 !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+.homework-detail .markdown-body h2 {
+  font-size: 1.45em !important;
+  line-height: 1.425 !important;
+  border-bottom: 1px solid #eee !important;
+  background: #cce5ff !important;
+  padding: 8px 10px !important;
+  color: #545857 !important;
+  border-radius: 3px !important;
+}
+
+.homework-detail .markdown-body h3 {
+  font-size: 1.3em !important;
+  line-height: 1.43 !important;
+}
+
+.homework-detail .markdown-body h3:before {
+  content: "" !important;
+  border-left: 4px solid #03a9f4 !important;
+  padding-left: 6px !important;
+}
+
+.homework-detail .markdown-body p {
+  margin-bottom: 16px !important;
+}
+
+.homework-detail .markdown-body strong {
+  font-weight: bold !important;
+}
+
+.homework-detail .markdown-body em {
+  font-style: italic !important;
+}
+
+.homework-detail .markdown-body code {
+  background: #f8f8f9 !important;
+  padding: 2px 6px !important;
+  border-radius: 3px !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+}
+
+.homework-detail .markdown-body pre {
+  padding: 5px 10px !important;
+  white-space: pre-wrap !important;
+  margin-top: 15px !important;
+  margin-bottom: 15px !important;
+  background: #f8f8f9 !important;
+  border: 1px dashed #e9eaec !important;
+  border-radius: 3px !important;
+}
+
+/* 答案显示样式 */
+.correct-answer {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f0f9ff;
+  border-left: 3px solid #67C23A;
+  border-radius: 4px;
+}
+
+.reference-answer {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-left: 3px solid #409EFF;
+  border-radius: 4px;
+}
+
+.reference-answer-title {
+  font-weight: bold;
+  color: #409EFF;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.reference-answer-content {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+.reference-answer-empty {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  color: #909399;
+  font-style: italic;
 }
 </style>

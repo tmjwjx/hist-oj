@@ -19,10 +19,18 @@
 
         <h4>{{ $t('m.Questions') }}</h4>
         <el-table :data="homework.questions || []" stripe>
-          <el-table-column prop="question.title" :label="$t('m.Question_Title')" />
-          <el-table-column prop="question.type" :label="$t('m.Question_Type')" width="120">
+          <el-table-column :label="$t('m.Question_Title')">
             <template slot-scope="{ row }">
-              {{ getQuestionTypeText(row.question.type) }}
+              <div v-if="row.question" v-html="renderMarkdown(row.question.title)" class="markdown-body"></div>
+              <div v-else>HOJ 编程题 - {{ row.problemId }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('m.Question_Type')" width="120">
+            <template slot-scope="{ row }">
+              <el-tag v-if="row.problemId" type="warning" size="small">编程题</el-tag>
+              <el-tag v-else-if="row.question" :type="getQuestionTypeTag(row.question.type)" size="small">
+                {{ getQuestionTypeText(row.question.type) }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="score" :label="$t('m.Score')" width="80" />
@@ -37,7 +45,12 @@
           </el-button>
         </div>
         <el-table :data="studentSubmissions" stripe>
-          <el-table-column prop="studentName" :label="$t('m.Student')" />
+          <el-table-column :label="$t('m.Student_Name')" width="150">
+            <template slot-scope="{ row }">
+              {{ row.realName || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="studentName" :label="$t('m.System_Username')" />
           <el-table-column :label="$t('m.Submit_Time')">
             <template slot-scope="{ row }">{{ formatTime(row.submitTime) }}</template>
           </el-table-column>
@@ -77,6 +90,7 @@
 
 <script>
 import moment from 'moment'
+import { marked } from 'marked'
 
 export default {
   name: 'HomeworkDetail',
@@ -125,6 +139,7 @@ export default {
           studentMap.set(uid, {
             uid: uid,
             studentName: submit.student?.username || submit.student?.realName || uid,
+            realName: submit.realName || '', // 班级学生真实姓名
             submitTime: submit.createdAt,
             totalScore: 0,
             completedCount: 0,
@@ -182,6 +197,24 @@ export default {
       }
       return map[type] || type
     },
+    getQuestionTypeTag(type) {
+      const map = {
+        single_choice: 'primary',
+        multiple_choice: 'success',
+        judge: 'warning',
+        subjective: 'info'
+      }
+      return map[type] || ''
+    },
+    renderMarkdown(content) {
+      if (!content) return ''
+      try {
+        return marked(content)
+      } catch (e) {
+        console.error('Markdown渲染失败:', e)
+        return content
+      }
+    },
     isFullyGraded(studentSubmission) {
       // 检查是否所有已提交的题目都已评分
       const submittedQuestions = studentSubmission.questions.filter(q => q.isOfficiallySubmitted === 1)
@@ -217,8 +250,8 @@ export default {
       let csvContent = '\uFEFF' // UTF-8 BOM
       csvContent += `作业成绩_${this.homework.title}_${this.formatTime(this.homework.endTime)}\n\n`
 
-      // 表头：学生姓名 + 每题得分
-      const headers = ['学生姓名']
+      // 表头：真实姓名 + 系统用户名 + 每题得分
+      const headers = ['真实姓名', '系统用户名']
       this.homework.questions.forEach((item, index) => {
         headers.push(`题目${index + 1}_${item.question?.title || ''}(${item.score}分)`)
       })
@@ -227,7 +260,7 @@ export default {
 
       // 数据行
       this.studentSubmissions.forEach(student => {
-        const row = [student.studentName]
+        const row = [student.realName || '-', student.studentName]
 
         // 每题得分
         this.homework.questions.forEach(questionItem => {

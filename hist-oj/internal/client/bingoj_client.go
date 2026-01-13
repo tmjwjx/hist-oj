@@ -18,6 +18,7 @@ const (
 	APILogin             = BaseURL + "/api/login"
 	APISubmit            = BaseURL + "/api/submit-problem-judge"
 	APIResult            = BaseURL + "/api/get-submission-detail"
+	APISubmissionList    = BaseURL + "/api/get-submission-list"
 	APIProblemNormal     = BaseURL + "/api/get-problem-detail"
 	APIProblemContest    = BaseURL + "/api/get-contest-problem-details"
 )
@@ -55,6 +56,12 @@ func NewBingoJClient() *BingoJClient {
 		},
 		logger: utils.GetLogger(),
 	}
+}
+
+// SetToken 直接设置 token（用于已登录用户）
+func (c *BingoJClient) SetToken(token string) {
+	c.token = token
+	c.logger.Info("设置 Token 成功", zap.String("token", token[:20]+"..."))
 }
 
 // LoginRequest 登录请求
@@ -316,6 +323,76 @@ type SubmissionResult struct {
 	Time   int    `json:"time"`
 	Memory int    `json:"memory"`
 	Score  int    `json:"score"`
+}
+
+// SubmissionListItem 提交列表项
+type SubmissionListItem struct {
+	SubmitID      interface{} `json:"submitId"`      // 可能是 string 或 number
+	ProblemID     string      `json:"problemId"`    // 题目ID
+	DisplayID     string      `json:"displayId"`    // 显示ID
+	ProblemTitle  string      `json:"problemTitle"` // 题目标题
+	Result        int         `json:"result"`       // 评测结果: 0=AC, -1=WA, -2=CE等
+	Status        int         `json:"status"`       // 状态: 0=失败, 1=成功
+	Username      string      `json:"username"`     // 用户名
+	UID           string      `json:"uid"`          // 用户ID
+	SubmitTime    string      `json:"submitTime"`   // 提交时间
+	Language      string      `json:"language"`     // 编程语言
+	JudgeTime     string      `json:"judgeTime"`    // 判题时间
+	Time          int         `json:"time"`         // 运行时间(ms)
+	Memory        int         `json:"memory"`       // 内存占用(KB)
+	CELInfo       string      `json:"celInfo"`      // 编译错误信息
+	Score         int         `json:"score"`        // 得分
+	Code          string      `json:"code"`         // 提交的代码
+}
+
+// GetSubmissionList 获取提交列表
+func (c *BingoJClient) GetSubmissionList(onlyMine bool, currentPage, limit int) ([]SubmissionListItem, error) {
+	if c.token == "" {
+		c.logger.Error("未登录，无法获取提交列表")
+		return nil, fmt.Errorf("未登录")
+	}
+
+	c.logger.Debug("获取提交列表",
+		zap.Bool("only_mine", onlyMine),
+		zap.Int("page", currentPage),
+		zap.Int("limit", limit))
+
+	url := fmt.Sprintf("%s?onlyMine=%t&currentPage=%d&limit=%d&completeProblemID=false",
+		APISubmissionList, onlyMine, currentPage, limit)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.token)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.logger.Error("获取提交列表请求失败", zap.Error(err))
+		return nil, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			Records []SubmissionListItem `json:"records"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		c.logger.Error("解析提交列表失败", zap.Error(err), zap.String("response", string(body)))
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	c.logger.Debug("获取提交列表成功", zap.Int("count", len(result.Data.Records)))
+	return result.Data.Records, nil
 }
 
 // GetSubmissionResult 获取提交结果

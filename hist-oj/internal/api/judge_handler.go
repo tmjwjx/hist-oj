@@ -59,6 +59,72 @@ func (h *JudgeHandler) GetInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(result))
 }
 
+// SubmitRequest 提交代码请求
+type SubmitRequest struct {
+	PID      string `json:"pid" binding:"required"`
+	CID      string `json:"cid"`
+	Mode     string `json:"mode" binding:"required"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Token    string `json:"token"`
+	Language string `json:"language" binding:"required"`
+	Code     string `json:"code" binding:"required"`
+}
+
+// SubmitResponse 提交代码响应
+type SubmitResponse struct {
+	SubmitID string `json:"submit_id"`
+}
+
+// Submit 提交代码
+func (h *JudgeHandler) Submit(c *gin.Context) {
+	var req SubmitRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 设置默认值
+	if req.CID == "" {
+		req.CID = "0"
+	}
+
+	h.logger.Info("提交代码",
+		zap.String("pid", req.PID),
+		zap.String("cid", req.CID),
+		zap.String("language", req.Language))
+
+	// 优先使用 token，其次使用密码登录
+	bingoJClient := h.judgeService.GetBingoJClient()
+
+	if req.Token != "" {
+		bingoJClient.SetToken(req.Token)
+		h.logger.Info("使用提供的 Token", zap.String("username", req.Username))
+	} else if req.Password != "" {
+		if err := bingoJClient.Login(req.Username, req.Password); err != nil {
+			h.logger.Error("登录失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "登录失败"))
+			return
+		}
+	} else {
+		h.logger.Error("未提供 Token 或密码")
+		c.JSON(http.StatusOK, errorResponse(400, "未提供认证信息（Token 或密码）"))
+		return
+	}
+
+	// 提交代码
+	submitID, err := bingoJClient.SubmitCode(req.PID, 0, req.Language, req.Code)
+	if err != nil {
+		h.logger.Error("提交失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	h.logger.Info("提交成功", zap.String("submit_id", submitID))
+	c.JSON(http.StatusOK, successResponse(&SubmitResponse{SubmitID: submitID}))
+}
+
 // GetHistoryRequest 获取历史记录请求
 type GetHistoryRequest struct {
 	PID      string `json:"pid" binding:"required"`

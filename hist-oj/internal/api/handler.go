@@ -15,6 +15,7 @@ type Handler struct {
 	ratingService *service.RatingService
 	queryService  *service.QueryService
 	scheduler     Scheduler
+	judgeService  *service.JudgeService
 }
 
 // Scheduler 定时任务接口
@@ -27,6 +28,11 @@ func NewHandler(ratingService *service.RatingService, queryService *service.Quer
 		ratingService: ratingService,
 		queryService:  queryService,
 	}
+}
+
+// SetJudgeService 设置判题服务
+func (h *Handler) SetJudgeService(judgeService *service.JudgeService) {
+	h.judgeService = judgeService
 }
 
 // SetScheduler 设置定时任务调度器

@@ -227,6 +227,8 @@ export const m = {
   AC_Rate: 'AC 通過率',
   AC: '通過',
   Score: '分數',
+  Score_Not_Available: '分數暫不可用',
+  Hidden: '已隱藏',
 
   // /views/oj/problem/problemList.vue
   Problem_List: '題目列表',

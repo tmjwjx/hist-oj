@@ -2,6 +2,18 @@ import moment from 'moment'
 import utils from './utils'
 import time from './time'
 import {PROBLEM_LEVEL} from './constants'
+import { marked } from 'marked'
+
+// 渲染 Markdown
+function markdown(content) {
+  if (!content) return ''
+  try {
+    return marked(content)
+  } catch (e) {
+    console.error('Markdown渲染失败:', e)
+    return content
+  }
+}
 
 // 友好显示时间
 function fromNow (time) {
@@ -42,6 +54,7 @@ function parseProblemLevel(num){
 }
 
 export default {
+  markdown: markdown,
   submissionMemory: utils.submissionMemoryFormat,
   submissionTime: utils.submissionTimeFormat,
   localtime: time.utcToLocal,

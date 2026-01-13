@@ -1005,7 +1005,7 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 		Difficulty int    `json:"difficulty"`
 		Score      int    `json:"score"`
 		IsShared   int    `json:"isShared"`
-		ProblemID  uint64 `json:"problemId"` // 编程题的OJ题目ID
+		ProblemID  string `json:"problemId"` // 编程题的OJ题目ID(字符串类型,支持"0001"等格式)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1071,7 +1071,7 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 		question.Answer = ""
 	}
 
-	if req.ProblemID > 0 && req.Type == "programming" {
+	if req.ProblemID != "" && req.Type == "programming" {
 		question.ProblemID = &req.ProblemID
 	}
 

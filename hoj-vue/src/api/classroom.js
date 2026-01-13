@@ -130,6 +130,14 @@ export default {
     return axios.post(`${BASE_URL}/homework/recalculate`, data)
   },
 
+  // ==================== 编程题提交记录 ====================
+  saveProgrammingSubmission(data) {
+    return axios.post(`${BASE_URL}/programming/submission`, data)
+  },
+  getProgrammingSubmissions(params) {
+    return axios.get(`${BASE_URL}/programming/submissions`, { params })
+  },
+
   // ==================== 资料库功能 ====================
   createFolder(data) {
     return axios.post(`${BASE_URL}/folder`, data)

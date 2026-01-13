@@ -316,6 +316,16 @@ const actions = {
   async clearMessages({ commit }, classroomId) {
     const res = await api.clearMessages(classroomId)
     return res.data
+  },
+
+  // 编程题提交记录
+  async saveProgrammingSubmission({ commit }, data) {
+    const res = await api.saveProgrammingSubmission(data)
+    return res.data
+  },
+  async getProgrammingSubmissions({ commit }, params) {
+    const res = await api.getProgrammingSubmissions(params)
+    return res.data
   }
 }
 

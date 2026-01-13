@@ -116,7 +116,7 @@ type QuestionBank struct {
 	Score      int       `gorm:"type:int;default:2" json:"score"`
 	CreatorID  string    `gorm:"type:varchar(32);not null;index:idx_creator_id" json:"creatorId"`
 	IsShared   int       `gorm:"type:int;default:0;index:idx_is_shared" json:"isShared"` // 0: 个人, 1: 共享
-	ProblemID  *uint64   `gorm:"type:bigint unsigned" json:"problemId"` // 关联的OJ题目ID（编程题）
+	ProblemID  *string   `gorm:"type:varchar(50)" json:"problemId"` // 关联的OJ题目ID（编程题,字符串类型支持"0001"等格式）
 	Status     int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 正常, 0: 已删除
 	CreatedAt  time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt  time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
@@ -140,6 +140,7 @@ type ClassroomHomework struct {
 	EndTime      time.Time `gorm:"type:datetime;not null" json:"endTime"`
 	ShowScore    int       `gorm:"type:int;default:1" json:"showScore"` // 完成后是否显示成绩
 	ShowHomework int       `gorm:"type:int;default:0" json:"showHomework"` // 完成后是否查看作业题目
+	ShowAnswer   int       `gorm:"type:int;default:0" json:"showAnswer"` // 学生提交后是否可以查看答案
 	Status       int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 未开始, 2: 进行中, 3: 已结束
 	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
@@ -158,7 +159,8 @@ func (ClassroomHomework) TableName() string {
 type HomeworkQuestion struct {
 	ID            uint64        `gorm:"primaryKey;autoIncrement" json:"id"`
 	HomeworkID    uint64        `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	QuestionID    uint64        `gorm:"type:bigint unsigned;not null;index:idx_question_id" json:"questionId"`
+	QuestionID    *uint64       `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"`    // 题库题目ID（可为空，编程题为空）
+	ProblemID     *string       `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用，字符串类型）
 	QuestionOrder int           `gorm:"type:int;not null" json:"questionOrder"`
 	Score         int           `gorm:"type:int;default:2" json:"score"`
 	CreatedAt     time.Time     `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
@@ -176,13 +178,15 @@ func (HomeworkQuestion) TableName() string {
 type HomeworkSubmit struct {
 	ID                  uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	HomeworkID          uint64   `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	QuestionID          uint64   `gorm:"type:bigint unsigned;not null" json:"questionId"`
+	QuestionID          *uint64  `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"`  // 题库题目ID（可为空）
+	ProblemID           *string  `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用）
 	UID                 string   `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
 	Answer              string   `gorm:"type:text" json:"answer"`
 	SubmitID            *uint64  `gorm:"type:bigint unsigned" json:"submitId"` // 提交记录ID（编程题）
 	Score               float64  `gorm:"type:decimal(5,2);default:0" json:"score"`
 	IsScored            int      `gorm:"type:int;default:0" json:"isScored"` // 是否已批改
 	IsOfficiallySubmitted int    `gorm:"type:int;default:0" json:"isOfficiallySubmitted"` // 是否已正式提交（0=草稿自动保存，1=用户点击提交）
+	JudgeResult         string   `gorm:"type:varchar(50)" json:"judgeResult"` // 评测结果（编程题）
 	CreatedAt           time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt           time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 

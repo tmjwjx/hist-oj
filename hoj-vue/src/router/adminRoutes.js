@@ -25,6 +25,7 @@ const TrainingCategory= ()=>import('@/views/admin/training/Category')
 const DiscussionList= ()=>import('@/views/admin/discussion/Discussion')
 const RegistrationAdmin= ()=>import('@/views/admin/registration/RegistrationAdmin')
 const UserRoleManagement= ()=>import('@/views/admin/classroom/UserRoleManagement')
+const ClassroomAdmin= ()=>import('@/views/admin/classroom/ClassroomAdmin')
 const ToolboxAdmin= ()=>import('@/views/admin/toolbox/ToolboxAdmin')
 const adminRoutes= [
     {
@@ -217,6 +218,12 @@ const adminRoutes= [
           name: 'admin-user-role-management',
           component: UserRoleManagement,
           meta: { title: 'User Role Management'}
+        },
+        {
+          path: 'classroom',
+          name: 'admin-classroom',
+          component: ClassroomAdmin,
+          meta: { title: 'Classroom Management'}
         },
         {
           path: 'toolbox',

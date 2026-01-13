@@ -11,7 +11,11 @@
     </div>
 
     <el-table :data="questions" v-loading="loading" stripe>
-      <el-table-column prop="title" :label="$t('m.Question_Title')" />
+      <el-table-column prop="title" :label="$t('m.Question_Title')">
+        <template slot-scope="{ row }">
+          <div v-html="renderMarkdown(row.title)" class="markdown-body"></div>
+        </template>
+      </el-table-column>
       <el-table-column prop="type" :label="$t('m.Question_Type')" width="100">
         <template slot-scope="{ row }">
           <el-tag :type="getQuestionTypeColor(row.type)">
@@ -21,7 +25,7 @@
       </el-table-column>
       <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100">
         <template slot-scope="{ row }">
-          <el-rate v-model="row.difficulty" disabled />
+          <el-rate :value="getDifficultyStars(row.difficulty)" disabled />
         </template>
       </el-table-column>
       <el-table-column prop="isShared" :label="$t('m.Shared')" width="80">
@@ -41,22 +45,24 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="800px">
-      <el-form :model="createForm" ref="createForm" label-width="120px">
-        <el-form-item :label="$t('m.Question_Type')" prop="type">
-          <el-select v-model="createForm.type" @change="handleTypeChange">
-            <el-option :label="$t('m.Single_Choice')" value="single_choice" />
-            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
-            <el-option :label="$t('m.Judge')" value="judge" />
-            <el-option :label="$t('m.Subjective')" value="subjective" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('m.Question_Title')" prop="title">
-          <el-input v-model="createForm.title" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Content')" prop="content">
-          <el-input type="textarea" v-model="createForm.content" :rows="4" />
-        </el-form-item>
+    <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="1200px">
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form :model="createForm" ref="createForm" label-width="120px">
+            <el-form-item :label="$t('m.Question_Type')" prop="type">
+              <el-select v-model="createForm.type" @change="handleTypeChange">
+                <el-option :label="$t('m.Single_Choice')" value="single_choice" />
+                <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
+                <el-option :label="$t('m.Judge')" value="judge" />
+                <el-option :label="$t('m.Subjective')" value="subjective" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('m.Question_Title')" prop="title">
+              <el-input v-model="createForm.title" />
+            </el-form-item>
+            <el-form-item :label="$t('m.Content')" prop="content">
+              <el-input type="textarea" v-model="createForm.content" :rows="4" />
+            </el-form-item>
 
         <!-- 单选题：固定4个选项，单选 -->
         <template v-if="createForm.type === 'single_choice'">
@@ -112,7 +118,7 @@
         </template>
 
         <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
-          <el-rate v-model="createForm.difficulty" />
+          <el-rate v-model="createForm.difficulty" :max="3" />
         </el-form-item>
         <el-form-item :label="$t('m.Score')" prop="score">
           <el-input-number v-model="createForm.score" :min="1" :max="100" />
@@ -125,6 +131,64 @@
           </div>
         </el-form-item>
       </el-form>
+        </el-col>
+        <el-col :span="12">
+          <el-card class="preview-card markdown-preview">
+            <div slot="header">
+              <i class="el-icon-view"></i> 实时预览
+            </div>
+            <div class="preview-content">
+              <div v-if="createForm.title" v-html="renderMarkdown(createForm.title)" class="markdown-body preview-title"></div>
+              <p v-else class="preview-placeholder">题目标题预览</p>
+
+              <div v-if="createForm.content" v-html="renderMarkdown(createForm.content)" class="markdown-body preview-content-text"></div>
+              <p v-else class="preview-placeholder">题目内容预览</p>
+
+              <!-- 单选题选项预览 -->
+              <!-- 单选题选项预览 -->
+              <div v-if="createForm.type === 'single_choice'" class="preview-options">
+                <div v-for="(option, index) in createForm.choiceOptions" :key="index" class="preview-option-item">
+                  <el-tag :type="createForm.correctAnswer === index ? 'success' : 'info'" size="small">
+                    {{ ['A', 'B', 'C', 'D'][index] }}
+                  </el-tag>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-else class="preview-placeholder">选项内容</div>
+                </div>
+              </div>
+
+              <!-- 多选题选项预览 -->
+              <div v-if="createForm.type === 'multiple_choice'" class="preview-options">
+                <div v-for="(option, index) in createForm.choiceOptions" :key="index" class="preview-option-item">
+                  <el-tag :type="createForm.correctAnswers[index] ? 'success' : 'info'" size="small">
+                    {{ ['A', 'B', 'C', 'D'][index] }}
+                  </el-tag>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-else class="preview-placeholder">选项内容</div>
+                </div>
+              </div>
+
+              <!-- 判断题预览 -->
+              <div v-if="createForm.type === 'judge'" class="preview-options">
+                <div class="preview-option-item">
+                  <el-tag :type="createForm.correctAnswer === 'true' ? 'success' : 'info'" size="small">✓</el-tag>
+                  <span>{{ $t('m.True') }}</span>
+                </div>
+                <div class="preview-option-item">
+                  <el-tag :type="createForm.correctAnswer === 'false' ? 'success' : 'info'" size="small">✗</el-tag>
+                  <span>{{ $t('m.False') }}</span>
+                </div>
+              </div>
+
+              <!-- 主观题预览 -->
+              <div v-if="createForm.type === 'subjective'" class="preview-subjective">
+                <el-alert type="info" :closable="false">
+                  <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
+                </el-alert>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
       <span slot="footer">
         <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" @click="createQuestion">{{ $t('m.Confirm') }}</el-button>
@@ -132,22 +196,24 @@
     </el-dialog>
 
     <!-- 编辑题目对话框 -->
-    <el-dialog :title="$t('m.Edit_Question')" :visible.sync="showEditDialog" width="800px">
-      <el-form :model="editForm" ref="editForm" label-width="120px">
-        <el-form-item :label="$t('m.Question_Type')" prop="type">
-          <el-select v-model="editForm.type" @change="handleEditTypeChange">
-            <el-option :label="$t('m.Single_Choice')" value="single_choice" />
-            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
-            <el-option :label="$t('m.Judge')" value="judge" />
-            <el-option :label="$t('m.Subjective')" value="subjective" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('m.Question_Title')" prop="title">
-          <el-input v-model="editForm.title" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Content')" prop="content">
-          <el-input type="textarea" v-model="editForm.content" :rows="4" />
-        </el-form-item>
+    <el-dialog :title="$t('m.Edit_Question')" :visible.sync="showEditDialog" width="1200px">
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form :model="editForm" ref="editForm" label-width="120px">
+            <el-form-item :label="$t('m.Question_Type')" prop="type">
+              <el-select v-model="editForm.type" @change="handleEditTypeChange">
+                <el-option :label="$t('m.Single_Choice')" value="single_choice" />
+                <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
+                <el-option :label="$t('m.Judge')" value="judge" />
+                <el-option :label="$t('m.Subjective')" value="subjective" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('m.Question_Title')" prop="title">
+              <el-input v-model="editForm.title" />
+            </el-form-item>
+            <el-form-item :label="$t('m.Content')" prop="content">
+              <el-input type="textarea" v-model="editForm.content" :rows="4" />
+            </el-form-item>
 
         <!-- 单选题 -->
         <template v-if="editForm.type === 'single_choice'">
@@ -195,7 +261,7 @@
         </template>
 
         <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
-          <el-rate v-model="editForm.difficulty" />
+          <el-rate v-model="editForm.difficulty" :max="3" />
         </el-form-item>
         <el-form-item :label="$t('m.Score')" prop="score">
           <el-input-number v-model="editForm.score" :min="1" :max="100" />
@@ -208,6 +274,63 @@
           </div>
         </el-form-item>
       </el-form>
+        </el-col>
+        <el-col :span="12">
+          <el-card class="preview-card markdown-preview">
+            <div slot="header">
+              <i class="el-icon-view"></i> 实时预览
+            </div>
+            <div class="preview-content">
+              <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title"></div>
+              <p v-else class="preview-placeholder">题目标题预览</p>
+
+              <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text"></div>
+              <p v-else class="preview-placeholder">题目内容预览</p>
+
+              <!-- 单选题选项预览 -->
+              <div v-if="editForm.type === 'single_choice'" class="preview-options">
+                <div v-for="(option, index) in editForm.choiceOptions" :key="index" class="preview-option-item">
+                  <el-tag :type="editForm.correctAnswer === index ? 'success' : 'info'" size="small">
+                    {{ ['A', 'B', 'C', 'D'][index] }}
+                  </el-tag>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-else class="preview-placeholder">选项内容</div>
+                </div>
+              </div>
+
+              <!-- 多选题选项预览 -->
+              <div v-if="editForm.type === 'multiple_choice'" class="preview-options">
+                <div v-for="(option, index) in editForm.choiceOptions" :key="index" class="preview-option-item">
+                  <el-tag :type="editForm.correctAnswers[index] ? 'success' : 'info'" size="small">
+                    {{ ['A', 'B', 'C', 'D'][index] }}
+                  </el-tag>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-else class="preview-placeholder">选项内容</div>
+                </div>
+              </div>
+
+              <!-- 判断题预览 -->
+              <div v-if="editForm.type === 'judge'" class="preview-options">
+                <div class="preview-option-item">
+                  <el-tag :type="editForm.correctAnswer === 'true' ? 'success' : 'info'" size="small">✓</el-tag>
+                  <span>{{ $t('m.True') }}</span>
+                </div>
+                <div class="preview-option-item">
+                  <el-tag :type="editForm.correctAnswer === 'false' ? 'success' : 'info'" size="small">✗</el-tag>
+                  <span>{{ $t('m.False') }}</span>
+                </div>
+              </div>
+
+              <!-- 主观题预览 -->
+              <div v-if="editForm.type === 'subjective'" class="preview-subjective">
+                <el-alert type="info" :closable="false">
+                  <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
+                </el-alert>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
       <span slot="footer">
         <el-button @click="showEditDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" @click="updateQuestion">{{ $t('m.Confirm') }}</el-button>
@@ -217,6 +340,18 @@
 </template>
 
 <script>
+import MarkdownIt from 'markdown-it'
+import katex from '@iktakahiro/markdown-it-katex'
+import 'katex/dist/katex.min.css'
+
+// 配置 markdown-it 支持 KaTeX
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+})
+md.use(katex)
+
 export default {
   name: 'QuestionBank',
   props: {
@@ -241,7 +376,7 @@ export default {
         correctAnswers: [false, false, false, false], // 多选题正确答案（数组）
         referenceAnswer: '', // 主观题参考答案
         difficulty: 1,
-        score: 10,
+        score: 2, // 单选题默认2分
         isShared: false
       },
       editForm: {
@@ -253,7 +388,7 @@ export default {
         correctAnswers: [false, false, false, false],
         referenceAnswer: '',
         difficulty: 1,
-        score: 10,
+        score: 2, // 单选题默认2分
         isShared: false
       }
     }
@@ -269,15 +404,22 @@ export default {
       this.handleFormTypeChange(this.editForm)
     },
     handleFormTypeChange(form) {
-      // 切换题目类型时重置答案相关字段
+      // 切换题目类型时重置答案相关字段和默认分数
       if (form.type === 'single_choice') {
         form.correctAnswer = 0
         form.correctAnswers = [false, false, false, false]
+        form.score = 2 // 单选题默认2分
       } else if (form.type === 'multiple_choice') {
         form.correctAnswer = 0
         form.correctAnswers = [false, false, false, false]
+        form.score = 5 // 多选题默认5分
       } else if (form.type === 'judge') {
+        form.score = 1 // 判断题默认1分
         form.correctAnswer = 'true'
+        form.correctAnswers = [false, false, false, false]
+      } else if (form.type === 'subjective') {
+        form.score = 5 // 主观题默认5分
+        form.correctAnswer = ''
         form.correctAnswers = [false, false, false, false]
       } else {
         form.correctAnswer = 0
@@ -539,23 +681,41 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        subjective: this.$t('m.Subjective'),
-        programming: this.$t('m.Programming')
+        subjective: this.$t('m.Subjective')
       }
       return map[type] || type
+    },
+    // 将数据库中的难度值（1-3）转换为 el-rate 的星星数（1-5）
+    getDifficultyStars(difficulty) {
+      // 数据库: 1=简单, 2=中等, 3=困难
+      // 显示: 映射为 1星, 3星, 5星
+      const difficultyMap = {
+        1: 1, // 简单 -> 1星
+        2: 3, // 中等 -> 3星
+        3: 5  // 困难 -> 5星
+      }
+      return difficultyMap[difficulty] || 3 // 默认3星
     },
     getQuestionTypeColor(type) {
       const map = {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
-        subjective: 'info',
-        programming: 'danger'
+        subjective: 'info'
       }
       return map[type] || ''
     },
     goBack() {
       this.$router.push({ name: 'TeacherDashboard' })
+    },
+    renderMarkdown(content) {
+      if (!content) return ''
+      try {
+        return md.render(content)
+      } catch (e) {
+        console.error('Markdown渲染失败:', e)
+        return content
+      }
     }
   }
 }
@@ -633,5 +793,252 @@ export default {
 
 .form-tip i {
   font-size: 14px;
+}
+
+/* 预览卡片样式 */
+.preview-card {
+  height: 100%;
+  border: 2px solid #E4E7ED;
+}
+
+.preview-content {
+  padding: 10px;
+}
+
+.preview-title {
+  color: #303133;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #E4E7ED;
+  padding-bottom: 10px;
+}
+
+.preview-content-text {
+  color: #606266;
+  line-height: 1.8;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.preview-placeholder {
+  color: #C0C4CC;
+  font-style: italic;
+}
+
+.preview-options {
+  margin-top: 15px;
+}
+
+.preview-option-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #F5F7FA;
+  border-radius: 4px;
+  gap: 10px;
+}
+
+.preview-option-item span {
+  flex: 1;
+  line-height: 1.6;
+}
+
+.preview-subjective {
+  margin-top: 15px;
+}
+</style>
+
+<!-- 非scoped样式，确保markdown-body样式生效 -->
+<style>
+/* 预览卡片中的 Markdown 样式 - 高优先级 */
+.markdown-preview .markdown-body,
+.el-card.preview-card .markdown-body,
+.preview-card .markdown-body {
+  font-size: 15px !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.8 !important;
+  color: #606266 !important;
+}
+
+.markdown-preview .markdown-body h1,
+.markdown-preview .markdown-body h2,
+.markdown-preview .markdown-body h3,
+.markdown-preview .markdown-body h4,
+.markdown-preview .markdown-body h5,
+.markdown-preview .markdown-body h6,
+.el-card.preview-card .markdown-body h1,
+.el-card.preview-card .markdown-body h2,
+.el-card.preview-card .markdown-body h3,
+.el-card.preview-card .markdown-body h4,
+.el-card.preview-card .markdown-body h5,
+.el-card.preview-card .markdown-body h6,
+.preview-card .markdown-body h1,
+.preview-card .markdown-body h2,
+.preview-card .markdown-body h3,
+.preview-card .markdown-body h4,
+.preview-card .markdown-body h5,
+.preview-card .markdown-body h6 {
+  position: relative !important;
+  margin-top: 1em !important;
+  margin-bottom: 16px !important;
+  font-weight: bold !important;
+  line-height: 1.4 !important;
+}
+
+.markdown-preview .markdown-body h1,
+.el-card.preview-card .markdown-body h1,
+.preview-card .markdown-body h1 {
+  padding-bottom: 0.3em !important;
+  font-size: 1.86em !important;
+  line-height: 1.2 !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+.markdown-preview .markdown-body h2,
+.el-card.preview-card .markdown-body h2,
+.preview-card .markdown-body h2 {
+  font-size: 1.45em !important;
+  line-height: 1.425 !important;
+  border-bottom: 1px solid #eee !important;
+  background: #cce5ff !important;
+  padding: 8px 10px !important;
+  color: #545857 !important;
+  border-radius: 3px !important;
+}
+
+.markdown-preview .markdown-body h3,
+.el-card.preview-card .markdown-body h3,
+.preview-card .markdown-body h3 {
+  font-size: 1.3em !important;
+  line-height: 1.43 !important;
+}
+
+.markdown-preview .markdown-body h3:before,
+.el-card.preview-card .markdown-body h3:before,
+.preview-card .markdown-body h3:before {
+  content: "" !important;
+  border-left: 4px solid #03a9f4 !important;
+  padding-left: 6px !important;
+}
+
+.markdown-preview .markdown-body p,
+.el-card.preview-card .markdown-body p,
+.preview-card .markdown-body p {
+  margin-bottom: 16px !important;
+}
+
+.markdown-preview .markdown-body strong,
+.el-card.preview-card .markdown-body strong,
+.preview-card .markdown-body strong {
+  font-weight: bold !important;
+}
+
+.markdown-preview .markdown-body em,
+.el-card.preview-card .markdown-body em,
+.preview-card .markdown-body em {
+  font-style: italic !important;
+}
+
+.markdown-preview .markdown-body code,
+.el-card.preview-card .markdown-body code,
+.preview-card .markdown-body code {
+  background: #f8f8f9 !important;
+  padding: 2px 6px !important;
+  border-radius: 3px !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+}
+
+.markdown-preview .markdown-body pre,
+.el-card.preview-card .markdown-body pre,
+.preview-card .markdown-body pre {
+  padding: 5px 10px !important;
+  white-space: pre-wrap !important;
+  margin-top: 15px !important;
+  margin-bottom: 15px !important;
+  background: #f8f8f9 !important;
+  border: 1px dashed #e9eaec !important;
+  border-radius: 3px !important;
+}
+
+/* 通用样式 - 兼容没有 .el-card 前缀的情况 */
+.preview-card .markdown-body {
+  font-size: 15px !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.8 !important;
+  color: #606266 !important;
+}
+
+.preview-card .markdown-body h1,
+.preview-card .markdown-body h2,
+.preview-card .markdown-body h3,
+.preview-card .markdown-body h4,
+.preview-card .markdown-body h5,
+.preview-card .markdown-body h6 {
+  position: relative !important;
+  margin-top: 1em !important;
+  margin-bottom: 16px !important;
+  font-weight: bold !important;
+  line-height: 1.4 !important;
+}
+
+.preview-card .markdown-body h1 {
+  padding-bottom: 0.3em !important;
+  font-size: 1.86em !important;
+  line-height: 1.2 !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+.preview-card .markdown-body h2 {
+  font-size: 1.45em !important;
+  line-height: 1.425 !important;
+  border-bottom: 1px solid #eee !important;
+  background: #cce5ff !important;
+  padding: 8px 10px !important;
+  color: #545857 !important;
+  border-radius: 3px !important;
+}
+
+.preview-card .markdown-body h3 {
+  font-size: 1.3em !important;
+  line-height: 1.43 !important;
+}
+
+.preview-card .markdown-body h3:before {
+  content: "" !important;
+  border-left: 4px solid #03a9f4 !important;
+  padding-left: 6px !important;
+}
+
+.preview-card .markdown-body p {
+  margin-bottom: 16px !important;
+}
+
+.preview-card .markdown-body strong {
+  font-weight: bold !important;
+}
+
+.preview-card .markdown-body em {
+  font-style: italic !important;
+}
+
+.preview-card .markdown-body code {
+  background: #f8f8f9 !important;
+  padding: 2px 6px !important;
+  border-radius: 3px !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+}
+
+.preview-card .markdown-body pre {
+  padding: 5px 10px !important;
+  white-space: pre-wrap !important;
+  margin-top: 15px !important;
+  margin-bottom: 15px !important;
+  background: #f8f8f9 !important;
+  border: 1px dashed #e9eaec !important;
+  border-radius: 3px !important;
 }
 </style>

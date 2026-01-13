@@ -41,6 +41,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 		// 判题终端相关接口
 		judgeService := service.NewJudgeService(db, cfg.HojAPI.BaseURL)
+		handler.SetJudgeService(judgeService) // 设置 judge service 到 handler
 		judgeHandler := NewJudgeHandler(judgeService)
 
 		judge := api.Group("/judge")
@@ -48,6 +49,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			judge.POST("/get-info", judgeHandler.GetInfo)
 			judge.POST("/get-history", judgeHandler.GetHistory)
 			judge.POST("/run-combined", judgeHandler.RunCombined)
+			judge.POST("/submit", judgeHandler.Submit)
 		}
 
 		// 注册对战相关路由
@@ -108,10 +110,15 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/homework/draft", AuthMiddleware(), handler.SaveHomeworkDraft) // 保存草稿
 			classroom.POST("/homework/submit", AuthMiddleware(), handler.SubmitHomework)    // 正式提交
 			classroom.POST("/homework/grade", AuthMiddleware(), handler.GradeHomework)
+			classroom.POST("/homework/programming/grade", AuthMiddleware(), handler.GradeProgrammingHomework)
 			classroom.POST("/homework/recalculate", AuthMiddleware(), handler.RecalculateScore)
 			classroom.GET("/homework/:homeworkId/submissions", AuthMiddleware(), handler.GetHomeworkSubmissions)
 			classroom.GET("/homework/:homeworkId/status", AuthMiddleware(), handler.GetStudentHomeworkStatus)
 			classroom.GET("/homework/:homeworkId/my-detail", AuthMiddleware(), handler.GetStudentHomeworkDetail)
+
+			// 编程题提交记录 - 需要认证
+			classroom.POST("/programming/submission", AuthMiddleware(), handler.SaveProgrammingSubmission)
+			classroom.GET("/programming/submissions", AuthMiddleware(), handler.GetProgrammingSubmissions)
 
 			// 资料库功能 - 需要认证
 			classroom.POST("/folder", AuthMiddleware(), handler.CreateFolder)
