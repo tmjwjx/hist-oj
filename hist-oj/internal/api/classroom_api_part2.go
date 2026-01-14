@@ -411,7 +411,9 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 	var homework model.ClassroomHomework
 
 	if err := db.Where("id = ?", homeworkID).
-		Preload("Questions").
+		Preload("Questions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("question_order ASC")
+		}).
 		Preload("Questions.Question").
 		First(&homework).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -443,8 +445,9 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		HomeworkID uint64            `json:"homeworkId" binding:"required"`
-		Answers    map[string]string `json:"answers" binding:"required"` // questionId -> answer
+		HomeworkID  uint64            `json:"homeworkId" binding:"required"`
+		Answers     map[string]string `json:"answers" binding:"required"` // questionId -> answer
+		Attachments map[string]string `json:"attachments"`                // questionId -> attachment URLs (comma separated)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -452,6 +455,11 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
+
+	// 调试日志：打印收到的附件数据
+	logger.Info("保存草稿 - 收到附件数据",
+		zap.Int64("homeworkId", int64(req.HomeworkID)),
+		zap.Any("attachments", req.Attachments))
 
 	// 获取当前用户ID
 	uid, exists := c.Get("userId")
@@ -492,6 +500,19 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 			continue
 		}
 
+		// 获取附件URL（如果有）
+		attachment := ""
+		if req.Attachments != nil {
+			if att, ok := req.Attachments[questionIDStr]; ok {
+				attachment = att
+			}
+		}
+
+		// 调试日志：打印每个题目的附件信息
+		logger.Info("保存草稿 - 题目附件",
+			zap.String("questionId", questionIDStr),
+			zap.String("attachment", attachment))
+
 		// 查找是否已有草稿记录
 		var existingSubmit model.HomeworkSubmit
 		checkErr := tx.Where("homework_id = ? AND question_id = ? AND uid = ?",
@@ -501,6 +522,11 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 		if checkErr == nil {
 			// 更新已有记录（保持原有的 IsOfficiallySubmitted 状态）
 			existingSubmit.Answer = answer
+			// 只有当 req.Attachments 不为 nil 且当前题目有附件数据时，才更新 attachment
+			// 避免自动保存草稿时清空已上传的图片
+			if req.Attachments != nil {
+				existingSubmit.Attachment = attachment
+			}
 			// 草稿保存不修改分数和提交状态
 
 			if err := tx.Save(&existingSubmit).Error; err != nil {
@@ -512,12 +538,13 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 		} else {
 			// 创建新记录（草稿状态）
 			submit := &model.HomeworkSubmit{
-				HomeworkID:          req.HomeworkID,
-				QuestionID:          &questionID,  // 使用指针
-				UID:                 uid.(string),
-				Answer:              answer,
-				Score:               0, // 草稿不判分
-				IsScored:            0,
+				HomeworkID:           req.HomeworkID,
+				QuestionID:           &questionID, // 使用指针
+				UID:                  uid.(string),
+				Answer:               answer,
+				Attachment:           attachment,
+				Score:                0, // 草稿不判分
+				IsScored:             0,
 				IsOfficiallySubmitted: 0, // 草稿状态
 			}
 
@@ -544,13 +571,14 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 }
 
 // SubmitHomework 提交作业（学生）- 批量提交模式
-// 请求格式：{ homeworkId, answers: { questionId: answer, ... } }
+// 请求格式：{ homeworkId, answers: { questionId: answer, ... }, attachments: { questionId: urls, ... } }
 func (h *Handler) SubmitHomework(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		HomeworkID uint64            `json:"homeworkId" binding:"required"`
-		Answers    map[string]string `json:"answers" binding:"required"` // questionId -> answer
+		HomeworkID  uint64            `json:"homeworkId" binding:"required"`
+		Answers     map[string]string `json:"answers" binding:"required"`    // questionId -> answer
+		Attachments map[string]string `json:"attachments"`                   // questionId -> attachment URLs (comma separated)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -558,6 +586,11 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
+
+	// 调试日志：打印收到的附件数据
+	logger.Info("提交作业 - 收到附件数据",
+		zap.Int64("homeworkId", int64(req.HomeworkID)),
+		zap.Any("attachments", req.Attachments))
 
 	// 获取当前用户ID
 	uid, exists := c.Get("userId")
@@ -609,6 +642,19 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			logger.Warn("题目不存在", zap.Uint64("question_id", questionID))
 			continue
 		}
+
+		// 获取附件URL（如果有）
+		attachment := ""
+		if req.Attachments != nil {
+			if att, ok := req.Attachments[questionIDStr]; ok {
+				attachment = att
+			}
+		}
+
+		// 调试日志：打印每个题目的附件信息
+		logger.Info("提交作业 - 题目附件",
+			zap.String("questionId", questionIDStr),
+			zap.String("attachment", attachment))
 
 		// 计算分数（单选、多选、判断题自动判分）
 		score := 0.0
@@ -675,6 +721,7 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		if checkErr == nil {
 			// 更新已有提交
 			existingSubmit.Answer = answer
+			existingSubmit.Attachment = attachment
 			existingSubmit.Score = score
 			existingSubmit.IsScored = isScored
 			existingSubmit.IsOfficiallySubmitted = 1 // 标记为正式提交
@@ -688,12 +735,13 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		} else {
 			// 创建新提交
 			submit := &model.HomeworkSubmit{
-				HomeworkID:          req.HomeworkID,
-				QuestionID:          &questionID,  // 使用指针
-				UID:                 uid.(string),
-				Answer:              answer,
-				Score:               score,
-				IsScored:            isScored,
+				HomeworkID:           req.HomeworkID,
+				QuestionID:           &questionID, // 使用指针
+				UID:                  uid.(string),
+				Answer:               answer,
+				Attachment:           attachment,
+				Score:                score,
+				IsScored:             isScored,
 				IsOfficiallySubmitted: 1, // 标记为正式提交
 			}
 
@@ -753,6 +801,29 @@ func (h *Handler) GetHomeworkSubmissions(c *gin.Context) {
 	}
 
 	db := client.GetDB()
+
+	// 首先查询作业的所有题目（按 question_order 排序）
+	var homeworkQuestions []model.HomeworkQuestion
+	if err := db.Where("homework_id = ?", homeworkID).
+		Order("question_order ASC").
+		Find(&homeworkQuestions).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建题目顺序映射：questionId -> order，problemId -> order
+	questionOrderMap := make(map[uint64]int)
+	problemOrderMap := make(map[string]int)
+	for idx, hq := range homeworkQuestions {
+		if hq.QuestionID != nil {
+			questionOrderMap[*hq.QuestionID] = idx
+		}
+		if hq.ProblemID != nil {
+			problemOrderMap[*hq.ProblemID] = idx
+		}
+	}
+
 	var submissions []model.HomeworkSubmit
 
 	// 查询所有提交记录（包括普通题目和编程题）
@@ -760,20 +831,37 @@ func (h *Handler) GetHomeworkSubmissions(c *gin.Context) {
 	if err := db.Where("homework_id = ? AND is_officially_submitted = 1", homeworkID).
 		Preload("Student").
 		Preload("Question").
-		Order("uid, COALESCE(question_id, 0), COALESCE(problem_id, '')").
 		Find(&submissions).Error; err != nil {
 		logger.Error("查询作业提交失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
 
-	// 获取作业的所有题目，用于编程题映射 homeworkQuestionId
-	var homeworkQuestions []model.HomeworkQuestion
-	if err := db.Where("homework_id = ?", homeworkID).Find(&homeworkQuestions).Error; err != nil {
-		logger.Error("查询作业题目失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
-		return
-	}
+	// 按照 question_order 重新排序 submissions
+	sort.Slice(submissions, func(i, j int) bool {
+		// 获取两个提交记录的顺序
+		var orderI, orderJ int
+
+		// 对于普通题目
+		if submissions[i].QuestionID != nil {
+			orderI = questionOrderMap[*submissions[i].QuestionID]
+		} else if submissions[i].ProblemID != nil {
+			orderI = problemOrderMap[*submissions[i].ProblemID]
+		}
+
+		if submissions[j].QuestionID != nil {
+			orderJ = questionOrderMap[*submissions[j].QuestionID]
+		} else if submissions[j].ProblemID != nil {
+			orderJ = problemOrderMap[*submissions[j].ProblemID]
+		}
+
+		// 先按学生ID分组
+		if submissions[i].UID != submissions[j].UID {
+			return submissions[i].UID < submissions[j].UID
+		}
+		// 同一个学生内，按题目顺序排序
+		return orderI < orderJ
+	})
 
 	// 获取作业所属的班级ID
 	var homework model.ClassroomHomework
@@ -815,6 +903,13 @@ func (h *Handler) GetHomeworkSubmissions(c *gin.Context) {
 
 	result := make([]SubmissionWithHomeworkQuestionID, 0, len(submissions))
 	for _, submit := range submissions {
+		// 调试日志：检查attachment字段
+		if submit.Attachment != "" {
+			logger.Info("提交记录包含附件",
+				zap.Uint64("question_id", *submit.QuestionID),
+				zap.String("attachment", submit.Attachment))
+		}
+
 		enhancedSubmit := SubmissionWithHomeworkQuestionID{
 			HomeworkSubmit: submit,
 			RealName:       studentRealNameMap[submit.UID], // 添加班级学生真实姓名
@@ -963,6 +1058,8 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 	scoresMap := make(map[string]float64)
 	// 构建每题评分状态数据 map[questionID]isScored
 	isScoredMap := make(map[string]bool)
+	// 构建每题附件数据 map[questionID]attachment
+	attachmentsMap := make(map[string]string)
 	var submitTime *time.Time
 	totalScore := 0.0
 	gradedScore := 0.0 // 已评分题目的得分
@@ -984,6 +1081,8 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 		answersMap[questionIDStr] = submission.Answer
 		scoresMap[questionIDStr] = submission.Score
 		isScoredMap[questionIDStr] = submission.IsScored == 1
+		// 添加附件数据
+		attachmentsMap[questionIDStr] = submission.Attachment
 
 		// 累加所有题目的得分（包括0分）
 		totalScore += submission.Score
@@ -1030,10 +1129,19 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 		return
 	}
 
+	// 将每题附件map转为JSON字符串
+	attachmentsJSON, err := json.Marshal(attachmentsMap)
+	if err != nil {
+		logger.Error("序列化附件失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "序列化附件失败"))
+		return
+	}
+
 	result := map[string]interface{}{
 		"answers":               string(answersJSON),
 		"scores":                string(scoresJSON),         // 每题得分
 		"isScoredMap":           string(isScoredJSON),      // 每题评分状态
+		"attachments":            string(attachmentsJSON),    // 每题附件
 		"submitTime":            submitTime,
 		"isOfficiallySubmitted": isOfficiallySubmitted,
 		"hasUngraded":           hasUngraded, // 是否有未评分的题目
@@ -2651,3 +2759,68 @@ func (h *Handler) UpdateClassroomStudentInfo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, successResponse(student))
 }
+
+// UploadHomeworkAttachment 上传作业附件（学生）- 支持主观题上传图片
+func (h *Handler) UploadHomeworkAttachment(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	// 获取上传的文件
+	file, err := c.FormFile("file")
+	if err != nil {
+		logger.Warn("获取上传文件失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "请选择要上传的文件"))
+		return
+	}
+
+	// 验证文件类型（只允许图片）
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	allowedExts := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".gif":  true,
+		".bmp":  true,
+		".webp": true,
+	}
+
+	if !allowedExts[ext] {
+		c.JSON(http.StatusOK, errorResponse(400, "只支持上传图片文件（jpg, jpeg, png, gif, bmp, webp）"))
+		return
+	}
+
+	// 验证文件大小（限制为10MB）
+	const maxFileSize = 10 * 1024 * 1024 // 10MB
+	if file.Size > maxFileSize {
+		c.JSON(http.StatusOK, errorResponse(400, "图片文件大小不能超过10MB"))
+		return
+	}
+
+	// 创建唯一文件名并保存到本地
+	uniqueFileName := fmt.Sprintf("homework_%s_%d%s%s", uid.(string), time.Now().Unix(), generateRandomString(8), ext)
+
+	// 创建上传目录
+	uploadDir := "./uploads/classroom/homework"
+	if err := c.SaveUploadedFile(file, fmt.Sprintf("%s/%s", uploadDir, uniqueFileName)); err != nil {
+		logger.Error("保存图片失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "图片保存失败"))
+		return
+	}
+
+	imageURL := "/uploads/classroom/homework/" + uniqueFileName
+
+	logger.Info("上传作业附件成功", zap.String("filename", file.Filename), zap.String("url", imageURL), zap.String("uid", uid.(string)))
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"url":      imageURL,
+		"filename": file.Filename,
+		"size":     file.Size,
+	}))
+}
+

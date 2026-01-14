@@ -14,6 +14,7 @@ services:
       - TZ=Asia/Shanghai
     volumes:
       - ./hist-oj/configs:/app/configs:ro
+      - ./hist-oj/uploads:/app/uploads  # 持久化上传文件(班级作业图片、消息图片等)
     networks:
       - hoj-network
     healthcheck:

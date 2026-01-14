@@ -543,6 +543,8 @@ SQLEOF
 
         echo "[INFO] 创建上传文件目录..."
         mkdir -p /opt/registration-uploads
+        mkdir -p /opt/hist-oj-uploads/classroom/homework
+        mkdir -p /opt/hist-oj-uploads/classroom/images
 
         # 根据部署目标选择性启动容器
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "backend" ]; then
@@ -550,6 +552,7 @@ SQLEOF
             docker run -d \
                 --name hist-oj \
                 --network hoj_hoj-network \
+                -v /opt/hist-oj-uploads:/app/uploads \
                 -e DATABASE_HOST=43.143.133.62 \
                 -e DATABASE_PORT=3306 \
                 -e DATABASE_USER=root \

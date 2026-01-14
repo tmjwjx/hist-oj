@@ -99,7 +99,7 @@
           }}</el-menu-item>
         </el-submenu>
 
-        <el-menu-item index="/admin/toolbox"
+        <el-menu-item index="/admin/toolbox" v-show="websiteConfig && Object.keys(websiteConfig).length > 5"
           ><i class="fa fa-briefcase fa-size"></i>工具箱</el-menu-item
         >
 
@@ -551,7 +551,7 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapActions } from 'vuex';
 const KatexEditor = () => import('@/components/admin/KatexEditor.vue');
 import api from '@/common/api';
 import mMessage from '@/common/message';
@@ -567,6 +567,10 @@ export default {
       this.page_width();
     };
     this.page_width();
+    // 确保 websiteConfig 已加载
+    if (!this.websiteConfig || Object.keys(this.websiteConfig).length <= 5) {
+      this.getWebsiteConfig();
+    }
   },
   data() {
     return {
@@ -586,6 +590,7 @@ export default {
     Avatar,
   },
   methods: {
+    ...mapActions(['getWebsiteConfig']),
     handleCommand(command) {
       if (command === 'logout') {
         api.admin_logout().then((res) => {

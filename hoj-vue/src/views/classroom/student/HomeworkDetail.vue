@@ -149,6 +149,47 @@
                   placeholder="请输入你的答案"
                   @blur="handleAnswerChange"
                 />
+                <!-- 图片上传区域 -->
+                <div v-if="!isSubmitted" class="image-upload-area">
+                  <div class="upload-tip">
+                    <i class="el-icon-picture-outline"></i> 支持上传图片作为答案（可选）
+                  </div>
+                  <el-upload
+                    :action="uploadUrl"
+                    :headers="uploadHeaders"
+                    :on-success="(response, file, fileList) => handleUploadSuccess(response, file, fileList, item.question.id)"
+                    :on-error="handleUploadError"
+                    :on-remove="(file, fileList) => handleRemoveFile(file, fileList, item.question.id)"
+                    :file-list="getImageList(item.question.id)"
+                    :limit="5"
+                    :on-exceed="handleExceed"
+                    accept="image/*"
+                    list-type="picture-card"
+                    :class="{ 'hide-upload-btn': getImageList(item.question.id).length >= 5 }"
+                  >
+                    <i class="el-icon-plus"></i>
+                  </el-upload>
+                  <div class="upload-limit-tip">
+                    <i class="el-icon-info"></i> 最多上传5张图片，每张图片不超过10MB
+                  </div>
+                </div>
+                <!-- 已提交的图片显示 -->
+                <div v-else-if="getSubmittedImages(item.question.id).length > 0" class="submitted-images">
+                  <div class="submitted-images-title">
+                    <i class="el-icon-picture"></i> 已提交的图片：
+                  </div>
+                  <div class="submitted-images-list">
+                    <el-image
+                      v-for="(img, idx) in getSubmittedImages(item.question.id)"
+                      :key="idx"
+                      :src="img"
+                      :preview-src-list="getSubmittedImages(item.question.id)"
+                      fit="cover"
+                      style="width: 100px; height: 100px; margin: 5px;"
+                    >
+                    </el-image>
+                  </div>
+                </div>
                 <!-- 显示参考答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="reference-answer">
                   <div class="reference-answer-title">
@@ -274,6 +315,8 @@ export default {
       programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
       programmingStatusText: {}, // 编程题状态文本 { problemId: '未作答' | '检测中...' | '已作答' }
       pollingTimer: null, // 轮询定时器
+      attachments: {}, // 每题的图片URL列表 { questionId: [url1, url2, ...] }
+      uploadedImages: {}, // 已上传的图片文件列表 { questionId: [{name, url, uid}, ...] }
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -306,6 +349,17 @@ export default {
     canViewAnswer() {
       // 必须已提交且教师允许查看答案
       return this.isSubmitted && this.homework.showAnswer === 1
+    },
+    // 图片上传URL
+    uploadUrl() {
+      return '/rating-api/api/classroom/homework/upload-attachment'
+    },
+    // 上传请求头
+    uploadHeaders() {
+      const token = this.$store.getters.token
+      return {
+        'Authorization': 'Bearer ' + token
+      }
     }
   },
   mounted() {
@@ -346,28 +400,35 @@ export default {
             // 数据真的变化了，才更新
             this.homework = res.data
 
-            // 初始化所有题目的答案对象
-            this.homework.questions.forEach(item => {
-              // 编程题跳过
-              if (item.problemId) return
+            // 只在首次加载时初始化答案对象，避免覆盖用户正在输入的答案
+            if (isFirstLoad) {
+              // 初始化所有题目的答案对象
+              this.homework.questions.forEach(item => {
+                // 编程题跳过
+                if (item.problemId) return
 
-              // 普通题目处理
-              if (!item.question) return
+                // 普通题目处理
+                if (!item.question) return
 
-              const qid = item.question.id
-              if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
-                // 使用 $set 确保响应式
-                this.$set(this.answers, qid, '')
-              } else if (item.question.type === 'multiple_choice') {
-                this.$set(this.multipleAnswers, qid, [])
-              }
-            })
+                const qid = item.question.id
+                if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+                  // 使用 $set 确保响应式
+                  this.$set(this.answers, qid, '')
+                } else if (item.question.type === 'multiple_choice') {
+                  this.$set(this.multipleAnswers, qid, [])
+                }
+              })
+            }
           }
 
           // 加载已提交的答案
-          await this.loadSubmission()
-          // 初始化答案（确保所有题目都有记录）
-          await this.initializeAnswers()
+          await this.loadSubmission(isFirstLoad)
+
+          // 只在首次加载时初始化答案
+          if (isFirstLoad) {
+            // 初始化答案（确保所有题目都有记录）
+            await this.initializeAnswers()
+          }
 
           // 初始化编程题状态检测
           this.initializeProgrammingStatus()
@@ -384,7 +445,7 @@ export default {
         }
       }
     },
-    async loadSubmission() {
+    async loadSubmission(shouldRestoreAnswers = true) {
       try {
         const homeworkId = this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getStudentHomeworkDetail', homeworkId)
@@ -398,8 +459,9 @@ export default {
             this.isSubmitted = true
           }
 
-          // 恢复已提交的答案
-          if (res.data.answers) {
+          // 只在首次加载或明确要求时恢复答案
+          // 避免在用户正在输入时覆盖其输入
+          if (shouldRestoreAnswers && res.data.answers) {
             const answersData = JSON.parse(res.data.answers || '{}')
 
             // 统计已作答的题目数
@@ -438,6 +500,27 @@ export default {
             const isScoredData = JSON.parse(res.data.isScoredMap || '{}')
             Object.keys(isScoredData).forEach(qid => {
               this.$set(this.questionIsScored, qid, isScoredData[qid])
+            })
+          }
+
+          // 恢复每题附件
+          if (res.data.attachments && shouldRestoreAnswers) {
+            const attachmentsData = JSON.parse(res.data.attachments || '{}')
+            Object.keys(attachmentsData).forEach(qid => {
+              const attachmentStr = attachmentsData[qid]
+              if (attachmentStr) {
+                // 将逗号分隔的URL字符串转换为数组
+                const urls = attachmentStr.split(',').filter(url => url.trim())
+                this.$set(this.attachments, qid, urls)
+                // 构建上传文件列表（用于el-upload显示）
+                const fileList = urls.map((url, idx) => ({
+                  name: `image_${idx + 1}`,
+                  url: url,
+                  uid: Date.now() + idx,
+                  response: { data: { url: url } }
+                }))
+                this.$set(this.uploadedImages, qid, fileList)
+              }
             })
           }
         }
@@ -585,6 +668,16 @@ export default {
           }
         })
 
+        // 准备附件数据（将URL数组用逗号连接）
+        const attachmentsData = {}
+        Object.keys(this.attachments).forEach(qid => {
+          if (Array.isArray(this.attachments[qid]) && this.attachments[qid].length > 0) {
+            attachmentsData[qid] = this.attachments[qid].join(',')
+          }
+        })
+
+        // 调试日志：打印要发送的附件数据
+
         // 使用 fetch 的 keepalive 选项来确保页面关闭时也能发送请求
         // 调用草稿保存 API（不判分，不标记为已提交）
         fetch('/api/classroom/homework/draft', {
@@ -595,7 +688,8 @@ export default {
           },
           body: JSON.stringify({
             homeworkId: homeworkId,
-            answers: answersData
+            answers: answersData,
+            attachments: attachmentsData
           }),
           keepalive: true
         }).then(response => {
@@ -684,6 +778,18 @@ export default {
           }
         })
 
+        // 准备附件数据（将URL数组用逗号连接）
+
+        const attachmentsData = {}
+        Object.keys(this.attachments).forEach(qid => {
+          if (Array.isArray(this.attachments[qid]) && this.attachments[qid].length > 0) {
+            attachmentsData[qid] = this.attachments[qid].join(',')
+          } else {
+          }
+        })
+
+        // 调试日志：打印要发送的附件数据
+
         // 检查是否有答案
         if (Object.keys(answersData).length === 0) {
           this.$message.warning('请至少作答一道题目')
@@ -693,7 +799,8 @@ export default {
         // 批量提交
         const res = await this.$store.dispatch('classroom/submitHomework', {
           homeworkId: homeworkId,
-          answers: answersData
+          answers: answersData,
+          attachments: attachmentsData
         })
 
         if (res.code === 200) {
@@ -806,6 +913,83 @@ export default {
         }
       } catch (error) {
         console.error('检测编程题状态失败:', error)
+      }
+    },
+    // 图片上传成功回调
+    handleUploadSuccess(response, file, fileList, questionId) {
+      if (response.code === 200 && response.data && response.data.url) {
+        const url = response.data.url
+        // 统一转换为字符串类型作为键
+        const qid = String(questionId)
+        // 初始化该题目的图片数组
+        if (!this.attachments[qid]) {
+          this.$set(this.attachments, qid, [])
+        }
+        // 添加URL到数组
+        this.attachments[qid].push(url)
+        // 保存文件列表
+        this.$set(this.uploadedImages, qid, fileList)
+        // 触发自动保存
+        this.handleAnswerChange()
+      } else {
+        this.$message.error(response.message || '图片上传失败')
+      }
+    },
+    // 图片上传失败回调
+    handleUploadError(err, file, fileList) {
+      this.$message.error('图片上传失败，请重试')
+    },
+    // 删除图片回调
+    handleRemoveFile(file, fileList, questionId) {
+      // 统一转换为字符串类型作为键
+      const qid = String(questionId)
+      // 从attachments中移除该图片URL
+      if (file.response && file.response.data && file.response.data.url) {
+        const url = file.response.data.url
+        if (this.attachments[qid]) {
+          const index = this.attachments[qid].indexOf(url)
+          if (index > -1) {
+            this.attachments[qid].splice(index, 1)
+          }
+        }
+      }
+      // 更新文件列表
+      this.$set(this.uploadedImages, qid, fileList)
+      // 触发自动保存
+      this.handleAnswerChange()
+    },
+    // 超出上传数量限制
+    handleExceed(files, fileList) {
+      this.$message.warning('最多只能上传5张图片')
+    },
+    // 获取某题目的图片列表（用于el-upload）
+    getImageList(questionId) {
+      return this.uploadedImages[questionId] || []
+    },
+    // 获取已提交的图片列表（用于显示）
+    getSubmittedImages(questionId) {
+      try {
+        const qid = String(questionId)
+
+        // 优先从 this.attachments 获取（loadSubmission 时已恢复）
+        if (this.attachments && this.attachments[qid]) {
+          return this.attachments[qid]
+        }
+
+        // 如果 this.attachments 没有，尝试从 this.submission.attachments 获取
+        if (this.submission && this.submission.attachments) {
+          const attachmentsData = JSON.parse(this.submission.attachments || '{}')
+          const attachmentStr = attachmentsData[qid]
+          if (attachmentStr) {
+            const urls = attachmentStr.split(',').filter(url => url.trim())
+            return urls
+          }
+        }
+
+        return []
+      } catch (e) {
+        console.error('解析attachments失败:', e)
+        return []
       }
     }
   }
@@ -1022,5 +1206,51 @@ export default {
   border-radius: 4px;
   color: #909399;
   font-style: italic;
+}
+
+/* 图片上传样式 */
+.image-upload-area {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  border: 1px dashed #d9d9d9;
+}
+
+.upload-tip {
+  margin-bottom: 10px;
+  color: #606266;
+  font-size: 14px;
+}
+
+.upload-limit-tip {
+  margin-top: 10px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.hide-upload-btn .el-upload--picture-card {
+  display: none;
+}
+
+.submitted-images {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f0f9ff;
+  border-radius: 4px;
+  border: 1px solid #b3d8ff;
+}
+
+.submitted-images-title {
+  font-weight: bold;
+  color: #409EFF;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.submitted-images-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 </style>

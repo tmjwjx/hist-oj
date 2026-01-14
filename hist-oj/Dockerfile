@@ -46,6 +46,9 @@ COPY --from=builder /app/hist-oj-service .
 # 复制配置文件目录（运行时通过环境变量覆盖）
 COPY --from=builder /app/configs ./configs
 
+# 创建 uploads 目录（用于持久化上传文件）
+RUN mkdir -p /app/uploads
+
 # 暴露端口
 EXPOSE 9527
 

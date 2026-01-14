@@ -108,14 +108,17 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			// 作业功能 - 需要认证
 			classroom.POST("/homework", AuthMiddleware(), handler.CreateHomework)
 			classroom.GET("/:classroomId/homeworks", AuthMiddleware(), handler.GetHomeworkList)
-			classroom.GET("/homework/:homeworkId", AuthMiddleware(), handler.GetHomeworkDetail)
-			classroom.PUT("/homework/:homeworkId", AuthMiddleware(), handler.UpdateHomework)
-			classroom.DELETE("/homework/:homeworkId", AuthMiddleware(), handler.DeleteHomework)
+			// 具体路径要放在参数化路径之前
+			classroom.POST("/homework/upload-attachment", AuthMiddleware(), handler.UploadHomeworkAttachment) // 上传作业附件
 			classroom.POST("/homework/draft", AuthMiddleware(), handler.SaveHomeworkDraft) // 保存草稿
 			classroom.POST("/homework/submit", AuthMiddleware(), handler.SubmitHomework)    // 正式提交
 			classroom.POST("/homework/grade", AuthMiddleware(), handler.GradeHomework)
 			classroom.POST("/homework/programming/grade", AuthMiddleware(), handler.GradeProgrammingHomework)
 			classroom.POST("/homework/recalculate", AuthMiddleware(), handler.RecalculateScore)
+			// 参数化路径放在最后
+			classroom.GET("/homework/:homeworkId", AuthMiddleware(), handler.GetHomeworkDetail)
+			classroom.PUT("/homework/:homeworkId", AuthMiddleware(), handler.UpdateHomework)
+			classroom.DELETE("/homework/:homeworkId", AuthMiddleware(), handler.DeleteHomework)
 			classroom.GET("/homework/:homeworkId/submissions", AuthMiddleware(), handler.GetHomeworkSubmissions)
 			classroom.GET("/homework/:homeworkId/status", AuthMiddleware(), handler.GetStudentHomeworkStatus)
 			classroom.GET("/homework/:homeworkId/my-detail", AuthMiddleware(), handler.GetStudentHomeworkDetail)

@@ -157,8 +157,27 @@
 
             <!-- 主观题答案 -->
             <div v-if="submit.question.type === 'subjective'" class="subjective-answer">
-              <p><strong>{{ $t('m.Student_Answer') }}:</strong></p>
-              <div class="answer-content">{{ submit.answer || $t('m.No_Answer') }}</div>
+              <!-- 显示学生上传的图片 -->
+              <div v-if="getAttachmentImages(submit.attachment).length > 0" class="attachment-images">
+                <div class="attachment-title">
+                  <i class="el-icon-picture"></i> 学生上传的图片：
+                </div>
+                <div class="attachment-list">
+                  <el-image
+                    v-for="(img, idx) in getAttachmentImages(submit.attachment)"
+                    :key="idx"
+                    :src="img"
+                    :preview-src-list="getAttachmentImages(submit.attachment)"
+                    fit="cover"
+                    style="width: 120px; height: 120px; margin: 5px; border-radius: 4px;"
+                  >
+                  </el-image>
+                </div>
+              </div>
+
+              <!-- 显示文字答案（如果有） -->
+              <div v-if="submit.answer" class="answer-content">{{ submit.answer }}</div>
+              <div v-else class="answer-content">{{ $t('m.No_Answer') }}</div>
             </div>
 
             <!-- 答案对比 -->
@@ -173,11 +192,15 @@
                 <span v-else-if="submit.question.type === 'multiple_choice'">
                   {{ parseMultipleChoiceAnswer(submit.question.answer) }}
                 </span>
+                <span v-else-if="submit.question.type === 'subjective'">
+                  {{ submit.question.answer || '-' }}
+                </span>
                 <span v-else>
                   {{ submit.question.answer || '-' }}
                 </span>
               </p>
-              <p><strong>{{ $t('m.Student_Answer') }}:</strong>
+              <!-- 主观题不显示学生答案（因为上面已经显示了） -->
+              <p v-if="submit.question.type !== 'subjective'"><strong>{{ $t('m.Student_Answer') }}:</strong>
                 <span v-if="submit.question.type === 'judge'">
                   {{ parseJudgeAnswer(submit.answer) ? $t('m.True') : $t('m.False') }}
                 </span>
@@ -353,6 +376,7 @@ export default {
       // 筛选该学生的所有提交记录
       const studentSubmits = this.submissions.filter(s => s.uid === studentUid)
 
+
       if (studentSubmits.length === 0) {
         this.$message.warning(this.$t('m.No_Submission_Found'))
         return
@@ -372,6 +396,7 @@ export default {
         totalScore: totalScore,
         questions: questions
       }
+
     },
     parseOptions(optionsStr) {
       if (!optionsStr) return []
@@ -612,6 +637,24 @@ export default {
       }
       // 普通题目：直接从 question 获取
       return this.currentQuestion?.question?.score || 0
+    },
+    // 解析附件字符串为图片URL数组
+    getAttachmentImages(attachment) {
+      if (!attachment) {
+        return []
+      }
+      // 确保是字符串类型
+      if (typeof attachment !== 'string') {
+        return []
+      }
+      // attachment是用逗号分隔的URL字符串
+      try {
+        const urls = attachment.split(',').filter(url => url && url.trim())
+        return urls
+      } catch (e) {
+        console.error('解析attachment失败:', e, attachment)
+        return []
+      }
     }
   }
 }
@@ -867,5 +910,27 @@ export default {
   background: #f8f8f9 !important;
   border: 1px dashed #e9eaec !important;
   border-radius: 3px !important;
+}
+
+/* 附件图片样式 */
+.attachment-images {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f0f9ff;
+  border-radius: 4px;
+  border: 1px solid #b3d8ff;
+}
+
+.attachment-title {
+  font-weight: bold;
+  color: #409EFF;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 </style>

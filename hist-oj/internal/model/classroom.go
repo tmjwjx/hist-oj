@@ -182,6 +182,7 @@ type HomeworkSubmit struct {
 	ProblemID           *string  `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用）
 	UID                 string   `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
 	Answer              string   `gorm:"type:text" json:"answer"`
+	Attachment          string   `gorm:"type:varchar(1000)" json:"attachment"` // 图片附件URL（主观题使用，多个图片用逗号分隔）
 	SubmitID            *uint64  `gorm:"type:bigint unsigned" json:"submitId"` // 提交记录ID（编程题）
 	Score               float64  `gorm:"type:decimal(5,2);default:0" json:"score"`
 	IsScored            int      `gorm:"type:int;default:0" json:"isScored"` // 是否已批改
