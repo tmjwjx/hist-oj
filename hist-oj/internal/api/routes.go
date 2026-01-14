@@ -86,6 +86,10 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.DELETE("/student", AuthMiddleware(), handler.RemoveStudent)
 			classroom.PUT("/student", AuthMiddleware(), handler.UpdateStudentInfo)
 
+			// 学生班级个人信息管理（学生）- 需要认证
+			classroom.GET("/:classroomId/my-info", AuthMiddleware(), handler.GetClassroomStudentInfo)
+			classroom.PUT("/:classroomId/my-info", AuthMiddleware(), handler.UpdateClassroomStudentInfo)
+
 			// 签到功能 - 需要认证
 			classroom.POST("/checkin", AuthMiddleware(), handler.CreateCheckin)
 			classroom.POST("/checkin/submit", AuthMiddleware(), handler.StudentCheckin)
@@ -124,6 +128,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/folder", AuthMiddleware(), handler.CreateFolder)
 			classroom.GET("/:classroomId/folders", AuthMiddleware(), handler.GetFolders)
 			classroom.DELETE("/folder/:folderId", AuthMiddleware(), handler.DeleteFolder)
+			classroom.PUT("/folder", AuthMiddleware(), handler.UpdateFolder)
 			classroom.POST("/material/upload", AuthMiddleware(), handler.UploadMaterial)
 			classroom.GET("/folder/:folderId/materials", AuthMiddleware(), handler.GetMaterials)
 			classroom.DELETE("/material/:materialId", AuthMiddleware(), handler.DeleteMaterial)
@@ -138,7 +143,6 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/:classroomId/messages", AuthMiddleware(), handler.GetMessages)
 			classroom.POST("/message/upload-image", AuthMiddleware(), handler.UploadMessageImage)
 			classroom.DELETE("/message/:messageId", AuthMiddleware(), handler.RecallMessage)
-			classroom.DELETE("/:classroomId/messages", AuthMiddleware(), handler.ClearMessages)
 		}
 	}
 

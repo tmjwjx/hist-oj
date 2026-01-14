@@ -641,8 +641,11 @@ export default {
     };
   },
   mounted() {
-    this.switchMode();
-    this.setHiddenHeaderHeight();
+    // 使用 $nextTick 确保 DOM 渲染完成后再设置模式
+    this.$nextTick(() => {
+      this.switchMode();
+      this.setHiddenHeaderHeight();
+    });
     if (this.isAuthenticated) {
       this.getUnreadMsgCount();
       this.msgTimer = setInterval(() => {

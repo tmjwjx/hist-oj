@@ -126,6 +126,12 @@ const ClassroomRoutes = {
       name: 'StudentHomeworkDetail',
       component: () => import('@/views/classroom/student/HomeworkDetail'),
       meta: { title: '作业详情' }
+    },
+    {
+      path: 'student/classroom/:classroomId/my-info',
+      name: 'StudentMyInfo',
+      component: () => import('@/views/classroom/student/MyInfo'),
+      meta: { title: '我的信息' }
     }
   ]
 }

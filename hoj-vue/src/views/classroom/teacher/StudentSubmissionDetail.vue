@@ -5,7 +5,8 @@
       <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
     </div>
 
-    <el-card v-loading="loading">
+    <!-- 移除 v-loading 避免轮询时闪烁 -->
+    <el-card>
       <div v-if="studentSubmission">
         <!-- 学生信息 -->
         <div class="student-info">
@@ -256,6 +257,7 @@ import moment from 'moment'
 import MarkdownIt from 'markdown-it'
 import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
+import realtimeSync from '@/mixins/realtimeSync'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -267,6 +269,7 @@ md.use(katex)
 
 export default {
   name: 'StudentSubmissionDetail',
+  mixins: [realtimeSync],
   data() {
     return {
       loading: false,
@@ -278,15 +281,30 @@ export default {
       gradeForm: {
         score: 0
       },
-      grading: false
+      grading: false,
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadData',
+        immediate: true
+      }
     }
   },
   mounted() {
-    this.loadData()
+    // 由 realtimeSync mixin 自动启动同步
   },
   methods: {
     async loadData() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = !this.homework || Object.keys(this.homework).length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const homeworkId = this.$route.params.homeworkId
         const studentUid = this.$route.query.uid
@@ -298,17 +316,37 @@ export default {
         ])
 
         if (homeworkRes.code === 200) {
-          this.homework = homeworkRes.data
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentHomeworkString = JSON.stringify(this.homework)
+          const newHomeworkString = JSON.stringify(homeworkRes.data)
+
+          if (currentHomeworkString !== newHomeworkString) {
+            // 数据真的变化了，才更新
+            this.homework = homeworkRes.data
+          }
         }
 
         if (submissionsRes.code === 200) {
-          this.submissions = submissionsRes.data || []
-          this.buildStudentSubmission(studentUid)
+          const newSubmissions = submissionsRes.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentSubmissionsString = JSON.stringify(this.submissions)
+          const newSubmissionsString = JSON.stringify(newSubmissions)
+
+          if (currentSubmissionsString !== newSubmissionsString) {
+            // 数据真的变化了，才更新
+            this.submissions = newSubmissions
+            this.buildStudentSubmission(studentUid)
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     buildStudentSubmission(studentUid) {
@@ -730,7 +768,7 @@ export default {
   background: #F5F7FA;
   border-radius: 4px;
   border: 1px solid #E4E7ED;
-  transition: all 0.3s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .option-display:hover {

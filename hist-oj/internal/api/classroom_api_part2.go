@@ -1152,6 +1152,46 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
+// UpdateFolder 更新文件夹名称（教师）
+func (h *Handler) UpdateFolder(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ID         uint64 `json:"id" binding:"required"`
+		FolderName string `json:"folderName" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查文件夹是否存在
+	var folder model.ClassroomFolder
+	if err := db.Where("id = ? AND status = 1", req.ID).First(&folder).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "文件夹不存在"))
+		} else {
+			logger.Error("查询文件夹失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 更新文件夹名称
+	if err := db.Model(&folder).Update("folder_name", req.FolderName).Error; err != nil {
+		logger.Error("更新文件夹失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	logger.Info("更新文件夹", zap.Uint64("folder_id", req.ID), zap.String("name", req.FolderName))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
 // UploadMaterial 上传资料（教师）
 func (h *Handler) UploadMaterial(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -1242,10 +1282,19 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 func (h *Handler) GetMaterials(c *gin.Context) {
 	logger := utils.GetLogger()
 	folderIDStr := c.Param("folderId")
-	folderID, err := strconv.ParseUint(folderIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusOK, errorResponse(400, "folderId参数格式错误"))
-		return
+
+	var folderID uint64
+	var err error
+
+	// 支持字符串 'root' 表示根目录(folderId=0)
+	if folderIDStr == "root" {
+		folderID = 0
+	} else {
+		folderID, err = strconv.ParseUint(folderIDStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, "folderId参数格式错误"))
+			return
+		}
 	}
 
 	db := client.GetDB()
@@ -1503,6 +1552,13 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	// 加载发送者信息
 	db.Preload("Sender").First(message)
 
+	// 如果是学生，加载学生在班级中的信息
+	var studentInfo model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND uid = ?", req.ClassroomID, senderID.(string)).
+		First(&studentInfo).Error; err == nil {
+		message.StudentInfo = &studentInfo
+	}
+
 	logger.Info("发送班级消息", zap.Uint64("classroom_id", req.ClassroomID), zap.String("sender_id", senderID.(string)))
 
 	// TODO: 通过WebSocket广播消息给班级所有人
@@ -1535,6 +1591,17 @@ func (h *Handler) GetMessages(c *gin.Context) {
 		logger.Error("查询消息列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	// 为每条消息查询学生信息（如果是学生发送的）
+	for i := range messages {
+		if messages[i].SenderID != "system" && messages[i].SenderID != "" {
+			var studentInfo model.ClassroomStudent
+			if err := db.Where("classroom_id = ? AND uid = ?", classroomID, messages[i].SenderID).
+				First(&studentInfo).Error; err == nil {
+				messages[i].StudentInfo = &studentInfo
+			}
+		}
 	}
 
 	// 反转顺序，使最新消息在最后
@@ -1938,7 +2005,7 @@ func (h *Handler) DeleteHomework(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
-// RecallMessage 撤回消息（教师）
+// RecallMessage 撤回消息
 func (h *Handler) RecallMessage(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -1966,59 +2033,107 @@ func (h *Handler) RecallMessage(c *gin.Context) {
 		return
 	}
 
-	// 验证权限：只有发送者本人可以撤回自己的消息
-	if message.SenderID != uid.(string) {
+	// 查找班级信息，检查当前用户是否是教师
+	var classroom model.Classroom
+	if err := db.Where("id = ?", message.ClassroomID).First(&classroom).Error; err != nil {
+		logger.Error("查找班级失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		return
+	}
+
+	isTeacher := classroom.TeacherID == uid.(string)
+	isSender := message.SenderID == uid.(string)
+
+	// 验证权限：教师可以撤回任意消息，学生只能撤回自己的消息
+	if !isTeacher && !isSender {
 		c.JSON(http.StatusOK, errorResponse(403, "无权撤回此消息"))
 		return
 	}
 
-	// 删除消息
+	// 获取操作者（撤回消息的人）的姓名
+	var operatorName string
+	if isTeacher {
+		// 操作者是教师，获取教师姓名
+		var teacherUserInfo model.UserInfo
+		if err := db.Where("uuid = ?", uid.(string)).First(&teacherUserInfo).Error; err == nil {
+			operatorName = teacherUserInfo.Nickname
+			if operatorName == "" {
+				operatorName = teacherUserInfo.Username
+			}
+		} else {
+			operatorName = "教师"
+		}
+	} else {
+		// 操作者是学生，获取学生在该班级的真实姓名
+		var studentClassroomInfo model.ClassroomStudent
+		if err := db.Where("classroom_id = ? AND uid = ?", message.ClassroomID, uid.(string)).
+			First(&studentClassroomInfo).Error; err == nil {
+			// 找到班级学生记录，使用真实姓名
+			operatorName = studentClassroomInfo.RealName
+		} else {
+			// 未找到班级学生记录，尝试从用户信息表获取昵称
+			var studentUserInfo model.UserInfo
+			if err := db.Where("uuid = ?", uid.(string)).First(&studentUserInfo).Error; err == nil {
+				operatorName = studentUserInfo.Nickname
+				if operatorName == "" {
+					operatorName = studentUserInfo.Username
+				}
+			} else {
+				operatorName = "某学生"
+			}
+		}
+	}
+
+	// 创建系统消息
+	systemContent := ""
+	if isTeacher && isSender {
+		// 教师撤回自己的消息
+		systemContent = fmt.Sprintf("%s 撤回了一条消息", operatorName)
+	} else if isTeacher {
+		// 教师撤回学生的消息，需要获取学生姓名
+		var senderName string
+		var classroomStudent model.ClassroomStudent
+		if err := db.Where("classroom_id = ? AND uid = ?", message.ClassroomID, message.SenderID).
+			First(&classroomStudent).Error; err == nil {
+			// 找到班级学生记录，使用真实姓名
+			senderName = classroomStudent.RealName
+		} else {
+			// 未找到班级学生记录，尝试从用户信息表获取昵称
+			var senderUserInfo model.UserInfo
+			if err := db.Where("uuid = ?", message.SenderID).First(&senderUserInfo).Error; err == nil {
+				senderName = senderUserInfo.Nickname
+				if senderName == "" {
+					senderName = senderUserInfo.Username
+				}
+			} else {
+				senderName = "某学生"
+			}
+		}
+		systemContent = fmt.Sprintf("教师 %s 撤回了 %s 的消息", operatorName, senderName)
+	} else {
+		// 学生撤回自己的消息
+		systemContent = fmt.Sprintf("%s 撤回了一条消息", operatorName)
+	}
+
+	systemMessage := &model.ClassroomMessage{
+		ClassroomID: message.ClassroomID,
+		SenderID:    "system", // 系统消息
+		Content:     systemContent,
+		MsgType:     "system",
+	}
+
+	if err := db.Create(systemMessage).Error; err != nil {
+		logger.Error("创建系统消息失败", zap.Error(err))
+	}
+
+	// 删除原消息
 	if err := db.Delete(&message).Error; err != nil {
 		logger.Error("撤回消息失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "撤回失败"))
 		return
 	}
 
-	logger.Info("撤回消息", zap.Uint64("message_id", messageID))
-	c.JSON(http.StatusOK, successResponse(nil))
-}
-
-// ClearMessages 清屏（删除当前用户在该班级的所有消息）
-func (h *Handler) ClearMessages(c *gin.Context) {
-	logger := utils.GetLogger()
-
-	classroomIDStr := c.Param("classroomId")
-	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusOK, errorResponse(400, "班级ID格式错误"))
-		return
-	}
-
-	db := client.GetDB()
-
-	// 获取当前用户ID
-	uid, exists := c.Get("userId")
-	if !exists {
-		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
-		return
-	}
-
-	// 验证用户是否是该班级的教师或学生
-	var classroom model.Classroom
-	if err := db.Where("id = ?", classroomID).First(&classroom).Error; err != nil {
-		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
-		return
-	}
-
-	// 只删除当前用户在该班级发送的消息
-	if err := db.Where("classroom_id = ? AND sender_id = ?", classroomID, uid.(string)).
-		Delete(&model.ClassroomMessage{}).Error; err != nil {
-		logger.Error("清屏失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "清屏失败"))
-		return
-	}
-
-	logger.Info("清屏", zap.Uint64("classroom_id", classroomID), zap.String("user_id", uid.(string)))
+	logger.Info("撤回消息", zap.Uint64("message_id", messageID), zap.String("operator", uid.(string)))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
@@ -2433,4 +2548,106 @@ func (h *Handler) GetProgrammingSubmissions(c *gin.Context) {
 
 	logger.Info("返回编程题提交历史", zap.Int("count", len(result)))
 	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// ==================== 学生班级个人信息管理 ====================
+
+// GetClassroomStudentInfo 获取学生在某个班级中的个人信息（学生）
+func (h *Handler) GetClassroomStudentInfo(c *gin.Context) {
+	logger := utils.GetLogger()
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询学生在该班级的信息
+	var student model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND uid = ? AND status = 1", classroomID, uid.(string)).
+		First(&student).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "未找到班级信息或你不在该班级中"))
+		} else {
+			logger.Error("查询学生班级信息失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(student))
+}
+
+// UpdateClassroomStudentInfo 更新学生在某个班级中的个人信息（学生）
+func (h *Handler) UpdateClassroomStudentInfo(c *gin.Context) {
+	logger := utils.GetLogger()
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	var req struct {
+		RealName     string `json:"realName" binding:"required"`
+		Gender       string `json:"gender"`
+		StudentClass string `json:"studentClass"`
+		StudentNo    string `json:"studentNo"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误: "+err.Error()))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询学生在该班级的信息
+	var student model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND uid = ? AND status = 1", classroomID, uid.(string)).
+		First(&student).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "未找到班级信息或你不在该班级中"))
+		} else {
+			logger.Error("查询学生班级信息失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 更新信息
+	student.RealName = req.RealName
+	student.Gender = req.Gender
+	student.StudentClass = req.StudentClass
+	student.StudentNo = req.StudentNo
+
+	if err := db.Save(&student).Error; err != nil {
+		logger.Error("更新学生班级信息失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	logger.Info("学生更新班级信息成功",
+		zap.Uint64("classroomId", classroomID),
+		zap.String("uid", uid.(string)),
+		zap.String("realName", req.RealName))
+
+	c.JSON(http.StatusOK, successResponse(student))
 }

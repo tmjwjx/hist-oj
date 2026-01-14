@@ -19,7 +19,7 @@
 
     <!-- 班级卡片列表 -->
     <el-row v-else :gutter="20" class="classroom-list">
-      <el-col :span="8" v-for="classroom in validClassrooms" :key="classroom.id">
+      <el-col :span="8" v-for="classroom in classrooms" :key="classroom.id">
         <el-card class="classroom-card" @click.native="viewClassroom(classroom)">
           <div class="card-header">
             <div class="class-name">{{ classroom.className }}</div>
@@ -75,8 +75,11 @@
 </template>
 
 <script>
+import realtimeSync from '@/mixins/realtimeSync'
+
 export default {
   name: 'StudentDashboard',
+  mixins: [realtimeSync],
   data() {
     return {
       loading: false,
@@ -92,6 +95,13 @@ export default {
       rules: {
         classCode: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }],
         realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadMyClassrooms',
+        immediate: true
       }
     }
   },
@@ -100,27 +110,53 @@ export default {
   },
   methods: {
     async loadMyClassrooms() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.classrooms.length === 0 && !this._hasLoadedOnce
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getMyClassrooms')
-        console.log('getMyClassrooms 响应:', res)
 
         if (res) {
           if (res.code === 200) {
-            this.classrooms = res.data || []
+            const newClassrooms = (res.data || []).filter(c => c && typeof c === 'object' && c.id)
+
+            // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+            const currentDataString = JSON.stringify(this.classrooms)
+            const newDataString = JSON.stringify(newClassrooms)
+
+            if (currentDataString !== newDataString) {
+              // 数据真的变化了，才更新
+              this.classrooms = newClassrooms
+            }
           } else {
-            this.classrooms = []
-            console.warn('获取班级列表失败:', res.message)
+            // 只在首次加载失败时设置为空数组
+            if (!this._hasLoadedOnce) {
+              this.classrooms = []
+            }
           }
         } else {
-          this.classrooms = []
+          // 只在首次加载失败时设置为空数组
+          if (!this._hasLoadedOnce) {
+            this.classrooms = []
+          }
         }
       } catch (error) {
-        console.error('加载班级列表失败', error)
-        this.classrooms = []
-        this.$message.error(this.$t('m.Load_Failed'))
+        // 只在首次加载失败时设置为空数组并显示错误
+        if (!this._hasLoadedOnce) {
+          this.classrooms = []
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+          this._hasLoadedOnce = true
+        }
       }
     },
     async joinClassroom() {
@@ -161,14 +197,6 @@ export default {
         return classroom.teacher.username || classroom.teacher.nickname || '-'
       }
       return '-'
-    }
-  },
-  computed: {
-    validClassrooms() {
-      if (!this.classrooms || !Array.isArray(this.classrooms)) {
-        return []
-      }
-      return this.classrooms.filter(c => c && typeof c === 'object')
     }
   }
 }
@@ -234,13 +262,13 @@ export default {
 .classroom-card {
   margin-bottom: 20px;
   cursor: pointer;
-  transition: all 0.3s;
+  /* 移除 transition 避免轮询时闪烁 */
   border-radius: 8px;
   overflow: hidden;
 }
 
 .classroom-card:hover {
-  transform: translateY(-8px);
+  /* 移除 transform 避免轮询时闪烁 */
   box-shadow: 0 8px 30px rgba(64, 158, 255, 0.3);
 }
 

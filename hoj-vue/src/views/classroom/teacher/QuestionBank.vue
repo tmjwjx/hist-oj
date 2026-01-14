@@ -10,7 +10,8 @@
       </el-button>
     </div>
 
-    <el-table :data="questions" v-loading="loading" stripe>
+    <!-- 移除 v-loading 避免轮询时闪烁 -->
+    <el-table :data="questions" stripe>
       <el-table-column prop="title" :label="$t('m.Question_Title')">
         <template slot-scope="{ row }">
           <div v-html="renderMarkdown(row.title)" class="markdown-body"></div>
@@ -343,6 +344,7 @@
 import MarkdownIt from 'markdown-it'
 import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
+import realtimeSync from '@/mixins/realtimeSync'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -354,6 +356,7 @@ md.use(katex)
 
 export default {
   name: 'QuestionBank',
+  mixins: [realtimeSync],
   props: {
     classroomId: {
       type: [String, Number],
@@ -390,11 +393,18 @@ export default {
         difficulty: 1,
         score: 2, // 单选题默认2分
         isShared: false
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadQuestions',
+        immediate: true
       }
     }
   },
   mounted() {
-    this.loadQuestions()
+    // 由 realtimeSync mixin 自动启动同步
   },
   methods: {
     handleTypeChange() {
@@ -428,7 +438,15 @@ export default {
       form.referenceAnswer = ''
     },
     async loadQuestions() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.questions.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getQuestionBank', {
           classroomId: this.classroomId,
@@ -436,12 +454,25 @@ export default {
           limit: 50
         })
         if (res.code === 200) {
-          this.questions = res.data.questions || res.data || []
+          const newQuestions = res.data.questions || res.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.questions)
+          const newDataString = JSON.stringify(newQuestions)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.questions = newQuestions
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async createQuestion() {
@@ -758,15 +789,15 @@ export default {
 .option-radio {
   margin-right: 8px;
   font-weight: bold;
-  font-size: 16px;
-  min-width: 30px;
+  font-size: 14px;
+  min-width: 20px;
 }
 
 .option-checkbox {
   margin-right: 8px;
   font-weight: bold;
-  font-size: 16px;
-  min-width: 30px;
+  font-size: 14px;
+  min-width: 20px;
 }
 
 .answer-tip {
@@ -837,7 +868,29 @@ export default {
   margin-bottom: 10px;
   background: #F5F7FA;
   border-radius: 4px;
-  gap: 10px;
+  gap: 8px;
+}
+
+.preview-option-item .el-tag {
+  flex-shrink: 0;
+  margin-right: 0;
+  padding: 0 6px !important;
+  height: 20px !important;
+  line-height: 20px !important;
+  font-size: 12px !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  text-align: center;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.preview-option-item .markdown-body {
+  flex: 1;
+  line-height: 1.6;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .preview-option-item span {

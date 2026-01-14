@@ -10,8 +10,8 @@
       </el-breadcrumb-item>
     </el-breadcrumb>
 
-    <!-- 文件夹和文件列表 -->
-    <div v-loading="loading" class="content-area">
+    <!-- 文件夹和文件列表 - 移除 v-loading 避免轮询时闪烁 -->
+    <div class="content-area">
       <el-row :gutter="20">
         <el-col :span="8" v-for="folder in folders" :key="folder.id">
           <el-card class="folder-card" @click.native="openFolder(folder)">
@@ -41,8 +41,11 @@
 </template>
 
 <script>
+import realtimeSync from '@/mixins/realtimeSync'
+
 export default {
   name: 'Materials',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -52,7 +55,15 @@ export default {
       folders: [],
       materials: [],
       currentFolderId: 0, // 0表示根目录
-      currentFolderName: ''
+      currentFolderName: '',
+      isInitialLoad: true, // 标记是否是真正的首次加载
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 500,
+        syncFunction: 'loadContent',
+        immediate: true
+      }
     }
   },
   watch: {
@@ -70,7 +81,14 @@ export default {
   },
   methods: {
     async loadContent() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading
+      if (this.isInitialLoad) {
+        this.loading = true
+      }
+
       try {
         // 获取当前文件夹下的子文件夹
         const foldersRes = await this.$store.dispatch('classroom/getFolders', {
@@ -82,25 +100,67 @@ export default {
         const materialsRes = await this.$store.dispatch('classroom/getMaterials', this.currentFolderId || 'root')
 
         if (foldersRes.code === 200) {
-          this.folders = foldersRes.data || []
+          const newFolders = foldersRes.data || []
+
+          // 智能更新:检测新增、删除、重命名
+          if (this.isInitialLoad) {
+            this.folders = newFolders
+          } else {
+            // 轮询时:检查数量或名称是否有变化
+            const folderMap = new Map(this.folders.map(f => [f.id, f.folderName]))
+            let hasFolderChanges = newFolders.length !== this.folders.length
+
+            // 如果数量相同,检查是否有文件夹重命名
+            if (!hasFolderChanges) {
+              for (const newFolder of newFolders) {
+                const oldName = folderMap.get(newFolder.id)
+                if (oldName && oldName !== newFolder.folderName) {
+                  hasFolderChanges = true
+                  break
+                }
+              }
+            }
+
+            if (hasFolderChanges) {
+              this.folders = newFolders
+            }
+          }
         }
         if (materialsRes.code === 200) {
-          this.materials = materialsRes.data || []
+          const newMaterials = materialsRes.data || []
+
+          // 智能更新:只添加/删除变化的项,不替换整个数组
+          if (this.isInitialLoad) {
+            this.materials = newMaterials
+          } else {
+            // 轮询时:只检查数量变化
+            if (newMaterials.length !== this.materials.length) {
+              this.materials = newMaterials
+            }
+            // 数量相同时不更新,避免闪烁
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (this.isInitialLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (this.isInitialLoad) {
+          this.loading = false
+          this.isInitialLoad = false // 标记首次加载完成
+        }
       }
     },
     openFolder(folder) {
       this.currentFolderId = folder.id
       this.currentFolderName = folder.folderName
+      this.isInitialLoad = true // 切换文件夹时重置标记
       this.loadContent()
     },
     goToRoot() {
       this.currentFolderId = 0
       this.currentFolderName = ''
+      this.isInitialLoad = true // 返回根目录时重置标记
       this.loadContent()
     },
     downloadMaterial(material) {
@@ -161,12 +221,12 @@ export default {
   margin-bottom: 15px;
   text-align: center;
   cursor: pointer;
-  transition: transform 0.2s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .folder-card:hover,
 .material-card:hover {
-  transform: translateY(-2px);
+  /* 移除 transform 避免轮询时闪烁 */
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 

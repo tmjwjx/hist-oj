@@ -3,6 +3,9 @@
     <div class="page-header">
       <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
       <h2>{{ classroomInfo.className || $t('m.Classroom_Detail') }}</h2>
+      <el-button type="primary" icon="el-icon-user" @click="goToMyInfo" style="margin-left: auto;">
+        我的信息
+      </el-button>
     </div>
     <el-tabs v-model="activeTab" @tab-click="handleTabClick">
       <el-tab-pane :label="$t('m.Homework_List')" name="homework">
@@ -66,10 +69,24 @@ export default {
       }
     },
     handleTabClick(tab) {
-      this.$router.replace({ query: { tab: tab.name } })
+      // 只有当 tab 真正改变时才更新路由
+      if (this.$route.query.tab !== tab.name) {
+        this.$router.replace({ query: { tab: tab.name } }).catch(err => {
+          // 忽略导航重复错误
+          if (err.name !== 'NavigationDuplicated') {
+            console.error('导航错误:', err)
+          }
+        })
+      }
     },
     goBack() {
       this.$router.push({ name: 'StudentDashboard' })
+    },
+    goToMyInfo() {
+      this.$router.push({
+        name: 'StudentMyInfo',
+        params: { classroomId: this.classroomId }
+      })
     }
   }
 }

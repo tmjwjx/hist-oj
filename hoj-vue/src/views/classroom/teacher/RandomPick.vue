@@ -79,7 +79,8 @@
           {{ $t('m.Refresh') }}
         </el-button>
       </div>
-      <el-table :data="history" v-loading="loadingHistory" stripe>
+      <!-- 移除 v-loading 避免轮询时闪烁 -->
+      <el-table :data="history" stripe>
         <el-table-column type="index" :label="$t('m.Index')" width="60" />
         <el-table-column :label="$t('m.Student_Name')" min-width="120">
           <template slot-scope="{ row }">
@@ -109,9 +110,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'RandomPick',
+  mixins: [realtimeSync],
   props: {
     classroomId: {
       type: [String, Number],
@@ -124,7 +127,14 @@ export default {
       pickedStudent: null,
       picking: false,
       history: [],
-      loadingHistory: false
+      loadingHistory: false,
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadStudents',
+        immediate: true
+      }
     }
   },
   computed: {
@@ -149,13 +159,37 @@ export default {
   },
   methods: {
     async loadStudents() {
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.students.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getClassroomStudents', this.classroomId)
         if (res.code === 200) {
-          this.students = res.data || []
+          const newStudents = res.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.students)
+          const newDataString = JSON.stringify(newStudents)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.students = newStudents
+          }
         }
       } catch (error) {
-        console.error('加载学生列表失败:', error)
+        if (isFirstLoad) {
+          console.error('加载学生列表失败:', error)
+        }
+      } finally {
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async loadHistory() {

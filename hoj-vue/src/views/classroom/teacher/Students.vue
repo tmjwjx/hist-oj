@@ -7,7 +7,8 @@
       </el-button>
     </div>
 
-    <el-table :data="students" v-loading="loading" stripe>
+    <!-- 移除 v-loading 避免轮询时闪烁 -->
+    <el-table :data="students" stripe>
       <el-table-column prop="user.username" :label="$t('m.Username')" />
       <el-table-column prop="realName" :label="$t('m.Real_Name')" />
       <el-table-column prop="gender" :label="$t('m.Gender')" width="80" />
@@ -53,8 +54,11 @@
 </template>
 
 <script>
+import realtimeSync from '@/mixins/realtimeSync'
+
 export default {
   name: 'Students',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -70,6 +74,13 @@ export default {
         gender: '',
         studentClass: '',
         studentNo: ''
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadStudents',
+        immediate: true
       },
       rules: {
         realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
@@ -91,16 +102,37 @@ export default {
   },
   methods: {
     async loadStudents() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.students.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getClassroomStudents', this.classroomId)
         if (res.code === 200) {
-          this.students = res.data || []
+          const newStudents = res.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.students)
+          const newDataString = JSON.stringify(newStudents)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.students = newStudents
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     handleEdit(student) {

@@ -1,27 +1,37 @@
 <template>
-  <div class="discussion-panel">
-    <div class="header">
+  <div class="student-discussion">
+    <div class="discussion-header">
       <h3>{{ $t('m.Classroom_Discussion') }}</h3>
-      <el-button type="danger" icon="el-icon-delete" @click="clearMessages">
-        清屏
-      </el-button>
+    </div>
+
+    <div class="picked-student" v-if="pickedStudent">
+      <el-alert
+        :title="$t('m.Picked_Student') + ': ' + (pickedStudent.pickedUser?.nickname || '-')"
+        type="success"
+        :closable="false"
+      />
     </div>
 
     <div class="message-list" ref="messageList">
-      <div v-for="msg in messages" :key="msg.id" class="message-item">
-        <div class="message-header">
-          <span class="sender">{{ getSenderName(msg) }}</span>
-          <div class="message-actions">
-            <span class="time">{{ formatTime(msg.createdAt) }}</span>
-            <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
-              撤回
-            </el-button>
+      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ 'system-message': msg.msgType === 'system' }">
+        <div v-if="msg.msgType === 'system'" class="system-message-content">
+          {{ msg.content }}
+        </div>
+        <template v-else>
+          <div class="message-header">
+            <span class="sender">{{ getSenderName(msg) }}</span>
+            <div class="message-actions">
+              <span class="time">{{ formatTime(msg.createdAt) }}</span>
+              <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
+                撤回
+              </el-button>
+            </div>
           </div>
-        </div>
-        <div v-if="msg.msgType === 'text'" class="message-content" v-html="renderContent(msg.content)"></div>
-        <div v-else class="message-image">
-          <img :src="getImageUrl(msg.imageUrl)" alt="image" />
-        </div>
+          <div v-if="msg.msgType === 'text'" class="message-content" v-html="renderContent(msg.content)"></div>
+          <div v-else class="message-image">
+            <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+          </div>
+        </template>
       </div>
     </div>
 
@@ -80,9 +90,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'Discussion',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -92,18 +104,26 @@ export default {
       messages: [],
       newMessage: '',
       sending: false,
+      pickedStudent: null,
       uploadUrl: '/rating-api/api/classroom/message/upload-image',
       uploadHeaders: {
         Authorization: localStorage.getItem('token') || ''
       },
-      currentUserId: null, // 当前用户ID
       showEmojiPicker: false,
       emojiList: ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '🥰', '😗', '😙', '😚', '🙂', '🤗', '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟', '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '🥵', '🥶', '😳', '🤪', '😵', '😡', '😠', '🤬', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '😇', '🤠', '🤡', '🥳', '🥴', '🥺', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👍', '👎', '👏', '🙏', '💪', '🎉', '❤️', '💕', '💖', '💗', '💙', '💚', '💛', '🧡', '💜', '🖤', '💯', '✨', '⭐', '🌟', '💫', '🔥', '💥', '💢', '💦', '💨'],
       isComposing: false,
       justFinishedComposing: false,
       compositionEndTime: 0,
+      currentUserId: null,
       imageUploading: false,
-      imageUploadProgress: 0
+      imageUploadProgress: 0,
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000, // 3秒刷新一次，减少闪烁
+        syncFunction: 'loadMessages',
+        immediate: true
+      }
     }
   },
   watch: {
@@ -118,29 +138,58 @@ export default {
   },
   mounted() {
     this.getCurrentUserId()
-    this.startPolling()
-  },
-  beforeDestroy() {
-    this.stopPolling()
+    // realtimeSync mixin 会自动启动轮询
   },
   methods: {
     async loadMessages() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.messages.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getMessages', {
           classroomId: this.classroomId,
           params: { page: 1, limit: 50 }
         })
         if (res.code === 200) {
-          this.messages = res.data || []
-          this.$nextTick(() => {
-            this.scrollToBottom()
-          })
+          const newMessages = res.data || []
+
+          // 检查数量是否变化
+          if (newMessages.length !== this.messages.length) {
+            const hasNewMessages = newMessages.length > this.messages.length
+            this.messages = newMessages
+            if (hasNewMessages) {
+              this.$nextTick(() => {
+                this.scrollToBottom()
+              })
+            }
+            return
+          }
+
+          // 检查每条消息的 ID 是否都相同(避免深度对比整个对象)
+          const currentIds = this.messages.map(m => m.id).join(',')
+          const newIds = newMessages.map(m => m.id).join(',')
+
+          if (currentIds !== newIds) {
+            // ID 列表不同，说明有消息变化，需要更新
+            this.messages = newMessages
+          }
+          // 如果 ID 列表相同，不更新数据，避免闪烁
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        // 只在首次加载失败时提示错误
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async sendMessage() {
@@ -189,7 +238,7 @@ export default {
     handleImageUploadSuccess(response) {
       this.imageUploading = false
       this.imageUploadProgress = 0
-      if (response.code === 200 && response.data && response.data.imageUrl) {
+      if (response.code === 200) {
         this.messages.push(response.data)
         this.$nextTick(() => {
           this.scrollToBottom()
@@ -251,25 +300,18 @@ export default {
         container.scrollTop = container.scrollHeight
       }
     },
-    startPolling() {
-      this.pollingTimer = setInterval(() => {
-        this.loadMessages()
-      }, 5000)
-    },
-    stopPolling() {
-      if (this.pollingTimer) {
-        clearInterval(this.pollingTimer)
-      }
-    },
     getSenderName(msg) {
+      // 优先使用班级内的真实姓名
+      if (msg.studentInfo && msg.studentInfo.realName) {
+        return msg.studentInfo.realName
+      }
+      // 其次使用 HOJ 昵称
       if (msg.sender && msg.sender.nickname) {
         return msg.sender.nickname
       }
+      // 最后使用 HOJ 用户名
       if (msg.sender && msg.sender.username) {
         return msg.sender.username
-      }
-      if (msg.studentInfo && msg.studentInfo.realName) {
-        return msg.studentInfo.realName
       }
       return this.$t('m.Unknown')
     },
@@ -284,31 +326,25 @@ export default {
       return moment(time).format('YYYY-MM-DD HH:mm:ss')
     },
     getCurrentUserId() {
-      // 从token中解析用户ID（假设token中包含uid信息）
-      // 这里简化处理，实际应该从store或API获取
-      const token = localStorage.getItem('token')
-      if (token) {
-        // 解析JWT token获取用户ID（这里简化处理）
-        // 实际项目中应该从vuex store或API获取
-        this.$store.dispatch('user/getInfo').then(res => {
-          if (res && res.data && res.data.data) {
-            this.currentUserId = res.data.data.uuid
-          }
-        }).catch(() => {
-          // 如果获取失败，尝试从localStorage获取
-          const userInfo = localStorage.getItem('user')
-          if (userInfo) {
-            try {
-              this.currentUserId = JSON.parse(userInfo).uuid
-            } catch (e) {
-              console.error('解析用户信息失败', e)
-            }
-          }
-        })
+      // 优先从 localStorage 获取用户信息
+      const userInfo = localStorage.getItem('user')
+      if (userInfo) {
+        try {
+          const user = JSON.parse(userInfo)
+          this.currentUserId = user.uuid || user.userId
+          return
+        } catch (e) {
+          // 解析失败，继续尝试其他方式
+        }
+      }
+
+      // 备选方案：从 store 获取
+      const storeState = this.$store.state
+      if (storeState.user && storeState.user.userInfo) {
+        this.currentUserId = storeState.user.userInfo.uuid || storeState.user.userInfo.userId
       }
     },
     canRecallMessage(msg) {
-      // 只能撤回自己发送的消息
       return msg.senderId === this.currentUserId
     },
     async recallMessage(msg) {
@@ -331,51 +367,34 @@ export default {
           this.$message.error('撤回失败')
         }
       }
-    },
-    async clearMessages() {
-      try {
-        await this.$confirm('确定要清屏吗？这将删除您在该班级的所有消息记录！', '警告', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        })
-
-        const res = await this.$store.dispatch('classroom/clearMessages', this.classroomId)
-        if (res.code === 200) {
-          this.$message.success('清屏成功')
-          this.loadMessages()
-        } else {
-          this.$message.error(res.message || '清屏失败')
-        }
-      } catch (error) {
-        if (error !== 'cancel') {
-          this.$message.error('清屏失败')
-        }
-      }
     }
   }
 }
 </script>
 
 <style scoped>
-.discussion-panel {
+.student-discussion {
   padding: 20px;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 200px);
 }
 
-.header {
+.discussion-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
 
-.header h3 {
+.discussion-header h3 {
   font-size: 20px;
   color: #409EFF;
   margin: 0;
+}
+
+.picked-student {
+  margin-bottom: 20px;
 }
 
 .message-list {
@@ -395,7 +414,6 @@ export default {
 .message-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 5px;
 }
 
@@ -404,15 +422,15 @@ export default {
   color: #409EFF;
 }
 
+.time {
+  font-size: 12px;
+  color: #909399;
+}
+
 .message-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.time {
-  font-size: 12px;
-  color: #909399;
 }
 
 .message-content {
@@ -456,10 +474,25 @@ export default {
   text-align: center;
   padding: 5px;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .emoji-item:hover {
   background-color: #F5F7FA;
+}
+
+.system-message {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.system-message-content {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid #ffeaa7;
 }
 </style>

@@ -764,5 +764,9 @@ export const m = {
   Unrating_Contest: '非 Rating コンテスト',
   Rating_Contest_Tips: 'Rating コンテスト - コンテスト終了後に参加者の Rating が計算されます',
   Unrating_Contest_Tips: '非 Rating コンテスト - コンテスト終了後に Rating は計算されません',
-  Rating_Type_Cannot_Be_Modified: 'Rating タイプは作成後に変更できません'
+  Rating_Type_Cannot_Be_Modified: 'Rating タイプは作成後に変更できません',
+
+  // クラスルーム関連
+  No_Classroom_Yet: 'まだクラスルームに参加していません',
+  Join_Classroom_Tip: '上のボタンをクリックして最初のクラスルームに参加してください！'
 }

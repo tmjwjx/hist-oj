@@ -270,11 +270,12 @@ type ClassroomMessage struct {
 	SenderID    string    `gorm:"type:varchar(32);not null" json:"senderId"`
 	Content     string    `gorm:"type:text" json:"content"`
 	ImageURL    string    `gorm:"type:varchar(500)" json:"imageUrl"`
-	MsgType     string    `gorm:"type:varchar(20);default:text" json:"msgType"` // text, image
+	MsgType     string    `gorm:"type:varchar(20);default:text" json:"msgType"` // text, image, system
 	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime;index:idx_create_time" json:"createdAt"`
 
 	// 关联字段
-	Sender *UserInfo `gorm:"foreignKey:SenderID;references:UUID" json:"sender,omitempty"`
+	Sender      *UserInfo         `gorm:"foreignKey:SenderID;references:UUID" json:"sender,omitempty"`
+	StudentInfo *ClassroomStudent `gorm:"-" json:"studentInfo,omitempty"` // 不存储到数据库，仅用于查询时返回
 }
 
 // TableName 指定表名

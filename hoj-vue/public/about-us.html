@@ -18,6 +18,10 @@
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             --recruit-color: #52c41a;    /* 招募主题绿 */
             --recruit-light: #f6ffed;    /* 招募浅绿背景 */
+            --class-color: #fa8c16;      /* 班级功能主题橙 */
+            --class-light: #fff7e6;      /* 班级功能浅橙背景 */
+            --interact-color: #722ed1;   /* 互动工具主题紫 */
+            --interact-light: #f9f0ff;   /* 互动工具浅紫背景 */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -57,14 +61,14 @@
         .nav-menu a { font-size: 15px; font-weight: 500; transition: color 0.3s; }
         .nav-menu a:hover, .nav-menu a.active { color: var(--primary-color); }
 
-        /* Banner 区域 (修改部分) */
+        /* Banner 区域 */
         .banner {
             background: linear-gradient(135deg, #001529 0%, #003a70 100%);
             padding: 80px 20px;
             text-align: center;
             color: #fff;
-            position: relative; /* 为伪元素定位做准备 */
-            overflow: hidden;   /* 确保Logo不溢出 */
+            position: relative;
+            overflow: hidden;
         }
 
         /* ICPC Logo 水印背景 */
@@ -74,22 +78,19 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%;       /* 宽度占 Banner 的 80% */
-            max-width: 500px; /* 最大宽度限制 */
+            width: 80%;
+            max-width: 500px;
             height: 100%;
-            /* 这里使用了一个通用的 ICPC Logo URL，为了稳定建议下载后换成本地图片路径 */
             background-image: url('https://upload.wikimedia.org/wikipedia/commons/4/48/ICPC_Foundation_logo.svg');
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain;
-            opacity: 0.1; /* 透明度 10%，非常低调的水印效果 */
-            z-index: 0;   /* 在背景之上，文字之下 */
-
-            /* 滤镜技巧：将彩色Logo转为白色，增强融合感 */
+            opacity: 0.1;
+            z-index: 0;
             filter: grayscale(100%) brightness(500%);
         }
 
-        /* 确保 Banner 上的文字在 Logo 之上 */
+        /* Banner 文字层级 */
         .banner h1, .banner p, .banner-btn {
             position: relative;
             z-index: 1;
@@ -118,7 +119,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             margin-bottom: 50px;
             position: relative;
-            z-index: 2; /* 确保压在 Banner 下边缘之上 */
+            z-index: 2;
         }
 
         .stats-grid {
@@ -157,11 +158,19 @@
         .recruit-title::after {
             background: var(--recruit-color);
         }
+        /* 班级板块标题特殊样式 */
+        .class-title::after {
+            background: var(--class-color);
+        }
+        /* 互动工具标题特殊样式 */
+        .interact-title::after {
+            background: var(--interact-color);
+        }
 
         /* 特色介绍卡片 (2x2 布局) */
         .feature-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr); /* 强制两列 */
+            grid-template-columns: repeat(2, 1fr);
             gap: 30px;
             margin-bottom: 80px;
         }
@@ -186,6 +195,24 @@
             box-shadow: 0 10px 30px rgba(82, 196, 26, 0.15);
             border-color: var(--recruit-color);
         }
+        /* 班级卡片特殊样式 */
+        .class-card {
+            border-color: var(--class-color);
+            background: var(--class-light);
+        }
+        .class-card:hover {
+            box-shadow: 0 10px 30px rgba(250, 140, 22, 0.15);
+            border-color: var(--class-color);
+        }
+        /* 互动工具卡片特殊样式 */
+        .interact-card {
+            border-color: var(--interact-color);
+            background: var(--interact-light);
+        }
+        .interact-card:hover {
+            box-shadow: 0 10px 30px rgba(114, 46, 209, 0.15);
+            border-color: var(--interact-color);
+        }
 
         .feature-card:hover {
             transform: translateY(-5px);
@@ -209,12 +236,30 @@
             background: rgba(82, 196, 26, 0.1);
             color: var(--recruit-color);
         }
+        /* 班级卡片图标样式 */
+        .class-icon {
+            background: rgba(250, 140, 22, 0.1);
+            color: var(--class-color);
+        }
+        /* 互动工具图标样式 */
+        .interact-icon {
+            background: rgba(114, 46, 209, 0.1);
+            color: var(--interact-color);
+        }
 
         .feature-content h3 { font-size: 20px; margin-bottom: 10px; color: #333; }
         .feature-content p { font-size: 14px; color: #666; line-height: 1.7; }
         /* 招募卡片文字样式 */
         .recruit-content h3 {
             color: var(--recruit-color);
+        }
+        /* 班级卡片文字样式 */
+        .class-content h3 {
+            color: var(--class-color);
+        }
+        /* 互动工具文字样式 */
+        .interact-content h3 {
+            color: var(--interact-color);
         }
         .contact-tip {
             background: #fff;
@@ -233,7 +278,7 @@
             padding: 60px 20px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-            margin-bottom: 80px; /* 增加底部间距，和后续板块保持一致 */
+            margin-bottom: 80px;
         }
 
         .sub-title {
@@ -357,14 +402,14 @@
         </div>
     </header>
 
-    <!-- Banner (含透明ICPC背景) -->
+    <!-- Banner (更新描述，突出教学管理核心功能) -->
     <div class="banner">
         <h1>Bing Online Judge</h1>
-        <p>承办校级程序设计竞赛 · 全语言支持的高效评测系统 · 智能QQ机器人助手<br>加入校队，一起冲击ACM/ICPC、百度之星，天梯赛，码蹄杯等高水平竞赛！</p>
+        <p>承办校级程序设计竞赛 · 全语言支持的高效评测系统 · 在线编程对战平台<br>一站式班级教学管理：题库建设、作业布置、在线阅卷、课堂互动全覆盖！</p>
         <a href="http://bingoj.cn" class="banner-btn">进入评测系统</a>
     </div>
 
-    <!-- 数据统计条 - 合并语言支持项 -->
+    <!-- 数据统计条 - 替换QQ Bot为Online Battle -->
     <div class="stats-bar">
         <div class="stats-grid">
             <div class="stat-item">
@@ -384,19 +429,19 @@
                 <p>积分系统</p>
             </div>
             <div class="stat-item">
-                <h3>QQ Bot</h3>
-                <p>智能交互</p>
+                <h3>Online Battle</h3>
+                <p>在线对战</p>
             </div>
         </div>
     </div>
 
     <div class="container">
-        <!-- 团队介绍（移到最前面） -->
+        <!-- 团队介绍 -->
         <div class="team-section">
             <div class="section-title" style="margin-bottom: 10px;">
                 <h2>团队成员</h2>
             </div>
-            <p style="text-align: center; color: #666; margin-bottom: 40px;">致力于构建专业的算法竞赛训练平台</p>
+            <p style="text-align: center; color: #666; margin-bottom: 40px;">致力于构建专业的算法竞赛训练平台与一站式教学管理系统</p>
 
             <!-- 指导教师 -->
             <div class="sub-title">指导教师</div>
@@ -430,7 +475,7 @@
                     <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">3311918412</span></div>
                 </div>
 
-                <!-- 赵禹铭（队长，新增招募标注） -->
+                <!-- 赵禹铭（队长） -->
                 <div class="member-card role-capt">
                     <img src="https://ui-avatars.com/api/?name=Zhao+Yuming&background=52c41a&color=fff&size=128&bold=true" class="m-avatar">
                     <div class="m-name">赵禹铭 <span class="capt-tag">招新对接</span></div>
@@ -460,12 +505,12 @@
             </div>
         </div>
 
-        <!-- OJ 特色介绍 (2x2 布局) -->
+        <!-- OJ 特色介绍 -->
         <div class="section-title">
             <h2>平台特色</h2>
         </div>
         <div class="feature-grid">
-            <!-- 特色 1: 全面语言支持 (合并后) -->
+            <!-- 特色 1: 全面语言支持 -->
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-code"></i></div>
                 <div class="feature-content">
@@ -474,7 +519,7 @@
                 </div>
             </div>
 
-            <!-- 特色 2: 专业赛事承办（新增报名系统内容） -->
+            <!-- 特色 2: 专业赛事承办 -->
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-flag-checkered"></i></div>
                 <div class="feature-content">
@@ -483,7 +528,7 @@
                 </div>
             </div>
 
-            <!-- 特色 3: 梯度化题库（新增校招题介绍） -->
+            <!-- 特色 3: 梯度化题库 -->
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-database"></i></div>
                 <div class="feature-content">
@@ -502,45 +547,131 @@
             </div>
         </div>
 
-        <!-- QQ机器人助手板块 - 精简为4个卡片 -->
+        <!-- 在线对战平台板块（补全4个卡片，布局均衡） -->
         <div class="section-title">
-            <h2>QQ机器人助手</h2>
-            <h3>加入校队群，体验完整服务</h3>
+            <h2>在线对战平台</h2>
+            <h3>实时编程PK，提升竞技水平</h3>
         </div>
         <div class="feature-grid">
-            <!-- QQbot 特色 1: 实时PK对战 -->
+            <!-- 对战特色 1: 实时一对一PK -->
             <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-robot"></i></div>
+                <div class="feature-icon"><i class="fas fa-users-gear"></i></div>
                 <div class="feature-content">
-                    <h3>实时编程PK对战</h3>
-                    <p>发送 <strong>/bat 用户名A 用户名B 难度</strong> 指令发起PK，系统随机匹配指定难度题目，实时监控评测队列，率先AC的用户自动判定获胜，胜场数据持久化存储；支持 <strong>/give 用户名</strong> 投降判定、<strong>/end 对局ID</strong> 结束对局。</p>
+                    <h3>实时一对一PK</h3>
+                    <p>支持用户自主发起/接受编程对战，系统随机匹配双方未写过的题目，实时监控代码提交与评测状态，率先通过的用户自动判定获胜，胜场数据持久化存储；支持投降、强制结束对局等灵活操作，满足多样化对战需求。</p>
                 </div>
             </div>
 
-            <!-- QQbot 特色 2: 多维度数据查询 -->
+            <!-- 对战特色 2: 多难度对战模式 -->
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                <div class="feature-content">
+                    <h3>多难度对战模式</h3>
+                    <p>提供入门/简单/中等/困难/大师/专家6个难度等级的对战选题，支持自定义对战时长（15/30/60分钟），系统根据双方历史Rating值匹配实力相近的对手，保证对战公平性；对战过程中实时显示双方提交次数、通过用例数，增强竞技体验。</p>
+                </div>
+            </div>
+
+            <!-- 对战特色 3: 对战记录与复盘 -->
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div class="feature-content">
+                    <h3>对战记录与复盘</h3>
+                    <p>自动保存所有对战记录，包含双方提交的代码、评测结果、AC时间等详细数据；支持对战复盘功能，可查看对手的解题思路与代码实现，对比分析自身不足，快速提升算法解题能力。</p>
+                </div>
+            </div>
+
+            <!-- 对战特色 4: 对战排行榜 -->
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-trophy"></i></div>
                 <div class="feature-content">
-                    <h3>多维度数据查询</h3>
-                    <p>• <strong>/rank</strong>：查看所有用户的PK胜场排名<br>• <strong>/rating 用户名</strong>：查询用户在BingoJ平台的Rating值与等级<br>• <strong>/contest</strong>：查看当前时间之后的比赛信息（名称/时间/赛制）</p>
+                    <h3>对战排行榜</h3>
+                    <p>按胜场数、胜率、连胜次数等维度生成对战排行榜，支持日/周/月/总榜切换；上榜用户可获得专属徽章与平台积分奖励，激励用户积极参与对战，形成良性竞争氛围。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增：课堂互动工具板块（签到、公告、随机选人） -->
+        <div class="section-title interact-title">
+            <h2>课堂互动工具</h2>
+            <h3>轻量化课堂管理，提升教学互动效率</h3>
+        </div>
+        <div class="feature-grid">
+            <!-- 互动工具 1: 智能签到 -->
+            <div class="feature-card interact-card">
+                <div class="feature-icon interact-icon"><i class="fas fa-clipboard-check"></i></div>
+                <div class="feature-content interact-content">
+                    <h3>智能签到管理</h3>
+                    <p>支持<strong>一键发起课堂签到</strong>自动统计签到数据，生成签到率报表，支持导出未签到学生名单；支持补签申请审核，签到记录永久留存，方便考勤管理与学情分析。</p>
                 </div>
             </div>
 
-            <!-- QQbot 特色 3: 随机题目推送 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-random"></i></div>
-                <div class="feature-content">
-                    <h3>随机题目推送</h3>
-                    <p>发送 <strong>/rand 难度</strong> 指令，快速获取指定难度（入门/简单/中等/困难/大师/专家）的随机题目链接，满足日常刷题、赛前热身、PK选题等多样化需求，支持全梯度题库覆盖。</p>
+            <!-- 互动工具 2: 班级公告系统 -->
+            <div class="feature-card interact-card">
+                <div class="feature-icon interact-icon"><i class="fas fa-bullhorn"></i></div>
+                <div class="feature-content interact-content">
+                    <h3>班级公告系统</h3>
+                    <p>支持发布<strong>班级专属公告</strong>，可设置公告置顶、有效期、是否需要已读回执；学生端自动推送公告提醒，满足作业通知、课程调整、活动安排等各类通知需求。</p>
                 </div>
             </div>
 
-            <!-- QQbot 特色 4: 完整指令与数据保障 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-question-circle"></i></div>
-                <div class="feature-content">
-                    <h3>完整指令与数据保障</h3>
-                    <p>发送 <strong>/help</strong> 指令查看所有功能的详细使用格式（含示例与参数说明）；用户胜场排名数据自动保存到本地文件，重启Bot后数据不丢失，严格限制用户多开对局保证PK公平性。</p>
+            <!-- 互动工具 3: 随机选人互动 -->
+            <div class="feature-card interact-card">
+                <div class="feature-icon interact-icon"><i class="fas fa-random"></i></div>
+                <div class="feature-content interact-content">
+                    <h3>随机选人互动</h3>
+                    <p>内置<strong>课堂随机选人</strong>抽取结果大屏展示；自动记录选人互动历史，可导出课堂互动频次报表，兼顾课堂公平性与互动趣味性。</p>
+                </div>
+            </div>
+
+            <!-- 互动工具 4: 资料共享中心 -->
+            <div class="feature-card interact-card">
+                <div class="feature-icon interact-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div class="feature-content interact-content">
+                    <h3>班级资料共享</h3>
+                    <p>支持上传课件、讲义、代码模板、学习资料等文件（支持PDF/Word/PPT/压缩包等格式），按科目/章节分类管理；可设置资料查看权限（仅教师/全体学生），支持资料下载次数统计，打造专属班级学习资源库。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 班级教学管理板块（优化功能描述，聚焦题库/作业/阅卷核心） -->
+        <div class="section-title class-title">
+            <h2>班级教学管理</h2>
+            <h3>一站式算法教学解决方案</h3>
+        </div>
+        <div class="feature-grid">
+            <!-- 班级管理与基础设置 -->
+            <div class="feature-card class-card">
+                <div class="feature-icon class-icon"><i class="fas fa-classroom"></i></div>
+                <div class="feature-content class-content">
+                    <h3>精细化班级管理</h3>
+                    <p>支持<strong>自定义创建多个班级</strong>，通过班级码快速纳新，支持修改学生姓名、学号、联系方式等信息；按班级维度管理所有教学数据，打造专属班级教学空间。</p>
+                </div>
+            </div>
+
+            <!-- 多题型题库体系 -->
+            <div class="feature-card class-card">
+                <div class="feature-icon class-icon"><i class="fas fa-database"></i></div>
+                <div class="feature-content class-content">
+                    <h3>多题型题库体系</h3>
+                    <p>支持<strong>个人题库与教师共享题库</strong>双模式，满足个性化备课与集体教研需求。题型覆盖单选、判断、多选、主观题四大类，编程题可直接从平台主题库一键导入；所有题面均支持<strong>Markdown 语法编辑</strong>，公式、代码块、图片等内容一键排版，轻松打造标准化、高质量题库。</p>
+                </div>
+            </div>
+
+            <!-- 灵活作业创建与权限控制 -->
+            <div class="feature-card class-card">
+                <div class="feature-icon class-icon"><i class="fas fa-clipboard-check"></i></div>
+                <div class="feature-content class-content">
+                    <h3>灵活作业创建与权限控制</h3>
+                    <p>支持单选、判断、多选、主观题、编程题<strong>多题型自由组卷</strong>，可自定义每道题的分值、难度与作答要求，提供<strong>全卷预览功能</strong>，组卷效果一目了然。作业发布后可灵活配置权限：自主设置学生是否可查看个人作答详情、是否允许查询作业成绩，兼顾教学反馈与自主学习需求。</p>
+                </div>
+            </div>
+
+            <!-- 智能阅卷与数据导出 -->
+            <div class="feature-card class-card">
+                <div class="feature-icon class-icon"><i class="fas fa-chart-pie"></i></div>
+                <div class="feature-content class-content">
+                    <h3>智能阅卷与数据导出</h3>
+                    <p>支持<strong>逐题查看学生作答详情与得分情况</strong>，针对主观题提供在线手动评分功能，可添加批改评语，实现精细化在线阅卷。同时支持<strong>多维度数据导出</strong>：一键导出学生作业成绩报表、班级学生名单等数据，格式兼容Excel，方便教师归档分析与教学总结。</p>
                 </div>
             </div>
         </div>

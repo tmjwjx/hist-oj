@@ -1050,6 +1050,8 @@ export const m = {
   Join_Failed: 'Failed to join',
   Class_Code: 'Class Code',
   Is_Shared: 'Is Shared',
+  No_Classroom_Yet: 'No classrooms yet',
+  Join_Classroom_Tip: 'Click the button above to join your first classroom!',
 
   // Role Management
   Manage_Roles: 'Manage Roles',

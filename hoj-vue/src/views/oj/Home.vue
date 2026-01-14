@@ -465,7 +465,10 @@ export default {
     this.CONTEST_TYPE_REVERSE = Object.assign({}, CONTEST_TYPE_REVERSE);
     this.getHomeCarousel();
     this.getRecentContests();
-    this.getRatingRank();
+    // 使用 nextTick 确保 DOM 渲染后再异步加载 Rating 数据
+    this.$nextTick(() => {
+      this.getRatingRank();
+    });
     this.getRecentUpdatedProblemList();
   },
   methods: {
@@ -510,6 +513,8 @@ export default {
         },
         (err) => {
           console.error('获取 Rating 排名失败:', err);
+          // 静默处理错误，不显示提示
+          this.ratingRankList = [];
           this.loading.ratingRankLoading = false;
         }
       );

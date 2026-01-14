@@ -65,7 +65,8 @@
           导出签到记录
         </el-button>
       </div>
-      <el-table :data="records" v-loading="recordsLoading" stripe>
+      <!-- 移除 v-loading 避免轮询时闪烁 -->
+      <el-table :data="records" stripe>
         <el-table-column prop="student.username" :label="$t('m.Username')" />
         <el-table-column :label="$t('m.Real_Name')">
           <template slot-scope="{ row }">
@@ -94,9 +95,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'Checkin',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -116,6 +119,13 @@ export default {
       },
       rules: {
         startTime: [{ required: true, message: this.$t('m.Required'), trigger: 'change' }]
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadCheckins',
+        immediate: true
       }
     }
   },
@@ -134,16 +144,37 @@ export default {
   },
   methods: {
     async loadCheckins() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.checkins.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getCheckinList', this.classroomId)
         if (res.code === 200) {
-          this.checkins = res.data || []
+          const newCheckins = res.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.checkins)
+          const newDataString = JSON.stringify(newCheckins)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.checkins = newCheckins
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async createCheckin() {

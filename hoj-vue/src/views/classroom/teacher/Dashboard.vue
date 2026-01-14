@@ -22,8 +22,8 @@
       <p>点击上方按钮创建您的第一个班级吧！</p>
     </div>
 
-    <!-- 班级卡片列表 -->
-    <el-row v-else :gutter="20" class="classroom-list" v-loading="loading">
+    <!-- 班级卡片列表 - 移除 v-loading 避免轮询时闪烁 -->
+    <el-row v-else :gutter="20" class="classroom-list">
       <el-col :span="8" v-for="classroom in safeClassrooms" :key="classroom.id">
         <el-card class="classroom-card" shadow="hover">
           <div class="card-header" @click="viewClassroom(classroom)">
@@ -85,8 +85,11 @@
 </template>
 
 <script>
+import realtimeSync from '@/mixins/realtimeSync'
+
 export default {
   name: 'TeacherDashboard',
+  mixins: [realtimeSync],
   data() {
     return {
       loading: false,
@@ -100,6 +103,13 @@ export default {
       rules: {
         className: [{ required: true, message: '请输入班级名称', trigger: 'blur' }],
         classBelong: [{ required: true, message: '请输入班级所属', trigger: 'blur' }]
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadMyClassrooms',
+        immediate: true
       }
     }
   },
@@ -108,20 +118,50 @@ export default {
   },
   methods: {
     async loadClassrooms() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.classrooms.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getClassroomList')
         if (res && res.code === 200 && Array.isArray(res.data)) {
-          this.classrooms = res.data
+          const newClassrooms = res.data
+
+          // 检查数量是否变化
+          if (newClassrooms.length !== this.classrooms.length) {
+            this.classrooms = newClassrooms
+            return
+          }
+
+          // 检查每个班级的 ID 是否都相同(避免深度对比整个对象)
+          const currentIds = this.classrooms.map(c => c.id).sort().join(',')
+          const newIds = newClassrooms.map(c => c.id).sort().join(',')
+
+          if (currentIds !== newIds) {
+            // ID 列表不同，说明有班级增删，需要更新
+            this.classrooms = newClassrooms
+          }
+          // 如果 ID 列表相同，不更新数据，避免闪烁
         } else {
-          this.classrooms = []
+          if (isFirstLoad) {
+            this.classrooms = []
+          }
         }
       } catch (error) {
         console.error('加载班级列表失败:', error)
-        this.$message.error('加载失败')
-        this.classrooms = []
+        if (isFirstLoad) {
+          this.$message.error('加载失败')
+          this.classrooms = []
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async createClassroom() {
@@ -188,7 +228,7 @@ export default {
       }).then(async () => {
         try {
           const res = await this.$store.dispatch('classroom/deleteClassroom', classroom.id)
-          if (res.status === 200) {
+          if (res.code === 200) {
             this.$message.success('删除成功')
             this.loadClassrooms()
           } else {
@@ -277,13 +317,13 @@ export default {
 
 .classroom-card {
   cursor: pointer;
-  transition: all 0.3s;
+  /* 移除 transition 避免轮询时闪烁 */
   margin-bottom: 20px;
   border: 1px solid #EBEEF5;
 }
 
 .classroom-card:hover {
-  transform: translateY(-5px);
+  /* 移除 transform 避免轮询时闪烁 */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
 }
 

@@ -7,8 +7,9 @@
       </el-button>
     </div>
 
-    <div v-loading="loading">
-      <el-empty v-if="!loading && homeworks.length === 0" :description="$t('m.No_Homework_Available')" />
+    <!-- 移除 v-loading 避免轮询时闪烁，改用 v-if -->
+    <div v-if="!loading">
+      <el-empty v-if="homeworks.length === 0" :description="$t('m.No_Homework_Available')" />
 
       <div v-else class="homework-list">
         <el-card v-for="hw in homeworks" :key="hw.id" class="homework-card">
@@ -51,9 +52,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'Homework',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -63,7 +66,14 @@ export default {
       homeworks: [],
       showDeleteDialog: false,
       deleting: false,
-      currentHomework: null
+      currentHomework: null,
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadHomeworks',
+        immediate: true
+      }
     }
   },
   watch: {
@@ -81,16 +91,45 @@ export default {
   },
   methods: {
     async loadHomeworks() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.homeworks.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getHomeworkList', this.classroomId)
         if (res.code === 200) {
-          this.homeworks = res.data || []
+          const newHomeworks = res.data || []
+
+          // 检查数量是否变化
+          if (newHomeworks.length !== this.homeworks.length) {
+            this.homeworks = newHomeworks
+            return
+          }
+
+          // 检查每个作业的 ID 是否都相同(避免深度对比整个对象)
+          const currentIds = this.homeworks.map(h => h.id).sort().join(',')
+          const newIds = newHomeworks.map(h => h.id).sort().join(',')
+
+          if (currentIds !== newIds) {
+            // ID 列表不同，说明有作业增删，需要更新
+            this.homeworks = newHomeworks
+          }
+          // 如果 ID 列表相同，不更新数据，避免闪烁
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        // 只在首次加载失败时提示错误
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     goToCreate() {
@@ -164,10 +203,10 @@ export default {
 }
 
 .homework-card {
-  transition: transform 0.2s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .homework-card:hover {
-  transform: translateY(-2px);
+  /* 移除 transform 避免轮询时闪烁 */
 }
 </style>

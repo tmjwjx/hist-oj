@@ -71,7 +71,15 @@ export default {
       }
     },
     handleTabClick(tab) {
-      this.$router.replace({ query: { tab: tab.name } })
+      // 只有当 tab 真正改变时才更新路由
+      if (this.$route.query.tab !== tab.name) {
+        this.$router.replace({ query: { tab: tab.name } }).catch(err => {
+          // 忽略导航重复错误
+          if (err.name !== 'NavigationDuplicated') {
+            console.error('导航错误:', err)
+          }
+        })
+      }
     },
     goBack() {
       this.$router.push({ name: 'TeacherDashboard' })

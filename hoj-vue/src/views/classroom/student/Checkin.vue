@@ -4,8 +4,9 @@
       <div slot="header">
         <span>{{ $t('m.Checkin_List') }}</span>
       </div>
-      <div v-loading="loading">
-        <el-empty v-if="!loading && checkins.length === 0" :description="$t('m.No_Checkin_Available')" />
+      <!-- 移除 v-loading 避免轮询时闪烁 -->
+      <div>
+        <el-empty v-if="checkins.length === 0" :description="$t('m.No_Checkin_Available')" />
         <div v-else class="checkin-items">
           <el-card
             v-for="checkin in checkins"
@@ -80,9 +81,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'Checkin',
+  mixins: [realtimeSync],
   props: {
     classroomId: [String, Number]
   },
@@ -96,6 +99,13 @@ export default {
         currentCheckin: null,
         inputCode: '',
         submitting: false
+      },
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadCheckins',
+        immediate: true
       }
     }
   },
@@ -114,18 +124,40 @@ export default {
   },
   methods: {
     async loadCheckins() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.checkins.length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getCheckinList', this.classroomId)
         if (res.code === 200) {
-          this.checkins = (res.data || []).map(c => ({ ...c, submitting: false }))
+          const newCheckins = (res.data || []).map(c => ({ ...c, submitting: false }))
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.checkins)
+          const newDataString = JSON.stringify(newCheckins)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.checkins = newCheckins
+          }
+
           // 加载每个签到的记录
           await this.loadAllRecords()
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async loadAllRecords() {
@@ -238,11 +270,11 @@ export default {
 
 .checkin-item {
   border-radius: 8px;
-  transition: transform 0.2s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .checkin-item:hover {
-  transform: translateY(-2px);
+  /* 移除 transform 避免轮询时闪烁 */
 }
 
 .checkin-header {

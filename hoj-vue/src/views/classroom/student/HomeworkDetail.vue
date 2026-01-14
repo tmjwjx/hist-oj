@@ -15,7 +15,8 @@
       <i class="el-icon-check"></i> 已于 {{ lastSaveTime }} 自动保存
     </div>
 
-    <el-card v-loading="loading">
+    <!-- 移除 v-loading 避免轮询时闪烁 -->
+    <el-card>
       <div v-if="homework.id">
         <p><strong>{{ $t('m.Homework_Title') }}:</strong> {{ homework.title }}</p>
         <p><strong>{{ $t('m.Description') }}:</strong> {{ homework.description || '-' }}</p>
@@ -237,6 +238,7 @@ import MarkdownIt from 'markdown-it'
 import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import ProgrammingQuestion from '@/components/classroom/ProgrammingQuestion.vue'
+import realtimeSync from '@/mixins/realtimeSync'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -248,6 +250,7 @@ md.use(katex)
 
 export default {
   name: 'HomeworkDetail',
+  mixins: [realtimeSync],
   components: {
     ProgrammingQuestion
   },
@@ -270,7 +273,14 @@ export default {
       questionIsScored: {}, // 每题是否已评分 { questionId: boolean }
       programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
       programmingStatusText: {}, // 编程题状态文本 { problemId: '未作答' | '检测中...' | '已作答' }
-      pollingTimer: null // 轮询定时器
+      pollingTimer: null, // 轮询定时器
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadHomeworkDetail',
+        immediate: true
+      }
     }
   },
   computed: {
@@ -315,28 +325,44 @@ export default {
   },
   methods: {
     async loadHomeworkDetail() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = !this.homework || !this.homework.id
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const homeworkId = this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getHomeworkDetail', homeworkId)
         if (res.code === 200) {
-          this.homework = res.data
-          // 初始化所有题目的答案对象
-          this.homework.questions.forEach(item => {
-            // 编程题跳过
-            if (item.problemId) return
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentHomeworkString = JSON.stringify(this.homework)
+          const newHomeworkString = JSON.stringify(res.data)
 
-            // 普通题目处理
-            if (!item.question) return
+          if (currentHomeworkString !== newHomeworkString) {
+            // 数据真的变化了，才更新
+            this.homework = res.data
 
-            const qid = item.question.id
-            if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
-              // 使用 $set 确保响应式
-              this.$set(this.answers, qid, '')
-            } else if (item.question.type === 'multiple_choice') {
-              this.$set(this.multipleAnswers, qid, [])
-            }
-          })
+            // 初始化所有题目的答案对象
+            this.homework.questions.forEach(item => {
+              // 编程题跳过
+              if (item.problemId) return
+
+              // 普通题目处理
+              if (!item.question) return
+
+              const qid = item.question.id
+              if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+                // 使用 $set 确保响应式
+                this.$set(this.answers, qid, '')
+              } else if (item.question.type === 'multiple_choice') {
+                this.$set(this.multipleAnswers, qid, [])
+              }
+            })
+          }
 
           // 加载已提交的答案
           await this.loadSubmission()
@@ -349,9 +375,13 @@ export default {
           this.startPollingProgrammingStatus()
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     async loadSubmission() {
@@ -737,10 +767,9 @@ export default {
     },
     // 启动轮询检测编程题提交状态
     startPollingProgrammingStatus() {
-      // 每5秒检测一次
       this.pollingTimer = setInterval(() => {
         this.checkProgrammingStatus()
-      }, 5000)
+      }, 500)
     },
     // 检测编程题提交状态
     async checkProgrammingStatus() {
@@ -758,15 +787,19 @@ export default {
               questionId: question.id
             })
 
-            if (res.code === 200 && res.data && res.data.length > 0) {
-              // 有提交记录
+            const hasSubmission = res.code === 200 && res.data && res.data.length > 0
+            const currentStatus = this.programmingStatus[question.problemId]
+
+            if (hasSubmission && currentStatus !== 'submitted') {
+              // 有提交记录且状态改变
               this.$set(this.programmingStatus, question.problemId, 'submitted')
               this.$set(this.programmingStatusText, question.problemId, '已作答')
-            } else {
-              // 没有提交记录，保持未作答状态
+            } else if (!hasSubmission && currentStatus !== 'not_started') {
+              // 没有提交记录且状态改变
               this.$set(this.programmingStatus, question.problemId, 'not_started')
               this.$set(this.programmingStatusText, question.problemId, '未作答')
             }
+            // 如果状态没有改变，不更新，避免闪烁
           } catch (error) {
             console.error('检测编程题状态失败:', error)
           }
@@ -838,7 +871,7 @@ export default {
   padding: 8px;
   background: #fff;
   border-radius: 4px;
-  transition: all 0.2s;
+  /* 移除 transition 避免轮询时闪烁 */
 }
 .option-item:hover {
   background: #f5f7fa;

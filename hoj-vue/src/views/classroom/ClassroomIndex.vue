@@ -58,7 +58,8 @@ export default {
   name: 'ClassroomIndex',
   data() {
     return {
-      debug: false
+      debug: false,
+      pollingTimer: null
     }
   },
   computed: {
@@ -73,6 +74,13 @@ export default {
   mounted() {
     // 每次进入页面都重新加载角色
     this.$store.dispatch('classroom/loadUserRoles')
+
+    // 启动轮询检测用户角色
+    this.startPolling()
+  },
+  beforeDestroy() {
+    // 组件销毁前清除定时器
+    this.stopPolling()
   },
   methods: {
     goToTeacherDashboard() {
@@ -80,6 +88,19 @@ export default {
     },
     goToStudentDashboard() {
       this.$router.push({ name: 'StudentDashboard' })
+    },
+    // 启动轮询
+    startPolling() {
+      this.pollingTimer = setInterval(() => {
+        this.$store.dispatch('classroom/loadUserRoles')
+      }, 500)
+    },
+    // 停止轮询
+    stopPolling() {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer)
+        this.pollingTimer = null
+      }
     }
   }
 }
@@ -112,7 +133,7 @@ export default {
   height: 200px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
+  /* 移除 transition 避免轮询时闪烁 */
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -120,7 +141,7 @@ export default {
 }
 
 .card:hover {
-  transform: translateY(-5px);
+  /* 移除 transform 避免轮询时闪烁 */
   box-shadow: 0 4px 20px rgba(64, 158, 255, 0.3);
 }
 

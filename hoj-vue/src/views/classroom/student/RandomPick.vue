@@ -59,7 +59,8 @@
           {{ $t('m.Refresh') }}
         </el-button>
       </div>
-      <el-table :data="history" v-loading="loadingHistory" stripe>
+      <!-- 移除 v-loading 避免轮询时闪烁 -->
+      <el-table :data="history" stripe>
         <el-table-column type="index" :label="$t('m.Index')" width="60" />
         <el-table-column :label="$t('m.Student_Name')" min-width="120">
           <template slot-scope="{ row }">
@@ -89,9 +90,11 @@
 
 <script>
 import moment from 'moment'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'RandomPickStudent',
+  mixins: [realtimeSync],
   props: {
     classroomId: {
       type: [String, Number],
@@ -103,7 +106,13 @@ export default {
       latestPick: null,
       history: [],
       loadingHistory: false,
-      pollingTimer: null
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadHistory',
+        immediate: true
+      }
     }
   },
   computed: {
@@ -121,44 +130,48 @@ export default {
     }
   },
   mounted() {
-    this.loadHistory()
-    // 启动轮询，每5秒刷新一次
-    this.startPolling()
-  },
-  beforeDestroy() {
-    this.stopPolling()
+    // realtimeSync mixin 会自动启动轮询
   },
   methods: {
     async loadHistory() {
-      this.loadingHistory = true
+      // 避免重复请求
+      if (this.loadingHistory) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = this.history.length === 0
+      if (isFirstLoad) {
+        this.loadingHistory = true
+      }
+
       try {
         const res = await this.$store.dispatch('classroom/getPickHistory', {
           classroomId: this.classroomId,
           limit: 20
         })
         if (res.code === 200) {
-          this.history = res.data || []
-          // 最新的记录是第一条
-          if (this.history.length > 0) {
-            this.latestPick = this.history[0]
+          const newHistory = res.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.history)
+          const newDataString = JSON.stringify(newHistory)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
+            this.history = newHistory
+            // 最新的记录是第一条
+            if (this.history.length > 0) {
+              this.latestPick = this.history[0]
+            }
           }
         }
       } catch (error) {
-        console.error('加载历史记录失败:', error)
+        if (isFirstLoad) {
+          console.error('加载历史记录失败:', error)
+        }
       } finally {
-        this.loadingHistory = false
-      }
-    },
-    startPolling() {
-      // 每5秒轮询一次
-      this.pollingTimer = setInterval(() => {
-        this.loadHistory()
-      }, 5000)
-    },
-    stopPolling() {
-      if (this.pollingTimer) {
-        clearInterval(this.pollingTimer)
-        this.pollingTimer = null
+        if (isFirstLoad) {
+          this.loadingHistory = false
+        }
       }
     },
     formatTime(time) {

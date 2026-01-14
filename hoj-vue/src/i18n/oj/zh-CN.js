@@ -1053,6 +1053,8 @@ export const m = {
   Join_Failed: '加入失败',
   Class_Code: '班级代码',
   Is_Shared: '是否共享',
+  No_Classroom_Yet: '还没有加入班级',
+  Join_Classroom_Tip: '点击上方按钮加入您的第一个班级吧！',
 
   // 角色管理
   Manage_Roles: '角色管理',

@@ -55,6 +55,14 @@ export default {
     return axios.put(`${BASE_URL}/student`, data)
   },
 
+  // ==================== 学生班级个人信息管理 ====================
+  getClassroomStudentInfo(classroomId) {
+    return axios.get(`${BASE_URL}/${classroomId}/my-info`)
+  },
+  updateClassroomStudentInfo(classroomId, data) {
+    return axios.put(`${BASE_URL}/${classroomId}/my-info`, data)
+  },
+
   // ==================== 签到功能 ====================
   createCheckin(data) {
     return axios.post(`${BASE_URL}/checkin`, data)
@@ -148,6 +156,9 @@ export default {
   deleteFolder(folderId) {
     return axios.delete(`${BASE_URL}/folder/${folderId}`)
   },
+  updateFolder(data) {
+    return axios.put(`${BASE_URL}/folder`, data)
+  },
   uploadMaterial(formData) {
     return axios.post(`${BASE_URL}/material/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -180,8 +191,5 @@ export default {
   },
   recallMessage(messageId) {
     return axios.delete(`${BASE_URL}/message/${messageId}`)
-  },
-  clearMessages(classroomId) {
-    return axios.delete(`${BASE_URL}/${classroomId}/messages`)
   }
 }

@@ -764,5 +764,9 @@ export const m = {
   Unrating_Contest: '비 Rating 대회',
   Rating_Contest_Tips: 'Rating 대회 - 대회 종료 후 참가자의 Rating 점수가 계산됩니다',
   Unrating_Contest_Tips: '비 Rating 대회 - 대회 종료 후 Rating 점수가 계산되지 않습니다',
-  Rating_Type_Cannot_Be_Modified: 'Rating 유형은 생성 후 수정할 수 없습니다'
+  Rating_Type_Cannot_Be_Modified: 'Rating 유형은 생성 후 수정할 수 없습니다',
+
+  // 교실 관련
+  No_Classroom_Yet: '아직 교실에 참여하지 않았습니다',
+  Join_Classroom_Tip: '위 버튼을 클릭하여 첫 번째 교실에 참여하세요!'
 }

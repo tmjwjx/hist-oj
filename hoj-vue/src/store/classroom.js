@@ -268,6 +268,10 @@ const actions = {
     const res = await api.deleteFolder(folderId)
     return res.data
   },
+  async updateFolder({ commit }, data) {
+    const res = await api.updateFolder(data)
+    return res.data
+  },
   async uploadMaterial({ commit }, formData) {
     const res = await api.uploadMaterial(formData)
     return res.data
@@ -311,10 +315,6 @@ const actions = {
   },
   async recallMessage({ commit }, messageId) {
     const res = await api.recallMessage(messageId)
-    return res.data
-  },
-  async clearMessages({ commit }, classroomId) {
-    const res = await api.clearMessages(classroomId)
     return res.data
   },
 

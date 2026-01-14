@@ -8,7 +8,8 @@
       </div>
     </div>
 
-    <el-card v-loading="loading">
+    <!-- 移除 v-loading 避免轮询时闪烁 -->
+    <el-card>
       <div v-if="homework.id">
         <p><strong>{{ $t('m.Homework_Title') }}:</strong> {{ homework.title }}</p>
         <p><strong>{{ $t('m.Description') }}:</strong> {{ homework.description || '-' }}</p>
@@ -91,23 +92,40 @@
 <script>
 import moment from 'moment'
 import { marked } from 'marked'
+import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'HomeworkDetail',
+  mixins: [realtimeSync],
   data() {
     return {
       loading: false,
       homework: {},
       submissions: [],
-      studentSubmissions: [] // 聚合后的学生提交数据
+      studentSubmissions: [], // 聚合后的学生提交数据
+      // 实时同步配置
+      realtimeSyncConfig: {
+        enabled: true,
+        interval: 3000,
+        syncFunction: 'loadHomeworkDetail',
+        immediate: true
+      }
     }
   },
   mounted() {
-    this.loadHomeworkDetail()
+    // 由 realtimeSync mixin 自动启动同步
   },
   methods: {
     async loadHomeworkDetail() {
-      this.loading = true
+      // 避免重复请求
+      if (this.loading) return
+
+      // 只在首次加载时显示 loading，轮询时不显示
+      const isFirstLoad = !this.homework || Object.keys(this.homework).length === 0
+      if (isFirstLoad) {
+        this.loading = true
+      }
+
       try {
         const homeworkId = this.$route.params.homeworkId
         const [homeworkRes, submissionsRes] = await Promise.all([
@@ -116,17 +134,37 @@ export default {
         ])
 
         if (homeworkRes.code === 200) {
-          this.homework = homeworkRes.data
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentHomeworkString = JSON.stringify(this.homework)
+          const newHomeworkString = JSON.stringify(homeworkRes.data)
+
+          if (currentHomeworkString !== newHomeworkString) {
+            // 数据真的变化了，才更新
+            this.homework = homeworkRes.data
+          }
         }
 
         if (submissionsRes.code === 200) {
-          this.submissions = submissionsRes.data || []
-          this.aggregateStudentSubmissions()
+          const newSubmissions = submissionsRes.data || []
+
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentSubmissionsString = JSON.stringify(this.submissions)
+          const newSubmissionsString = JSON.stringify(newSubmissions)
+
+          if (currentSubmissionsString !== newSubmissionsString) {
+            // 数据真的变化了，才更新
+            this.submissions = newSubmissions
+            this.aggregateStudentSubmissions()
+          }
         }
       } catch (error) {
-        this.$message.error(this.$t('m.Load_Failed'))
+        if (isFirstLoad) {
+          this.$message.error(this.$t('m.Load_Failed'))
+        }
       } finally {
-        this.loading = false
+        if (isFirstLoad) {
+          this.loading = false
+        }
       }
     },
     aggregateStudentSubmissions() {
