@@ -392,6 +392,23 @@ export default {
         const homeworkId = this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getHomeworkDetail', homeworkId)
         if (res.code === 200) {
+          // 安全措施：清空所有题目的答案和难度字段（防止前端泄露）
+          // 注意：学生始终看不到难度，只有在已提交且教师允许时才能看到答案
+          if (res.data.questions && Array.isArray(res.data.questions)) {
+            res.data.questions.forEach(item => {
+              if (item.question) {
+                // 学生始终看不到难度
+                if (item.question.difficulty) {
+                  item.question.difficulty = 0
+                }
+                // 只有在未提交或教师不允许查看答案时，才清空答案字段
+                if (!this.canViewAnswer && item.question.answer) {
+                  item.question.answer = ''
+                }
+              }
+            })
+          }
+
           // 深度对比：使用 JSON.stringify 检查数据是否真的变化
           const currentHomeworkString = JSON.stringify(this.homework)
           const newHomeworkString = JSON.stringify(res.data)

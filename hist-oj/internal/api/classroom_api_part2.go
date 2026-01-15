@@ -408,6 +408,13 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
 	db := client.GetDB()
 	var homework model.ClassroomHomework
 
@@ -434,6 +441,59 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 		homework.Status = 3 // 已结束
 	} else {
 		homework.Status = 2 // 进行中
+	}
+
+	// 安全检查：判断用户角色和权限
+	var classroom model.Classroom
+	isTeacher := false
+	isAdmin := false
+	isStudentSubmitted := false
+
+	if err := db.Where("id = ?", homework.ClassroomID).First(&classroom).Error; err == nil {
+		// 检查是否为教师
+		isTeacher = classroom.TeacherID == uid.(string)
+
+		// 检查是否为班级管理员
+		var classRole model.ClassroomStudent
+		if err := db.Where("classroom_id = ? AND uid = ? AND role = ?",
+			homework.ClassroomID, uid.(string), "admin").First(&classRole).Error; err == nil {
+			isAdmin = true
+		}
+	}
+
+	// 检查学生是否已正式提交作业
+	var submissions []model.HomeworkSubmit
+	if err := db.Where("homework_id = ? AND uid = ? AND is_officially_submitted = ?",
+		homeworkID, uid.(string), true).Find(&submissions).Error; err == nil && len(submissions) > 0 {
+		isStudentSubmitted = true
+	}
+
+	// 判断是否应该显示答案
+	shouldShowAnswer := false
+	if isTeacher || isAdmin {
+		// 教师和管理员始终可以看到答案
+		shouldShowAnswer = true
+	} else if isStudentSubmitted && homework.ShowAnswer == 1 {
+		// 学生已提交且教师允许查看答案
+		shouldShowAnswer = true
+	}
+
+	// 判断是否应该显示难度
+	// 规则：只有教师和管理员可以看到难度，学生看不到（即使已提交）
+	shouldShowDifficulty := isTeacher || isAdmin
+
+	// 根据权限过滤敏感字段
+	for i := range homework.Questions {
+		if homework.Questions[i].Question != nil {
+			// 如果不应显示答案，清空答案字段
+			if !shouldShowAnswer {
+				homework.Questions[i].Question.Answer = ""
+			}
+			// 如果不应显示难度，清零难度字段
+			if !shouldShowDifficulty {
+				homework.Questions[i].Question.Difficulty = 0
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, successResponse(homework))

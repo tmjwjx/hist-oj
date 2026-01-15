@@ -193,33 +193,6 @@ export default {
     ...mapGetters(["webLanguage", "token", "isAuthenticated"]),
   },
   created: function () {
-    // 全局缓存版本控制 - 确保手机浏览器也能获取最新版本
-    const appVersion = '2.0.1';  // 每次重大更新时修改此版本号
-    const versionKey = 'hoj_app_version';
-    const storedVersion = localStorage.getItem(versionKey);
-
-    // 检查是否需要强制刷新
-    if (storedVersion !== appVersion) {
-      // 清除所有缓存
-      if ('caches' in window) {
-        caches.keys().then(names => {
-          names.forEach(name => caches.delete(name));
-        });
-      }
-
-      // 更新版本号
-      localStorage.setItem(versionKey, appVersion);
-
-      // 如果版本不匹配，刷新页面（带时间戳破坏浏览器缓存）
-      if (storedVersion) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('_v', appVersion);
-        url.searchParams.set('_t', Date.now());
-        window.location.href = url.toString();
-        return;
-      }
-    }
-
     // 提前加载网站配置,确保工具箱等依赖配置的组件能正常显示
     this.getWebsiteConfig();
 
