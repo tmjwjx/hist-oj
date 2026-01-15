@@ -229,7 +229,7 @@ const adminRoutes= [
           path: 'toolbox',
           name: 'admin-toolbox',
           component: ToolboxAdmin,
-          meta: { title: 'Toolbox Admin'}
+          meta: { title: 'Toolbox'}
         },
       ]
     },

@@ -193,6 +193,9 @@ export default {
     ...mapGetters(["webLanguage", "token", "isAuthenticated"]),
   },
   created: function () {
+    // 提前加载网站配置,确保工具箱等依赖配置的组件能正常显示
+    this.getWebsiteConfig();
+
     this.$nextTick(function () {
       try {
         document.body.removeChild(document.getElementById("app-loader"));
@@ -218,7 +221,6 @@ export default {
     console.log(LOGO);
     console.log(MOTTO);
     this.autoChangeLanguge();
-    this.getWebsiteConfig();
   },
 };
 </script>

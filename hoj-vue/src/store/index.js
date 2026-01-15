@@ -125,10 +125,11 @@ const rootActions = {
     }
   },
   getWebsiteConfig ({commit}) {
-    api.getWebsiteConfig().then(res => {
+    return api.getWebsiteConfig().then(res => {
       commit('changeWebsiteConfig', {
         websiteConfig: res.data.data
       })
+      return res.data.data
     })
   },
 }

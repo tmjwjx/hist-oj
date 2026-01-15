@@ -2,9 +2,11 @@
   <div class="admin-container">
     <div v-if="!mobileNar">
       <el-menu
+        ref="adminMenu"
         class="vertical_menu"
         :router="true"
         :default-active="currentPath"
+        key="admin-menu-v2"
       >
         <el-tooltip
             :content="$t('m.Click_To_Change_Web_Language')"
@@ -99,10 +101,6 @@
           }}</el-menu-item>
         </el-submenu>
 
-        <el-menu-item index="/admin/toolbox" v-show="websiteConfig && Object.keys(websiteConfig).length > 5"
-          ><i class="fa fa-briefcase fa-size"></i>工具箱</el-menu-item
-        >
-
         <el-submenu index="discussion">
           <template slot="title"
             ><i class="fa fa-comments fa-size" aria-hidden="true"></i
@@ -112,6 +110,10 @@
             $t('m.Discussion_Admin')
           }}</el-menu-item>
         </el-submenu>
+
+        <el-menu-item index="/admin/toolbox">
+          <i class="fa fa-briefcase fa-size"></i>工具箱
+        </el-menu-item>
       </el-menu>
       <div id="header">
         <el-row>
@@ -558,18 +560,47 @@ import mMessage from '@/common/message';
 import Avatar from 'vue-avatar';
 import { languages, getLangLabelByValue } from '@/i18n';
 export default {
-  name: 'app',
-  mounted() {
+  name: 'admin-home',
+  created() {
     this.languages = languages;
     this.currentPath = this.$route.path;
     this.getBreadcrumb();
+
+    // 获取用户权限信息
+    const token = localStorage.getItem('token');
+    if (token) {
+      this.$store.dispatch('refreshUserAuthInfo');
+    }
+  },
+  mounted() {
     window.onresize = () => {
       this.page_width();
     };
     this.page_width();
-    // 确保 websiteConfig 已加载
-    if (!this.websiteConfig || Object.keys(this.websiteConfig).length <= 5) {
-      this.getWebsiteConfig();
+
+    // 首次加载时自动刷新一次，确保菜单正确显示（解决 webpack 缓存问题）
+    const refreshKey = 'admin_home_refreshed_v3';
+    const versionKey = 'admin_home_version';
+    const currentVersion = '1.0.3';  // 每次修改代码时更新此版本号
+
+    // 检查是否需要刷新
+    const lastVersion = localStorage.getItem(versionKey);
+    const needsRefresh = !this.hasRefreshed &&
+                        !sessionStorage.getItem(refreshKey) &&
+                        lastVersion !== currentVersion;
+
+    if (needsRefresh) {
+      sessionStorage.setItem(refreshKey, 'true');
+      localStorage.setItem(versionKey, currentVersion);
+      this.hasRefreshed = true;
+
+      // 强制刷新页面，清除所有缓存
+      setTimeout(() => {
+        // 添加时间戳参数破坏浏览器缓存
+        const url = new URL(window.location.href);
+        url.searchParams.set('_t', Date.now());
+        window.location.href = url.toString();
+      }, 100);
     }
   },
   data() {
@@ -582,7 +613,8 @@ export default {
       currentPath: '',
       routeList: [],
       imgUrl: require('@/assets/backstage.png'),
-      languages:[]
+      languages:[],
+      hasRefreshed: false  // 标记是否已经刷新过
     };
   },
   components: {
@@ -637,23 +669,31 @@ export default {
     },
   },
   watch: {
-    $route() {
-      this.getBreadcrumb(); //监听路由变化
-    },
-  },
+    $route(to, from) {
+      this.getBreadcrumb();
+
+      // 如果是从登录页跳转到管理员页面，重新获取权限信息
+      const token = localStorage.getItem('token');
+      if (token && (from.path === '/admin/login' || from.path === '/login')) {
+        this.$store.dispatch('refreshUserAuthInfo');
+      }
+    }
+  }
 };
 </script>
 
 <style scoped>
 .vertical_menu {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   width: 15%;
-  height: 100%;
+  height: 100vh;
   position: fixed !important;
   z-index: 100;
   top: 0;
   bottom: 0;
   left: 0;
+  max-height: 100vh;
 }
 .vertical_menu .logo {
   margin: 20px 0;

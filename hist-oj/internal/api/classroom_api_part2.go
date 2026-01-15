@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -1240,23 +1241,81 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 
 	db := client.GetDB()
 
-	// 软删除
-	result := db.Model(&model.ClassroomFolder{}).
-		Where("id = ?", folderID).
-		Update("status", 0)
+	// 开始事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	if result.Error != nil {
-		logger.Error("删除文件夹失败", zap.Error(result.Error))
+	// 1. 递归删除所有子文件夹
+	var allFolderIDs []uint64
+	allFolderIDs = append(allFolderIDs, folderID)
+
+	// 查找所有子文件夹ID（包括嵌套的子文件夹）
+	var subfolders []model.ClassroomFolder
+	if err := tx.Where("parent_id = ? AND status = 1", folderID).Find(&subfolders).Error; err != nil {
+		logger.Error("查询子文件夹失败", zap.Error(err))
+		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
 
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusOK, errorResponse(404, "文件夹不存在"))
+	// 递归收集所有子文件夹ID
+	for _, subfolder := range subfolders {
+		allFolderIDs = append(allFolderIDs, subfolder.ID)
+		// TODO: 这里可以进一步递归查找多层嵌套的子文件夹
+	}
+
+	// 2. 删除所有文件夹下的资料文件
+	var materials []model.ClassroomMaterial
+	if err := tx.Where("folder_id IN ? AND status = 1", allFolderIDs).Find(&materials).Error; err != nil {
+		logger.Error("查询资料文件失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
 
-	logger.Info("删除文件夹", zap.Uint64("folder_id", folderID))
+	// 删除磁盘上的文件
+	for _, material := range materials {
+		if material.FilePath != "" {
+			// 转换URL路径为文件系统路径
+			filePath := "." + material.FilePath
+			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+				logger.Warn("删除资料文件失败", zap.String("path", filePath), zap.Error(err))
+			}
+		}
+	}
+
+	// 3. 软删除所有资料记录
+	if err := tx.Model(&model.ClassroomMaterial{}).
+		Where("folder_id IN ?", allFolderIDs).
+		Update("status", 0).Error; err != nil {
+		logger.Error("删除资料记录失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	// 4. 软删除所有子文件夹
+	if err := tx.Model(&model.ClassroomFolder{}).
+		Where("id IN ?", allFolderIDs).
+		Update("status", 0).Error; err != nil {
+		logger.Error("删除文件夹失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	logger.Info("删除文件夹及关联内容", zap.Uint64("folder_id", folderID), zap.Int("files_deleted", len(materials)))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
@@ -1432,13 +1491,37 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 
 	db := client.GetDB()
 
-	// 软删除
+	// 查询资料信息以获取文件路径
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ?", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 删除磁盘上的文件
+	if material.FilePath != "" {
+		// 转换URL路径为文件系统路径
+		filePath := "." + material.FilePath
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			logger.Warn("删除资料文件失败", zap.String("path", filePath), zap.Error(err))
+			// 继续删除数据库记录，即使文件删除失败
+		} else if err == nil {
+			logger.Info("成功删除资料文件", zap.String("path", filePath))
+		}
+	}
+
+	// 软删除数据库记录
 	result := db.Model(&model.ClassroomMaterial{}).
 		Where("id = ?", materialID).
 		Update("status", 0)
 
 	if result.Error != nil {
-		logger.Error("删除资料失败", zap.Error(result.Error))
+		logger.Error("删除资料记录失败", zap.Error(result.Error))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}

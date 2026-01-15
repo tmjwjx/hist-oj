@@ -641,6 +641,24 @@ export default {
     };
   },
   mounted() {
+    // 首次加载时强制刷新一次，解决手机浏览器和 webpack 缓存问题
+    const refreshKey = 'navbar_refreshed_v2';
+    const versionKey = 'navbar_version';
+    const currentVersion = '1.0.2';
+
+    const lastVersion = localStorage.getItem(versionKey);
+    if (!sessionStorage.getItem(refreshKey) && lastVersion !== currentVersion) {
+      sessionStorage.setItem(refreshKey, 'true');
+      localStorage.setItem(versionKey, currentVersion);
+
+      setTimeout(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('_t', Date.now());
+        window.location.href = url.toString();
+      }, 100);
+      return;
+    }
+
     // 使用 $nextTick 确保 DOM 渲染完成后再设置模式
     this.$nextTick(() => {
       this.switchMode();

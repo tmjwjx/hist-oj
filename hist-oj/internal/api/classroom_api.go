@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -297,15 +298,31 @@ func (h *Handler) DeleteClassroom(c *gin.Context) {
 		}
 	}()
 
-	// 1. 删除所有资料文件
+	// 1. 查找该班级的所有文件夹ID（包括根目录 folder_id=0 的情况）
+	var folders []model.ClassroomFolder
+	if err := tx.Where("classroom_id = ? AND status = 1", classroomID).Find(&folders).Error; err != nil {
+		logger.Error("查询班级文件夹失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	// 收集所有文件夹ID，包括 0（根目录）
+	allFolderIDs := []uint64{0} // 包含根目录
+	for _, folder := range folders {
+		allFolderIDs = append(allFolderIDs, folder.ID)
+	}
+
+	// 2. 查询所有这些文件夹下的资料文件
 	var materials []model.ClassroomMaterial
-	if err := tx.Where("folder_id IN (SELECT id FROM classroom_folder WHERE classroom_id = ?)", classroomID).
-		Find(&materials).Error; err != nil {
+	if err := tx.Where("folder_id IN ? AND status = 1", allFolderIDs).Find(&materials).Error; err != nil {
 		logger.Error("查询资料文件失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
+
+	logger.Info("找到班级资料文件", zap.Int("count", len(materials)))
 
 	// 删除资料文件
 	for _, material := range materials {
@@ -314,11 +331,26 @@ func (h *Handler) DeleteClassroom(c *gin.Context) {
 			filePath := "." + material.FilePath
 			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 				logger.Warn("删除资料文件失败", zap.String("path", filePath), zap.Error(err))
+			} else if err == nil {
+				logger.Info("成功删除资料文件", zap.String("path", filePath))
 			}
 		}
 	}
 
-	// 2. 删除所有消息图片
+	// 软删除资料文件数据库记录
+	if len(materials) > 0 {
+		if err := tx.Model(&model.ClassroomMaterial{}).
+			Where("folder_id IN ?", allFolderIDs).
+			Update("status", 0).Error; err != nil {
+			logger.Error("软删除资料文件记录失败", zap.Error(err))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+			return
+		}
+		logger.Info("软删除资料文件记录", zap.Int("count", len(materials)))
+	}
+
+	// 3. 删除所有消息图片
 	var messages []model.ClassroomMessage
 	if err := tx.Where("classroom_id = ? AND msg_type = ?", classroomID, "image").
 		Find(&messages).Error; err != nil {
@@ -335,11 +367,79 @@ func (h *Handler) DeleteClassroom(c *gin.Context) {
 			imagePath := "." + message.ImageURL
 			if err := os.Remove(imagePath); err != nil && !os.IsNotExist(err) {
 				logger.Warn("删除消息图片失败", zap.String("path", imagePath), zap.Error(err))
+			} else if err == nil {
+				logger.Info("成功删除消息图片", zap.String("path", imagePath))
 			}
 		}
 	}
 
-	// 3. 删除数据库记录（软删除班级，级联删除关联数据）
+	// 删除消息图片数据库记录
+	if len(messages) > 0 {
+		if err := tx.Where("classroom_id = ? AND msg_type = ?", classroomID, "image").
+			Delete(&model.ClassroomMessage{}).Error; err != nil {
+			logger.Error("删除消息图片记录失败", zap.Error(err))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+			return
+		}
+		logger.Info("删除消息图片记录", zap.Int("count", len(messages)))
+	}
+
+	// 4. 删除作业中学生上传的图片附件
+	// 首先查找该班级的所有作业ID
+	var homeworkIDs []uint64
+	if err := tx.Model(&model.ClassroomHomework{}).
+		Where("classroom_id = ? AND status = 1", classroomID).
+		Pluck("id", &homeworkIDs).Error; err != nil {
+		logger.Error("查询班级作业失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	if len(homeworkIDs) > 0 {
+		// 查询这些作业的所有提交记录
+		var submissions []model.HomeworkSubmit
+		if err := tx.Where("homework_id IN ? AND attachment != ''", homeworkIDs).
+			Find(&submissions).Error; err != nil {
+			logger.Error("查询作业提交记录失败", zap.Error(err))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+			return
+		}
+
+		// 删除作业附件图片并清空attachment字段
+		attachmentCount := 0
+		for _, submission := range submissions {
+			if submission.Attachment != "" {
+				// Attachment 可能包含多个图片URL,用逗号分隔
+				attachments := strings.Split(submission.Attachment, ",")
+				for _, attachment := range attachments {
+					attachment = strings.TrimSpace(attachment)
+					if attachment != "" {
+						// 转换URL路径为文件系统路径
+						filePath := "." + attachment
+						if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+							logger.Warn("删除作业附件失败", zap.String("path", filePath), zap.Error(err))
+						} else if err == nil {
+							logger.Info("成功删除作业附件", zap.String("path", filePath))
+							attachmentCount++
+						}
+					}
+				}
+
+				// 清空attachment字段
+				if err := tx.Model(&model.HomeworkSubmit{}).
+					Where("id = ?", submission.ID).
+					Update("attachment", "").Error; err != nil {
+					logger.Error("清空作业附件字段失败", zap.Uint64("submission_id", submission.ID), zap.Error(err))
+				}
+			}
+		}
+		logger.Info("删除作业附件", zap.Int("count", attachmentCount))
+	}
+
+	// 5. 删除数据库记录（软删除班级，级联删除关联数据）
 	if err := tx.Model(&model.Classroom{}).Where("id = ?", classroomID).Update("status", 0).Error; err != nil {
 		logger.Error("删除班级失败", zap.Error(err))
 		tx.Rollback()
@@ -354,7 +454,7 @@ func (h *Handler) DeleteClassroom(c *gin.Context) {
 		return
 	}
 
-	logger.Info("删除班级及关联文件", zap.Uint64("id", classroomID))
+	logger.Info("删除班级及关联文件", zap.Uint64("id", classroomID), zap.Int("files_deleted", len(materials)))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
