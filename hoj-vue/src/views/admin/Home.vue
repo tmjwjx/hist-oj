@@ -512,6 +512,19 @@
               }}</mu-list-item-title>
             </mu-list-item>
           </mu-list-item>
+
+          <mu-list-item
+            button
+            :ripple="true"
+            to="/admin/toolbox"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-briefcase fa-size" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.Toolbox') }}</mu-list-item-title>
+          </mu-list-item>
         </mu-list>
       </mu-drawer>
     </div>

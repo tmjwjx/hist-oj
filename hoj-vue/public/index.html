@@ -5,6 +5,10 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <!-- 禁用缓存，确保始终获取最新版本 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="icon" href="<%= BASE_URL %>favicon.ico">
   <!-- 使用CDN的CSS文件 -->
   <% for (var i in htmlWebpackPlugin.options.cdn &&

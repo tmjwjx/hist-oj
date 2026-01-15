@@ -531,6 +531,16 @@
                 $t('m.NavBar_OI_Rank')
               }}</mu-list-item-title>
             </mu-list-item>
+            <mu-list-item
+              button
+              :ripple="false"
+              slot="nested"
+              to="/rating-rank"
+              @click="opendrawer = !opendrawer"
+              active-class="mobile-menu-active"
+            >
+              <mu-list-item-title>Rating 排名</mu-list-item-title>
+            </mu-list-item>
           </mu-list-item>
 
           <mu-list-item
@@ -563,14 +573,14 @@
           <mu-list-item
             button
             :ripple="false"
-            to="/registration"
+            to="/toolbox"
             @click="opendrawer = !opendrawer"
             active-class="mobile-menu-active"
           >
             <mu-list-item-action>
-              <mu-icon value=":el-icon-s-claim" size="24"></mu-icon>
+              <mu-icon value=":fa fa-briefcase" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>赛事报名系统</mu-list-item-title>
+            <mu-list-item-title>工具箱</mu-list-item-title>
           </mu-list-item>
 
           <mu-list-item
