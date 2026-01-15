@@ -14,24 +14,12 @@
             </div>
             <el-form :model="form" size="small" label-width="80px">
               <el-alert
-                title="凭据说明"
-                type="info"
+                title="系统说明"
+                type="success"
                 :closable="false"
                 style="margin-bottom: 15px; padding: 8px 12px;">
-                首次输入的用户名和密码将在验证成功后自动保存,下次访问时自动填充
+                已自动使用 BingOJ 账号登录，无需手动输入
               </el-alert>
-              <el-row :gutter="10">
-                <el-col :span="12">
-                  <el-form-item label="用户名">
-                    <el-input v-model="form.username" placeholder="请输入用户名" clearable></el-input>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="密码">
-                    <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password clearable></el-input>
-                  </el-form-item>
-                </el-col>
-              </el-row>
               <el-form-item label="模式">
                 <el-radio-group v-model="form.mode" size="small" disabled>
                   <el-radio label="normal">普通模式</el-radio>
@@ -309,23 +297,50 @@ export default {
     }
   },
   mounted() {
-    this.loadUserCredentials()
+    // 使用 $nextTick 确保 DOM 完全加载后再自动填充
+    this.$nextTick(() => {
+      this.autoFillCredentials()
+    })
   },
   methods: {
-    // 从 localStorage 加载用户凭据
-    loadUserCredentials() {
+    // 自动从 BingOJ 填充用户凭据
+    autoFillCredentials() {
+      this.addLog('正在检查 BingOJ 登录状态...')
+
       try {
-        const savedCredentials = localStorage.getItem('judge_terminal_credentials')
-        if (savedCredentials) {
-          const credentials = JSON.parse(savedCredentials)
-          this.form.username = credentials.username || ''
-          this.form.password = credentials.password || ''
-          if (this.form.username && this.form.password) {
-            console.log('已从本地加载用户凭据')
-          }
+        // 尝试从 BingOJ 获取 token
+        const token = localStorage.getItem('token')
+        if (!token) {
+          this.addLog('未检测到 BingOJ 登录信息，请先登录 BingOJ')
+          return
+        }
+
+        this.addLog('已检测到 BingOJ Token')
+
+        // 尝试从 BingOJ 获取用户信息
+        const userInfoStr = localStorage.getItem('userInfo')
+        if (!userInfoStr) {
+          this.addLog('未检测到 BingOJ 用户信息，请先登录 BingOJ')
+          return
+        }
+
+        this.addLog('已检测到 BingOJ 用户信息')
+
+        const userInfo = JSON.parse(userInfoStr)
+        if (userInfo.username) {
+          this.form.username = userInfo.username
+          // Token 会在 API 请求时添加到请求体
+
+          this.addLog(`✅ 自动登录成功！`)
+          this.addLog(`用户名: ${userInfo.username}`)
+          this.addLog(`认证方式: BingOJ Token (通过请求体发送)`)
+          this.$message.success(`已自动登录 BingOJ 用户: ${userInfo.username}`)
+        } else {
+          this.addLog('用户信息中没有 username 字段')
         }
       } catch (error) {
-        console.error('读取凭据失败:', error)
+        this.addLog(`自动登录失败: ${error.message}`)
+        this.$message.warning('自动登录失败，请手动输入')
       }
     },
 
@@ -337,9 +352,7 @@ export default {
           password: this.form.password
         }
         localStorage.setItem('judge_terminal_credentials', JSON.stringify(credentials))
-        console.log('凭据已保存到本地')
       } catch (error) {
-        console.error('保存凭据失败:', error)
         this.$message.warning('凭据保存失败,请检查浏览器设置')
       }
     },
@@ -351,8 +364,10 @@ export default {
         return
       }
 
-      if (!this.form.username || !this.form.password) {
-        this.$message.warning('请输入用户名和密码')
+      // 检查是否已自动填充用户名（token 会在 API 请求时添加到请求体）
+      if (!this.form.username) {
+        this.$message.warning('未检测到 BingOJ 登录信息，请先登录 BingOJ')
+        this.addLog('错误: 未检测到 BingOJ 登录信息')
         return
       }
 
@@ -418,12 +433,12 @@ export default {
         return
       }
 
-      if (!this.form.username || !this.form.password) {
-        this.$message.warning('请输入用户名和密码')
+      // 检查是否已自动填充用户名（token 会在 API 请求时添加到请求体）
+      if (!this.form.username) {
+        this.$message.warning('未检测到 BingOJ 登录信息，请先登录 BingOJ')
+        this.addLog('错误: 未检测到 BingOJ 登录信息')
         return
       }
-
-      this.saveUserCredentials()
 
       this.isRunning = true
       this.showResult = true
@@ -446,7 +461,7 @@ export default {
           cid: this.form.cid || '0',
           mode: this.form.mode,
           username: this.form.username,
-          password: this.form.password,
+          // Token 会在 API 层添加到请求体
           language: this.form.language,
           code: this.form.code
         },

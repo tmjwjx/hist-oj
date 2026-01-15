@@ -35,6 +35,11 @@ func NewHOJClient(baseURL, username, password string) *HOJClient {
 	}
 }
 
+// SetToken 直接设置 token（用于已登录用户）
+func (c *HOJClient) SetToken(token string) {
+	c.token = token
+}
+
 // Login 登录 HOJ
 func (c *HOJClient) Login(username, password string) error {
 	url := fmt.Sprintf("%s/api/login", c.baseURL)

@@ -7,9 +7,20 @@ import axios from 'axios'
  * @param {string} data.cid - 比赛ID（可选）
  * @param {string} data.mode - 模式（normal/contest）
  * @param {string} data.username - 用户名
- * @param {string} data.password - 密码
+ * @param {string} data.password - 密码（可选，如果不提供则使用 token）
  */
 export function getJudgeInfo(data) {
+  // 如果没有提供密码，尝试使用 BingOJ token
+  const token = localStorage.getItem('token')
+
+  if (token && !data.password) {
+    // 移除 password 字段
+    const { password, ...dataWithoutPassword } = data
+    data = dataWithoutPassword
+    // 添加 token 字段到请求体
+    data.token = token
+  }
+
   return axios.post('/judge-api/get-info', data).then(res => res.data)
 }
 
@@ -22,6 +33,16 @@ export function getJudgeInfo(data) {
  * @param {number} data.pageSize - 每页条数
  */
 export function getJudgeHistory(data) {
+  const token = localStorage.getItem('token')
+
+  if (token && !data.password) {
+    // 移除 password 字段
+    const { password, ...dataWithoutPassword } = data
+    data = dataWithoutPassword
+    // 添加 token 字段到请求体
+    data.token = token
+  }
+
   return axios.post('/judge-api/get-history', data).then(res => res.data)
 }
 
@@ -32,7 +53,7 @@ export function getJudgeHistory(data) {
  * @param {string} data.cid - 比赛ID（可选）
  * @param {string} data.mode - 模式（normal/contest）
  * @param {string} data.username - 用户名
- * @param {string} data.password - 密码
+ * @param {string} data.password - 密码（可选，如果不提供则使用 token）
  * @param {string} data.language - 编程语言
  * @param {string} data.code - 代码
  * @param {Function} onMessage - 消息回调函数
@@ -40,10 +61,20 @@ export function getJudgeHistory(data) {
  * @param {Function} onComplete - 完成回调函数
  */
 export function runCombinedJudge(data, onMessage, onError, onComplete) {
-  // 使用 EventSource 接收 SSE 流
-  const url = `/judge-api/run-combined`
+  // 如果没有提供密码，尝试使用 BingOJ token
+  const token = localStorage.getItem('token')
+
+  if (token && !data.password) {
+    // 移除 password 字段
+    const { password, ...dataWithoutPassword } = data
+    data = dataWithoutPassword
+    // 添加 token 字段到请求体
+    data.token = token
+  }
 
   // 由于 EventSource 不支持 POST，我们需要使用 fetch
+  const url = `/judge-api/run-combined`
+
   fetch(url, {
     method: 'POST',
     headers: {

@@ -28,7 +28,7 @@
               </el-tag>
               <span class="question-score">{{ submit.score || 0 }}分</span>
             </div>
-            <div class="question-title">HOJ 编程题 - {{ submit.problemId }}</div>
+            <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
 
             <!-- 解析学生答案（JSON格式，包含code和language） -->
             <div v-if="submit.answer" class="programming-answer">

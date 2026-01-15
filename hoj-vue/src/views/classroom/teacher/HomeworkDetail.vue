@@ -23,7 +23,7 @@
           <el-table-column :label="$t('m.Question_Title')">
             <template slot-scope="{ row }">
               <div v-if="row.question" v-html="renderMarkdown(row.question.title)" class="markdown-body"></div>
-              <div v-else>HOJ 编程题 - {{ row.problemId }}</div>
+              <div v-else>BingOJ 编程题 - {{ row.problemId }}</div>
             </template>
           </el-table-column>
           <el-table-column :label="$t('m.Question_Type')" width="120">

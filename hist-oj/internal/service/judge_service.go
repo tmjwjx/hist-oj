@@ -140,14 +140,24 @@ func ExtractSamples(examples string) ([]SampleResult, error) {
 }
 
 // TestLocalSamples 本地测试样例（使用 HOJ 后端）
-func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, password string, samples []SampleResult) ([]SampleResult, error) {
+func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, password, token string, samples []SampleResult) ([]SampleResult, error) {
 	// 先登录 HOJ（共享的客户端会保持登录状态）
 	s.logger.Info("开始登录 HOJ 后端")
-	if err := s.hojClient.Login(username, password); err != nil {
-		s.logger.Error("登录 HOJ 失败", zap.Error(err))
-		return nil, fmt.Errorf("登录 HOJ 失败: %w", err)
+
+	// 优先使用 Token，如果没有 Token 则使用密码登录
+	if token != "" {
+		s.logger.Info("使用 Token 认证 HOJ")
+		s.hojClient.SetToken(token)
+		s.logger.Info("HOJ Token 认证成功")
+	} else if password != "" {
+		if err := s.hojClient.Login(username, password); err != nil {
+			s.logger.Error("登录 HOJ 失败", zap.Error(err))
+			return nil, fmt.Errorf("登录 HOJ 失败: %w", err)
+		}
+		s.logger.Info("HOJ 密码登录成功")
+	} else {
+		return nil, fmt.Errorf("未提供认证信息（Token 或密码）")
 	}
-	s.logger.Info("HOJ 登录成功")
 
 	results := make([]SampleResult, 0, len(samples))
 

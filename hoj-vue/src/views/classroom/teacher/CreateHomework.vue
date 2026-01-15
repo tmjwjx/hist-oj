@@ -88,7 +88,7 @@
             {{ $t('m.Search') }}
           </el-button>
           <el-button type="success" icon="el-icon-plus" style="margin-left: 10px" @click="showAddProgrammingDialog = true">
-            添加 HOJ 编程题
+            添加 BingOJ 编程题
           </el-button>
         </div>
 
@@ -206,11 +206,11 @@
       </el-card>
     </el-form>
 
-    <!-- 添加 HOJ 编程题对话框 -->
-    <el-dialog title="添加 HOJ 编程题" :visible.sync="showAddProgrammingDialog" width="900px">
+    <!-- 添加 BingOJ 编程题对话框 -->
+    <el-dialog title="添加 BingOJ 编程题" :visible.sync="showAddProgrammingDialog" width="900px">
       <el-form :model="programmingForm" label-width="120px">
-        <el-form-item label="HOJ 题目 ID" required>
-          <el-input v-model="programmingForm.problemId" placeholder="请输入 HOJ 题目 ID（如 0001）" style="width: 300px;" />
+        <el-form-item label="BingOJ 题目 ID" required>
+          <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
           <el-button
             type="primary"
             icon="el-icon-search"
@@ -222,7 +222,7 @@
           </el-button>
           <div style="margin-top: 8px; color: #909399; font-size: 12px;">
             <i class="el-icon-info"></i>
-            输入 HOJ 题库中的题目 ID，点击"获取题目信息"预览题目内容
+            输入 BingOJ 题库中的题目 ID，点击"获取题目信息"预览题目内容
           </div>
         </el-form-item>
 
@@ -405,7 +405,7 @@
               </el-alert>
 
               <el-alert v-if="!item.problemId" type="warning" :closable="false">
-                此编程题未关联 HOJ 题目 ID
+                此编程题未关联 BingOJ 题目 ID
               </el-alert>
             </div>
           </div>
@@ -483,7 +483,7 @@ export default {
       showDetailDialog: false,
       showFullPreviewDialog: false, // 全卷预览对话框
       currentQuestion: null,
-      // HOJ 编程题相关
+      // BingOJ 编程题相关
       showAddProgrammingDialog: false,
       programmingForm: {
         problemId: '',
@@ -499,7 +499,7 @@ export default {
         startTime: null,
         endTime: null,
         showHomework: false,
-        showScore: true,
+        showScore: false,
         showAnswer: false
       },
       rules: {
@@ -726,7 +726,7 @@ export default {
                 return {
                   id: item.id,
                   problemId: item.problemId,
-                  title: `HOJ 编程题 - ${item.problemId}`,
+                  title: `BingOJ 编程题 - ${item.problemId}`,
                   type: 'programming',
                   difficulty: 5,
                   score: score
@@ -845,7 +845,7 @@ export default {
       console.log('题目ID:', this.programmingForm.problemId)
 
       if (!this.programmingForm.problemId) {
-        this.$message.warning('请输入 HOJ 题目 ID')
+        this.$message.warning('请输入 BingOJ 题目 ID')
         return
       }
 
@@ -919,7 +919,7 @@ export default {
     // 确认添加编程题
     confirmAddProgrammingQuestion() {
       if (!this.programmingForm.problemId) {
-        this.$message.warning('请输入 HOJ 题目 ID')
+        this.$message.warning('请输入 BingOJ 题目 ID')
         return
       }
 
@@ -937,7 +937,7 @@ export default {
         type: 'programming',
         difficulty: 5, // 默认难度
         score: this.programmingForm.score,
-        content: `HOJ 题目 ID: ${this.programmingForm.problemId}`
+        content: `BingOJ 题目 ID: ${this.programmingForm.problemId}`
       }
 
       // 检查是否已经添加过该题目

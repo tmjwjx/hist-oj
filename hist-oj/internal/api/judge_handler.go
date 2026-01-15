@@ -186,7 +186,8 @@ type RunCombinedRequest struct {
 	CID      string `json:"cid"`
 	Mode     string `json:"mode" binding:"required"`
 	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password"` // 密码（可选，与 Token 二选一）
+	Token    string `json:"token"`    // Token（可选，与 Password 二选一）
 	Language string `json:"language" binding:"required"`
 	Code     string `json:"code" binding:"required"`
 }
@@ -241,8 +242,21 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	// 1. 登录（使用共享的客户端实例）
 	sendSSE(c, "log", "正在登录 OJ...")
 	bingoJClient := h.judgeService.GetBingoJClient()
-	if err := bingoJClient.Login(req.Username, req.Password); err != nil {
-		sendSSE(c, "log", fmt.Sprintf("登录失败: %s", err.Error()))
+
+	// 优先使用 Token，如果没有 Token 则使用密码登录
+	if req.Token != "" {
+		h.logger.Info("使用 Token 认证")
+		bingoJClient.SetToken(req.Token)
+		sendSSE(c, "log", "使用 Token 认证成功")
+	} else if req.Password != "" {
+		h.logger.Info("使用密码登录", zap.String("username", req.Username))
+		if err := bingoJClient.Login(req.Username, req.Password); err != nil {
+			sendSSE(c, "log", fmt.Sprintf("登录失败: %s", err.Error()))
+			return
+		}
+		sendSSE(c, "log", "密码登录成功")
+	} else {
+		sendSSE(c, "log", "未提供认证信息（Token 或密码）")
 		return
 	}
 
@@ -298,7 +312,7 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 				zap.Int64("hojPid", pidInt),
 				zap.String("显示ID", req.PID),
 				zap.Int("样例数量", len(samples)))
-			results, err := h.judgeService.TestLocalSamples(pidInt, req.Language, req.Code, req.Username, req.Password, samples)
+			results, err := h.judgeService.TestLocalSamples(pidInt, req.Language, req.Code, req.Username, req.Password, req.Token, samples)
 			if err != nil {
 				sendSSE(c, "compile_error", map[string]string{"msg": err.Error()})
 				sendSSE(c, "log", "本地编译失败")

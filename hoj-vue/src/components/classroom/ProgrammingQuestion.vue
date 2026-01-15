@@ -68,12 +68,12 @@
       </div>
       <el-alert type="info" :closable="false">
         <template slot="title">
-          请在 HOJ 题库中查看本题的题解和讨论
+          请在 BingOJ 题库中查看本题的题解和讨论
         </template>
       </el-alert>
       <div style="margin-top: 15px; text-align: center;">
         <el-button type="primary" icon="el-icon-link" @click="goToProblem">
-          查看 HOJ 题库题解
+          查看 BingOJ 题库题解
         </el-button>
       </div>
     </el-card>
@@ -85,7 +85,7 @@
 
     <!-- 错误状态 - 仅在加载完成但无数据时显示 -->
     <el-alert v-else-if="canViewHomework && !loading && (!problemInfo || !problemInfo.problem)" type="error" :closable="false">
-      <p>无法加载题目信息，请检查 HOJ 题目 ID 是否正确。</p>
+      <p>无法加载题目信息，请检查 BingOJ 题目 ID 是否正确。</p>
     </el-alert>
 
     <!-- 代码编辑和提交区域 - 受 canViewHomework 控制 -->
@@ -124,7 +124,7 @@
             <i class="el-icon-upload"></i> {{ submitting ? '提交中...' : '提交代码' }}
           </el-button>
           <el-button v-if="isSubmitted && canViewHomework" @click="submitToHOJDirectly">
-            <i class="el-icon-link"></i> 在 HOJ 平台打开
+            <i class="el-icon-link"></i> 在 BingOJ 平台打开
           </el-button>
         </el-form-item>
       </el-form>
