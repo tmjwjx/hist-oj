@@ -101,7 +101,7 @@
           </el-form-item>
         </template>
 
-        <!-- 判断题：选择对/错 -->
+        <!-- 判断题：选择正确/错误 -->
         <template v-if="createForm.type === 'judge'">
           <el-form-item :label="$t('m.Correct_Answer')" required>
             <el-radio-group v-model="createForm.correctAnswer">
@@ -519,7 +519,7 @@ export default {
       } else if (this.createForm.type === 'judge') {
         // 判断题 - 确保 correctAnswer 是字符串类型
         const answerValue = String(this.createForm.correctAnswer)
-        submitData.answer = answerValue === 'true' ? '对' : '错'
+        submitData.answer = answerValue === 'true' ? '正确' : '错误'
         submitData.options = null // 判断题不需要选项
       } else if (this.createForm.type === 'subjective') {
         // 主观题
@@ -618,7 +618,7 @@ export default {
           }
         }
       } else if (question.type === 'judge') {
-        this.editForm.correctAnswer = question.answer === '对' ? 'true' : 'false'
+        this.editForm.correctAnswer = question.answer === '正确' ? 'true' : 'false'
       } else if (question.type === 'subjective') {
         this.editForm.referenceAnswer = question.answer || ''
       }
@@ -665,7 +665,7 @@ export default {
       } else if (this.editForm.type === 'judge') {
         // 判断题 - 确保 correctAnswer 是字符串类型
         const answerValue = String(this.editForm.correctAnswer)
-        submitData.answer = answerValue === 'true' ? '对' : '错'
+        submitData.answer = answerValue === 'true' ? '正确' : '错误'
         submitData.options = null // 判断题不需要选项
       } else if (this.editForm.type === 'subjective') {
         submitData.answer = this.editForm.referenceAnswer || '需人工评分'

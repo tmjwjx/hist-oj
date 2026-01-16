@@ -38,6 +38,27 @@ func compareArrays(a, b []string) bool {
 	return true
 }
 
+// normalizeJudgeAnswer 将判断题答案规范化为统一格式进行比较
+// 支持的输入格式: "true", "false", "对", "错", "正确", "错误"
+// 返回统一为: "true" 或 "false"
+func normalizeJudgeAnswer(answer string) string {
+	answer = strings.TrimSpace(answer)
+	// 将所有表示"正确"的格式统一为 "true"
+	if answer == "true" || answer == "对" || answer == "正确" {
+		return "true"
+	}
+	// 将所有表示"错误"的格式统一为 "false"
+	if answer == "false" || answer == "错" || answer == "错误" {
+		return "false"
+	}
+	return answer
+}
+
+// compareJudgeAnswers 比较判断题答案(兼容多种格式)
+func compareJudgeAnswers(studentAnswer, correctAnswer string) bool {
+	return normalizeJudgeAnswer(studentAnswer) == normalizeJudgeAnswer(correctAnswer)
+}
+
 // ==================== 作业/考试功能 ====================
 
 // CreateHomework 创建作业(教师)
@@ -721,9 +742,19 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		score := 0.0
 		isScored := 0
 		if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
-			// 对于单选和判断题，直接比较字符串
-			if question.Type == "single_choice" || question.Type == "judge" {
+			// 对于单选题，直接比较字符串
+			if question.Type == "single_choice" {
 				if answer == question.Answer {
+					// 获取该题在作业中的分值
+					var homeworkQuestion model.HomeworkQuestion
+					if err := tx.Where("homework_id = ? AND question_id = ?",
+						req.HomeworkID, questionID).First(&homeworkQuestion).Error; err == nil {
+						score = float64(homeworkQuestion.Score)
+					}
+				}
+			} else if question.Type == "judge" {
+				// 对于判断题，使用规范化比较（兼容多种格式：true/false/对/错/正确/错误）
+				if compareJudgeAnswers(answer, question.Answer) {
 					// 获取该题在作业中的分值
 					var homeworkQuestion model.HomeworkQuestion
 					if err := tx.Where("homework_id = ? AND question_id = ?",
@@ -2132,8 +2163,17 @@ func (h *Handler) RecalculateScore(c *gin.Context) {
 
 	// 重新计算分数
 	score := 0.0
-	if question.Type == "single_choice" || question.Type == "judge" {
+	if question.Type == "single_choice" {
 		if submit.Answer == question.Answer {
+			var homeworkQuestion model.HomeworkQuestion
+			if err := db.Where("homework_id = ? AND question_id = ?",
+				req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err == nil {
+				score = float64(homeworkQuestion.Score)
+			}
+		}
+	} else if question.Type == "judge" {
+		// 对于判断题，使用规范化比较（兼容多种格式）
+		if compareJudgeAnswers(submit.Answer, question.Answer) {
 			var homeworkQuestion model.HomeworkQuestion
 			if err := db.Where("homework_id = ? AND question_id = ?",
 				req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err == nil {

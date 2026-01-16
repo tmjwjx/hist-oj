@@ -124,19 +124,19 @@
                   v-model="answers[item.question.id]"
                   label="true"
                   @change="handleAnswerChange"
-                >对</el-radio>
+                >正确</el-radio>
                 <el-radio
                   v-model="answers[item.question.id]"
                   label="false"
                   @change="handleAnswerChange"
-                >错</el-radio>
+                >错误</el-radio>
                 <!-- 显示学生已选择的选项 -->
                 <div v-if="answers[item.question.id]" class="student-answer">
-                  <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '对' : '错' }}</el-tag>
+                  <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '正确' : '错误' }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
-                  <el-tag type="success">正确答案: {{ item.question.answer === 'true' || item.question.answer === '对' ? '对' : '错' }}</el-tag>
+                  <el-tag type="success">正确答案: {{ item.question.answer === 'true' || item.question.answer === '正确' ? '正确' : '错误' }}</el-tag>
                 </div>
               </div>
 

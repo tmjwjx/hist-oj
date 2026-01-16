@@ -341,11 +341,11 @@
             <div v-if="item.type === 'judge'" class="question-options">
               <div class="option-preview">
                 <span class="option-letter">✓</span>
-                <span class="option-text">对</span>
+                <span class="option-text">正确</span>
               </div>
               <div class="option-preview">
                 <span class="option-letter">✗</span>
-                <span class="option-text">错</span>
+                <span class="option-text">错误</span>
               </div>
             </div>
 

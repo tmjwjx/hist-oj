@@ -435,11 +435,11 @@ export default {
     },
     parseJudgeAnswer(answer) {
       // 处理判断题答案，返回布尔值
-      // 支持多种格式：true/false, 1/0, 对/错, True/False
-      if (answer === true || answer === 'true' || answer === 1 || answer === '1' || answer === '对' || answer === 'True' || answer === 'TRUE') {
+      // 支持多种格式：true/false, 1/0, 对/错, 正确/错误, True/False
+      if (answer === true || answer === 'true' || answer === 1 || answer === '1' || answer === '对' || answer === '正确' || answer === 'True' || answer === 'TRUE') {
         return true
       }
-      if (answer === false || answer === 'false' || answer === 0 || answer === '0' || answer === '错' || answer === 'False' || answer === 'FALSE') {
+      if (answer === false || answer === 'false' || answer === 0 || answer === '0' || answer === '错' || answer === '错误' || answer === 'False' || answer === 'FALSE') {
         return false
       }
       // 默认返回 false
