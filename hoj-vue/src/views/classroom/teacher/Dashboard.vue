@@ -87,9 +87,10 @@
 <script>
 import realtimeSync from '@/mixins/realtimeSync'
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'TeacherDashboard',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, teacherAuth],
   data() {
     return {
       loading: false,

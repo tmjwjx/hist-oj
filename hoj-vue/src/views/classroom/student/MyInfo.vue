@@ -52,8 +52,10 @@
 <script>
 import api from '@/api/classroom'
 
+import studentAuth from '@/mixins/studentAuth'
 export default {
   name: 'MyInfo',
+  mixins: [studentAuth],
   data() {
     return {
       loading: false,

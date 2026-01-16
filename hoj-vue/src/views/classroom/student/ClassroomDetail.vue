@@ -34,6 +34,7 @@ import RandomPick from './RandomPick.vue'
 import Materials from './Materials.vue'
 import Discussion from './Discussion.vue'
 
+import studentAuth from '@/mixins/studentAuth'
 export default {
   name: 'StudentClassroomDetail',
   components: {
@@ -43,6 +44,7 @@ export default {
     Materials,
     Discussion
   },
+  mixins: [studentAuth],
   data() {
     return {
       activeTab: 'homework',

@@ -69,13 +69,13 @@
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
             <el-menu-item index="/toolbox"
-              ><i class="fa fa-briefcase"></i>工具箱</el-menu-item
+              ><i class="fa fa-briefcase"></i>{{ $t('m.NavBar_Toolbox') }}</el-menu-item
             >
             <el-menu-item index="/introduction"
-              ><i class="el-icon-document"></i>编译环境</el-menu-item
+              ><i class="el-icon-document"></i>{{ $t('m.NavBar_Compile_Environment') }}</el-menu-item
             >
             <el-menu-item index="/about-us"
-              ><i class="el-icon-user"></i>关于我们</el-menu-item
+              ><i class="el-icon-user"></i>{{ $t('m.NavBar_About_Us') }}</el-menu-item
             >
         </template>
         <template v-else-if="mode == 'training'">
@@ -580,7 +580,7 @@
             <mu-list-item-action>
               <mu-icon value=":fa fa-briefcase" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>工具箱</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.NavBar_Toolbox') }}</mu-list-item-title>
           </mu-list-item>
 
           <mu-list-item
@@ -593,7 +593,7 @@
             <mu-list-item-action>
               <mu-icon value=":el-icon-document" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>编译环境</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.NavBar_Compile_Environment') }}</mu-list-item-title>
           </mu-list-item>
 
           <mu-list-item
@@ -606,7 +606,7 @@
             <mu-list-item-action>
               <mu-icon value=":el-icon-user" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>关于我们</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.NavBar_About_Us') }}</mu-list-item-title>
           </mu-list-item>
         </mu-list>
       </mu-drawer>

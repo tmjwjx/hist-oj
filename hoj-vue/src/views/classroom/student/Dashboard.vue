@@ -77,9 +77,10 @@
 <script>
 import realtimeSync from '@/mixins/realtimeSync'
 
+import studentAuth from '@/mixins/studentAuth'
 export default {
   name: 'StudentDashboard',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, studentAuth],
   data() {
     return {
       loading: false,

@@ -80,6 +80,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			// 学生加入班级 - 需要认证
 			classroom.POST("/join", AuthMiddleware(), handler.JoinClassroom)
 			classroom.GET("/my-classrooms", AuthMiddleware(), handler.GetStudentClassrooms)
+			classroom.GET("/teacher-classrooms", AuthMiddleware(), handler.GetTeacherClassrooms)
 
 			// 学生管理（教师）- 需要认证
 			classroom.GET("/:classroomId/students", AuthMiddleware(), handler.GetClassroomStudents)
@@ -122,6 +123,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/homework/:homeworkId/submissions", AuthMiddleware(), handler.GetHomeworkSubmissions)
 			classroom.GET("/homework/:homeworkId/status", AuthMiddleware(), handler.GetStudentHomeworkStatus)
 			classroom.GET("/homework/:homeworkId/my-detail", AuthMiddleware(), handler.GetStudentHomeworkDetail)
+			classroom.GET("/homework/:homeworkId/analysis", AuthMiddleware(), handler.GetHomeworkAnalysis)
 
 			// 编程题提交记录 - 需要认证
 			classroom.POST("/programming/submission", AuthMiddleware(), handler.SaveProgrammingSubmission)

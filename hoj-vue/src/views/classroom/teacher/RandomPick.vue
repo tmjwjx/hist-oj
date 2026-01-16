@@ -112,9 +112,10 @@
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'RandomPick',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: {
       type: [String, Number],

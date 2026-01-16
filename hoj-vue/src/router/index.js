@@ -38,8 +38,96 @@ const router = new VueRouter({
 
 
 // 路由判断登录 根据路由配置文件的参数(全局身份验证token)
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   NProgress.start()
+
+  // 检查班级权限（在原逻辑之前）
+  if (to.matched.some(record => record.meta.requiresRole)) {
+    const token = localStorage.getItem('token') || ''
+    if (!token) {
+      next({ path: '/home' })
+      store.commit('changeModalStatus', { mode: 'Login', visible: true })
+      mMessage.error('请先登录')
+      return
+    }
+
+    // 等待角色加载完成
+    if (!store.state.classroom.userRoles || store.state.classroom.userRoles.length === 0) {
+      try {
+        await store.dispatch('classroom/loadUserRoles')
+      } catch (error) {
+        console.error('加载用户角色失败', error)
+      }
+    }
+
+    const userRoles = store.state.classroom.userRoles || []
+    const requiredRole = to.meta.requiresRole
+
+    // 检查用户是否具有所需角色
+    const hasPermission = userRoles.some(role => {
+      if (requiredRole === 'teacher') {
+        return role === 'teacher' || role === 'admin' || role === 'root'
+      }
+      return role === requiredRole
+    })
+
+    if (!hasPermission) {
+      if (requiredRole === 'teacher') {
+        mMessage.error('您没有权限访问教师端页面')
+      } else if (requiredRole === 'student') {
+        mMessage.error('您没有权限访问学生端页面')
+      }
+      next({ path: '/classroom' })
+      return
+    }
+
+    // 对于学生端的页面，还需要检查班级成员身份
+    if (requiredRole === 'student' && to.params.classroomId) {
+      try {
+        const res = await store.dispatch('classroom/getStudentClassrooms')
+        if (res && res.code === 200) {
+          const classrooms = res.data || []
+          const classroomIds = classrooms.map(c => c.id.toString())
+          const isMember = classroomIds.includes(to.params.classroomId.toString())
+
+          if (!isMember) {
+            mMessage.error('您不是该班级的学生')
+            next({ path: '/classroom' })
+            return
+          }
+        }
+      } catch (error) {
+        console.error('检查班级成员身份失败', error)
+        mMessage.error('权限验证失败')
+        next({ path: '/classroom' })
+        return
+      }
+    }
+
+    // 对于教师端的页面，还需要检查是否是该班级的教师
+    if (requiredRole === 'teacher' && to.params.classroomId) {
+      try {
+        const res = await store.dispatch('classroom/getTeacherClassrooms')
+        if (res && res.code === 200) {
+          const classrooms = res.data || []
+          const classroomIds = classrooms.map(c => c.id.toString())
+          const isMember = classroomIds.includes(to.params.classroomId.toString())
+
+          if (!isMember) {
+            mMessage.error('您不是该班级的教师')
+            next({ path: '/classroom/teacher' })
+            return
+          }
+        }
+      } catch (error) {
+        console.error('检查教师班级成员身份失败', error)
+        mMessage.error('权限验证失败')
+        next({ path: '/classroom/teacher' })
+        return
+      }
+    }
+  }
+
   if (to.matched.some(record => record.meta.requireAuth)) { // 判断该路由是否需要登录权限
     const token = localStorage.getItem('token') || ''
     const isSuperAdmin = store.getters.isSuperAdmin

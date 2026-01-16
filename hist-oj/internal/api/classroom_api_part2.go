@@ -3007,3 +3007,497 @@ func (h *Handler) UploadHomeworkAttachment(c *gin.Context) {
 	}))
 }
 
+// GetHomeworkAnalysis 获取作业学情分析（教师）
+func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
+	logger := utils.GetLogger()
+	homeworkIDStr := c.Param("homeworkId")
+	homeworkID, err := strconv.ParseUint(homeworkIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "homeworkId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 获取作业信息
+	var homework model.ClassroomHomework
+	if err := db.Where("id = ?", homeworkID).First(&homework).Error; err != nil {
+		logger.Error("查询作业失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取作业的所有题目（按顺序）
+	var homeworkQuestions []model.HomeworkQuestion
+	if err := db.Where("homework_id = ?", homeworkID).
+		Order("question_order ASC").
+		Find(&homeworkQuestions).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取班级的所有学生
+	var classroomStudents []model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND status = 1", homework.ClassroomID).
+		Preload("User").
+		Find(&classroomStudents).Error; err != nil {
+		logger.Error("查询班级学生失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建学生信息映射
+	studentMap := make(map[string]*model.ClassroomStudent)
+	for i := range classroomStudents {
+		studentMap[classroomStudents[i].UID] = &classroomStudents[i]
+	}
+
+	// 获取所有提交记录
+	var submissions []model.HomeworkSubmit
+	if err := db.Where("homework_id = ? AND is_officially_submitted = 1", homeworkID).
+		Preload("Question").
+		Find(&submissions).Error; err != nil {
+		logger.Error("查询提交记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 统计提交和未提交学生
+	submittedUIDs := make(map[string]bool)
+	for _, submit := range submissions {
+		submittedUIDs[submit.UID] = true
+	}
+
+	var submittedStudents []interface{}
+	var unsubmittedStudents []interface{}
+
+	for _, cs := range classroomStudents {
+		username := ""
+		if cs.User != nil {
+			username = cs.User.Username
+		}
+
+		studentInfo := map[string]interface{}{
+			"uid":      cs.UID,
+			"realName": cs.RealName,
+			"username": username,
+		}
+		if submittedUIDs[cs.UID] {
+			submittedStudents = append(submittedStudents, studentInfo)
+		} else {
+			unsubmittedStudents = append(unsubmittedStudents, studentInfo)
+		}
+	}
+
+	// 分析每道题目
+	questionAnalysis := make([]map[string]interface{}, 0)
+
+	for _, hq := range homeworkQuestions {
+		analysis := map[string]interface{}{
+			"homeworkQuestionId": hq.ID,
+			"questionOrder":      hq.QuestionOrder,
+			"score":              hq.Score,
+		}
+
+		// 编程题
+		if hq.ProblemID != nil && *hq.ProblemID != "" {
+			analysis["type"] = "programming"
+			analysis["title"] = fmt.Sprintf("编程题 - %s", *hq.ProblemID)
+
+			// 获取该题的所有提交
+			var questionSubmissions []model.HomeworkSubmit
+			for _, s := range submissions {
+				if s.ProblemID != nil && *s.ProblemID == *hq.ProblemID {
+					questionSubmissions = append(questionSubmissions, s)
+				}
+			}
+
+			// 计算平均分
+			totalScore := 0.0
+			count := len(questionSubmissions)
+			for _, s := range questionSubmissions {
+				totalScore += s.Score
+			}
+			avgScore := 0.0
+			if count > 0 {
+				avgScore = totalScore / float64(count)
+			}
+
+			analysis["submittedCount"] = count
+			analysis["avgScore"] = avgScore
+
+			// 编程题：按分数段分布
+			scoreSegments := []map[string]interface{}{
+				{"label": "满分", "minScore": float64(hq.Score), "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
+				{"label": "80%以上", "minScore": float64(hq.Score) * 0.8, "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
+				{"label": "60%-80%", "minScore": float64(hq.Score) * 0.6, "maxScore": float64(hq.Score) * 0.8, "count": 0, "selectedBy": []interface{}{}},
+				{"label": "60%以下", "minScore": 0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
+			}
+
+			for _, s := range questionSubmissions {
+				score := s.Score
+
+				for _, segment := range scoreSegments {
+					minScore := segment["minScore"].(float64)
+					maxScore := segment["maxScore"].(float64)
+
+					if (score >= minScore && score < maxScore) || (score == maxScore && score == float64(hq.Score)) {
+						segment["count"] = segment["count"].(int) + 1
+						if cs, exists := studentMap[s.UID]; exists {
+							username := ""
+							if cs.User != nil {
+								username = cs.User.Username
+							}
+							segment["selectedBy"] = append(segment["selectedBy"].([]interface{}), map[string]interface{}{
+								"uid":      s.UID,
+								"realName": cs.RealName,
+								"username": username,
+								"score":    s.Score,
+							})
+						}
+						break
+					}
+				}
+			}
+
+			// 计算百分比并生成选项数据
+			optionStats := make([]map[string]interface{}, 0)
+			for _, segment := range scoreSegments {
+				selectedCount := segment["count"].(int)
+				percentage := 0.0
+				if count > 0 {
+					percentage = float64(selectedCount) / float64(count) * 100
+				}
+
+				optionStats = append(optionStats, map[string]interface{}{
+					"label":         segment["label"],
+					"selectedCount":  selectedCount,
+					"percentage":    percentage,
+					"selectedBy":    segment["selectedBy"],
+				})
+			}
+
+			analysis["options"] = optionStats
+			analysis["scoreSegments"] = true // 标记这是分数段分布
+
+			// 编程题的提交学生列表
+			var submittedBy []interface{}
+			for _, s := range questionSubmissions {
+				if cs, exists := studentMap[s.UID]; exists {
+					username := ""
+					if cs.User != nil {
+						username = cs.User.Username
+					}
+					submittedBy = append(submittedBy, map[string]interface{}{
+						"uid":      s.UID,
+						"realName": cs.RealName,
+						"username": username,
+						"score":    s.Score,
+					})
+				}
+			}
+			analysis["submittedBy"] = submittedBy
+		} else if hq.QuestionID != nil {
+			// 普通题目（从题库）
+			var question model.QuestionBank
+			if err := db.Where("id = ?", *hq.QuestionID).First(&question).Error; err != nil {
+				logger.Error("查询题目失败", zap.Error(err), zap.Uint64("question_id", *hq.QuestionID))
+				continue
+			}
+
+			analysis["type"] = question.Type
+			analysis["title"] = question.Title
+			analysis["questionId"] = question.ID
+
+			// 添加正确答案（仅用于教师端分析，学生端不应该调用此接口）
+			// 注意：如果答案为空字符串，表示教师未设置参考答案
+			if question.Answer != "" {
+				analysis["answer"] = question.Answer
+			} else {
+				analysis["answer"] = ""
+			}
+
+			// 获取该题的所有提交
+			var questionSubmissions []model.HomeworkSubmit
+			for _, s := range submissions {
+				if s.QuestionID != nil && *s.QuestionID == *hq.QuestionID {
+					questionSubmissions = append(questionSubmissions, s)
+				}
+			}
+
+			// 计算平均分
+			totalScore := 0.0
+			count := len(questionSubmissions)
+			for _, s := range questionSubmissions {
+				totalScore += s.Score
+			}
+			avgScore := 0.0
+			if count > 0 {
+				avgScore = totalScore / float64(count)
+			}
+
+			analysis["submittedCount"] = count
+			analysis["avgScore"] = avgScore
+
+			// 对所有题目类型生成扇形图数据
+			if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" {
+				// 选择题：按选项分布
+				var options []map[string]interface{}
+
+				// 对于判断题，生成默认选项
+				if question.Type == "judge" {
+					options = []map[string]interface{}{
+						{"label": "对", "content": "正确"},
+						{"label": "错", "content": "错误"},
+					}
+				} else if question.Options != nil && *question.Options != "" {
+					// 单选题和多选题从数据库读取选项
+					if err := json.Unmarshal([]byte(*question.Options), &options); err != nil {
+						logger.Error("解析题目选项失败", zap.Error(err), zap.String("options", *question.Options))
+						// 如果解析失败，生成默认选项
+						options = []map[string]interface{}{
+							{"label": "A", "content": "选项A"},
+							{"label": "B", "content": "选项B"},
+							{"label": "C", "content": "选项C"},
+							{"label": "D", "content": "选项D"},
+						}
+					}
+				} else {
+					// 如果选项为空，生成默认选项
+					logger.Warn("题目选项为空，使用默认选项", zap.String("type", question.Type), zap.Uint64("question_id", question.ID))
+					options = []map[string]interface{}{
+						{"label": "A", "content": "选项A"},
+						{"label": "B", "content": "选项B"},
+						{"label": "C", "content": "选项C"},
+						{"label": "D", "content": "选项D"},
+					}
+				}
+
+				// 生成选项统计数据
+				if len(options) > 0 {
+					optionStats := make([]map[string]interface{}, 0)
+					for _, opt := range options {
+						optLabel := opt["label"].(string)
+
+						// 统计选择该选项的学生
+						var selectedBy []interface{}
+						selectedCount := 0
+
+						logger.Info("开始统计选项", zap.String("question_type", question.Type), zap.String("option_label", optLabel), zap.Int("submissions", len(questionSubmissions)))
+
+						for _, s := range questionSubmissions {
+							// 处理答案：支持多种格式
+							// 1. JSON数组格式：["A", "B"] 或 ["对"] 或 ["true"] 或 [true]
+							// 2. 简单字符串格式："A" 或 "对" 或 "true"
+							// 3. 布尔值格式：true 或 false
+							var studentAnswers []string
+
+							// 首先尝试解析为JSON数组（可能包含字符串或布尔值）
+							var rawAnswers []interface{}
+							if err := json.Unmarshal([]byte(s.Answer), &rawAnswers); err == nil {
+								// 成功解析为数组，转换为字符串数组
+								for _, rawAns := range rawAnswers {
+									switch v := rawAns.(type) {
+									case string:
+										studentAnswers = append(studentAnswers, v)
+									case bool:
+										studentAnswers = append(studentAnswers, fmt.Sprintf("%v", v))
+									case float64:
+										studentAnswers = append(studentAnswers, fmt.Sprintf("%.0f", v))
+									}
+								}
+							} else {
+								// 如果解析失败，尝试当作简单字符串处理
+								if s.Answer != "" {
+									// 检查是否是布尔值字符串
+									if s.Answer == "true" || s.Answer == "false" {
+										studentAnswers = []string{s.Answer}
+									} else {
+										studentAnswers = []string{s.Answer}
+									}
+								}
+							}
+
+							logger.Info("学生答案解析", zap.String("uid", s.UID), zap.String("raw_answer", s.Answer), zap.Any("parsed_answers", studentAnswers), zap.Int("parsed_count", len(studentAnswers)))
+
+							// 检查学生的答案中是否包含该选项
+							for _, ans := range studentAnswers {
+								logger.Info("比较答案", zap.String("option_label", optLabel), zap.String("student_answer", ans), zap.String("question_type", question.Type))
+								// 答案存储格式为 "A", "B", "C", "对", "错", "true", "false" 等
+								// 对于判断题，支持多种格式：对/正确/true, 错/错误/false
+								matched := false
+								if question.Type == "judge" {
+									// 判断题：支持多种格式匹配
+									if optLabel == "对" && (ans == "对" || ans == "正确" || ans == "true") {
+										matched = true
+									} else if optLabel == "错" && (ans == "错" || ans == "错误" || ans == "false") {
+										matched = true
+									}
+								} else {
+									// 其他题型：直接匹配
+									if ans == optLabel {
+										matched = true
+									}
+								}
+
+								if matched {
+									selectedCount++
+									logger.Info("找到匹配", zap.String("option_label", optLabel), zap.String("student_answer", ans))
+									if cs, exists := studentMap[s.UID]; exists {
+										username := ""
+										if cs.User != nil {
+											username = cs.User.Username
+										}
+										selectedBy = append(selectedBy, map[string]interface{}{
+											"uid":      s.UID,
+											"realName": cs.RealName,
+											"username": username,
+											"score":    s.Score,
+										})
+									}
+									// 找到该学生选择了此选项后，跳出内层循环（避免同一个学生重复计数）
+									break
+								}
+							}
+						}
+
+						logger.Info("选项统计结果", zap.String("option_label", optLabel), zap.Int("selected_count", selectedCount))
+
+						percentage := 0.0
+						if count > 0 {
+							percentage = float64(selectedCount) / float64(count) * 100
+						}
+
+						optionStats = append(optionStats, map[string]interface{}{
+							"label":         optLabel,
+							"content":       opt["content"],
+							"selectedCount": selectedCount,
+							"percentage":    percentage,
+							"selectedBy":    selectedBy,
+						})
+					}
+
+					analysis["options"] = optionStats
+				} else {
+					logger.Warn("题目没有选项", zap.String("type", question.Type), zap.Uint64("question_id", question.ID))
+				}
+			} else {
+				// 主观题和编程题：按分数段分布
+				scoreSegments := []map[string]interface{}{
+					{"label": "满分", "minScore": float64(hq.Score), "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
+					{"label": "80%以上", "minScore": float64(hq.Score) * 0.8, "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
+					{"label": "60%-80%", "minScore": float64(hq.Score) * 0.6, "maxScore": float64(hq.Score) * 0.8, "count": 0, "selectedBy": []interface{}{}},
+					{"label": "60%以下", "minScore": 0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
+				}
+
+				for _, s := range questionSubmissions {
+					score := s.Score
+
+					for _, segment := range scoreSegments {
+						minScore := segment["minScore"].(float64)
+						maxScore := segment["maxScore"].(float64)
+
+						if (score >= minScore && score < maxScore) || (score == maxScore && score == float64(hq.Score)) {
+							segment["count"] = segment["count"].(int) + 1
+							if cs, exists := studentMap[s.UID]; exists {
+								username := ""
+								if cs.User != nil {
+									username = cs.User.Username
+								}
+								segment["selectedBy"] = append(segment["selectedBy"].([]interface{}), map[string]interface{}{
+									"uid":      s.UID,
+									"realName": cs.RealName,
+									"username": username,
+									"score":    s.Score,
+								})
+							}
+							break
+						}
+					}
+				}
+
+				// 计算百分比并添加到analysis
+				optionStats := make([]map[string]interface{}, 0)
+				for _, segment := range scoreSegments {
+					selectedCount := segment["count"].(int)
+					percentage := 0.0
+					if count > 0 {
+						percentage = float64(selectedCount) / float64(count) * 100
+					}
+
+					optionStats = append(optionStats, map[string]interface{}{
+						"label":         segment["label"],
+						"selectedCount":  selectedCount,
+						"percentage":    percentage,
+						"selectedBy":    segment["selectedBy"],
+					})
+				}
+
+				analysis["options"] = optionStats
+				analysis["scoreSegments"] = true // 标记这是分数段分布
+			}
+
+			// 提交学生列表（所有题目类型）
+			var submittedBy []interface{}
+			for _, s := range questionSubmissions {
+				logger.Info("处理提交学生", zap.String("question_type", question.Type), zap.String("uid", s.UID), zap.String("raw_answer", s.Answer))
+
+				if cs, exists := studentMap[s.UID]; exists {
+					username := ""
+					if cs.User != nil {
+						username = cs.User.Username
+					}
+					studentData := map[string]interface{}{
+						"uid":      s.UID,
+						"realName": cs.RealName,
+						"username": username,
+						"score":    s.Score,
+					}
+
+					// 对于选择题，添加选择的选项
+					if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" {
+						var studentAnswer []string
+						// 首先尝试解析为JSON数组
+						if err := json.Unmarshal([]byte(s.Answer), &studentAnswer); err == nil {
+							studentData["answer"] = studentAnswer
+							logger.Info("解析答案成功(JSON数组)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
+						} else {
+							// 如果解析失败，当作简单字符串处理
+							if s.Answer != "" {
+								studentAnswer = []string{s.Answer}
+								studentData["answer"] = studentAnswer
+								logger.Info("解析答案成功(简单字符串)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
+							} else {
+								logger.Warn("答案为空", zap.String("uid", s.UID))
+							}
+						}
+					}
+
+					submittedBy = append(submittedBy, studentData)
+				}
+			}
+			analysis["submittedBy"] = submittedBy
+		}
+
+		questionAnalysis = append(questionAnalysis, analysis)
+	}
+
+	// 构建返回数据
+	result := map[string]interface{}{
+		"totalStudentCount":   len(classroomStudents),
+		"submittedCount":      len(submittedStudents),
+		"unsubmittedCount":    len(unsubmittedStudents),
+		"submittedStudents":   submittedStudents,
+		"unsubmittedStudents": unsubmittedStudents,
+		"questionAnalysis":    questionAnalysis,
+	}
+
+	logger.Info("获取学情分析成功",
+		zap.Uint64("homework_id", homeworkID),
+		zap.Int("total_students", len(classroomStudents)),
+		zap.Int("submitted_count", len(submittedStudents)))
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+

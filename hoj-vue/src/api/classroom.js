@@ -42,6 +42,9 @@ export default {
   getStudentClassrooms() {
     return axios.get(`${BASE_URL}/my-classrooms`)
   },
+  getTeacherClassrooms() {
+    return axios.get(`${BASE_URL}/teacher-classrooms`)
+  },
 
   // ==================== 学生管理 ====================
   getClassroomStudents(classroomId) {
@@ -136,6 +139,9 @@ export default {
   },
   recalculateScore(data) {
     return axios.post(`${BASE_URL}/homework/recalculate`, data)
+  },
+  getHomeworkAnalysis(homeworkId) {
+    return axios.get(`${BASE_URL}/homework/${homeworkId}/analysis`)
   },
 
   // ==================== 编程题提交记录 ====================

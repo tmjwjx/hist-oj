@@ -3,6 +3,7 @@
     <div class="header">
       <h3>{{ homework.title || '作业详情' }}</h3>
       <div>
+        <el-button type="primary" @click="viewAnalysis">学情分析</el-button>
         <el-button @click="editHomework">{{ $t('m.Edit') }}</el-button>
         <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -90,13 +91,14 @@
 </template>
 
 <script>
+import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
 import { marked } from 'marked'
 import realtimeSync from '@/mixins/realtimeSync'
 
 export default {
   name: 'HomeworkDetail',
-  mixins: [realtimeSync],
+  mixins: [teacherAuth, realtimeSync],
   data() {
     return {
       loading: false,
@@ -221,6 +223,15 @@ export default {
     },
     goBack() {
       this.$router.back()
+    },
+    viewAnalysis() {
+      this.$router.push({
+        name: 'HomeworkAnalysis',
+        params: {
+          classroomId: this.$route.params.classroomId,
+          homeworkId: this.$route.params.homeworkId
+        }
+      })
     },
     formatTime(time) {
       return moment(time).format('YYYY-MM-DD HH:mm')

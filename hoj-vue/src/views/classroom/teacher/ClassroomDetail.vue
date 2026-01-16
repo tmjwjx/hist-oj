@@ -35,8 +35,10 @@ import Homework from './Homework.vue'
 import Materials from './Materials.vue'
 import Discussion from './Discussion.vue'
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'TeacherClassroomDetail',
+  mixins: [teacherAuth],
   components: {
     Students,
     Checkin,

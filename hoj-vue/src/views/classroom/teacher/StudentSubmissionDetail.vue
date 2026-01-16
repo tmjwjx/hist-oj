@@ -290,9 +290,10 @@ const md = new MarkdownIt({
 })
 md.use(katex)
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'StudentSubmissionDetail',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, teacherAuth],
   data() {
     return {
       loading: false,

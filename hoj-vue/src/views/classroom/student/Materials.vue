@@ -43,9 +43,10 @@
 <script>
 import realtimeSync from '@/mixins/realtimeSync'
 
+import studentAuth from '@/mixins/studentAuth'
 export default {
   name: 'Materials',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, studentAuth],
   props: {
     classroomId: [String, Number]
   },

@@ -289,9 +289,10 @@ const md = new MarkdownIt({
 })
 md.use(katex)
 
+import studentAuth from '@/mixins/studentAuth'
 export default {
   name: 'HomeworkDetail',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, studentAuth],
   components: {
     ProgrammingQuestion
   },

@@ -54,9 +54,10 @@
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'Homework',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: [String, Number]
   },

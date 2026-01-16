@@ -354,9 +354,10 @@ const md = new MarkdownIt({
 })
 md.use(katex)
 
+import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'QuestionBank',
-  mixins: [realtimeSync],
+  mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: {
       type: [String, Number],

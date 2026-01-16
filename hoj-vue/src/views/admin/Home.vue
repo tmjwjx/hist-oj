@@ -112,7 +112,7 @@
         </el-submenu>
 
         <el-menu-item index="/admin/toolbox">
-          <i class="fa fa-briefcase fa-size"></i>工具箱
+          <i class="fa fa-briefcase fa-size"></i>{{ $t('m.NavBar_Toolbox') }}
         </el-menu-item>
       </el-menu>
       <div id="header">

@@ -445,6 +445,7 @@
 </template>
 
 <script>
+import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
 import { getJudgeInfo } from '@/common/judgeTerminal'
 import MarkdownIt from 'markdown-it'
@@ -469,6 +470,7 @@ md.use(MarkdownItKatex, {
 
 export default {
   name: 'CreateHomework',
+  mixins: [teacherAuth],
   data() {
     return {
       submitting: false,

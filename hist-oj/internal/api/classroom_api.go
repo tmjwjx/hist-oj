@@ -795,6 +795,32 @@ func (h *Handler) GetStudentClassrooms(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(classrooms))
 }
 
+// GetTeacherClassrooms 获取教师创建的班级列表
+func (h *Handler) GetTeacherClassrooms(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+	var classrooms []model.Classroom
+
+	// 查询该教师创建的班级
+	if err := db.Where("teacher_id = ? AND status = 1", uid.(string)).
+		Order("create_time DESC").
+		Find(&classrooms).Error; err != nil {
+		logger.Error("查询教师班级列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(classrooms))
+}
+
 // ==================== 签到功能 ====================
 
 // CreateCheckin 创建签到（教师）

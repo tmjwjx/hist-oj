@@ -14,70 +14,76 @@ const ClassroomRoutes = {
       path: 'question-bank',
       name: 'QuestionBank',
       component: () => import('@/views/classroom/teacher/QuestionBank'),
-      meta: { title: '题库' }
+      meta: { title: '题库', requiresRole: 'teacher' }
     },
     // 教师端路由
     {
       path: 'teacher',
       name: 'TeacherDashboard',
       component: () => import('@/views/classroom/teacher/Dashboard'),
-      meta: { title: '教师工作台' }
+      meta: { title: '教师工作台', requiresRole: 'teacher' }
     },
     // 创建作业和作业详情 - 独立页面，不在 ClassroomDetail 下
     {
       path: 'teacher/homework/create/:classroomId',
       name: 'CreateHomework',
       component: () => import('@/views/classroom/teacher/CreateHomework'),
-      meta: { title: '创建作业' }
+      meta: { title: '创建作业', requiresRole: 'teacher' }
     },
     {
       path: 'teacher/homework/:classroomId/:homeworkId',
       name: 'TeacherHomeworkDetail',
       component: () => import('@/views/classroom/teacher/HomeworkDetail'),
-      meta: { title: '作业详情' }
+      meta: { title: '作业详情', requiresRole: 'teacher' }
+    },
+    {
+      path: 'teacher/homework/:classroomId/:homeworkId/analysis',
+      name: 'HomeworkAnalysis',
+      component: () => import('@/views/classroom/teacher/HomeworkAnalysis'),
+      meta: { title: '学情分析', requiresRole: 'teacher' }
     },
     {
       path: 'teacher/homework/:homeworkId/submission/:uid',
       name: 'StudentSubmissionDetail',
       component: () => import('@/views/classroom/teacher/StudentSubmissionDetail'),
-      meta: { title: '学生提交详情' }
+      meta: { title: '学生提交详情', requiresRole: 'teacher' }
     },
     {
       path: 'teacher/classroom/:classroomId',
       name: 'TeacherClassroomDetail',
       component: () => import('@/views/classroom/teacher/ClassroomDetail'),
-      meta: { title: '班级详情' },
+      meta: { title: '班级详情', requiresRole: 'teacher' },
       redirect: { name: 'TeacherHomework' },
       children: [
         {
           path: 'students',
           name: 'TeacherStudents',
           component: () => import('@/views/classroom/teacher/Students'),
-          meta: { title: '学生管理' }
+          meta: { title: '学生管理', requiresRole: 'teacher' }
         },
         {
           path: 'checkin',
           name: 'TeacherCheckin',
           component: () => import('@/views/classroom/teacher/Checkin'),
-          meta: { title: '签到管理' }
+          meta: { title: '签到管理', requiresRole: 'teacher' }
         },
         {
           path: 'homework',
           name: 'TeacherHomework',
           component: () => import('@/views/classroom/teacher/Homework'),
-          meta: { title: '作业管理' }
+          meta: { title: '作业管理', requiresRole: 'teacher' }
         },
         {
           path: 'materials',
           name: 'TeacherMaterials',
           component: () => import('@/views/classroom/teacher/Materials'),
-          meta: { title: '资料库' }
+          meta: { title: '资料库', requiresRole: 'teacher' }
         },
         {
           path: 'discussion',
           name: 'TeacherDiscussion',
           component: () => import('@/views/classroom/teacher/Discussion'),
-          meta: { title: '班级讨论' }
+          meta: { title: '班级讨论', requiresRole: 'teacher' }
         }
       ]
     },
@@ -86,38 +92,38 @@ const ClassroomRoutes = {
       path: 'student',
       name: 'StudentDashboard',
       component: () => import('@/views/classroom/student/Dashboard'),
-      meta: { title: '我的班级' }
+      meta: { title: '我的班级', requiresRole: 'student' }
     },
     {
       path: 'student/classroom/:classroomId',
       name: 'StudentClassroomDetail',
       component: () => import('@/views/classroom/student/ClassroomDetail'),
-      meta: { title: '班级详情' },
+      meta: { title: '班级详情', requiresRole: 'student' },
       redirect: { name: 'StudentHomework' },
       children: [
         {
           path: 'homework',
           name: 'StudentHomework',
           component: () => import('@/views/classroom/student/Homework'),
-          meta: { title: '作业列表' }
+          meta: { title: '作业列表', requiresRole: 'student' }
         },
         {
           path: 'checkin',
           name: 'StudentCheckin',
           component: () => import('@/views/classroom/student/Checkin'),
-          meta: { title: '签到' }
+          meta: { title: '签到', requiresRole: 'student' }
         },
         {
           path: 'materials',
           name: 'StudentMaterials',
           component: () => import('@/views/classroom/student/Materials'),
-          meta: { title: '学习资料' }
+          meta: { title: '学习资料', requiresRole: 'student' }
         },
         {
           path: 'discussion',
           name: 'StudentDiscussion',
           component: () => import('@/views/classroom/student/Discussion'),
-          meta: { title: '班级讨论' }
+          meta: { title: '班级讨论', requiresRole: 'student' }
         }
       ]
     },
@@ -125,13 +131,13 @@ const ClassroomRoutes = {
       path: 'student/classroom/:classroomId/homework/:homeworkId',
       name: 'StudentHomeworkDetail',
       component: () => import('@/views/classroom/student/HomeworkDetail'),
-      meta: { title: '作业详情' }
+      meta: { title: '作业详情', requiresRole: 'student' }
     },
     {
       path: 'student/classroom/:classroomId/my-info',
       name: 'StudentMyInfo',
       component: () => import('@/views/classroom/student/MyInfo'),
-      meta: { title: '我的信息' }
+      meta: { title: '我的信息', requiresRole: 'student' }
     }
   ]
 }

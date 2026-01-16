@@ -135,6 +135,14 @@ const actions = {
     }
     return res.data
   },
+  async getTeacherClassrooms({ commit }) {
+    const res = await api.getTeacherClassrooms()
+    return res.data
+  },
+  async getStudentClassrooms({ commit }) {
+    const res = await api.getStudentClassrooms()
+    return res.data
+  },
 
   // 学生管理
   async getClassroomStudents({ commit }, classroomId) {
@@ -237,6 +245,10 @@ const actions = {
   },
   async getHomeworkSubmissions({ commit }, homeworkId) {
     const res = await api.getHomeworkSubmissions(homeworkId)
+    return res.data
+  },
+  async getHomeworkAnalysis({ commit }, homeworkId) {
+    const res = await api.getHomeworkAnalysis(homeworkId)
     return res.data
   },
   async deleteHomework({ commit }, homeworkId) {
