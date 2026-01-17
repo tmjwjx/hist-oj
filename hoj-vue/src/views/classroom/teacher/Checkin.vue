@@ -67,7 +67,11 @@
       </div>
       <!-- 移除 v-loading 避免轮询时闪烁 -->
       <el-table :data="records" stripe>
-        <el-table-column prop="student.username" :label="$t('m.Username')" />
+        <el-table-column :label="$t('m.Username')">
+          <template slot-scope="{ row }">
+            <UserName :username="row.student?.username" />
+          </template>
+        </el-table-column>
         <el-table-column :label="$t('m.Real_Name')">
           <template slot-scope="{ row }">
             {{ row.classStudent ? row.classStudent.realName : (row.student ? row.student.realName : '-') }}
@@ -96,10 +100,14 @@
 <script>
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'Checkin',
+  components: {
+    UserName
+  },
   mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: [String, Number]

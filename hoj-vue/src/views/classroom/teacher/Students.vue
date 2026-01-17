@@ -9,7 +9,11 @@
 
     <!-- 移除 v-loading 避免轮询时闪烁 -->
     <el-table :data="students" stripe>
-      <el-table-column prop="user.username" :label="$t('m.Username')" />
+      <el-table-column :label="$t('m.Username')">
+        <template slot-scope="{ row }">
+          <UserName :username="row.user?.username" />
+        </template>
+      </el-table-column>
       <el-table-column prop="realName" :label="$t('m.Real_Name')" />
       <el-table-column prop="gender" :label="$t('m.Gender')" width="80" />
       <el-table-column prop="studentClass" :label="$t('m.Student_Class')" />
@@ -55,10 +59,14 @@
 
 <script>
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'Students',
+  components: {
+    UserName
+  },
   mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: [String, Number]

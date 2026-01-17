@@ -16,7 +16,7 @@
           <el-table-column prop="classBelong" :label="$t('m.Classroom_Belong')" width="150" />
           <el-table-column :label="$t('m.Teacher_Name')" width="150">
             <template slot-scope="{ row }">
-              {{ row.teacher ? row.teacher.username : row.teacherId || '-' }}
+              <UserName :username="row.teacher ? row.teacher.username : row.teacherId || '-'" />
             </template>
           </el-table-column>
           <el-table-column prop="classCode" :label="$t('m.Classroom_Code')" width="120" />
@@ -76,10 +76,12 @@ import RandomPick from '@/views/classroom/teacher/RandomPick.vue'
 import Homework from '@/views/classroom/teacher/Homework.vue'
 import Materials from '@/views/classroom/teacher/Materials.vue'
 import Discussion from '@/views/classroom/teacher/Discussion.vue'
+import UserName from '@/components/oj/common/UserName.vue'
 
 export default {
   name: 'ClassroomAdmin',
   components: {
+    UserName,
     Students,
     Checkin,
     RandomPick,

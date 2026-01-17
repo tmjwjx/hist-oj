@@ -30,9 +30,9 @@
         style="margin-top: 20px;"
       >
         <el-table-column prop="uid" label="ID" width="80" />
-        <el-table-column prop="username" :label="$t('m.Username')" min-width="150">
+        <el-table-column :label="$t('m.Username')" min-width="150">
           <template slot-scope="{ row }">
-            <span>{{ row.username }}</span>
+            <UserName :username="row.username" />
             <el-tag v-if="row.titleName" :color="row.titleColor" size="small" style="margin-left: 5px;">
               {{ row.titleName }}
             </el-tag>
@@ -111,9 +111,13 @@
 <script>
 import api from '@/common/api'
 import classroomApi from '@/api/classroom'
+import UserName from '@/components/oj/common/UserName.vue'
 
 export default {
   name: 'UserRoleManagement',
+  components: {
+    UserName
+  },
   data() {
     return {
       loading: false,

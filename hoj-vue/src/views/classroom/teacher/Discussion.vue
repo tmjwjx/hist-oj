@@ -19,7 +19,9 @@
         </div>
         <template v-else>
           <div class="message-header">
-            <span class="sender">{{ getSenderName(msg) }}</span>
+            <UserName :username="getSenderUsername(msg)" :bold="true" class="sender">
+              {{ getSenderDisplayName(msg) }}
+            </UserName>
             <div class="message-actions">
               <span class="time">{{ formatTime(msg.createdAt) }}</span>
               <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
@@ -91,10 +93,14 @@
 <script>
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'Discussion',
+  components: {
+    UserName
+  },
   mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: [String, Number]
@@ -301,8 +307,15 @@ export default {
         container.scrollTop = container.scrollHeight
       }
     },
-    getSenderName(msg) {
-      // 优先使用班级内的真实姓名
+    getSenderUsername(msg) {
+      // 获取用于查询rating的用户名（必须使用系统用户名）
+      if (msg.sender && msg.sender.username) {
+        return msg.sender.username
+      }
+      return ''
+    },
+    getSenderDisplayName(msg) {
+      // 获取显示名称（优先使用真实姓名）
       if (msg.studentInfo && msg.studentInfo.realName) {
         return msg.studentInfo.realName
       }
@@ -332,7 +345,7 @@ export default {
       if (userInfo) {
         try {
           const user = JSON.parse(userInfo)
-          this.currentUserId = user.uuid || user.userId
+          this.currentUserId = user.uuid || user.uid || user.userId
           return
         } catch (e) {
           // 解析失败，继续尝试其他方式
@@ -342,11 +355,13 @@ export default {
       // 备选方案：从 store 获取
       const storeState = this.$store.state
       if (storeState.user && storeState.user.userInfo) {
-        this.currentUserId = storeState.user.userInfo.uuid || storeState.user.userInfo.userId
+        this.currentUserId = storeState.user.userInfo.uuid || storeState.user.userInfo.uid || storeState.user.userInfo.userId
       }
     },
     canRecallMessage(msg) {
-      return msg.senderId === this.currentUserId
+      // 教师可以撤回任何消息，学生只能撤回自己的消息
+      // 这是教师端页面，所以始终返回 true
+      return true
     },
     async recallMessage(msg) {
       try {

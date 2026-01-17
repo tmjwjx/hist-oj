@@ -208,7 +208,11 @@
     >
       <el-table :data="optionDialogStudents" stripe max-height="400">
         <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column prop="username" label="系统用户名" />
+        <el-table-column label="系统用户名">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
         <el-table-column prop="score" label="得分" width="100">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ row.score }}</el-tag>
@@ -225,7 +229,11 @@
     >
       <el-table :data="allStudentsList" stripe max-height="400">
         <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column prop="username" label="系统用户名" />
+        <el-table-column label="系统用户名">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
       </el-table>
     </el-dialog>
 
@@ -237,7 +245,11 @@
     >
       <el-table :data="submittedStudentsList" stripe max-height="400">
         <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column prop="username" label="系统用户名" />
+        <el-table-column label="系统用户名">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
       </el-table>
     </el-dialog>
 
@@ -249,7 +261,11 @@
     >
       <el-table :data="unsubmittedStudentsList" stripe max-height="400">
         <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column prop="username" label="系统用户名" />
+        <el-table-column label="系统用户名">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
       </el-table>
     </el-dialog>
 
@@ -261,7 +277,11 @@
     >
       <el-table :data="questionSubmittedStudents" stripe max-height="400">
         <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column prop="username" label="系统用户名" width="150" />
+        <el-table-column label="系统用户名" width="150">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
         <el-table-column prop="score" label="得分" width="100">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ row.score }}</el-tag>
@@ -283,9 +303,13 @@
 <script>
 import teacherAuth from '@/mixins/teacherAuth'
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 export default {
   name: 'HomeworkAnalysis',
+  components: {
+    UserName
+  },
   mixins: [teacherAuth, realtimeSync],
   data() {
     return {

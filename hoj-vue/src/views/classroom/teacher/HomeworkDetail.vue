@@ -52,7 +52,11 @@
               {{ row.realName || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="studentName" :label="$t('m.System_Username')" />
+          <el-table-column :label="$t('m.System_Username')">
+            <template slot-scope="{ row }">
+              <UserName :username="row.studentName" />
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('m.Submit_Time')">
             <template slot-scope="{ row }">{{ formatTime(row.submitTime) }}</template>
           </el-table-column>
@@ -95,9 +99,13 @@ import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
 import { marked } from 'marked'
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 export default {
   name: 'HomeworkDetail',
+  components: {
+    UserName
+  },
   mixins: [teacherAuth, realtimeSync],
   data() {
     return {

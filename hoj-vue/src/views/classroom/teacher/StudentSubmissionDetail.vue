@@ -10,7 +10,7 @@
       <div v-if="studentSubmission">
         <!-- 学生信息 -->
         <div class="student-info">
-          <p><strong>{{ $t('m.Student') }}:</strong> {{ studentSubmission.studentName }}</p>
+          <p><strong>{{ $t('m.Student') }}:</strong> <UserName :username="studentSubmission.studentName" /></p>
           <p><strong>{{ $t('m.Submit_Time') }}:</strong> {{ formatTime(studentSubmission.submitTime) }}</p>
           <p><strong>{{ $t('m.Total_Score') }}:</strong> {{ studentSubmission.totalScore }}</p>
         </div>
@@ -281,6 +281,7 @@ import MarkdownIt from 'markdown-it'
 import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import realtimeSync from '@/mixins/realtimeSync'
+import UserName from '@/components/oj/common/UserName.vue'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -293,6 +294,9 @@ md.use(katex)
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'StudentSubmissionDetail',
+  components: {
+    UserName
+  },
   mixins: [realtimeSync, teacherAuth],
   data() {
     return {
