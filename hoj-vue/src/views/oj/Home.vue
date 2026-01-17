@@ -185,6 +185,8 @@
             </el-card>
           </el-card>
         </template>
+        <!-- 时间显示组件 -->
+        <TimeDisplay :class="contests.length ? 'card-top' : ''"></TimeDisplay>
         <el-card :class="contests.length ? 'card-top' : ''">
           <div
             slot="header"
@@ -384,11 +386,14 @@ import myMessage from "@/common/message";
 const Announcements = () => import("@/components/oj/common/Announcements.vue");
 const SubmissionStatistic = () =>
   import("@/components/oj/home/SubmissionStatistic.vue");
+const TimeDisplay = () =>
+  import("@/components/oj/common/TimeDisplay.vue");
 export default {
   name: "home",
   components: {
     Announcements,
     SubmissionStatistic,
+    TimeDisplay,
     Avatar,
   },
   data() {
