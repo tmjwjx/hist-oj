@@ -88,3 +88,10 @@ logs/
 coverage/
 *.lcov
 .nyc_output/
+
+# SSL Certificates (IMPORTANT: Never commit private keys!)
+scripts/nginx/ssl/*.crt
+scripts/nginx/ssl/*.key
+scripts/nginx/ssl/*.pem
+scripts/nginx/ssl/*.csr
+scripts/*_nginx/

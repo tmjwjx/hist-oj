@@ -177,6 +177,14 @@ const actions = {
     }
     return res.data
   },
+  async getCheckinListForStudent({ commit }, classroomId) {
+    // 学生端安全API - 不返回敏感信息
+    const res = await api.getCheckinListForStudent(classroomId)
+    if (res.data.code === 200) {
+      commit('SET_CHECKINS', res.data.data)
+    }
+    return res.data
+  },
   async getCheckinRecords({ commit }, checkinId) {
     const res = await api.getCheckinRecords(checkinId)
     return res.data
@@ -187,6 +195,20 @@ const actions = {
   },
   async endCheckin({ commit }, checkinId) {
     const res = await api.endCheckin(checkinId)
+    return res.data
+  },
+
+  // ==================== 二维码签到功能 ====================
+  async getQrcodeToken({ commit }, checkinId) {
+    const res = await api.getQrcodeToken(checkinId)
+    return res.data
+  },
+  async refreshQrcode({ commit }, checkinId) {
+    const res = await api.refreshQrcode(checkinId)
+    return res.data
+  },
+  async submitQrcodeCheckin({ commit }, data) {
+    const res = await api.submitQrcodeCheckin(data)
     return res.data
   },
 

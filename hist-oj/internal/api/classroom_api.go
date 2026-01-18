@@ -828,10 +828,12 @@ func (h *Handler) CreateCheckin(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		ClassroomID  uint64  `json:"classroomId" binding:"required"`
-		CheckinName  string  `json:"checkinName"`
-		StartTime    string  `json:"startTime" binding:"required"` // RFC3339 format
-		EndTime      *string `json:"endTime"`                       // RFC3339 format (指针类型以支持null)
+		ClassroomID            uint64  `json:"classroomId" binding:"required"`
+		CheckinName            string  `json:"checkinName"`
+		CheckinType            string  `json:"checkinType"`             // code 或 qrcode
+		QrcodeRefreshInterval   *int    `json:"qrcodeRefreshInterval"`   // 二维码刷新间隔(秒)
+		StartTime              string  `json:"startTime" binding:"required"` // RFC3339 format
+		EndTime                *string `json:"endTime"`                       // RFC3339 format (指针类型以支持null)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -861,13 +863,26 @@ func (h *Handler) CreateCheckin(c *gin.Context) {
 	// 生成签到码
 	checkinCode := generateCheckinCode()
 
+	// 设置默认值
+	checkinType := req.CheckinType
+	if checkinType == "" {
+		checkinType = "code"
+	}
+
+	qrcodeRefreshInterval := 15 // 默认15秒
+	if req.QrcodeRefreshInterval != nil {
+		qrcodeRefreshInterval = *req.QrcodeRefreshInterval
+	}
+
 	checkin := &model.ClassroomCheckin{
-		ClassroomID: req.ClassroomID,
-		CheckinCode: checkinCode,
-		CheckinName: req.CheckinName,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Status:      1,
+		ClassroomID:            req.ClassroomID,
+		CheckinCode:            checkinCode,
+		CheckinName:            req.CheckinName,
+		CheckinType:            checkinType,
+		QrcodeRefreshInterval:   qrcodeRefreshInterval,
+		StartTime:              startTime,
+		EndTime:                endTime,
+		Status:                 1,
 	}
 
 	if err := db.Create(checkin).Error; err != nil {
@@ -987,6 +1002,58 @@ func (h *Handler) GetCheckinList(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, successResponse(checkins))
+}
+
+// GetCheckinListForStudent 获取班级签到列表（学生）- 只返回学生需要看到的信息
+func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
+	logger := utils.GetLogger()
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+	var checkins []model.ClassroomCheckin
+
+	if err := db.Where("classroom_id = ?", classroomID).
+		Order("create_time DESC").
+		Find(&checkins).Error; err != nil {
+		logger.Error("查询签到列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 创建学生视图的签到列表（移除敏感信息）
+	type StudentCheckinView struct {
+		ID                 uint64      `json:"id"`
+		ClassroomID        uint64      `json:"classroomId"`
+		CheckinName        string      `json:"checkinName"`
+		CheckinType        string      `json:"checkinType"`
+		QrcodeRefreshInterval int       `json:"qrcodeRefreshInterval"`
+		StartTime          time.Time   `json:"startTime"`
+		EndTime            *time.Time  `json:"endTime"`
+		Status             int         `json:"status"`
+		CreatedAt          time.Time   `json:"createdAt"`
+	}
+
+	studentCheckins := make([]StudentCheckinView, 0, len(checkins))
+	for _, checkin := range checkins {
+		studentCheckins = append(studentCheckins, StudentCheckinView{
+			ID:                  checkin.ID,
+			ClassroomID:         checkin.ClassroomID,
+			CheckinName:         checkin.CheckinName,
+			CheckinType:         checkin.CheckinType,
+			QrcodeRefreshInterval: checkin.QrcodeRefreshInterval,
+			StartTime:           checkin.StartTime,
+			EndTime:             checkin.EndTime,
+			Status:              checkin.Status,
+			CreatedAt:           checkin.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, successResponse(studentCheckins))
 }
 
 // GetCheckinRecords 获取签到记录（教师）
@@ -1113,6 +1180,108 @@ func (h *Handler) EndCheckin(c *gin.Context) {
 	}
 
 	logger.Info("结束签到", zap.Uint64("checkin_id", checkinID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// UpdateCheckin 更新签到信息（教师）
+func (h *Handler) UpdateCheckin(c *gin.Context) {
+	logger := utils.GetLogger()
+	checkinIDStr := c.Param("checkinId")
+	checkinID, err := strconv.ParseUint(checkinIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "checkinId参数格式错误"))
+		return
+	}
+
+	var req struct {
+		CheckinID   uint64  `json:"checkinId"`
+		CheckinName string  `json:"checkinName"`
+		StartTime   string  `json:"startTime"`
+		EndTime     *string `json:"endTime"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询签到是否存在
+	var checkin model.ClassroomCheckin
+	if err := db.Where("id = ?", checkinID).First(&checkin).Error; err != nil {
+		logger.Error("查询签到失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "签到不存在"))
+		return
+	}
+
+	// 更新签到信息
+	updates := map[string]interface{}{
+		"checkin_name": req.CheckinName,
+		"start_time":   req.StartTime,
+	}
+
+	if req.EndTime != nil {
+		updates["end_time"] = *req.EndTime
+	} else {
+		updates["end_time"] = nil
+	}
+
+	if err := db.Model(&checkin).Updates(updates).Error; err != nil {
+		logger.Error("更新签到失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	logger.Info("更新签到", zap.Uint64("checkin_id", checkinID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// DeleteCheckin 删除签到（教师）
+func (h *Handler) DeleteCheckin(c *gin.Context) {
+	logger := utils.GetLogger()
+	checkinIDStr := c.Param("checkinId")
+	checkinID, err := strconv.ParseUint(checkinIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "checkinId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 开始事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 删除签到记录
+	if err := tx.Where("checkin_id = ?", checkinID).Delete(&model.ClassroomCheckinRecord{}).Error; err != nil {
+		logger.Error("删除签到记录失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	// 删除签到
+	if err := tx.Where("id = ?", checkinID).Delete(&model.ClassroomCheckin{}).Error; err != nil {
+		logger.Error("删除签到失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	logger.Info("删除签到", zap.Uint64("checkin_id", checkinID))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
@@ -1425,4 +1594,214 @@ func generateCheckinCode() string {
 	rand.Seed(time.Now().UnixNano())
 	code := rand.Intn(900000) + 100000 // 100000-999999
 	return fmt.Sprintf("%06d", code)
+}
+
+// ==================== 二维码签到功能 ====================
+
+// GetQrcodeInfo 获取二维码信息（教师）
+func (h *Handler) GetQrcodeInfo(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	checkinIDStr := c.Param("checkinId")
+	checkinID, err := strconv.ParseUint(checkinIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "checkinId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	var checkin model.ClassroomCheckin
+	if err := db.Where("id = ?", checkinID).First(&checkin).Error; err != nil {
+		logger.Error("查询签到失败", zap.Error(err), zap.Uint64("checkin_id", checkinID))
+		c.JSON(http.StatusOK, errorResponse(404, "签到不存在"))
+		return
+	}
+
+	// 如果还没有二维码token，生成一个
+	if checkin.QrcodeToken == "" || checkin.QrcodeExpiresAt == nil || time.Now().After(*checkin.QrcodeExpiresAt) {
+		token := generateQrcodeToken(checkinID, checkin.QrcodeRefreshInterval)
+		expiresAt := time.Now().Add(time.Duration(checkin.QrcodeRefreshInterval) * time.Second)
+
+		checkin.QrcodeToken = token
+		checkin.QrcodeExpiresAt = &expiresAt
+
+		if err := db.Save(&checkin).Error; err != nil {
+			logger.Error("更新二维码token失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "生成二维码失败"))
+			return
+		}
+	}
+
+	// 计算剩余秒数
+	var refreshIn int64
+	if checkin.QrcodeExpiresAt != nil {
+		refreshIn = int64(checkin.QrcodeExpiresAt.Sub(time.Now()).Seconds())
+		if refreshIn < 0 {
+			refreshIn = 0
+		}
+	}
+
+	// 生成二维码URL
+	qrcodeURL := fmt.Sprintf("/api/classroom/checkin/%d/qrcode/scan?token=%s", checkinID, checkin.QrcodeToken)
+
+	response := map[string]interface{}{
+		"qrcodeToken": checkin.QrcodeToken,
+		"qrcodeUrl":   qrcodeURL,
+		"expiresAt":   checkin.QrcodeExpiresAt,
+		"refreshIn":   refreshIn,
+	}
+
+	c.JSON(http.StatusOK, successResponse(response))
+}
+
+// RefreshQrcode 刷新二维码（教师）
+func (h *Handler) RefreshQrcode(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	checkinIDStr := c.Param("checkinId")
+	checkinID, err := strconv.ParseUint(checkinIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "checkinId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	var checkin model.ClassroomCheckin
+	if err := db.Where("id = ?", checkinID).First(&checkin).Error; err != nil {
+		logger.Error("查询签到失败", zap.Error(err), zap.Uint64("checkin_id", checkinID))
+		c.JSON(http.StatusOK, errorResponse(404, "签到不存在"))
+		return
+	}
+
+	// 生成新的token
+	token := generateQrcodeToken(checkinID, checkin.QrcodeRefreshInterval)
+	expiresAt := time.Now().Add(time.Duration(checkin.QrcodeRefreshInterval) * time.Second)
+
+	checkin.QrcodeToken = token
+	checkin.QrcodeExpiresAt = &expiresAt
+
+	if err := db.Save(&checkin).Error; err != nil {
+		logger.Error("刷新二维码token失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "刷新失败"))
+		return
+	}
+
+	// 计算剩余秒数
+	refreshIn := int64(checkin.QrcodeRefreshInterval)
+
+	// 生成二维码URL
+	qrcodeURL := fmt.Sprintf("/api/classroom/checkin/%d/qrcode/scan?token=%s", checkinID, token)
+
+	response := map[string]interface{}{
+		"qrcodeToken": token,
+		"qrcodeUrl":   qrcodeURL,
+		"expiresAt":   expiresAt,
+		"refreshIn":   refreshIn,
+	}
+
+	c.JSON(http.StatusOK, successResponse(response))
+}
+
+// SubmitQrcodeCheckin 学生通过二维码签到
+func (h *Handler) SubmitQrcodeCheckin(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		Token    string `json:"token" binding:"required"`
+		CheckinID uint64 `json:"checkinId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询签到
+	var checkin model.ClassroomCheckin
+	if err := db.Where("id = ?", req.CheckinID).First(&checkin).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "签到不存在"))
+		return
+	}
+
+	// 验证签到类型
+	if checkin.CheckinType != "qrcode" {
+		c.JSON(http.StatusOK, errorResponse(400, "不是二维码签到类型"))
+		return
+	}
+
+	// 验证token
+	if checkin.QrcodeToken != req.Token {
+		c.JSON(http.StatusOK, errorResponse(400, "二维码token无效"))
+		return
+	}
+
+	// 检查是否过期
+	if checkin.QrcodeExpiresAt == nil || time.Now().After(*checkin.QrcodeExpiresAt) {
+		c.JSON(http.StatusOK, errorResponse(400, "二维码已过期"))
+		return
+	}
+
+	// 检查签到状态
+	if checkin.Status != 1 {
+		c.JSON(http.StatusOK, errorResponse(400, "签到已结束"))
+		return
+	}
+
+	// 检查是否在时间范围内
+	now := time.Now()
+	if now.Before(checkin.StartTime) {
+		c.JSON(http.StatusOK, errorResponse(400, "签到未开始"))
+		return
+	}
+	if checkin.EndTime != nil && now.After(*checkin.EndTime) {
+		c.JSON(http.StatusOK, errorResponse(400, "签到已结束"))
+		return
+	}
+
+	// 检查是否已经签到过
+	var existingRecord model.ClassroomCheckinRecord
+	if err := db.Where("checkin_id = ? AND uid = ?", req.CheckinID, uid).First(&existingRecord).Error; err == nil {
+		c.JSON(http.StatusOK, errorResponse(400, "已经签到过了"))
+		return
+	}
+
+	// 创建签到记录
+	checkinTime := now
+	record := &model.ClassroomCheckinRecord{
+		CheckinID:  req.CheckinID,
+		UID:        uid.(string),
+		Status:     "present",
+		CheckinTime: &checkinTime,
+	}
+
+	if err := db.Create(record).Error; err != nil {
+		logger.Error("创建签到记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "签到失败"))
+		return
+	}
+
+	logger.Info("二维码签到成功", zap.Uint64("checkin_id", req.CheckinID), zap.String("uid", uid.(string)))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// generateQrcodeToken 生成二维码token
+func generateQrcodeToken(checkinID uint64, refreshInterval int) string {
+	timestamp := time.Now().UnixNano()
+	rand.Seed(timestamp)
+	random := fmt.Sprintf("%08x", rand.Uint32())
+
+	token := fmt.Sprintf("%d_%d_%s", checkinID, timestamp/1e6, random)
+	return token
 }

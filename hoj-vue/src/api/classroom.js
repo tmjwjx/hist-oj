@@ -76,6 +76,10 @@ export default {
   getCheckinList(classroomId) {
     return axios.get(`${BASE_URL}/${classroomId}/checkins`)
   },
+  getCheckinListForStudent(classroomId) {
+    // 学生端安全API - 不返回敏感信息（checkinCode, qrcodeToken等）
+    return axios.get(`${BASE_URL}/${classroomId}/checkins/student`)
+  },
   getCheckinRecords(checkinId) {
     return axios.get(`${BASE_URL}/checkin/${checkinId}/records`)
   },
@@ -84,6 +88,17 @@ export default {
   },
   endCheckin(checkinId) {
     return axios.post(`${BASE_URL}/checkin/${checkinId}/end`)
+  },
+
+  // ==================== 二维码签到功能 ====================
+  getQrcodeToken(checkinId) {
+    return axios.get(`${BASE_URL}/checkin/${checkinId}/qrcode`)
+  },
+  refreshQrcode(checkinId) {
+    return axios.post(`${BASE_URL}/checkin/${checkinId}/qrcode/refresh`)
+  },
+  submitQrcodeCheckin(data) {
+    return axios.post(`${BASE_URL}/checkin/qrcode/submit`, data)
   },
 
   // ==================== 题库功能 ====================

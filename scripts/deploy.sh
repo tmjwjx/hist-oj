@@ -81,9 +81,11 @@ build_images() {
     }
     log_info "✓ registration-backend 镜像构建成功"
 
-    # 构建前端
-    log_info "构建 hoj-frontend 镜像（不使用缓存）..."
-    cd ../../hoj-vue
+    # 构建前端（Docker 构建时会自动安装 package.json 中的所有依赖，包括 jsQR）
+    log_info "构建 hoj-frontend 镜像（不使用缓存，包含 jsQR 二维码扫描功能）..."
+
+    # 切换到前端目录（从 registration-system/backend 返回项目根目录，然后进入 hoj-vue）
+    cd "$PROJECT_DIR/hoj-vue"
 
     # 记录构建前的镜像 ID（用于验证）
     FRONTEND_IMAGE_BEFORE=$(docker images hoj-frontend:latest --format "{{.ID}}" 2>/dev/null || echo "")
@@ -126,10 +128,19 @@ build_images() {
 verify_image_content() {
     log_info "验证镜像内容..."
     docker run --rm hoj-frontend:latest sh -c '
+        # 检查目录是否存在
+        if [ ! -d "/usr/share/nginx/html/assets/js" ]; then
+            echo "[ERROR] 目录 /usr/share/nginx/html/assets/js 不存在"
+            ls -la /usr/share/nginx/html/ || echo "无法列出目录"
+            exit 1
+        fi
+
         # 检查 app.js 文件
         APP_JS=$(find /usr/share/nginx/html/assets/js -name "app.*.js" -type f | head -1)
         if [ -z "$APP_JS" ]; then
             echo "[ERROR] 未找到 app.js 文件"
+            echo "[INFO] 可用的 JS 文件:"
+            ls -la /usr/share/nginx/html/assets/js/ | head -20
             exit 1
         fi
 
@@ -273,6 +284,138 @@ upload_images() {
         }
 
         log_info "✓ 数据库迁移脚本上传完成"
+    fi
+}
+
+# 上传 SSL 证书和 Nginx 配置
+upload_ssl_certs() {
+    log_info "上传 SSL 证书和 Nginx 配置..."
+
+    cd "$PROJECT_DIR"
+
+    # 检查证书文件是否存在
+    if [ ! -f "scripts/nginx/ssl/bingoj.cn.crt" ] || [ ! -f "scripts/nginx/ssl/bingoj.cn.key" ]; then
+        log_error "SSL 证书文件不存在！请确保证书文件在 scripts/nginx/ssl/ 目录下"
+        exit 1
+    fi
+
+    # 创建服务器上的 Nginx 目录
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << ENDSSH
+        mkdir -p /etc/nginx/ssl
+        mkdir -p /etc/nginx/conf.d
+        chmod 700 /etc/nginx/ssl
+ENDSSH
+
+    # 上传证书文件
+    log_info "上传 SSL 证书文件..."
+    sshpass -p "$SERVER_PASS" scp scripts/nginx/ssl/bingoj.cn.crt ${SERVER_USER}@${SERVER_IP}:/etc/nginx/ssl/
+    sshpass -p "$SERVER_PASS" scp scripts/nginx/ssl/bingoj.cn.key ${SERVER_USER}@${SERVER_IP}:/etc/nginx/ssl/
+
+    # 设置证书文件权限
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << ENDSSH
+        chmod 644 /etc/nginx/ssl/bingoj.cn.crt
+        chmod 600 /etc/nginx/ssl/bingoj.cn.key
+        chown root:root /etc/nginx/ssl/*
+ENDSSH
+
+    # 上传 Nginx 配置文件
+    log_info "上传 Nginx SSL 配置..."
+    sshpass -p "$SERVER_PASS" scp scripts/nginx/bingoj.conf ${SERVER_USER}@${SERVER_IP}:/etc/nginx/conf.d/
+
+    log_info "✓ SSL 证书和 Nginx 配置上传成功"
+}
+
+# 安装并配置 Nginx
+install_nginx() {
+    log_info "在服务器上安装并配置 Nginx..."
+
+    sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+        set -e
+
+        # 检查 Nginx 是否已安装
+        if ! command -v nginx &> /dev/null; then
+            echo "[INFO] 安装 Nginx..."
+            # 检测系统类型并安装 Nginx
+            if [ -f /etc/redhat-release ]; then
+                # CentOS/RHEL
+                yum install -y nginx
+            elif [ -f /etc/debian_version ]; then
+                # Ubuntu/Debian
+                apt-get update
+                apt-get install -y nginx
+            else
+                echo "[ERROR] 不支持的操作系统"
+                exit 1
+            fi
+            echo "[INFO] ✓ Nginx 安装成功"
+        else
+            echo "[INFO] ✓ Nginx 已安装"
+        fi
+
+        # 创建日志目录
+        mkdir -p /var/log/nginx
+        chown -R www-data:www-data /var/log/nginx 2>/dev/null || true
+
+        # 先停止旧的前端容器（避免端口冲突）
+        if docker ps -a | grep -q hoj-frontend; then
+            echo "[INFO] 停止旧的 hoj-frontend 容器（避免端口冲突）..."
+            docker stop hoj-frontend 2>/dev/null || true
+            docker rm hoj-frontend 2>/dev/null || true
+            echo "[INFO] ✓ 旧容器已停止"
+        fi
+
+        # 修复并禁用默认配置（避免端口冲突）
+        if [ -f /etc/nginx/sites-enabled/default ]; then
+            echo "[INFO] 禁用默认 Nginx 配置..."
+            rm -f /etc/nginx/sites-enabled/default
+        fi
+
+        # 备份旧配置（如果存在）
+        if [ -f /etc/nginx/conf.d/bingoj.conf ] && [ ! -f /etc/nginx/conf.d/bingoj.conf.bak ]; then
+            cp /etc/nginx/conf.d/bingoj.conf /etc/nginx/conf.d/bingoj.conf.bak
+            echo "[INFO] 已备份旧配置"
+        fi
+
+        # 测试 Nginx 配置
+        echo "[INFO] 测试 Nginx 配置..."
+        nginx -t
+
+        # 如果配置测试通过，启动 Nginx
+        if [ $? -eq 0 ]; then
+            # 启动 Nginx（如果未运行）
+            systemctl start nginx 2>/dev/null || service nginx start
+
+            # 设置开机自启
+            systemctl enable nginx 2>/dev/null || update-rc.d nginx defaults
+
+            # 重新加载配置
+            systemctl reload nginx 2>/dev/null || nginx -s reload
+
+            echo "[INFO] ✓ Nginx 配置成功并已启动"
+        else
+            echo "[ERROR] Nginx 配置测试失败"
+            exit 1
+        fi
+
+        # 检查 Nginx 状态
+        systemctl status nginx --no-pager || service nginx status
+
+        # 验证 443 端口是否监听
+        sleep 2
+        if netstat -tlnp 2>/dev/null | grep -q ":443 "; then
+            echo "[INFO] ✓ Nginx 正在监听 443 端口（HTTPS）"
+        elif ss -tlnp 2>/dev/null | grep -q ":443 "; then
+            echo "[INFO] ✓ Nginx 正在监听 443 端口（HTTPS）"
+        else
+            echo "[WARN] Nginx 未监听 443 端口，请检查配置"
+        fi
+ENDSSH
+
+    if [ $? -eq 0 ]; then
+        log_info "✓ Nginx 安装配置成功"
+    else
+        log_error "Nginx 安装配置失败"
+        exit 1
     fi
 }
 
@@ -570,6 +713,7 @@ SQLEOF
             docker run -d \
                 --name registration-backend \
                 --network hoj_hoj-network \
+                -p 8080:8080 \
                 -v /opt/registration-uploads:/app/uploads \
                 -e DATABASE_HOST=43.143.133.62 \
                 -e DATABASE_PORT=3306 \
@@ -588,15 +732,14 @@ SQLEOF
         fi
 
         if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
-            echo "[INFO] 启动 hoj-frontend 容器（连接到两个网络）..."
+            echo "[INFO] 启动 hoj-frontend 容器（映射到内部端口 8081，避免与 Nginx 冲突）..."
             docker run -d \
                 --name hoj-frontend \
                 --network hoj_hoj-network \
                 --network main_hoj-network \
-                -p 80:80 \
-                -p 443:443 \
+                -p 8081:80 \
                 --restart unless-stopped \
-                --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1" \
+                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/ || exit 1" \
                 --health-interval=30s \
                 --health-timeout=3s \
                 --health-retries=3 \
@@ -818,17 +961,20 @@ show_result() {
     log_info "=========================================="
     log_info "部署完成！"
     log_info "=========================================="
-    log_info "服务访问地址："
-    log_info "  - 前端主页: http://${SERVER_IP}"
+    log_info "✅ HTTPS 已启用，SSL 证书配置成功！"
+    log_info ""
+    log_info "服务访问地址（推荐使用 HTTPS）："
+    log_info "  - 前端主页: https://bingoj.cn 或 http://${SERVER_IP}"
     log_info "  - hist-oj API: http://${SERVER_IP}:9527"
-    log_info "  - 用户工具箱: http://${SERVER_IP}/toolbox"
-    log_info "  - 管理员工具箱: http://${SERVER_IP}/admin/toolbox"
-    log_info "  - 代码对战: http://${SERVER_IP}/battle"
-    log_info "  - 对战排行榜: http://${SERVER_IP}/battle/rank"
-    log_info "  - 教师工作台: http://${SERVER_IP}/classroom/teacher"
-    log_info "  - 学生工作台: http://${SERVER_IP}/classroom/student"
-    log_info "  - 报名系统: http://${SERVER_IP}/toolbox -> 赛事报名系统"
-    log_info "  - 报名管理: http://${SERVER_IP}/admin/toolbox -> 赛事报名系统管理"
+    log_info "  - 用户工具箱: https://bingoj.cn/toolbox"
+    log_info "  - 管理员工具箱: https://bingoj.cn/admin/toolbox"
+    log_info "  - 代码对战: https://bingoj.cn/battle"
+    log_info "  - 对战排行榜: https://bingoj.cn/battle/rank"
+    log_info "  - 教师工作台: https://bingoj.cn/classroom/teacher"
+    log_info "  - 学生工作台: https://bingoj.cn/classroom/student"
+    log_info "  - 班级签到: https://bingoj.cn/classroom/student (支持摄像头扫码)"
+    log_info "  - 报名系统: https://bingoj.cn/toolbox -> 赛事报名系统"
+    log_info "  - 报名管理: https://bingoj.cn/admin/toolbox -> 赛事报名系统管理"
     log_info ""
     log_info "架构更新："
     log_info "  - 已将赛事报名系统封装到工具箱中"
@@ -872,12 +1018,21 @@ show_result() {
     log_info "  7. 班级管理系统（新增）"
     log_info "     - 班级管理：创建班级、学生管理、教师管理"
     log_info "     - 签到系统：上课签到、签到统计"
+    log_info "     - 📷 二维码签到：支持摄像头扫描自动签到（jsQR 库）"
     log_info "     - 题库管理：班级题目、作业题库"
     log_info "     - 作业系统：发布作业、提交作业、批改作业"
     log_info "     - 资料库：课程资料上传、下载"
     log_info "     - 随机选人：课堂随机提问功能"
     log_info "     - 即时通讯：班级群聊、私信"
     log_info "     - API: http://${SERVER_IP}:9527/api/classroom/*"
+    log_info ""
+    log_info "  8. ✅ HTTPS + 二维码签到功能（已修复）"
+    log_info "     - SSL 证书已配置，支持 HTTPS 访问"
+    log_info "     - 使用 jsQR 库实现跨浏览器二维码扫描"
+    log_info "     - 支持 Chrome、Firefox、Safari、Edge 全平台"
+    log_info "     - 移除手动输入 Token，简化扫码流程"
+    log_info "     - 学生端: https://bingoj.cn/classroom/student"
+    log_info "     - 教师端: https://bingoj.cn/classroom/teacher"
     log_info ""
     log_info "验证命令："
     log_info "  curl http://${SERVER_IP}:9527/health"
@@ -1029,6 +1184,13 @@ main() {
 
     save_images "$DEPLOY_TARGET"
     upload_images "$DEPLOY_TARGET"
+
+    # 上传并配置 SSL 证书（仅在完整部署或前端部署时）
+    if [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "frontend" ]; then
+        upload_ssl_certs
+        install_nginx
+    fi
+
     deploy_on_server "$DEPLOY_TARGET"
     cleanup
     cleanup_server

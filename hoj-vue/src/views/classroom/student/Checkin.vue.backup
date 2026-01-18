@@ -29,53 +29,39 @@
 
             <!-- 检查学生是否已签到 -->
             <div class="checkin-status">
-              <!-- 已签到：显示签到状态 -->
-              <el-tag v-if="hasCheckined(checkin.id)" :type="getCheckinStatusType(checkin.id)">
+              <el-tag v-if="getCheckinStatus(checkin.id)" :type="getCheckinStatusType(checkin.id)">
                 {{ getCheckinStatusText(checkin.id) }}
               </el-tag>
 
-              <!-- 未签到：根据时间和状态显示不同内容 -->
-              <template v-else>
-                <!-- 签到进行中：显示未签到状态和签到按钮 -->
-                <template v-if="isCheckinActive(checkin)">
-                  <el-tag type="info" size="small" style="margin-right: 8px;">
-                    {{ $t('m.Not_Checkin') }}
-                  </el-tag>
+              <!-- 根据签到类型显示不同按钮 -->
+              <template v-else-if="checkin.status === 1">
+                <!-- 二维码签到类型 -->
+                <el-button
+                  v-if="checkin.checkinType === 'qrcode'"
+                  type="success"
+                  size="small"
+                  @click="handleQrcodeCheckin(checkin)"
+                  :loading="checkin.submitting"
+                  icon="el-icon-full-screen"
+                >
+                  {{ $t('m.Scan_Qrcode') }}
+                </el-button>
 
-                  <!-- 二维码签到类型 -->
-                  <el-button
-                    v-if="checkin.checkinType === 'qrcode'"
-                    type="success"
-                    size="small"
-                    @click="handleQrcodeCheckin(checkin)"
-                    :loading="checkin.submitting"
-                    icon="el-icon-full-screen"
-                  >
-                    {{ $t('m.Scan_Qrcode') }}
-                  </el-button>
-
-                  <!-- 签到码类型 -->
-                  <el-button
-                    v-else
-                    type="primary"
-                    size="small"
-                    @click="handleCheckin(checkin)"
-                    :loading="checkin.submitting"
-                  >
-                    {{ $t('m.Checkin') }}
-                  </el-button>
-                </template>
-
-                <!-- 签到未开始：显示未开始 -->
-                <el-tag v-else-if="!isCheckinStarted(checkin)" type="info" size="small">
-                  {{ $t('m.Not_Started') }}
-                </el-tag>
-
-                <!-- 签到已结束且未签到：显示缺勤 -->
-                <el-tag v-else type="danger" size="small">
-                  {{ $t('m.Absent') }}
-                </el-tag>
+                <!-- 签到码类型 -->
+                <el-button
+                  v-else
+                  type="primary"
+                  size="small"
+                  @click="handleCheckin(checkin)"
+                  :loading="checkin.submitting"
+                >
+                  {{ $t('m.Checkin') }}
+                </el-button>
               </template>
+
+              <el-tag v-else type="info" size="small">
+                {{ $t('m.Checkin_Ended') }}
+              </el-tag>
             </div>
           </el-card>
         </div>
@@ -128,27 +114,25 @@
           </p>
         </div>
 
-        <!-- 视频预览和扫描区域 -->
+        <!-- 使用 vue-qrcode-reader 扫描器 -->
         <div v-else class="scanner-wrapper">
-          <video
-            ref="video"
-            class="camera-video"
-            autoplay
-            playsinline
-            muted
-          ></video>
-          <canvas ref="canvas" style="display: none;"></canvas>
-
-          <!-- 扫描框覆盖层 -->
-          <div class="scan-overlay">
-            <div class="scan-frame">
-              <div class="scan-corner top-left"></div>
-              <div class="scan-corner top-right"></div>
-              <div class="scan-corner bottom-left"></div>
-              <div class="scan-corner bottom-right"></div>
-              <p class="scan-hint">将二维码放入框内即可自动扫描</p>
+          <qrcode-stream
+            @decode="onDecode"
+            @init="onInit"
+            :camera="qrcodeForm.camera"
+            :track="selectedTrackOption.value"
+            style="width: 100%; height: 300px;"
+          >
+            <div class="scan-overlay">
+              <div class="scan-frame">
+                <div class="scan-corner top-left"></div>
+                <div class="scan-corner top-right"></div>
+                <div class="scan-corner bottom-left"></div>
+                <div class="scan-corner bottom-right"></div>
+                <p class="scan-hint">将二维码放入框内即可自动扫描</p>
+              </div>
             </div>
-          </div>
+          </qrcode-stream>
 
           <!-- 加载提示 -->
           <div v-if="qrcodeForm.initializing" class="camera-loading-overlay">
@@ -162,11 +146,29 @@
       <div v-else class="scan-success">
         <i class="el-icon-success" style="font-size: 48px; color: #67C23A;"></i>
         <p style="margin-top: 10px;">{{ $t('m.Scan_Success') }}</p>
+        <p style="font-size: 12px; color: #909399;">{{ qrcodeForm.scannedToken }}</p>
         <el-button @click="resetScan" size="small">{{ $t('m.Rescan') }}</el-button>
       </div>
 
+      <!-- 手动输入Token -->
+      <el-divider>{{ $t('m.Or_Input_Token_Manually') }}</el-divider>
+
+      <el-form @submit.native.prevent="confirmQrcodeCheckin">
+        <el-form-item label="Token">
+          <el-input
+            v-model="qrcodeForm.inputToken"
+            placeholder="例如：123_1642425600000_abc123"
+            @keyup.enter.native="confirmQrcodeCheckin"
+            ref="qrcodeTokenInput"
+          />
+        </el-form-item>
+      </el-form>
+
       <span slot="footer">
         <el-button @click="showQrcodeDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="confirmQrcodeCheckin" :loading="qrcodeForm.submitting">
+          {{ $t('m.Confirm_Checkin') }}
+        </el-button>
       </span>
     </el-dialog>
   </div>
@@ -176,15 +178,13 @@
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
 import studentAuth from '@/mixins/studentAuth'
-import jsQR from 'jsqr'
-
-// 确保 jsQR 被打包，不被 tree-shaking 移除
-// eslint-disable-next-line no-unused-vars
-const _ensureJsqrIncluded = jsQR
+import { QrcodeStream } from 'vue-qrcode-reader'
 
 export default {
   name: 'Checkin',
-  components: {},
+  components: {
+    QrcodeStream
+  },
   mixins: [realtimeSync, studentAuth],
   props: {
     classroomId: [String, Number]
@@ -194,7 +194,6 @@ export default {
       loading: false,
       checkins: [],
       checkinRecords: {}, // 存储每个签到表的记录 { checkinId: [records] }
-      classStudents: [], // 班级学生列表
       showCheckinDialog: false,
       showQrcodeDialog: false,
       checkinForm: {
@@ -209,7 +208,12 @@ export default {
         scannedToken: '',
         cameraError: '',
         initializing: false,
-        scanning: false
+        scanning: false,
+        camera: 'auto' // 'auto' | 'rear' | 'front'
+      },
+      selectedTrackOption: {
+        value: true,
+        label: 'Paint detected QR code bounds'
       },
       // 实时同步配置
       realtimeSyncConfig: {
@@ -217,17 +221,6 @@ export default {
         interval: 3000,
         syncFunction: 'loadCheckins',
         immediate: true
-      }
-    }
-  },
-  computed: {
-    // 计算属性：检查学生是否已签到（用于模板显示）
-    hasCheckined() {
-      return function(checkinId) {
-        const records = this.checkinRecords[checkinId] || []
-        const userId = this.$store.getters.userInfo?.uid
-        const myRecord = records.find(r => r.uid === userId)
-        return !!myRecord
       }
     }
   },
@@ -242,9 +235,6 @@ export default {
     }
   },
   mounted() {
-    // 确保 jsQR 被打包（防止 tree-shaking 移除）
-    // eslint-disable-next-line no-unused-vars
-    const _jsqr = jsQR
     // mounted 时也会通过 watch 触发加载
   },
   methods: {
@@ -264,36 +254,17 @@ export default {
         if (res.code === 200) {
           const newCheckins = (res.data || []).map(c => ({ ...c, submitting: false }))
 
-          // 智能更新：只有数据真的变化时才更新，避免不必要的重新渲染
-          let checkinsChanged = false
-          if (this.checkins.length !== newCheckins.length) {
-            // 数量不同，直接更新
+          // 深度对比：使用 JSON.stringify 检查数据是否真的变化
+          const currentDataString = JSON.stringify(this.checkins)
+          const newDataString = JSON.stringify(newCheckins)
+
+          if (currentDataString !== newDataString) {
+            // 数据真的变化了，才更新
             this.checkins = newCheckins
-            checkinsChanged = true
-          } else {
-            // 数量相同，逐个对比并更新
-            for (let i = 0; i < this.checkins.length; i++) {
-              const oldCheckin = this.checkins[i]
-              const newCheckin = newCheckins[i]
-
-              // 检查关键字段是否变化
-              if (oldCheckin.id !== newCheckin.id ||
-                  oldCheckin.status !== newCheckin.status ||
-                  oldCheckin.checkinType !== newCheckin.checkinType) {
-                checkinsChanged = true
-                break
-              }
-            }
-
-            if (checkinsChanged) {
-              this.checkins = newCheckins
-            }
           }
 
-          // 只有签到列表真的变化时才重新加载记录
-          if (checkinsChanged || isFirstLoad) {
-            await this.loadAllRecords()
-          }
+          // 加载每个签到的记录
+          await this.loadAllRecords()
         }
       } catch (error) {
         if (isFirstLoad) {
@@ -305,99 +276,25 @@ export default {
         }
       }
     },
-    async loadAllRecords(forceRefresh = false) {
-      // 学生端不需要加载全班学生列表
-      // await this.loadClassStudents()  // 注释掉，学生端不需要
-
+    async loadAllRecords() {
       for (const checkin of this.checkins) {
         try {
-          // 获取签到记录
           const records = await this.$store.dispatch('classroom/getCheckinRecords', checkin.id)
           if (records.code === 200) {
-            const newRecords = records.data || []
-
-            // 检查记录是否真的变化了（对比当前用户的状态）
-            const userInfo = this.$store.getters.userInfo
-            const userId = userInfo?.uid
-            const oldRecords = this.checkinRecords[checkin.id] || []
-
-            const oldMyRecord = oldRecords.find(r => r.uid === userId)
-            const newMyRecord = newRecords.find(r => r.uid === userId)
-
-            // 强制刷新或状态变化时才更新
-            if (forceRefresh || !oldMyRecord || !newMyRecord ||
-                !oldMyRecord !== !newMyRecord || oldMyRecord.status !== newMyRecord.status) {
-              this.$set(this.checkinRecords, checkin.id, newRecords)
-            }
+            this.$set(this.checkinRecords, checkin.id, records.data || [])
           }
         } catch (error) {
           console.error(`加载签到记录失败: ${checkin.id}`, error)
         }
       }
-
-      // 合并学生列表和签到记录
-      this.mergeStudentsAndRecords()
-    },
-
-    // 获取班级学生列表
-    async loadClassStudents() {
-      if (this.classStudents.length > 0) {
-        return
-      }
-
-      try {
-        const res = await this.$http.get(`/api/classroom/${this.classroomId}/students`)
-        if (res.data.code === 200) {
-          this.classStudents = res.data.data || []
-        }
-      } catch (error) {
-        console.error('加载学生列表失败:', error)
-        this.classStudents = []
-      }
-    },
-
-    // 合并学生列表和签到记录
-    // 注意：学生端只显示已签到的记录，不显示缺勤列表
-    mergeStudentsAndRecords() {
-      // 学生端不需要合并全班学生列表
-      // 只保留真实的签到记录即可
-      // 不做任何处理，避免将未签到的学生标记为缺勤
     },
     // 获取当前用户在该签到表的状态
     getCheckinStatus(checkinId) {
       const records = this.checkinRecords[checkinId] || []
-      const userId = this.$store.getters.userInfo?.uid
-      const myRecord = records.find(r => r.uid === userId)
+      // 从 Vuex store 获取当前用户信息
+      const userId = this.$store.getters.userInfo?.uuid || this.$store.getters.userId
+      const myRecord = records.find(r => r.userId === userId || r.uid === userId)
       return myRecord ? myRecord.status : null
-    },
-
-    // 判断签到是否处于活跃状态（可以签到）
-    isCheckinActive(checkin) {
-      const now = new Date()
-      const startTime = new Date(checkin.startTime)
-
-      // 检查是否已开始
-      if (now < startTime) {
-        return false
-      }
-
-      // 检查是否已结束
-      if (checkin.endTime) {
-        const endTime = new Date(checkin.endTime)
-        if (now > endTime) {
-          return false
-        }
-      }
-
-      // 检查签到状态（status === 1 表示进行中）
-      return checkin.status === 1
-    },
-
-    // 判断签到是否已开始
-    isCheckinStarted(checkin) {
-      const now = new Date()
-      const startTime = new Date(checkin.startTime)
-      return now >= startTime
     },
     getCheckinStatusType(checkinId) {
       const status = this.getCheckinStatus(checkinId)
@@ -447,8 +344,8 @@ export default {
         if (res.code === 200) {
           this.$message.success(this.$t('m.Checkin_Success'))
           this.showCheckinDialog = false
-          // 重新加载记录（强制刷新，不检查是否变化）
-          await this.loadAllRecords(true)
+          // 重新加载记录
+          await this.loadAllRecords()
         } else {
           this.$message.error(res.message || this.$t('m.Checkin_Failed'))
         }
@@ -536,6 +433,12 @@ export default {
           throw new Error('当前浏览器不支持摄像头访问')
         }
 
+        // 检查 Barcode Detection API 支持
+        if (!('BarcodeDetector' in window)) {
+          this.$message.warning('您的浏览器不支持原生二维码识别，请使用最新版 Chrome 或 Edge')
+          // 仍然启动相机，但无法自动识别
+        }
+
         // 获取摄像头流（优先使用后置摄像头）
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -554,7 +457,7 @@ export default {
         await video.play()
 
         this.qrcodeForm.scanning = true
-        this.$message.success('相机已启动，请将二维码对准扫描框')
+        this.$message.success('相机已启动')
 
         // 开始扫描循环
         this.scanLoop()
@@ -597,51 +500,32 @@ export default {
           return
         }
 
-        // 将视频帧绘制到 canvas
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        // 如果支持 Barcode Detection API
+        if ('BarcodeDetector' in window) {
+          const barcodeDetector = new BarcodeDetector({
+            formats: ['qr_code']
+          })
 
-        // 使用 jsQR 识别二维码
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const code = jsQR(imageData.data, imageData.width, imageData.height)
+          try {
+            const barcodes = await barcodeDetector.detect(video)
 
-        if (code) {
-          const token = this.extractTokenFromUrl(code.data)
+            if (barcodes && barcodes.length > 0) {
+              const rawValue = barcodes[0].rawValue
+              console.log('检测到二维码:', rawValue)
 
-          if (token) {
-            // 先停止摄像头
-            this.stopCamera()
-
-            // 设置 token 并提交签到
-            this.qrcodeForm.scannedToken = token
-            this.qrcodeForm.inputToken = token
-
-            // 显示扫描成功提示
-            this.$message.success(this.$t('m.Scan_Success'))
-
-            // 直接提交签到
-            this.confirmQrcodeCheckin().then(() => {
-              // 签到成功后，延迟1.5秒再关闭对话框
-              setTimeout(() => {
-                this.showQrcodeDialog = false
-                // 重新加载签到列表（强制刷新）
-                this.loadCheckins()
-                // 强制刷新签到记录
-                this.loadAllRecords(true)
-              }, 1500)
-            }).catch((error) => {
-              // 失败也延迟关闭对话框
-              console.error('签到提交失败:', error)
-              setTimeout(() => {
-                this.showQrcodeDialog = false
-              }, 2000)
-            })
-
-            return
-          } else {
-            this.$message.warning('二维码格式不正确，请扫描正确的签到二维码')
+              const token = this.extractTokenFromUrl(rawValue)
+              if (token) {
+                this.qrcodeForm.scannedToken = token
+                this.qrcodeForm.inputToken = token
+                this.$message.success(this.$t('m.Scan_Success'))
+                this.stopCamera()
+                // 自动提交签到
+                this.confirmQrcodeCheckin()
+                return
+              }
+            }
+          } catch (detectError) {
+            console.warn('二维码检测失败:', detectError)
           }
         }
 
@@ -669,63 +553,25 @@ export default {
 
     // 从URL中提取token
     extractTokenFromUrl(url) {
-      // 如果内容为空
-      if (!url || url.trim() === '') {
-        this.$message.error('二维码内容为空，请扫描正确的签到二维码')
-        return null
-      }
-
-      // 方法1：直接使用正则表达式从任何格式中提取token
-      // token格式通常是: 数字_数字_字母数字 (例如: 16_1768705780133_3e83f2c8)
-      const tokenPattern = /token=([^&\s]+)/
-      const match = url.match(tokenPattern)
-
-      if (match && match[1]) {
-        return match[1]
-      }
-
-      // 方法2：尝试构造完整URL再解析
+      console.log('解析二维码URL:', url)
+      // 尝试从URL参数中提取token
       try {
-        // 如果是相对路径，添加当前域名
-        let fullUrl = url
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          // 获取当前页面的协议和主机
-          const protocol = window.location.protocol
-          const host = window.location.host
-          fullUrl = `${protocol}//${host}${url.startsWith('/') ? '' : '/'}${url}`
-        }
-
-        const urlObj = new URL(fullUrl)
+        const urlObj = new URL(url)
         const token = urlObj.searchParams.get('token')
         if (token) {
           return token
         }
-
-        this.$message.warning('二维码格式不正确，未找到token参数')
+        // 或者URL路径中可能直接包含token
+        const match = url.match(/token=([^&]+)/)
+        if (match) {
+          return match[1]
+        }
       } catch (e) {
-        // 方法3：如果是直接扫描的token字符串（包含下划线）
-        // Token通常包含下划线，例如：16_1768705780133_3e83f2c8
+        // 如果不是URL，可能直接就是token
         if (url && url.includes('_')) {
-          // 提取token部分（去除可能的前缀）
-          const parts = url.split('_')
-          if (parts.length >= 2) {
-            // 找到最后一个包含token=的部分
-            for (let i = parts.length - 1; i >= 0; i--) {
-              const part = parts[i]
-              // 检查是否是字母数字混合（token的最后部分）
-              if (/^[a-zA-Z0-9]+$/.test(part)) {
-                const token = parts.slice(Math.max(0, i - 2), i + 1).join('_')
-                return token
-              }
-            }
-          }
-
           return url
-        } else {
-          this.$message.error('二维码格式不正确，请扫描正确的签到二维码')
         }
       }
-
       return null
     },
 

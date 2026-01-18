@@ -95,9 +95,17 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/checkin", AuthMiddleware(), handler.CreateCheckin)
 			classroom.POST("/checkin/submit", AuthMiddleware(), handler.StudentCheckin)
 			classroom.GET("/:classroomId/checkins", AuthMiddleware(), handler.GetCheckinList)
+			classroom.GET("/:classroomId/checkins/student", AuthMiddleware(), handler.GetCheckinListForStudent) // 学生端安全API
 			classroom.GET("/checkin/:checkinId/records", AuthMiddleware(), handler.GetCheckinRecords)
 			classroom.PUT("/checkin/record", AuthMiddleware(), handler.UpdateCheckinRecord)
 			classroom.POST("/checkin/:checkinId/end", AuthMiddleware(), handler.EndCheckin)
+			classroom.PUT("/checkin/:checkinId", AuthMiddleware(), handler.UpdateCheckin)
+			classroom.DELETE("/checkin/:checkinId", AuthMiddleware(), handler.DeleteCheckin)
+
+			// 二维码签到功能 - 需要认证
+			classroom.GET("/checkin/:checkinId/qrcode", AuthMiddleware(), handler.GetQrcodeInfo)
+			classroom.POST("/checkin/:checkinId/qrcode/refresh", AuthMiddleware(), handler.RefreshQrcode)
+			classroom.POST("/checkin/qrcode/submit", AuthMiddleware(), handler.SubmitQrcodeCheckin)
 
 			// 题库功能（教师）- 需要认证
 			classroom.POST("/question", AuthMiddleware(), handler.CreateQuestion)

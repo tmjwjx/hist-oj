@@ -46,6 +46,24 @@ export const m = {
   NavBar_Contest_Rank: 'Contest Rank',
   NavBar_Group_Home: 'Group Home',
 
+  // ==================== QR Code Checkin Related ====================
+  Qrcode_Checkin: 'QR Code Check-in',
+  Checkin_Code_Checkin: 'Check-in Code',
+  Checkin_Type: 'Check-in Type',
+  Checkin_Code_Type: 'Check-in Code',
+  Qrcode_Checkin_Type: 'QR Code',
+  Qrcode_Refresh_Interval: 'Refresh Interval',
+  Qrcode_Refresh_Tip: 'QR code will automatically refresh at the specified interval, old code expires immediately',
+  Show_Qrcode: 'Show QR Code',
+  Refresh_In: 'Refresh Countdown',
+  Auto_Refresh_In: 'Auto Refresh In',
+  Qrcode_Expired: 'QR Code Expired',
+  Refresh_Now: 'Refresh Now',
+  Refresh_Success: 'Refresh Success',
+  Refresh_Failed: 'Refresh Failed',
+  Scan_Qrcode: 'Scan QR Code',
+  Please_Enter_Checkin_Name: 'Please enter check-in name',
+
   //  /components/oj/common/Login.vue 登录弹窗
   Login_Username: 'Username',
   Login_Password: 'Password',
@@ -963,11 +981,16 @@ export const m = {
   Sick_Leave: 'Sick Leave',
   Checkin_List: 'Check-in List',
   No_Checkin_Available: 'No check-in available',
+  Not_Checkin: 'Not Checked In',
+  Not_Started: 'Not Started',
   Unlimited: 'Unlimited',
   Checkin_Ended: 'Ended',
   End: 'End',
   End_Success: 'Ended successfully',
   End_Failed: 'Failed to end',
+  Edit_Checkin: 'Edit Checkin',
+  Delete_Checkin_Confirm: 'Are you sure you want to delete this checkin? This action cannot be undone.',
+  Confirm_Delete: 'Confirm Delete',
   Click_To_Pick: 'Click the button below to pick a random student',
 
   // Classroom - Materials

@@ -65,14 +65,18 @@ func (ClassroomStudent) TableName() string {
 
 // ClassroomCheckin 签到表
 type ClassroomCheckin struct {
-	ID          uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	ClassroomID uint64     `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
-	CheckinCode string     `gorm:"type:varchar(20);not null;index:idx_checkin_code" json:"checkinCode"`
-	CheckinName string     `gorm:"type:varchar(100)" json:"checkinName"`
-	StartTime   time.Time  `gorm:"type:datetime;not null" json:"startTime"`
-	EndTime     *time.Time `gorm:"type:datetime" json:"endTime"`
-	Status      int        `gorm:"type:int;default:1" json:"status"` // 1: 进行中, 2: 已结束
-	CreatedAt   time.Time  `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	ID                     uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassroomID            uint64     `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
+	CheckinCode            string     `gorm:"type:varchar(20);not null;index:idx_checkin_code" json:"checkinCode"`
+	CheckinName            string     `gorm:"type:varchar(100)" json:"checkinName"`
+	CheckinType            string     `gorm:"type:varchar(20);default:'code'" json:"checkinType"` // code 或 qrcode
+	QrcodeToken            string     `gorm:"type:varchar(255)" json:"qrcodeToken"`
+	QrcodeExpiresAt        *time.Time `gorm:"type:datetime" json:"qrcodeExpiresAt"`
+	QrcodeRefreshInterval   int        `gorm:"type:int;default:15" json:"qrcodeRefreshInterval"` // 二维码刷新间隔(秒)
+	StartTime              time.Time  `gorm:"type:datetime;not null" json:"startTime"`
+	EndTime                *time.Time `gorm:"type:datetime" json:"endTime"`
+	Status                 int        `gorm:"type:int;default:1" json:"status"` // 1: 进行中, 2: 已结束
+	CreatedAt              time.Time  `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 
 	// 关联字段
 	Records []ClassroomCheckinRecord `gorm:"foreignKey:CheckinID" json:"records,omitempty"`
