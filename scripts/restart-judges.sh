@@ -53,11 +53,11 @@ restart_judge() {
     
     # 1. 停止容器
     log_info "[$judge_name] 正在停止容器..."
-    remote_exec "$judge_ip" "cd $WORKSPACE && docker compose down"
-    
+    remote_exec "$judge_host" "cd $WORKSPACE && sudo docker compose down"
+
     # 2. 启动容器
     log_info "[$judge_name] 正在启动容器..."
-    remote_exec "$judge_ip" "cd $WORKSPACE && docker compose up -d"
+    remote_exec "$judge_host" "cd $WORKSPACE && sudo docker compose up -d"
     
     log_success "[$judge_name] 重启完成!"
     echo ""
@@ -73,9 +73,9 @@ main() {
     
     # 遍历所有判题机并重启
     for i in "${!JUDGES[@]}"; do
-        judge_ip=$(echo "$i" | cut -d@ -f1)
+        judge_host="${JUDGES[$i]}"
         judge_name="判题机$((i+1))"
-        restart_judge "$judge_ip" "$judge_name"
+        restart_judge "$judge_host" "$judge_name"
     done
     
     log_info "========================================"

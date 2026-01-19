@@ -22,7 +22,7 @@ VueRouter.prototype.push = function push(location) {
    return originalPush.call(this, location).catch(err => err)
 }
 
-let routes = new Set([...ojRoutes, ...adminRoutes, classroomRoutes]);
+let routes = [...ojRoutes, ...adminRoutes, classroomRoutes];
 const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,
@@ -132,6 +132,7 @@ router.beforeEach(async (to, from, next) => {
     const token = localStorage.getItem('token') || ''
     const isSuperAdmin = store.getters.isSuperAdmin
     const isAmdin = store.getters.isAdminRole
+    const isProblemAdmin = store.getters.isProblemAdmin
     if (token) { // 判断当前的token是否存在 ； 登录存入的token
 
       if(to.matched.some(record => record.meta.requireSuperAdmin)){ // 判断是否需要超级管理权限
@@ -141,12 +142,30 @@ router.beforeEach(async (to, from, next) => {
         }else{ // 没有超级管理员权限 全部返回登录页，并且清除缓存
           if(to.path.split('/')[1]==='admin'){ //管理端
             next({
-              path: '/admin/login' 
+              path: '/admin/login'
             })
             mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
           }else{ // oj端
             next({
-              path: '/home' 
+              path: '/home'
+            })
+            store.commit('changeModalStatus',{mode: 'Login', visible: true})
+            mMessage.error(i18n.t('m.Please_login_first'))
+            store.commit("clearUserInfoAndToken");
+          }
+        }
+      }else if(to.matched.some(record => record.meta.requireAdminOrProblemAdmin)){ // 判断是否需要管理员或题目管理员权限
+        if(isSuperAdmin || isProblemAdmin){ // 超级管理员或题目管理员可以访问
+          next()
+        }else{ // 没有权限，全部返回登录页，并且清除缓存
+          if(to.path.split('/')[1]==='admin'){ // 管理端
+            next({
+              path: '/admin/login'
+            })
+            mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
+          }else{
+            next({
+              path: '/home'
             })
             store.commit('changeModalStatus',{mode: 'Login', visible: true})
             mMessage.error(i18n.t('m.Please_login_first'))
@@ -159,17 +178,17 @@ router.beforeEach(async (to, from, next) => {
         }else{ // 没有管理员权限 全部返回登录页，并且清除缓存
           if(to.path.split('/')[1]==='admin'){ // 管理端
             next({
-              path: '/admin/login' 
+              path: '/admin/login'
             })
             mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
           }else{
             next({
-              path: '/home' 
+              path: '/home'
             })
             store.commit('changeModalStatus',{mode: 'Login', visible: true})
             mMessage.error(i18n.t('m.Please_login_first'))
             store.commit("clearUserInfoAndToken");
-          }  
+          }
         }
       }else{
         next()

@@ -1014,6 +1014,13 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
 	db := client.GetDB()
 	var checkins []model.ClassroomCheckin
 
@@ -1025,7 +1032,7 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 		return
 	}
 
-	// 创建学生视图的签到列表（移除敏感信息）
+	// 创建学生视图的签到列表（移除敏感信息）+ 包含当前用户的签到状态
 	type StudentCheckinView struct {
 		ID                 uint64      `json:"id"`
 		ClassroomID        uint64      `json:"classroomId"`
@@ -1036,11 +1043,29 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 		EndTime            *time.Time  `json:"endTime"`
 		Status             int         `json:"status"`
 		CreatedAt          time.Time   `json:"createdAt"`
+		UserCheckinStatus *string     `json:"userCheckinStatus"` // 当前用户的签到状态
 	}
 
 	studentCheckins := make([]StudentCheckinView, 0, len(checkins))
+
+	// 批量查询所有签到的记录ID列表
+	checkinIDs := make([]uint64, len(checkins))
+	for i, checkin := range checkins {
+		checkinIDs[i] = checkin.ID
+	}
+
+	// 查询当前用户在所有签到中的记录
+	var userRecords []model.ClassroomCheckinRecord
+	db.Where("checkin_id IN ? AND uid = ?", checkinIDs, uid.(string)).Find(&userRecords)
+
+	// 创建签到ID到用户状态的映射
+	userStatusMap := make(map[uint64]string)
+	for _, record := range userRecords {
+		userStatusMap[record.CheckinID] = record.Status
+	}
+
 	for _, checkin := range checkins {
-		studentCheckins = append(studentCheckins, StudentCheckinView{
+		view := StudentCheckinView{
 			ID:                  checkin.ID,
 			ClassroomID:         checkin.ClassroomID,
 			CheckinName:         checkin.CheckinName,
@@ -1050,7 +1075,14 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 			EndTime:             checkin.EndTime,
 			Status:              checkin.Status,
 			CreatedAt:           checkin.CreatedAt,
-		})
+		}
+
+		// 添加当前用户的签到状态
+		if status, ok := userStatusMap[checkin.ID]; ok {
+			view.UserCheckinStatus = &status
+		}
+
+		studentCheckins = append(studentCheckins, view)
 	}
 
 	c.JSON(http.StatusOK, successResponse(studentCheckins))

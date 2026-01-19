@@ -40,6 +40,8 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 export default {
   name: 'ToolboxAdmin',
   components: {},
@@ -51,48 +53,76 @@ export default {
           description: '管理赛事报名系统和报名信息',
           icon: 'fa fa-trophy',
           iconColor: '#FFD700',
-          url: '/registration/admin.html'
+          url: '/registration/admin.html',
+          requireAuth: 'admin' // 需要管理员权限（所有管理员）
         },
         {
           title: '班级管理',
           description: '查看和管理所有班级信息',
           icon: 'el-icon-s-operation',
           iconColor: '#67C23A',
-          action: 'openClassroomManagement'
+          action: 'openClassroomManagement',
+          requireAuth: 'superAdmin' // 仅超级管理员
         },
         {
           title: '用户角色管理',
           description: '为用户分配教师/学生角色',
           icon: 'fa fa-user-plus',
           iconColor: '#409EFF',
-          action: 'openUserRoleManagement'
+          action: 'openUserRoleManagement',
+          requireAuth: 'superAdmin' // 仅超级管理员
         },
         {
           title: 'Rating 管理',
           description: '手动调整用户 Rating 和查看历史记录',
           icon: 'fa fa-line-chart',
           iconColor: '#67C23A',
-          action: 'openRatingManagement'
+          action: 'openRatingManagement',
+          requireAuth: 'superAdmin' // 仅超级管理员
         },
         {
           title: '判题终端',
           description: '代码自测与提交判题',
           icon: 'fa fa-terminal',
           iconColor: '#409EFF',
-          action: 'openJudgeTerminal'
+          action: 'openJudgeTerminal',
+          requireAuth: 'problemOrSuperAdmin' // 题目管理员或超级管理员
         },
         {
           title: '对战记录查询',
           description: '查询所有用户的对战记录',
           icon: 'fa fa-gamepad',
           iconColor: '#E6A23C',
-          action: 'openBattleRecords'
+          action: 'openBattleRecords',
+          requireAuth: 'admin' // 需要管理员权限（所有管理员）
         }
       ]
     };
   },
+  computed: {
+    ...mapGetters(['isSuperAdmin', 'isProblemAdmin', 'isAdminRole'])
+  },
   methods: {
+    checkPermission(tool) {
+      // 检查工具的权限要求
+      switch (tool.requireAuth) {
+        case 'superAdmin':
+          return this.isSuperAdmin;
+        case 'problemOrSuperAdmin':
+          return this.isSuperAdmin || this.isProblemAdmin;
+        case 'admin':
+          return this.isAdminRole;
+        default:
+          return true;
+      }
+    },
     openTool(tool) {
+      // 检查权限
+      if (!this.checkPermission(tool)) {
+        this.$message.warning(`您当前权限无法使用${tool.title}功能`);
+        return;
+      }
+
       if (tool.action) {
         // 执行特定动作
         if (tool.action === 'openClassroomManagement') {

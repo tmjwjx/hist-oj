@@ -67,13 +67,13 @@ const adminRoutes= [
           path: 'judge-terminal',
           name: 'admin-judge-terminal-page',
           component: JudgeTerminalPage,
-          meta: { requireSuperAdmin: true,title:'Judge Terminal'},
+          meta: { requireAdminOrProblemAdmin: true,title:'Judge Terminal'},
       },
       {
           path: 'battle-records',
           name: 'admin-battle-records',
           component: BattleRecordsAdmin,
-          meta: { requireSuperAdmin: true,title:'Battle Records Admin'},
+          meta: { requireAdmin: true,title:'Battle Records Admin'},
       },
         {
           path: 'announcement',
@@ -217,13 +217,13 @@ const adminRoutes= [
           path: 'user-role-management',
           name: 'admin-user-role-management',
           component: UserRoleManagement,
-          meta: { title: 'User Role Management'}
+          meta: { requireSuperAdmin: true, title: 'User Role Management'}
         },
         {
           path: 'classroom',
           name: 'admin-classroom',
           component: ClassroomAdmin,
-          meta: { title: 'Classroom Management'}
+          meta: { requireSuperAdmin: true, title: 'Classroom Management'}
         },
         {
           path: 'toolbox',

@@ -211,6 +211,8 @@ export default {
         initializing: false,
         scanning: false
       },
+      // 标记是否正在加载记录，用于避免闪烁
+      loadingRecords: false,
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -224,6 +226,13 @@ export default {
     // 计算属性：检查学生是否已签到（用于模板显示）
     hasCheckined() {
       return function(checkinId) {
+        // 优先使用后端返回的状态
+        const checkin = this.checkins.find(c => c.id === checkinId)
+        if (checkin && checkin.userCheckinStatus) {
+          return true
+        }
+
+        // 降级到本地查询
         const records = this.checkinRecords[checkinId] || []
         const userId = this.$store.getters.userInfo?.uid
         const myRecord = records.find(r => r.uid === userId)
@@ -259,41 +268,18 @@ export default {
       }
 
       try {
-        // 学生端使用安全API，不返回敏感信息
-        const res = await this.$store.dispatch('classroom/getCheckinListForStudent', this.classroomId)
-        if (res.code === 200) {
-          const newCheckins = (res.data || []).map(c => ({ ...c, submitting: false }))
+        // 并行加载签到列表和签到记录
+        const [checkinsResult] = await Promise.all([
+          // 学生端使用安全API，不返回敏感信息
+          this.$store.dispatch('classroom/getCheckinListForStudent', this.classroomId)
+        ])
 
-          // 智能更新：只有数据真的变化时才更新，避免不必要的重新渲染
-          let checkinsChanged = false
-          if (this.checkins.length !== newCheckins.length) {
-            // 数量不同，直接更新
-            this.checkins = newCheckins
-            checkinsChanged = true
-          } else {
-            // 数量相同，逐个对比并更新
-            for (let i = 0; i < this.checkins.length; i++) {
-              const oldCheckin = this.checkins[i]
-              const newCheckin = newCheckins[i]
+        if (checkinsResult.code === 200) {
+          const newCheckins = (checkinsResult.data || []).map(c => ({ ...c, submitting: false }))
+          this.checkins = newCheckins
 
-              // 检查关键字段是否变化
-              if (oldCheckin.id !== newCheckin.id ||
-                  oldCheckin.status !== newCheckin.status ||
-                  oldCheckin.checkinType !== newCheckin.checkinType) {
-                checkinsChanged = true
-                break
-              }
-            }
-
-            if (checkinsChanged) {
-              this.checkins = newCheckins
-            }
-          }
-
-          // 只有签到列表真的变化时才重新加载记录
-          if (checkinsChanged || isFirstLoad) {
-            await this.loadAllRecords()
-          }
+          // 立即并行加载所有签到记录
+          await this.loadAllRecords()
         }
       } catch (error) {
         if (isFirstLoad) {
@@ -309,29 +295,43 @@ export default {
       // 学生端不需要加载全班学生列表
       // await this.loadClassStudents()  // 注释掉，学生端不需要
 
-      for (const checkin of this.checkins) {
+      // 使用 Promise.all 并行加载所有签到的记录
+      const recordPromises = this.checkins.map(async (checkin) => {
         try {
-          // 获取签到记录
           const records = await this.$store.dispatch('classroom/getCheckinRecords', checkin.id)
-          if (records.code === 200) {
-            const newRecords = records.data || []
-
-            // 检查记录是否真的变化了（对比当前用户的状态）
-            const userInfo = this.$store.getters.userInfo
-            const userId = userInfo?.uid
-            const oldRecords = this.checkinRecords[checkin.id] || []
-
-            const oldMyRecord = oldRecords.find(r => r.uid === userId)
-            const newMyRecord = newRecords.find(r => r.uid === userId)
-
-            // 强制刷新或状态变化时才更新
-            if (forceRefresh || !oldMyRecord || !newMyRecord ||
-                !oldMyRecord !== !newMyRecord || oldMyRecord.status !== newMyRecord.status) {
-              this.$set(this.checkinRecords, checkin.id, newRecords)
-            }
+          return {
+            checkinId: checkin.id,
+            data: records
           }
         } catch (error) {
           console.error(`加载签到记录失败: ${checkin.id}`, error)
+          return {
+            checkinId: checkin.id,
+            data: { code: 500, data: [] }
+          }
+        }
+      })
+
+      // 等待所有请求完成
+      const results = await Promise.all(recordPromises)
+
+      // 批量更新签到记录
+      const userInfo = this.$store.getters.userInfo
+      const userId = userInfo?.uid
+
+      for (const result of results) {
+        if (result.data.code === 200) {
+          const newRecords = result.data.data || []
+          const oldRecords = this.checkinRecords[result.checkinId] || []
+
+          const oldMyRecord = oldRecords.find(r => r.uid === userId)
+          const newMyRecord = newRecords.find(r => r.uid === userId)
+
+          // 强制刷新或状态变化时才更新
+          if (forceRefresh || !oldMyRecord || !newMyRecord ||
+              !oldMyRecord !== !newMyRecord || oldMyRecord.status !== newMyRecord.status) {
+            this.$set(this.checkinRecords, result.checkinId, newRecords)
+          }
         }
       }
 
@@ -365,6 +365,13 @@ export default {
     },
     // 获取当前用户在该签到表的状态
     getCheckinStatus(checkinId) {
+      // 优先使用后端返回的状态
+      const checkin = this.checkins.find(c => c.id === checkinId)
+      if (checkin && checkin.userCheckinStatus) {
+        return checkin.userCheckinStatus
+      }
+
+      // 降级到本地查询
       const records = this.checkinRecords[checkinId] || []
       const userId = this.$store.getters.userInfo?.uid
       const myRecord = records.find(r => r.uid === userId)
