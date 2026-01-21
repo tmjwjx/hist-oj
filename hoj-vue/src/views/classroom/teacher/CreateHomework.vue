@@ -1,210 +1,314 @@
 <template>
-  <div class="create-homework">
-    <div class="header">
-      <h2>{{ isEditMode ? '编辑作业' : '创建作业' }}</h2>
-      <div class="actions">
-        <el-button @click="goBack">{{ $t('m.Cancel') }}</el-button>
-        <el-button type="primary" @click="saveHomework" :loading="submitting">
-          {{ isEditMode ? '保存' : '创建' }}
-        </el-button>
+  <div class="create-homework-wrapper">
+    <!-- 顶部固定导航栏 -->
+    <div class="create-homework-header">
+      <div class="header-content">
+        <div class="header-left">
+          <i class="el-icon-edit-outline"></i>
+          <h2>{{ isEditMode ? '编辑作业' : '创建作业' }}</h2>
+        </div>
+        <div class="header-actions">
+          <el-button @click="goBack" size="medium">
+            <i class="el-icon-back"></i>
+            返回
+          </el-button>
+          <el-button type="primary" @click="saveHomework" :loading="submitting" size="medium">
+            <i class="el-icon-check"></i>
+            {{ isEditMode ? '保存' : '创建' }}
+          </el-button>
+        </div>
       </div>
     </div>
 
-    <el-form :model="form" :rules="rules" ref="homeworkForm" label-width="120px" class="homework-form">
-      <el-card class="form-section">
-        <div slot="header">{{ $t('m.Basic_Info') }}</div>
-        <el-form-item :label="$t('m.Homework_Title')" prop="title">
-          <el-input v-model="form.title" :placeholder="$t('m.Please_Enter_Homework_Title')" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Description')" prop="description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="4"
-            :placeholder="$t('m.Homework_Description_Tip')"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('m.Start_Time')" prop="startTime">
-          <el-date-picker
-            v-model="form.startTime"
-            type="datetime"
-            :placeholder="$t('m.Please_Select_Start_Time')"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('m.End_Time')" prop="endTime">
-          <el-date-picker
-            v-model="form.endTime"
-            type="datetime"
-            :placeholder="$t('m.Please_Select_End_Time')"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('m.Display_Settings')">
-          <el-checkbox v-model="form.showHomework">{{ $t('m.Show_Homework_After_Complete') }}</el-checkbox>
-          <span style="color: #909399; font-size: 12px; margin-left: 10px;">
-            {{ $t('m.Show_Homework_Tip') }}
-          </span>
-          <br><br>
-          <el-checkbox v-model="form.showScore">{{ $t('m.Show_Score_After_Complete') }}</el-checkbox>
-          <span style="color: #909399; font-size: 12px; margin-left: 10px;">
-            {{ $t('m.Show_Score_Tip') }}
-          </span>
-          <br><br>
-          <el-checkbox v-model="form.showAnswer">允许学生提交后查看答案</el-checkbox>
-          <span style="color: #909399; font-size: 12px; margin-left: 10px;">
-            学生提交作业后，可以查看每道题的正确答案（主观题显示参考答案，编程题显示题库链接）
-          </span>
-        </el-form-item>
-      </el-card>
+    <div class="create-homework-content">
+      <el-form :model="form" :rules="rules" ref="homeworkForm" label-width="100px" class="homework-form">
+        <!-- 第一板块：基本信息 -->
+        <el-card class="form-section basic-info-card" shadow="hover">
+          <div slot="header" class="card-header">
+            <span class="header-icon">
+              <i class="el-icon-document"></i>
+            </span>
+            <span class="header-title">{{ $t('m.Basic_Info') }}</span>
+          </div>
 
-      <el-card class="form-section">
-        <div slot="header">
-          <span>{{ $t('m.Select_Questions') }}</span>
-          <span style="margin-left: 10px; color: #909399; font-size: 12px;">
-            ({{ $t('m.Selected') }}: {{ selectedQuestions.length }})
-          </span>
-        </div>
-
-        <div class="filter-bar">
-          <el-input
-            v-model="searchKeyword"
-            :placeholder="$t('m.Search_Questions')"
-            prefix-icon="el-icon-search"
-            style="width: 300px"
-            clearable
-            @clear="loadQuestionBank"
-            @keyup.enter.native="loadQuestionBank"
-          />
-          <el-select v-model="filterType" :placeholder="$t('m.Question_Type')" clearable style="width: 150px; margin-left: 10px" @change="loadQuestionBank">
-            <el-option :label="$t('m.All')" value="" />
-            <el-option :label="$t('m.Single_Choice')" value="single_choice" />
-            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
-            <el-option :label="$t('m.Judge')" value="judge" />
-            <el-option :label="$t('m.Subjective')" value="subjective" />
-            <el-option :label="$t('m.Programming')" value="programming" />
-          </el-select>
-          <el-button type="primary" icon="el-icon-search" style="margin-left: 10px" @click="loadQuestionBank">
-            {{ $t('m.Search') }}
-          </el-button>
-          <el-button type="success" icon="el-icon-plus" style="margin-left: 10px" @click="showAddProgrammingDialog = true">
-            添加 BingOJ 编程题
-          </el-button>
-        </div>
-
-        <div class="question-list" v-loading="questionsLoading">
-          <el-table
-            :data="questionBank"
-            stripe
-            style="width: 100%"
-          >
-            <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="200" />
-            <el-table-column prop="type" :label="$t('m.Question_Type')" width="120">
-              <template slot-scope="{ row }">
-                {{ getQuestionTypeText(row.type) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100">
-              <template slot-scope="{ row }">
-                <el-rate :value="getDifficultyStars(row.difficulty)" disabled />
-              </template>
-            </el-table-column>
-            <el-table-column prop="score" :label="$t('m.Score')" width="80" />
-            <el-table-column :label="$t('m.Operation')" width="150">
-              <template slot-scope="{ row }">
-                <el-button
-                  type="primary"
-                  size="small"
-                  icon="el-icon-plus"
-                  @click="addQuestion(row)"
-                  :disabled="isQuestionSelected(row)"
-                >
-                  {{ isQuestionSelected(row) ? '已添加' : '添加' }}
-                </el-button>
-                <el-button type="text" @click="viewQuestion(row)" style="margin-left: 5px;">
-                  {{ $t('m.View_Detail') }}
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <el-pagination
-            v-if="total > 0"
-            :current-page="currentPage"
-            :page-size="pageSize"
-            :total="total"
-            layout="total, prev, pager, next"
-            style="margin-top: 20px; text-align: right"
-            @current-change="handlePageChange"
-          />
-        </div>
-      </el-card>
-
-      <!-- 已选题目列表 -->
-      <el-card class="form-section" v-if="selectedQuestions.length > 0">
-        <div slot="header">
-          <span>已选题目 ({{ selectedQuestions.length }})</span>
-          <el-button
-            type="primary"
-            size="small"
-            icon="el-icon-view"
-            style="float: right; margin-top: -5px;"
-            @click="showFullPreview"
-          >
-            全卷预览
-          </el-button>
-        </div>
-        <el-table :data="selectedQuestions" stripe>
-          <el-table-column :label="$t('m.Order_Number')" width="80">
-            <template slot-scope="{ $index }">
-              {{ $index + 1 }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="200" />
-          <el-table-column prop="type" :label="$t('m.Question_Type')" width="120">
-            <template slot-scope="{ row }">
-              {{ getQuestionTypeText(row.type) }}
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('m.Score')" width="150">
-            <template slot-scope="{ row }">
-              <el-input-number
-                v-model="row.score"
-                :min="1"
-                :max="100"
-                size="small"
-                style="width: 120px"
+          <div class="basic-info-grid">
+            <el-form-item :label="$t('m.Homework_Title')" prop="title" class="full-width">
+              <el-input
+                v-model="form.title"
+                :placeholder="$t('m.Please_Enter_Homework_Title')"
+                prefix-icon="el-icon-edit"
+                size="medium"
               />
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('m.Operation')" width="180">
-            <template slot-scope="{ row, $index }">
-              <el-button
-                type="text"
+            </el-form-item>
+
+            <el-form-item :label="$t('m.Description')" prop="description" class="full-width">
+              <el-input
+                v-model="form.description"
+                type="textarea"
+                :rows="3"
+                :placeholder="$t('m.Homework_Description_Tip')"
+                size="medium"
+              />
+            </el-form-item>
+
+            <el-form-item :label="$t('m.Start_Time')" prop="startTime">
+              <el-date-picker
+                v-model="form.startTime"
+                type="datetime"
+                :placeholder="$t('m.Please_Select_Start_Time')"
+                style="width: 100%"
+                size="medium"
+                prefix-icon="el-icon-time"
+              />
+            </el-form-item>
+
+            <el-form-item :label="$t('m.End_Time')" prop="endTime">
+              <el-date-picker
+                v-model="form.endTime"
+                type="datetime"
+                :placeholder="$t('m.Please_Select_End_Time')"
+                style="width: 100%"
+                size="medium"
+                prefix-icon="el-icon-time"
+              />
+            </el-form-item>
+          </div>
+
+          <div class="display-settings">
+            <div class="setting-item">
+              <el-checkbox v-model="form.showHomework">
+                <span class="setting-label">{{ $t('m.Show_Homework_After_Complete') }}</span>
+              </el-checkbox>
+              <div class="setting-tip">{{ $t('m.Show_Homework_Tip') }}</div>
+            </div>
+            <div class="setting-item">
+              <el-checkbox v-model="form.showScore">
+                <span class="setting-label">{{ $t('m.Show_Score_After_Complete') }}</span>
+              </el-checkbox>
+              <div class="setting-tip">{{ $t('m.Show_Score_Tip') }}</div>
+            </div>
+            <div class="setting-item">
+              <el-checkbox v-model="form.showAnswer">
+                <span class="setting-label">允许学生提交后查看答案</span>
+              </el-checkbox>
+              <div class="setting-tip">学生提交作业后，可以查看每道题的正确答案（主观题显示参考答案，编程题显示题库链接）</div>
+            </div>
+          </div>
+        </el-card>
+
+      <!-- 第二板块：题目管理（题库 + 已选题目） -->
+      <el-card class="form-section questions-management-card" shadow="hover">
+        <div slot="header" class="card-header">
+          <span class="header-icon">
+            <i class="el-icon-collection"></i>
+          </span>
+          <span class="header-title">题目管理</span>
+          <div class="header-stats">
+            <el-tag size="small" type="info">已选 {{ selectedQuestions.length }} 题</el-tag>
+            <el-tag size="small" type="success" style="margin-left: 8px;">总分: {{ getTotalScore() }} 分</el-tag>
+          </div>
+          <div class="header-actions">
+            <el-button
+              type="success"
+              size="small"
+              icon="el-icon-plus"
+              @click="showAddProgrammingDialog = true"
+            >
+              添加编程题
+            </el-button>
+            <el-button
+              type="primary"
+              size="small"
+              icon="el-icon-view"
+              @click="showFullPreview"
+              :disabled="selectedQuestions.length === 0"
+              plain
+            >
+              全卷预览
+            </el-button>
+          </div>
+        </div>
+
+        <div class="questions-container-layout">
+          <!-- 左侧：题库 -->
+          <div class="question-bank-panel">
+            <div class="panel-header">
+              <span class="panel-title">题库</span>
+              <el-tag size="mini" type="info">共 {{ total }} 题</el-tag>
+            </div>
+
+            <div class="filter-section">
+              <el-input
+                v-model="searchKeyword"
+                :placeholder="$t('m.Search_Questions')"
+                prefix-icon="el-icon-search"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
                 size="small"
-                :disabled="$index === 0"
-                @click="moveUp($index)"
-                icon="el-icon-arrow-up"
+                class="search-input"
               >
-                {{ $t('m.Move_Up') }}
-              </el-button>
-              <el-button
-                type="text"
+                <el-button
+                  slot="append"
+                  icon="el-icon-search"
+                  @click="loadQuestionBank"
+                >
+                  搜索
+                </el-button>
+              </el-input>
+
+              <el-select
+                v-model="filterType"
+                :placeholder="$t('m.Question_Type')"
+                clearable
+                @change="loadQuestionBank"
                 size="small"
-                :disabled="$index === selectedQuestions.length - 1"
-                @click="moveDown($index)"
-                icon="el-icon-arrow-down"
+                class="filter-select"
               >
-                {{ $t('m.Move_Down') }}
-              </el-button>
-              <el-button type="text" @click="removeQuestion(row)" style="color: #F56C6C;">
-                {{ $t('m.Remove') }}
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+                <el-option :label="$t('m.All')" value="" />
+                <el-option :label="$t('m.Single_Choice')" value="single_choice" />
+                <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
+                <el-option :label="$t('m.Judge')" value="judge" />
+                <el-option :label="$t('m.Subjective')" value="subjective" />
+                <el-option :label="$t('m.Programming')" value="programming" />
+              </el-select>
+            </div>
+
+            <div class="question-list" v-loading="questionsLoading">
+              <el-table
+                :data="questionBank"
+                stripe
+                class="question-table"
+                height="500"
+              >
+                <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="180" show-overflow-tooltip />
+                <el-table-column prop="type" :label="$t('m.Question_Type')" width="100" align="center">
+                  <template slot-scope="{ row }">
+                    <el-tag :type="getQuestionTypeColor(row.type)" size="mini">
+                      {{ getQuestionTypeText(row.type) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100" align="center">
+                  <template slot-scope="{ row }">
+                    <el-rate :value="getDifficultyStars(row.difficulty)" disabled show-score text-color="#ff9900" />
+                  </template>
+                </el-table-column>
+                <el-table-column :label="$t('m.Operation')" width="140" align="center" fixed="right">
+                  <template slot-scope="{ row }">
+                    <el-button
+                      :type="isQuestionSelected(row) ? 'info' : 'primary'"
+                      size="mini"
+                      icon="el-icon-plus"
+                      @click="addQuestion(row)"
+                      :disabled="isQuestionSelected(row)"
+                      plain
+                    >
+                      {{ isQuestionSelected(row) ? '已添加' : '添加' }}
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <div class="pagination-wrapper">
+                <el-pagination
+                  v-if="total > 0"
+                  :current-page="currentPage"
+                  :page-size="pageSize"
+                  :total="total"
+                  layout="prev, pager, next"
+                  @current-change="handlePageChange"
+                  small
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 右侧：已选题目 -->
+          <div class="selected-questions-panel">
+            <div class="panel-header">
+              <span class="panel-title">已选题目</span>
+              <el-tag size="mini" type="success">{{ selectedQuestions.length }} 题</el-tag>
+            </div>
+
+            <div class="selected-questions-list" v-if="selectedQuestions.length > 0">
+              <transition-group name="list" tag="div" class="questions-container">
+                <div
+                  v-for="(question, index) in selectedQuestions"
+                  :key="question.id || question.problemId"
+                  class="question-item-card"
+                >
+                  <div class="question-index">
+                    <span class="index-number">{{ index + 1 }}</span>
+                  </div>
+
+                  <div class="question-content">
+                    <div class="question-title-row">
+                      <el-tag :type="getQuestionTypeColor(question.type)" size="mini">
+                        {{ getQuestionTypeText(question.type) }}
+                      </el-tag>
+                      <span class="question-title-text" :title="question.title">{{ question.title }}</span>
+                    </div>
+
+                    <div class="question-meta">
+                      <div class="score-editor">
+                        <span class="score-label">分值:</span>
+                        <el-input-number
+                          v-model="question.score"
+                          :min="1"
+                          :max="100"
+                          size="mini"
+                          controls-position="right"
+                        />
+                        <span class="score-unit">分</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="question-actions">
+                    <el-button-group>
+                      <el-tooltip content="上移" placement="top">
+                        <el-button
+                          size="mini"
+                          icon="el-icon-top"
+                          :disabled="index === 0"
+                          @click="moveUp(index)"
+                        />
+                      </el-tooltip>
+                      <el-tooltip content="下移" placement="top">
+                        <el-button
+                          size="mini"
+                          icon="el-icon-bottom"
+                          :disabled="index === selectedQuestions.length - 1"
+                          @click="moveDown(index)"
+                        />
+                      </el-tooltip>
+                      <el-tooltip content="移除" placement="top">
+                        <el-button
+                          size="mini"
+                          icon="el-icon-delete"
+                          type="danger"
+                          @click="removeQuestion(question)"
+                        />
+                      </el-tooltip>
+                    </el-button-group>
+                  </div>
+                </div>
+              </transition-group>
+            </div>
+
+            <div v-else class="empty-selected">
+              <i class="el-icon-document"></i>
+              <p>暂未选择题目</p>
+              <p class="hint">从左侧题库中添加题目</p>
+            </div>
+          </div>
+        </div>
       </el-card>
-    </el-form>
+
+      </el-form>
+
+    </div>
 
     <!-- 添加 BingOJ 编程题对话框 -->
     <el-dialog title="添加 BingOJ 编程题" :visible.sync="showAddProgrammingDialog" width="900px">
@@ -635,6 +739,16 @@ export default {
         programming: this.$t('m.Programming')
       }
       return map[type] || type
+    },
+    getQuestionTypeColor(type) {
+      const colorMap = {
+        single_choice: 'primary',
+        multiple_choice: 'success',
+        judge: 'warning',
+        subjective: 'info',
+        programming: 'danger'
+      }
+      return colorMap[type] || 'info'
     },
     // 将数据库中的难度值（1-3）转换为 el-rate 的星星数（1-5）
     getDifficultyStars(difficulty) {
@@ -1118,44 +1232,426 @@ export default {
 </script>
 
 <style scoped>
-.create-homework {
-  padding: 20px;
-  background-color: #fff;
+/* 整体布局 - 清爽浅色主题 */
+.create-homework-wrapper {
   min-height: 100vh;
+  background: #f5f7fa;
 }
 
-.header {
+/* 顶部固定导航栏 - 柔和蓝色 */
+.create-homework-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #5b9bd5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.create-homework-header .header-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #DCDFE6;
 }
 
-.header h2 {
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-left i {
+  font-size: 24px;
+  color: #fff;
+}
+
+.header-left h2 {
   margin: 0;
-  color: #409EFF;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 内容区域 */
+.create-homework-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 24px;
 }
 
 .homework-form {
-  max-width: 1200px;
+  max-width: 100%;
 }
 
+/* 卡片通用样式 */
 .form-section {
   margin-bottom: 20px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e0e6ed;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.filter-bar {
+.form-section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 0;
+  background: #f8f9fa;
+  margin: -20px -20px 20px -20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e6ed;
+  border-radius: 12px 12px 0 0;
+}
+
+.header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #5b9bd5;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 18px;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.add-programming-btn {
+  margin-left: auto;
+}
+
+/* 基本信息卡片 */
+.basic-info-card {
+  background: #fff;
+}
+
+.basic-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
   margin-bottom: 20px;
+  padding: 0 20px;
+}
+
+.basic-info-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+/* 显示设置 */
+.display-settings {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 0 20px;
+}
+
+.setting-item {
+  margin-bottom: 12px;
+  padding: 14px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  transition: all 0.2s ease;
+}
+
+.setting-item:hover {
+  border-color: #5b9bd5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.setting-label {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.setting-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7f8c8d;
+  line-height: 1.6;
+  padding-left: 4px;
+}
+
+/* 题目管理卡片 - 左右布局 */
+.questions-management-card {
+  background: #fff;
+}
+
+.questions-container-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+  padding: 0 20px 20px;
+}
+
+/* 左侧题库面板 */
+.question-bank-panel {
+  display: flex;
+  flex-direction: column;
+  background: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e0e6ed;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.filter-section {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e0e6ed;
+}
+
+.search-input {
+  flex: 1;
+  max-width: none;
+}
+
+.filter-select {
+  width: 140px;
+}
+
+.filter-stats {
+  display: flex;
+  gap: 8px;
 }
 
 .question-list {
-  min-height: 300px;
+  position: relative;
+  padding: 16px;
+  flex: 1;
+  overflow: hidden;
 }
 
+.question-table {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.question-table >>> th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 1px solid #e0e6ed;
+}
+
+.question-table >>> tr:hover {
+  background-color: #f8f9fa !important;
+}
+
+.score-text {
+  font-weight: 600;
+  color: #5b9bd5;
+}
+
+.pagination-wrapper {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 0;
+}
+
+/* 右侧已选题目面板 */
+.selected-questions-panel {
+  display: flex;
+  flex-direction: column;
+  background: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  overflow: hidden;
+}
+
+.selected-questions-list {
+  flex: 1;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.empty-selected {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #95a5a6;
+}
+
+.empty-selected i {
+  font-size: 48px;
+  margin-bottom: 12px;
+  color: #bdc3c7;
+}
+
+.empty-selected p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.empty-selected .hint {
+  font-size: 12px;
+  color: #bdc3c7;
+}
+
+.questions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.question-item-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e0e6ed;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.question-item-card:hover {
+  border-color: #5b9bd5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.question-index {
+  flex-shrink: 0;
+}
+
+.index-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #5b9bd5;
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.question-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.question-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.question-title-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2c3e50;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e0e6ed;
+}
+
+.score-label {
+  font-size: 12px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.score-unit {
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+.question-actions {
+  flex-shrink: 0;
+}
+
+/* 列表过渡动画 */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter,
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+/* 对话框样式优化 */
 .question-detail {
   padding: 10px;
 }
@@ -1167,7 +1663,7 @@ export default {
 
 .problem-preview h3 {
   margin-top: 0;
-  color: #303133;
+  color: #2c3e50;
   font-size: 18px;
 }
 
@@ -1187,19 +1683,20 @@ export default {
 }
 
 .content-section h4 {
-  color: #409EFF;
+  color: #5b9bd5;
   font-size: 16px;
   margin-bottom: 10px;
-  border-left: 3px solid #409EFF;
+  border-left: 3px solid #5b9bd5;
   padding-left: 10px;
 }
 
 .content-section pre {
-  background-color: #f5f7fa;
+  background-color: #f8f9fa;
   padding: 12px;
   border-radius: 4px;
   overflow-x: auto;
   margin: 10px 0;
+  border: 1px solid #e0e6ed;
 }
 
 .example-item {
@@ -1232,18 +1729,21 @@ export default {
 
 .preview-info {
   margin-bottom: 20px;
-  background-color: #f5f7fa;
+  background-color: #f8f9fa;
+  border: 1px solid #e0e6ed;
+  border-radius: 8px;
+  padding: 16px;
 }
 
 .preview-info h3 {
   margin: 0 0 15px 0;
-  color: #409EFF;
+  color: #5b9bd5;
   font-size: 20px;
 }
 
 .preview-info p {
   margin: 8px 0;
-  color: #606266;
+  color: #2c3e50;
 }
 
 .questions-preview {
@@ -1254,8 +1754,8 @@ export default {
   padding: 20px;
   margin-bottom: 20px;
   background-color: #fff;
-  border: 1px solid #DCDFE6;
-  border-radius: 4px;
+  border: 1px solid #e0e6ed;
+  border-radius: 8px;
 }
 
 .question-header {
@@ -1264,23 +1764,23 @@ export default {
   gap: 10px;
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #E4E7ED;
+  border-bottom: 1px solid #e0e6ed;
 }
 
 .question-number {
   font-size: 18px;
   font-weight: bold;
-  color: #409EFF;
+  color: #5b9bd5;
 }
 
 .question-type {
-  color: #909399;
+  color: #7f8c8d;
   font-size: 14px;
 }
 
 .question-score {
   margin-left: auto;
-  color: #E6A23C;
+  color: #ff9800;
   font-weight: bold;
 }
 
@@ -1288,7 +1788,7 @@ export default {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 15px;
-  color: #303133;
+  color: #2c3e50;
 }
 
 .question-content {
@@ -1311,20 +1811,21 @@ export default {
   display: flex;
   align-items: flex-start;
   padding: 10px;
-  background-color: #F5F7FA;
+  background-color: #f8f9fa;
   border-radius: 4px;
   cursor: default;
+  border: 1px solid #e0e6ed;
 }
 
 .option-preview:hover {
-  background-color: #ECF5FF;
+  background-color: #e9ecef;
 }
 
 .option-letter {
   display: inline-block;
   min-width: 30px;
   font-weight: bold;
-  color: #409EFF;
+  color: #5b9bd5;
   font-size: 15px;
 }
 
@@ -1338,17 +1839,18 @@ export default {
 .programming-preview {
   margin-top: 15px;
   padding: 15px;
-  background-color: #FDF6EC;
-  border-left: 3px solid #E6A23C;
+  background-color: #fff9e6;
+  border-left: 3px solid #ffa726;
   border-radius: 4px;
+  border: 1px solid #ffecb3;
 }
 
 .programming-detail {
   margin-top: 15px;
   padding: 15px;
   background-color: #fff;
-  border-radius: 4px;
-  border: 1px solid #DCDFE6;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
 }
 
 .programming-meta {
@@ -1359,10 +1861,10 @@ export default {
 }
 
 .programming-content h4 {
-  color: #409EFF;
+  color: #5b9bd5;
   font-size: 16px;
   margin-bottom: 10px;
-  border-left: 3px solid #409EFF;
+  border-left: 3px solid #5b9bd5;
   padding-left: 10px;
 }
 
@@ -1398,6 +1900,52 @@ export default {
   max-width: 100% !important;
   overflow-x: auto !important;
   display: block !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .create-homework-header .header-content {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .create-homework-content {
+    padding: 16px;
+  }
+
+  .basic-info-grid {
+    grid-template-columns: 1fr;
+    padding: 0 12px;
+  }
+
+  .questions-container-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-section {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .search-input {
+    max-width: 100%;
+  }
+
+  .question-item-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .question-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .question-list {
+    padding: 0 12px 16px;
+  }
 }
 </style>
 

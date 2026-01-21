@@ -1,84 +1,78 @@
 <template>
-  <div class="teacher-dashboard">
+  <div class="teacher-dashboard classroom-theme">
     <div class="header">
       <div class="header-left">
         <h1>教师工作台</h1>
         <p class="subtitle">管理您的班级</p>
       </div>
       <div class="header-actions">
-        <el-button type="success" icon="el-icon-document" @click="goToQuestionBank">
-          题库
-        </el-button>
-        <el-button type="primary" icon="el-icon-plus" @click="showCreateDialog = true">
-          创建班级
-        </el-button>
+        <button class="classroom-btn classroom-btn-success" @click="goToQuestionBank">
+          <i class="el-icon-document"></i>
+          <span>浏览题库</span>
+        </button>
+        <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
+          <i class="el-icon-plus"></i>
+          <span>创建班级</span>
+        </button>
       </div>
     </div>
 
     <!-- 空状态 -->
-    <div v-if="safeClassrooms.length === 0 && !loading" class="empty-state">
-      <i class="el-icon-school empty-icon"></i>
-      <h3>还没有班级</h3>
-      <p>点击上方按钮创建您的第一个班级吧！</p>
+    <div v-if="safeClassrooms.length === 0 && !loading" class="classroom-empty">
+      <i class="el-icon-school classroom-empty-icon"></i>
+      <div class="classroom-empty-text">还没有班级</div>
+      <div class="classroom-empty-hint">点击上方按钮创建您的第一个班级吧！</div>
     </div>
 
-    <!-- 班级卡片列表 - 移除 v-loading 避免轮询时闪烁 -->
-    <el-row v-else :gutter="20" class="classroom-list">
-      <el-col :span="8" v-for="classroom in safeClassrooms" :key="classroom.id">
-        <el-card class="classroom-card" shadow="hover">
-          <div class="card-header" @click="viewClassroom(classroom)">
+    <!-- 班级卡片列表 -->
+    <div v-else class="classroom-list">
+      <div v-for="classroom in safeClassrooms" :key="classroom.id" class="classroom-card classroom-fade-in">
+        <div class="classroom-card-header">
+          <div class="card-header-content" @click="viewClassroom(classroom)">
             <div class="class-name">{{ classroom.className }}</div>
-            <el-tag size="small" type="success">{{ classroom.classBelong }}</el-tag>
+            <span class="classroom-tag classroom-tag-success">{{ classroom.classBelong }}</span>
           </div>
-          <div class="card-content" @click="viewClassroom(classroom)">
-            <div class="info-item">
-              <i class="el-icon-key"></i>
-              <span>班级代码: {{ classroom.classCode }}</span>
-              <el-button
-                type="text"
-                icon="el-icon-document-copy"
-                size="mini"
-                @click.stop="copyClassCode(classroom.classCode)"
-                style="margin-left: auto;"
-              >
-              </el-button>
-            </div>
-          </div>
-          <div class="card-footer">
-            <el-button
-              type="primary"
-              size="small"
-              icon="el-icon-setting"
-              @click="viewClassroom(classroom)"
+        </div>
+        <div class="card-body" @click="viewClassroom(classroom)">
+          <div class="info-item">
+            <i class="el-icon-key info-icon"></i>
+            <span class="info-label">班级代码</span>
+            <span class="info-value">{{ classroom.classCode }}</span>
+            <button
+              class="classroom-btn classroom-btn-secondary copy-btn"
+              @click.stop="copyClassCode(classroom.classCode)"
             >
-              管理
-            </el-button>
-            <el-button
-              type="danger"
-              size="small"
-              icon="el-icon-delete"
-              @click="handleDelete(classroom)"
-            >
-              删除
-            </el-button>
+              <i class="el-icon-document-copy"></i>
+              <span>复制</span>
+            </button>
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+        </div>
+        <div class="card-footer">
+          <button class="classroom-btn classroom-btn-primary" @click="viewClassroom(classroom)">
+            <i class="el-icon-setting"></i>
+            <span>管理班级</span>
+          </button>
+          <button class="classroom-btn classroom-btn-danger" @click="handleDelete(classroom)">
+            <i class="el-icon-delete"></i>
+            <span>删除班级</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 创建班级对话框 -->
-    <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px">
+    <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px" custom-class="classroom-dialog">
       <el-form :model="createForm" :rules="rules" ref="createForm" label-width="100px">
         <el-form-item label="班级名称" prop="className">
-          <el-input v-model="createForm.className" placeholder="请输入班级名称" />
+          <el-input v-model="createForm.className" placeholder="请输入班级名称" class="classroom-input" />
         </el-form-item>
         <el-form-item label="班级所属" prop="classBelong">
-          <el-input v-model="createForm.classBelong" placeholder="请输入班级所属" />
+          <el-input v-model="createForm.classBelong" placeholder="请输入班级所属" class="classroom-input" />
         </el-form-item>
       </el-form>
       <span slot="footer">
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="createClassroom" :loading="submitting">确认</el-button>
+        <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">取消</el-button>
+        <el-button type="primary" @click="createClassroom" :loading="submitting" class="classroom-btn classroom-btn-primary">确认创建</el-button>
       </span>
     </el-dialog>
   </div>
@@ -255,122 +249,159 @@ export default {
 </script>
 
 <style scoped>
+@import '../classroom-theme.css';
+
 .teacher-dashboard {
-  padding: 20px;
-  background-color: #f5f7fa;
+  padding: 24px;
+  background: var(--classroom-bg);
   min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
 .header-left h1 {
-  font-size: 32px;
-  color: #303133;
+  font-size: 28px;
+  color: var(--classroom-text);
   margin: 0 0 8px 0;
+  font-weight: 700;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #909399;
+  color: var(--classroom-text-secondary);
   margin: 0;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
-}
-
-/* 空状态样式 */
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-  background: #fff;
-  border-radius: 8px;
-}
-
-.empty-icon {
-  font-size: 120px;
-  color: #DCDFE6;
-  margin-bottom: 20px;
-}
-
-.empty-state h3 {
-  font-size: 20px;
-  color: #606266;
-  margin: 0 0 10px 0;
-}
-
-.empty-state p {
-  font-size: 14px;
-  color: #909399;
-  margin: 0;
+  gap: 12px;
 }
 
 /* 班级卡片列表样式 */
 .classroom-list {
-  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 24px;
 }
 
 .classroom-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  overflow: hidden;
+  transition: all 0.3s ease;
   cursor: pointer;
-  /* 移除 transition 避免轮询时闪烁 */
-  margin-bottom: 20px;
-  border: 1px solid #EBEEF5;
 }
 
 .classroom-card:hover {
-  /* 移除 transform 避免轮询时闪烁 */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(74, 144, 226, 0.15);
+  transform: translateY(-4px);
 }
 
-.card-header {
+.classroom-card-header {
+  background: #E3F2FD;
+  padding: 20px;
+  border-bottom: 2px solid var(--classroom-primary);
+}
+
+.card-header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #EBEEF5;
 }
 
 .class-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #303133;
-  flex: 1;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--classroom-text);
 }
 
-.card-content {
-  margin-bottom: 15px;
+.card-body {
+  padding: 20px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #606266;
+  gap: 10px;
+  color: var(--classroom-text-secondary);
   font-size: 14px;
-  margin-bottom: 10px;
 }
 
-.info-item i {
-  color: #909399;
-  font-size: 16px;
+.info-icon {
+  font-size: 18px;
+  color: var(--classroom-primary);
+}
+
+.info-label {
+  font-weight: 500;
+  min-width: 70px;
+}
+
+.info-value {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: var(--classroom-primary);
+}
+
+.copy-btn {
+  padding: 6px 14px;
+  font-size: 13px;
 }
 
 .card-footer {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 15px;
-  border-top: 1px solid #EBEEF5;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--classroom-bg);
+  border-top: 1px solid var(--classroom-border);
 }
 
-.card-footer .el-button {
+.card-footer .classroom-btn {
   flex: 1;
+}
+
+/* 对话框样式 */
+.classroom-dialog .el-dialog__header {
+  background: #E3F2FD;
+  border-bottom: 2px solid var(--classroom-primary);
+}
+
+.classroom-dialog .el-dialog__title {
+  color: var(--classroom-text);
+  font-weight: 600;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .classroom-list {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .header-actions .classroom-btn {
+    width: 100%;
+  }
 }
 </style>

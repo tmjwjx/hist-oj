@@ -839,6 +839,8 @@ export const m = {
   Delete_Failed: '删除失败',
   Copy_Success: '班级代码已复制',
   Copy_Failed: '复制失败',
+  Classroom_Detail: '班级详情',
+  No_Students_In_Classroom: '班级中暂无学生',
 
   // 班级详情 - 学生管理
   Student_Management: '学生管理',

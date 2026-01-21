@@ -70,7 +70,7 @@
         <vxe-table-column min-width="150" :title="$t('m.Option')">
           <template v-slot="{ row }">
             <template v-if="isSuperAdmin || userInfo.username == row.author">
-              <div style="margin-bottom:10px">
+              <div class="button-row">
                 <el-tooltip
                   effect="dark"
                   :content="$t('m.Edit')"
@@ -98,21 +98,36 @@
                   </el-button>
                 </el-tooltip>
               </div>
+              <div class="button-row">
+                <el-tooltip
+                  effect="dark"
+                  content="查看参与者"
+                  placement="top"
+                >
+                  <el-button
+                    icon="el-icon-user"
+                    size="mini"
+                    @click.native="goTrainingParticipants(row.id)"
+                    type="warning"
+                  >
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip
+                  effect="dark"
+                  :content="$t('m.Delete')"
+                  placement="top"
+                  v-if="isSuperAdmin"
+                >
+                  <el-button
+                    icon="el-icon-delete"
+                    size="mini"
+                    @click.native="deleteTraining(row.id)"
+                    type="danger"
+                  >
+                  </el-button>
+                </el-tooltip>
+              </div>
             </template>
-            <el-tooltip
-              effect="dark"
-              :content="$t('m.Delete')"
-              placement="top"
-              v-if="isSuperAdmin"
-            >
-              <el-button
-                icon="el-icon-delete"
-                size="mini"
-                @click.native="deleteTraining(row.id)"
-                type="danger"
-              >
-              </el-button>
-            </el-tooltip>
           </template>
         </vxe-table-column>
       </vxe-table>
@@ -197,6 +212,17 @@ export default {
         params: { trainingId },
       });
     },
+    goTrainingParticipants(trainingId) {
+      this.$router.push({
+        name: 'admin-training-participants',
+        params: { trainingId },
+        query: { title: this.getTrainingTitle(trainingId) }
+      });
+    },
+    getTrainingTitle(trainingId) {
+      const training = this.trainingList.find(t => t.id === trainingId);
+      return training ? training.title : `训练 ${trainingId}`;
+    },
     deleteTraining(trainingId) {
       this.$confirm(this.$i18n.t('m.Delete_Training_Tips'), 'Tips', {
         confirmButtonText: this.$i18n.t('m.OK'),
@@ -226,6 +252,12 @@ export default {
 <style scoped>
 .filter-row {
   margin-top: 10px;
+}
+.button-row {
+  margin-bottom: 8px;
+}
+.button-row:last-child {
+  margin-bottom: 0;
 }
 @media screen and (max-width: 768px) {
   .filter-row span {

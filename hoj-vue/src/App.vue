@@ -12,7 +12,7 @@
         <div class="mundb-footer">
           <el-row type="flex" justify="center"> <!-- 使用flex布局并居中对齐 -->
             <!-- 居中显示的网站信息列，添加偏移确保居中 -->
-            <el-col :md="18" :xs="24" :offset="md ? 3 : 0" style="text-align: center;">
+            <el-col :md="18" :xs="24" :offset="0" style="text-align: center;">
                <h1>{{ websiteConfig.name }}</h1>
               <span
                   style="line-height:25px"

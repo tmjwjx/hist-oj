@@ -1,69 +1,82 @@
 <template>
-  <div class="checkin-panel">
+  <div class="checkin-panel classroom-theme">
     <div class="header">
       <h3>{{ $t('m.Checkin_Management') }}</h3>
-      <el-button type="primary" icon="el-icon-plus" @click="showCreateDialog = true">
-        {{ $t('m.Create_Checkin') }}
-      </el-button>
+      <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
+        <i class="el-icon-plus"></i>
+        <span>{{ $t('m.Create_Checkin') }}</span>
+      </button>
     </div>
 
-    <el-timeline>
-      <el-timeline-item v-for="checkin in checkins" :key="checkin.id" :timestamp="formatTime(checkin.startTime)">
-        <el-card>
-          <div class="checkin-header">
-            <h4>{{ checkin.checkinName || $t('m.Checkin') }}</h4>
-            <div class="actions">
-              <!-- 签到类型标签 -->
-              <el-tag :type="checkin.checkinType === 'qrcode' ? 'warning' : 'primary'" size="small">
-                <i :class="checkin.checkinType === 'qrcode' ? 'el-icon-full-screen' : 'el-icon-key'"></i>
-                {{ checkin.checkinType === 'qrcode' ? $t('m.Qrcode_Checkin') : $t('m.Checkin_Code_Checkin') }}
-              </el-tag>
+    <div class="checkin-timeline classroom-timeline">
+      <div v-for="checkin in checkins" :key="checkin.id" class="timeline-item">
+        <div class="timeline-time">{{ formatTime(checkin.startTime) }}</div>
+        <div class="timeline-content">
+          <div class="classroom-card checkin-card-single-row">
+            <!-- 左侧：标题和状态标签 -->
+            <div class="checkin-left">
+              <h4 class="checkin-title">{{ checkin.checkinName || $t('m.Checkin') }}</h4>
+              <div class="checkin-tags">
+                <span
+                  :class="checkin.checkinType === 'qrcode' ? 'classroom-tag classroom-tag-warning' : 'classroom-tag classroom-tag-primary'"
+                >
+                  <i :class="checkin.checkinType === 'qrcode' ? 'el-icon-full-screen' : 'el-icon-key'"></i>
+                  {{ checkin.checkinType === 'qrcode' ? $t('m.Qrcode_Checkin') : $t('m.Checkin_Code_Checkin') }}
+                </span>
 
-              <!-- 显示二维码按钮（仅二维码类型且进行中） -->
-              <el-button
+                <span v-if="checkin.checkinType === 'code'" class="classroom-tag classroom-tag-info">
+                  {{ $t('m.Checkin_Code') }}: {{ checkin.checkinCode }}
+                </span>
+
+                <span :class="checkin.status === 1 ? 'classroom-tag classroom-tag-success' : 'classroom-tag classroom-tag-secondary'">
+                  {{ checkin.status === 1 ? $t('m.In_Progress') : $t('m.Ended') }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 右侧：操作按钮 -->
+            <div class="checkin-right">
+              <button
                 v-if="checkin.checkinType === 'qrcode' && checkin.status === 1"
-                size="small"
-                type="success"
+                class="classroom-btn classroom-btn-success"
                 @click="showQrcode(checkin)"
-                icon="el-icon-full-screen"
               >
-                {{ $t('m.Show_Qrcode') }}
-              </el-button>
+                <i class="el-icon-full-screen"></i>
+                <span>{{ $t('m.Show_Qrcode') }}</span>
+              </button>
 
-              <!-- 显示签到码（仅签到码类型） -->
-              <el-tag v-if="checkin.checkinType === 'code'" type="info" size="small">
-                {{ $t('m.Checkin_Code') }}: {{ checkin.checkinCode }}
-              </el-tag>
+              <button class="classroom-btn classroom-btn-secondary" @click="viewRecords(checkin)">
+                <i class="el-icon-view"></i>
+                <span>{{ $t('m.View_Records') }}</span>
+              </button>
 
-              <el-tag :type="checkin.status === 1 ? 'success' : 'info'" size="small">
-                {{ checkin.status === 1 ? $t('m.In_Progress') : $t('m.Ended') }}
-              </el-tag>
-              <el-button size="small" @click="viewRecords(checkin)">
-                {{ $t('m.View_Records') }}
-              </el-button>
-              <el-button v-if="checkin.status === 1" size="small" type="warning" @click="endCheckin(checkin)">
-                {{ $t('m.End') }}
-              </el-button>
-              <el-button size="small" type="primary" @click="editCheckin(checkin)">
-                {{ $t('m.Edit') }}
-              </el-button>
-              <el-button size="small" type="danger" @click="deleteCheckin(checkin)">
-                {{ $t('m.Delete') }}
-              </el-button>
+              <button v-if="checkin.status === 1" class="classroom-btn classroom-btn-warning" @click="endCheckin(checkin)">
+                <i class="el-icon-video-pause"></i>
+                <span>{{ $t('m.End') }}</span>
+              </button>
+
+              <button class="classroom-btn classroom-btn-primary" @click="editCheckin(checkin)">
+                <i class="el-icon-edit"></i>
+                <span>{{ $t('m.Edit') }}</span>
+              </button>
+
+              <button class="classroom-btn classroom-btn-danger" @click="deleteCheckin(checkin)">
+                <i class="el-icon-delete"></i>
+                <span>{{ $t('m.Delete') }}</span>
+              </button>
             </div>
           </div>
-        </el-card>
-      </el-timeline-item>
-    </el-timeline>
+        </div>
+      </div>
+    </div>
 
     <!-- 创建签到对话框 -->
-    <el-dialog :title="$t('m.Create_Checkin')" :visible.sync="showCreateDialog" width="500px" @close="resetCreateForm">
+    <el-dialog :title="$t('m.Create_Checkin')" :visible.sync="showCreateDialog" width="500px" @close="resetCreateForm" custom-class="classroom-dialog">
       <el-form :model="createForm" :rules="rules" ref="createForm" label-width="140px">
         <el-form-item :label="$t('m.Checkin_Name')" prop="checkinName">
-          <el-input v-model="createForm.checkinName" :placeholder="$t('m.Please_Enter_Checkin_Name')" />
+          <el-input v-model="createForm.checkinName" :placeholder="$t('m.Please_Enter_Checkin_Name')" class="classroom-input" />
         </el-form-item>
 
-        <!-- 签到类型选择 -->
         <el-form-item :label="$t('m.Checkin_Type')" prop="checkinType">
           <el-radio-group v-model="createForm.checkinType">
             <el-radio label="code">
@@ -75,7 +88,6 @@
           </el-radio-group>
         </el-form-item>
 
-        <!-- 二维码刷新间隔（仅二维码类型显示） -->
         <el-form-item
           v-if="createForm.checkinType === 'qrcode'"
           :label="$t('m.Qrcode_Refresh_Interval')"
@@ -87,7 +99,7 @@
             :max="60"
             :step="5"
           />
-          <span style="margin-left: 10px; color: #909399; font-size: 12px;">
+          <span style="margin-left: 10px; color: var(--classroom-text-secondary); font-size: 12px;">
             {{ $t('m.Qrcode_Refresh_Tip') }}
           </span>
         </el-form-item>
@@ -110,16 +122,16 @@
         </el-form-item>
       </el-form>
       <span slot="footer">
-        <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
-        <el-button type="primary" @click="createCheckin">{{ $t('m.Confirm') }}</el-button>
+        <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="createCheckin" class="classroom-btn classroom-btn-primary">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
 
     <!-- 编辑签到对话框 -->
-    <el-dialog :title="$t('m.Edit_Checkin')" :visible.sync="showEditDialog" width="500px" @close="resetEditForm">
+    <el-dialog :title="$t('m.Edit_Checkin')" :visible.sync="showEditDialog" width="500px" @close="resetEditForm" custom-class="classroom-dialog">
       <el-form :model="editForm" :rules="rules" ref="editForm" label-width="140px">
         <el-form-item :label="$t('m.Checkin_Name')" prop="checkinName">
-          <el-input v-model="editForm.checkinName" :placeholder="$t('m.Please_Enter_Checkin_Name')" />
+          <el-input v-model="editForm.checkinName" :placeholder="$t('m.Please_Enter_Checkin_Name')" class="classroom-input" />
         </el-form-item>
 
         <el-form-item :label="$t('m.Start_Time')" prop="startTime">
@@ -140,19 +152,20 @@
         </el-form-item>
       </el-form>
       <span slot="footer">
-        <el-button @click="showEditDialog = false">{{ $t('m.Cancel') }}</el-button>
-        <el-button type="primary" @click="updateCheckin">{{ $t('m.Confirm') }}</el-button>
+        <el-button @click="showEditDialog = false" class="classroom-btn classroom-btn-secondary">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="updateCheckin" class="classroom-btn classroom-btn-primary">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
 
     <!-- 查看签到记录对话框 -->
-    <el-dialog :title="$t('m.Checkin_Records')" :visible.sync="showRecordsDialog" width="800px">
-      <div style="margin-bottom: 15px;">
-        <el-button type="success" icon="el-icon-download" @click="exportCheckinRecords">
-          导出签到记录
-        </el-button>
+    <el-dialog :title="$t('m.Checkin_Records')" :visible.sync="showRecordsDialog" width="900px" custom-class="classroom-dialog">
+      <div class="records-header">
+        <button class="classroom-btn classroom-btn-success" @click="exportCheckinRecords">
+          <i class="el-icon-download"></i>
+          <span>导出签到记录</span>
+        </button>
       </div>
-      <el-table :data="records" stripe>
+      <el-table :data="records" stripe class="classroom-table">
         <el-table-column :label="$t('m.Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.student?.username" />
@@ -592,36 +605,180 @@ export default {
 </script>
 
 <style scoped>
+@import '../classroom-theme.css';
+
 .checkin-panel {
-  padding: 20px;
+  padding: 24px;
+  background: var(--classroom-bg);
+  min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
 .header h3 {
-  font-size: 20px;
-  color: #409EFF;
-}
-
-.checkin-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.checkin-header h4 {
+  font-size: 22px;
+  color: var(--classroom-text);
   margin: 0;
+  font-weight: 700;
 }
 
-.actions {
+/* 时间线样式 */
+.checkin-timeline {
+  position: relative;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 89px;
+  top: 40px;
+  bottom: -40px;
+  width: 2px;
+  background: var(--classroom-primary-lighter);
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
+.timeline-time {
+  min-width: 80px;
+  text-align: right;
+  padding-top: 16px;
+  color: var(--classroom-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+/* 单排卡片布局 */
+.checkin-card-single-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: white;
+  border: 1px solid var(--classroom-border);
+  border-radius: 12px;
+  gap: 20px;
+}
+
+.checkin-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.checkin-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--classroom-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.checkin-tags {
   display: flex;
   gap: 8px;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.checkin-right {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 已结束标签样式 */
+.classroom-tag-secondary {
+  background: #E0E0E0;
+  color: #757575;
+  border: 1px solid #BDBDBD;
+}
+
+.records-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 对话框样式 */
+.classroom-dialog .el-dialog__header {
+  background: #E3F2FD;
+  border-bottom: 2px solid var(--classroom-primary);
+}
+
+.classroom-dialog .el-dialog__title {
+  color: var(--classroom-text);
+  font-weight: 600;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .timeline-item {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .timeline-item::before {
+    display: none;
+  }
+
+  .timeline-time {
+    text-align: left;
+    padding-top: 0;
+  }
+
+  .checkin-card-single-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .checkin-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .checkin-title {
+    white-space: normal;
+  }
+
+  .checkin-right {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .checkin-right .classroom-btn {
+    flex: 1;
+    min-width: 120px;
+  }
 }
 </style>

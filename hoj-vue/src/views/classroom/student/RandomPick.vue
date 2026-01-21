@@ -192,7 +192,10 @@ export default {
 .random-pick-student {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
+  padding: 8px;
+  min-height: 100vh;
+  background: var(--classroom-bg, #f5f7fa);
 }
 
 .result-card {
@@ -203,16 +206,16 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #67c23a;
 }
 
 .student-display {
   display: flex;
-  gap: 40px;
+  gap: 20px;
   align-items: center;
-  padding: 20px 0;
+  padding: 10px 0;
 }
 
 .student-avatar {
@@ -224,21 +227,21 @@ export default {
 }
 
 .student-name {
-  font-size: 32px;
+  font-size: 24px;
   color: #303133;
-  margin: 0 0 20px 0;
+  margin: 0 0 10px 0;
   font-weight: 600;
 }
 
 .detail-row {
   display: flex;
-  margin-bottom: 12px;
-  font-size: 16px;
+  margin-bottom: 6px;
+  font-size: 14px;
 }
 
 .detail-row .label {
   color: #909399;
-  width: 100px;
+  width: 80px;
   font-weight: 500;
 }
 
@@ -248,9 +251,9 @@ export default {
 }
 
 .pick-time {
-  margin-top: 20px;
+  margin-top: 10px;
   color: #909399;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .pick-time i {
@@ -259,23 +262,23 @@ export default {
 
 .placeholder-card {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
 }
 
 .placeholder-content i {
-  font-size: 80px;
+  font-size: 60px;
   color: #c0c4cc;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .placeholder-content p {
-  font-size: 16px;
+  font-size: 14px;
   color: #909399;
   margin: 0;
 }
 
 .history-card {
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 .history-header {
@@ -289,7 +292,7 @@ export default {
   .student-display {
     flex-direction: column;
     text-align: center;
-    gap: 20px;
+    gap: 15px;
   }
 
   .detail-row {

@@ -13,25 +13,45 @@
     </div>
 
     <div class="message-list" ref="messageList">
-      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ 'system-message': msg.msgType === 'system' }">
+      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="getMessageClass(msg)">
+        <!-- 系统消息 -->
         <div v-if="msg.msgType === 'system'" class="system-message-content">
           {{ msg.content }}
         </div>
+
+        <!-- 普通消息 - 气泡样式 -->
         <template v-else>
-          <div class="message-header">
-            <UserName :username="getSenderUsername(msg)" :bold="true" class="sender">
-              {{ getSenderDisplayName(msg) }}
-            </UserName>
-            <div class="message-actions">
-              <span class="time">{{ formatTime(msg.createdAt) }}</span>
-              <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
-                撤回
-              </el-button>
-            </div>
+          <!-- 头像 -->
+          <div class="message-avatar">
+            <el-avatar :size="40" :src="msg.sender?.avatar">
+              <i class="el-icon-user-solid"></i>
+            </el-avatar>
           </div>
-          <div v-if="msg.msgType === 'text'" class="message-content" v-html="renderContent(msg.content)"></div>
-          <div v-else class="message-image">
-            <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+
+          <!-- 消息主体 -->
+          <div class="message-body">
+            <!-- 发送者名称和时间 -->
+            <div class="message-meta">
+              <UserName :username="getSenderUsername(msg)" :bold="true" class="sender-name">
+                {{ getSenderDisplayName(msg) }}
+              </UserName>
+              <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
+            </div>
+
+            <!-- 消息内容气泡 -->
+            <div class="message-bubble">
+              <!-- 文本消息 -->
+              <div v-if="msg.msgType === 'text'" class="bubble-content" v-html="renderContent(msg.content)"></div>
+              <!-- 图片消息 -->
+              <div v-else class="bubble-image">
+                <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+              </div>
+            </div>
+
+            <!-- 撤回按钮 -->
+            <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)" class="recall-btn">
+              撤回
+            </el-button>
           </div>
         </template>
       </div>
@@ -358,6 +378,23 @@ export default {
         this.currentUserId = storeState.user.userInfo.uuid || storeState.user.userInfo.uid || storeState.user.userInfo.userId
       }
     },
+    getMessageClass(msg) {
+      // 判断是否是自己的消息
+      const isOwn = this.isOwnMessage(msg)
+      return {
+        'system-message': msg.msgType === 'system',
+        'own-message': isOwn,
+        'other-message': !isOwn && msg.msgType !== 'system'
+      }
+    },
+    isOwnMessage(msg) {
+      if (!this.currentUserId || !msg.sender) {
+        return false
+      }
+      // 检查多种可能的 ID 字段
+      const senderId = msg.sender.uuid || msg.sender.uid || msg.sender.userId || msg.sender.id
+      return senderId === this.currentUserId
+    },
     canRecallMessage(msg) {
       // 教师可以撤回任何消息，学生只能撤回自己的消息
       // 这是教师端页面，所以始终返回 true
@@ -389,99 +426,241 @@ export default {
 </script>
 
 <style scoped>
+@import '../classroom-theme.css';
+
 .student-discussion {
-  padding: 20px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 10px);
+  background: var(--classroom-bg);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .discussion-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
 .discussion-header h3 {
-  font-size: 20px;
-  color: #409EFF;
+  font-size: 16px;
+  color: var(--classroom-text);
   margin: 0;
+  font-weight: 700;
 }
 
 .picked-student {
-  margin-bottom: 20px;
+  margin-bottom: 6px;
 }
 
 .message-list {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid #DCDFE6;
-  border-radius: 4px;
-  padding: 15px;
-  margin-bottom: 15px;
-  background-color: #F5F7FA;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
+/* 消息项基础样式 */
 .message-item {
-  margin-bottom: 15px;
-}
-
-.message-header {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
+  margin-bottom: 20px;
+  animation: messageFadeIn 0.3s ease;
 }
 
-.sender {
-  font-weight: bold;
-  color: #409EFF;
+@keyframes messageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.time {
+/* 别人的消息 - 左对齐 */
+.other-message {
+  flex-direction: row;
+}
+
+.other-message .message-avatar {
+  margin-right: 12px;
+}
+
+.other-message .message-body {
+  align-items: flex-start;
+}
+
+.other-message .message-meta {
+  flex-direction: row;
+}
+
+.other-message .message-bubble {
+  background: #F5F7FA;
+  color: var(--classroom-text);
+}
+
+/* 自己的消息 - 右对齐 */
+.own-message {
+  flex-direction: row-reverse;
+}
+
+.own-message .message-avatar {
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+.own-message .message-body {
+  align-items: flex-end;
+}
+
+.own-message .message-meta {
+  flex-direction: row-reverse;
+}
+
+.own-message .message-bubble {
+  background: #4A90E2;
+  color: white;
+}
+
+.own-message .sender-name {
+  display: none;
+}
+
+/* 头像 */
+.message-avatar {
+  flex-shrink: 0;
+}
+
+/* 消息主体 */
+.message-body {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+/* 消息元信息 */
+.message-meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.sender-name {
+  font-weight: 600;
+  color: var(--classroom-text);
+}
+
+.message-time {
+  color: #909399;
+}
+
+/* 消息气泡 */
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 12px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.other-message .message-bubble {
+  border-top-left-radius: 4px;
+}
+
+.own-message .message-bubble {
+  border-top-right-radius: 4px;
+}
+
+/* 气泡内容 */
+.bubble-content {
+  line-height: 1.6;
+}
+
+.bubble-content img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.bubble-image img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  display: block;
+}
+
+/* 撤回按钮 */
+.recall-btn {
+  margin-top: 6px;
+  padding: 4px 8px;
   font-size: 12px;
   color: #909399;
 }
 
-.message-actions {
+.recall-btn:hover {
+  color: #F56C6C;
+}
+
+/* 系统消息 */
+.system-message {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: center;
+  margin: 15px 0;
 }
 
-.message-content {
-  padding: 10px;
-  background-color: #FFF;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  word-break: break-word;
+.system-message-content {
+  background: #FFF9E6;
+  color: #E6A23C;
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  border: 1px solid #FFEAA7;
+  box-shadow: 0 1px 2px rgba(230, 162, 60, 0.2);
 }
 
-.message-image img {
-  max-width: 300px;
-  max-height: 300px;
-  border-radius: 4px;
-}
-
+/* 消息输入框 */
 .message-input {
-  border: 1px solid #DCDFE6;
-  border-radius: 4px;
+  border: 1px solid var(--classroom-border);
+  border-radius: 8px;
   padding: 10px;
-  background-color: #FFF;
+  background: white;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
 .message-input .actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
+  gap: 8px;
 }
 
+.message-input .el-textarea {
+  font-size: 14px;
+}
+
+/* 表情选择器 */
 .emoji-picker {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: 5px;
   max-height: 200px;
   overflow-y: auto;
+  padding: 10px;
 }
 
 .emoji-item {
@@ -490,25 +669,29 @@ export default {
   text-align: center;
   padding: 5px;
   border-radius: 4px;
-  /* 移除 transition 避免轮询时闪烁 */
+  transition: background-color 0.2s;
 }
 
 .emoji-item:hover {
   background-color: #F5F7FA;
 }
 
-.system-message {
-  display: flex;
-  justify-content: center;
-  margin: 10px 0;
-}
+/* 响应式 */
+@media (max-width: 768px) {
+  .student-discussion {
+    padding: 16px;
+  }
 
-.system-message-content {
-  background-color: #fff3cd;
-  color: #856404;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  border: 1px solid #ffeaa7;
+  .message-body {
+    max-width: 85%;
+  }
+
+  .discussion-header {
+    padding: 16px;
+  }
+
+  .message-list {
+    padding: 12px;
+  }
 }
 </style>

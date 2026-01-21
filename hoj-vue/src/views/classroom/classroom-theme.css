@@ -1,0 +1,417 @@
+/* 班级功能浅蓝色主题 */
+
+/* 主色调 - 浅蓝色系 */
+.classroom-theme {
+  --classroom-primary: #4A90E2;
+  --classroom-primary-light: #5BA3F5;
+  --classroom-primary-lighter: #E3F2FD;
+  --classroom-secondary: #64B5F6;
+  --classroom-accent: #2196F3;
+  --classroom-bg: #F5F9FC;
+  --classroom-card-bg: #FFFFFF;
+  --classroom-text: #2C3E50;
+  --classroom-text-secondary: #546E7A;
+  --classroom-border: #E1E8ED;
+  --classroom-hover: #E3F2FD;
+  --classroom-success: #66BB6A;
+  --classroom-warning: #FFA726;
+  --classroom-danger: #EF5350;
+}
+
+/* 卡片样式 */
+.classroom-card {
+  background: var(--classroom-card-bg);
+  border: 1px solid var(--classroom-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  transition: all 0.3s ease;
+}
+
+.classroom-card:hover {
+  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 按钮样式 - 统一显示文字 */
+.classroom-btn {
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.classroom-btn-primary {
+  background: #4A90E2;
+  color: white;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+}
+
+.classroom-btn-primary:hover {
+  background: #3A7BC8;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+  transform: translateY(-1px);
+}
+
+.classroom-btn-secondary {
+  background: var(--classroom-primary-lighter);
+  color: var(--classroom-primary);
+  border: 1px solid var(--classroom-primary);
+}
+
+.classroom-btn-secondary:hover {
+  background: var(--classroom-primary);
+  color: white;
+}
+
+.classroom-btn-success {
+  background: #66BB6A;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 187, 106, 0.3);
+}
+
+.classroom-btn-success:hover {
+  box-shadow: 0 4px 12px rgba(102, 187, 106, 0.4);
+  transform: translateY(-1px);
+}
+
+.classroom-btn-warning {
+  background: #FFA726;
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 167, 38, 0.3);
+}
+
+.classroom-btn-warning:hover {
+  box-shadow: 0 4px 12px rgba(255, 167, 38, 0.4);
+  transform: translateY(-1px);
+}
+
+.classroom-btn-danger {
+  background: #EF5350;
+  color: white;
+  box-shadow: 0 2px 8px rgba(239, 83, 80, 0.3);
+}
+
+.classroom-btn-danger:hover {
+  box-shadow: 0 4px 12px rgba(239, 83, 80, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 标签样式 */
+.classroom-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.classroom-tag-primary {
+  background: var(--classroom-primary-lighter);
+  color: var(--classroom-primary);
+  border: 1px solid rgba(74, 144, 226, 0.2);
+}
+
+.classroom-tag-success {
+  background: #E8F5E9;
+  color: #66BB6A;
+  border: 1px solid rgba(102, 187, 106, 0.2);
+}
+
+.classroom-tag-warning {
+  background: #FFF3E0;
+  color: #FFA726;
+  border: 1px solid rgba(255, 167, 38, 0.2);
+}
+
+.classroom-tag-info {
+  background: #E3F2FD;
+  color: #2196F3;
+  border: 1px solid rgba(33, 150, 243, 0.2);
+}
+
+/* 输入框样式 */
+.classroom-input {
+  border: 1px solid var(--classroom-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.classroom-input:focus {
+  border-color: var(--classroom-primary);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  outline: none;
+}
+
+/* 表格样式优化 */
+.classroom-table .el-table__header {
+  background: var(--classroom-primary-lighter);
+}
+
+.classroom-table .el-table__header th {
+  background: #E3F2FD;
+  color: var(--classroom-text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--classroom-primary);
+}
+
+.classroom-table .el-table__body tr:hover {
+  background: var(--classroom-hover);
+}
+
+.classroom-table .el-table__body td {
+  border-bottom: 1px solid var(--classroom-border);
+}
+
+/* 标签页样式 */
+.classroom-tabs .el-tabs__item {
+  color: var(--classroom-text-secondary);
+  font-size: 15px;
+  padding: 0 24px;
+}
+
+.classroom-tabs .el-tabs__item:hover {
+  color: var(--classroom-primary);
+}
+
+.classroom-tabs .el-tabs__item.is-active {
+  color: var(--classroom-primary);
+  font-weight: 600;
+}
+
+.classroom-tabs .el-tabs__active-bar {
+  background: var(--classroom-primary);
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* 卡片标题 */
+.classroom-card-header {
+  background: #E3F2FD;
+  border-bottom: 2px solid var(--classroom-primary);
+  padding: 16px 20px;
+  border-radius: 12px 12px 0 0;
+}
+
+.classroom-card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--classroom-text);
+  margin: 0;
+}
+
+/* 统计卡片 */
+.classroom-stat-card {
+  background: #FFFFFF;
+  border: 1px solid var(--classroom-border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.classroom-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.15);
+}
+
+.classroom-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--classroom-primary);
+  margin-bottom: 8px;
+}
+
+.classroom-stat-label {
+  font-size: 14px;
+  color: var(--classroom-text-secondary);
+  font-weight: 500;
+}
+
+/* 进度条 */
+.classroom-progress .el-progress-bar__outer {
+  background: var(--classroom-primary-lighter);
+  border-radius: 10px;
+  height: 8px;
+}
+
+.classroom-progress .el-progress-bar__inner {
+  background: #4A90E2;
+  border-radius: 10px;
+}
+
+/* 分隔线 */
+.classroom-divider {
+  height: 1px;
+  background: var(--classroom-border);
+  margin: 20px 0;
+}
+
+/* 徽章 */
+.classroom-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--classroom-danger);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 头像组 */
+.classroom-avatar-group {
+  display: flex;
+  align-items: center;
+}
+
+.classroom-avatar-group .el-avatar {
+  border: 2px solid white;
+  margin-left: -8px;
+}
+
+.classroom-avatar-group .el-avatar:first-child {
+  margin-left: 0;
+}
+
+/* 空状态 */
+.classroom-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--classroom-text-secondary);
+}
+
+.classroom-empty-icon {
+  font-size: 64px;
+  color: var(--classroom-primary-lighter);
+  margin-bottom: 20px;
+}
+
+.classroom-empty-text {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.classroom-empty-hint {
+  font-size: 14px;
+  color: #909399;
+}
+
+/* 加载状态 */
+.classroom-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.classroom-loading .el-loading-spinner {
+  color: var(--classroom-primary);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .classroom-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .classroom-card {
+    border-radius: 8px;
+  }
+
+  .classroom-stat-value {
+    font-size: 24px;
+  }
+}
+
+/* 动画 */
+@keyframes classroom-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.classroom-fade-in {
+  animation: classroom-fade-in 0.3s ease;
+}
+
+/* 工具栏 */
+.classroom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--classroom-bg);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.classroom-toolbar-item {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* 操作按钮组 */
+.classroom-action-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.classroom-action-group .classroom-btn {
+  margin: 0;
+}
+
+/* 状态指示器 */
+.classroom-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.classroom-status-online {
+  background: var(--classroom-success);
+  box-shadow: 0 0 0 2px rgba(102, 187, 106, 0.2);
+}
+
+.classroom-status-offline {
+  background: #BDBDBD;
+}
+
+/* 时间线 */
+.classroom-timeline .el-timeline-item__timestamp {
+  color: var(--classroom-text-secondary);
+  font-size: 13px;
+}
+
+.classroom-timeline .el-timeline-item__tail {
+  border-left: 2px solid var(--classroom-primary-lighter);
+}
+
+.classroom-timeline .el-timeline-item__node {
+  background: var(--classroom-primary);
+  border: 2px solid white;
+}

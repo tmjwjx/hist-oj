@@ -13,25 +13,34 @@
     </div>
 
     <div class="message-list" ref="messageList">
-      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ 'system-message': msg.msgType === 'system' }">
+      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ 'system-message': msg.msgType === 'system', 'own-message': isMyMessage(msg), 'other-message': !isMyMessage(msg) && msg.msgType !== 'system' }">
         <div v-if="msg.msgType === 'system'" class="system-message-content">
           {{ msg.content }}
         </div>
         <template v-else>
-          <div class="message-header">
-            <UserName :username="getSenderUsername(msg)" :bold="true" class="sender">
-              {{ getSenderDisplayName(msg) }}
-            </UserName>
-            <div class="message-actions">
-              <span class="time">{{ formatTime(msg.createdAt) }}</span>
-              <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
+          <div class="message-avatar">
+            <el-avatar :size="40" :src="msg.sender?.avatar">
+              <i class="el-icon-user-solid"></i>
+            </el-avatar>
+          </div>
+          <div class="message-body">
+            <div class="message-meta">
+              <UserName v-if="!isMyMessage(msg)" :username="getSenderUsername(msg)" :bold="true" class="sender-name">
+                {{ getSenderDisplayName(msg) }}
+              </UserName>
+              <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
+            </div>
+            <div class="message-bubble">
+              <div v-if="msg.msgType === 'text'" class="bubble-content" v-html="renderContent(msg.content)"></div>
+              <div v-else class="bubble-image">
+                <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+              </div>
+            </div>
+            <div v-if="canRecallMessage(msg)" class="message-actions">
+              <el-button type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)">
                 撤回
               </el-button>
             </div>
-          </div>
-          <div v-if="msg.msgType === 'text'" class="message-content" v-html="renderContent(msg.content)"></div>
-          <div v-else class="message-image">
-            <img :src="getImageUrl(msg.imageUrl)" alt="image" />
           </div>
         </template>
       </div>
@@ -358,6 +367,10 @@ export default {
         this.currentUserId = storeState.user.userInfo.uuid || storeState.user.userInfo.uid || storeState.user.userInfo.userId
       }
     },
+    isMyMessage(msg) {
+      // 判断是否是自己发送的消息
+      return msg.senderId === this.currentUserId
+    },
     canRecallMessage(msg) {
       // 只能撤回自己发送的消息
       const canRecall = msg.senderId === this.currentUserId
@@ -390,90 +403,204 @@ export default {
 
 <style scoped>
 .student-discussion {
-  padding: 20px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 10px);
 }
 
 .discussion-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
 }
 
 .discussion-header h3 {
-  font-size: 20px;
+  font-size: 16px;
   color: #409EFF;
   margin: 0;
 }
 
 .picked-student {
-  margin-bottom: 20px;
+  margin-bottom: 6px;
 }
 
 .message-list {
   flex: 1;
   overflow-y: auto;
   border: 1px solid #DCDFE6;
-  border-radius: 4px;
-  padding: 15px;
-  margin-bottom: 15px;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 6px;
   background-color: #F5F7FA;
 }
 
 .message-item {
-  margin-bottom: 15px;
-}
-
-.message-header {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
+  margin-bottom: 20px;
+  animation: messageFadeIn 0.3s ease;
 }
 
-.sender {
-  font-weight: bold;
-  color: #409EFF;
+@keyframes messageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.time {
+/* 系统消息 */
+.system-message-content {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  border: 1px solid #ffeaa7;
+  margin: 10px auto;
+  text-align: center;
+  max-width: 80%;
+}
+
+/* 别人的消息 - 左对齐 */
+.other-message {
+  flex-direction: row;
+}
+
+.other-message .message-avatar {
+  margin-right: 12px;
+}
+
+.other-message .message-body {
+  align-items: flex-start;
+}
+
+.other-message .message-meta {
+  flex-direction: row;
+}
+
+.other-message .message-bubble {
+  background: #F5F7FA;
+  color: #303133;
+  border: 1px solid #E4E7ED;
+}
+
+/* 自己的消息 - 右对齐 */
+.own-message {
+  flex-direction: row-reverse;
+}
+
+.own-message .message-avatar {
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+.own-message .message-body {
+  align-items: flex-end;
+}
+
+.own-message .message-meta {
+  flex-direction: row-reverse;
+}
+
+.own-message .message-bubble {
+  background: #4A90E2;
+  color: white;
+  border: none;
+}
+
+.own-message .sender-name {
+  display: none;
+}
+
+/* 头像 */
+.message-avatar {
+  flex-shrink: 0;
+}
+
+/* 消息主体 */
+.message-body {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+}
+
+/* 消息元信息 */
+.message-meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
   font-size: 12px;
+}
+
+.sender-name {
+  font-weight: 600;
+  color: #606266;
+}
+
+.message-time {
   color: #909399;
 }
 
-.message-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.message-content {
-  padding: 10px;
-  background-color: #FFF;
-  border-radius: 4px;
-  white-space: pre-wrap;
+/* 消息气泡 */
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 12px;
   word-break: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  position: relative;
+  line-height: 1.6;
 }
 
-.message-image img {
-  max-width: 300px;
+.other-message .message-bubble {
+  border-top-left-radius: 4px;
+}
+
+.own-message .message-bubble {
+  border-top-right-radius: 4px;
+}
+
+/* 气泡内容 */
+.bubble-content {
+  line-height: 1.6;
+}
+
+.bubble-content img {
+  max-width: 100%;
   max-height: 300px;
-  border-radius: 4px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.bubble-image img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+}
+
+.message-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
 }
 
 .message-input {
   border: 1px solid #DCDFE6;
-  border-radius: 4px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px;
   background-color: #FFF;
 }
 
 .message-input .actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
+  gap: 8px;
 }
 
 .emoji-picker {
@@ -490,25 +617,9 @@ export default {
   text-align: center;
   padding: 5px;
   border-radius: 4px;
-  /* 移除 transition 避免轮询时闪烁 */
 }
 
 .emoji-item:hover {
   background-color: #F5F7FA;
-}
-
-.system-message {
-  display: flex;
-  justify-content: center;
-  margin: 10px 0;
-}
-
-.system-message-content {
-  background-color: #fff3cd;
-  color: #856404;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  border: 1px solid #ffeaa7;
 }
 </style>

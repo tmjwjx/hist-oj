@@ -507,6 +507,9 @@ const ojApi = {
       params
     })
   },
+  getTrainingParticipants(trainingId) {
+    return ajax(`/api/training/${trainingId}/participants`, 'get')
+  },
 
 
 

@@ -65,6 +65,8 @@ type UserInfo struct {
 	Username  string    `gorm:"type:varchar(100);uniqueIndex" json:"username"`
 	Password  string    `gorm:"type:varchar(255)" json:"password"`
 	Nickname  string    `gorm:"type:varchar(255)" json:"nickname"`
+	Realname  string    `gorm:"type:varchar(255)" json:"realname"` // 真实姓名
+	Rating    int       `gorm:"type:int;default:1200" json:"rating"` // 当前 Rating
 	Status    int       `gorm:"type:int;default:0" json:"status"` // 0: 正常, 1: 禁用
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`

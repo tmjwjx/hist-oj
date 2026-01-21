@@ -37,7 +37,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 将用户信息存入context，供后续handler使用
-		c.Set("userId", userAuth.UID)
+		c.Set("userId", userAuth.UID)  // 兼容旧代码
+		c.Set("uid", userAuth.UID)     // 新代码使用 uid
 		c.Set("username", userAuth.Username)
 		c.Set("roles", userAuth.Roles)
 

@@ -1,58 +1,91 @@
 <template>
-  <div class="students-panel">
+  <div class="students-panel classroom-theme">
     <div class="header">
-      <h3>{{ $t('m.Student_List') }}</h3>
-      <el-button type="success" icon="el-icon-download" @click="exportToExcel">
-        导出Excel
-      </el-button>
+      <div class="header-left">
+        <h3>{{ $t('m.Student_List') }}</h3>
+        <p class="subtitle">管理班级中的学生信息</p>
+      </div>
+      <button class="classroom-btn classroom-btn-success" @click="exportToExcel">
+        <i class="el-icon-download"></i>
+        <span>导出Excel</span>
+      </button>
+    </div>
+
+    <!-- 统计信息 -->
+    <div class="stats-row">
+      <div class="classroom-stat-card">
+        <div class="classroom-stat-value">{{ students.length }}</div>
+        <div class="classroom-stat-label">总学生数</div>
+      </div>
+      <div class="classroom-stat-card">
+        <div class="classroom-stat-value">{{ maleCount }}</div>
+        <div class="classroom-stat-label">男生</div>
+      </div>
+      <div class="classroom-stat-card">
+        <div class="classroom-stat-value">{{ femaleCount }}</div>
+        <div class="classroom-stat-label">女生</div>
+      </div>
     </div>
 
     <!-- 移除 v-loading 避免轮询时闪烁 -->
-    <el-table :data="students" stripe>
-      <el-table-column :label="$t('m.Username')">
-        <template slot-scope="{ row }">
-          <UserName :username="row.user?.username" />
-        </template>
-      </el-table-column>
-      <el-table-column prop="realName" :label="$t('m.Real_Name')" />
-      <el-table-column prop="gender" :label="$t('m.Gender')" width="80" />
-      <el-table-column prop="studentClass" :label="$t('m.Student_Class')" />
-      <el-table-column prop="studentNo" :label="$t('m.Student_No')" />
-      <el-table-column :label="$t('m.Operation')" width="200">
-        <template slot-scope="{ row }">
-          <el-button size="small" @click="handleEdit(row)">
-            编辑信息
-          </el-button>
-          <el-button size="small" type="danger" @click="handleRemove(row)">
-            {{ $t('m.Remove') }}
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-card class="table-card classroom-card">
+      <el-table :data="students" stripe class="classroom-table">
+        <el-table-column :label="$t('m.Username')">
+          <template slot-scope="{ row }">
+            <UserName :username="row.user?.username" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" />
+        <el-table-column prop="gender" :label="$t('m.Gender')" width="80">
+          <template slot-scope="{ row }">
+            <span v-if="row.gender" class="classroom-tag" :class="row.gender === '男' ? 'classroom-tag-primary' : 'classroom-tag-warning'">
+              {{ row.gender }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="studentClass" :label="$t('m.Student_Class')" />
+        <el-table-column prop="studentNo" :label="$t('m.Student_No')" />
+        <el-table-column :label="$t('m.Operation')" width="220">
+          <template slot-scope="{ row }">
+            <div class="action-buttons">
+              <button class="classroom-btn classroom-btn-primary" size="small" @click="handleEdit(row)">
+                <i class="el-icon-edit"></i>
+                <span>编辑信息</span>
+              </button>
+              <button class="classroom-btn classroom-btn-danger" size="small" @click="handleRemove(row)">
+                <i class="el-icon-delete"></i>
+                <span>{{ $t('m.Remove') }}</span>
+              </button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <!-- 编辑学生信息对话框 -->
-    <el-dialog :title="$t('m.Edit_Student_Info')" :visible.sync="showEditDialog" width="500px">
-      <el-form :model="editForm" :rules="rules" ref="editForm" label-width="120px">
+    <el-dialog :title="$t('m.Edit_Student_Info')" :visible.sync="showEditDialog" width="500px" custom-class="classroom-dialog">
+      <el-form :model="editForm" :rules="rules" ref="editForm" label-width="120px" class="edit-form">
         <el-form-item :label="$t('m.Real_Name')" prop="realName">
-          <el-input v-model="editForm.realName" />
+          <el-input v-model="editForm.realName" class="classroom-input" placeholder="请输入真实姓名" />
         </el-form-item>
         <el-form-item :label="$t('m.Gender')" prop="gender">
-          <el-radio-group v-model="editForm.gender">
+          <el-radio-group v-model="editForm.gender" class="gender-radio-group">
             <el-radio label="男">{{ $t('m.Male') }}</el-radio>
             <el-radio label="女">{{ $t('m.Female') }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="$t('m.Student_Class')" prop="studentClass">
-          <el-input v-model="editForm.studentClass" />
+          <el-input v-model="editForm.studentClass" class="classroom-input" placeholder="请输入班级" />
         </el-form-item>
         <el-form-item :label="$t('m.Student_No')" prop="studentNo">
-          <el-input v-model="editForm.studentNo" />
+          <el-input v-model="editForm.studentNo" class="classroom-input" placeholder="请输入学号" />
         </el-form-item>
       </el-form>
-      <span slot="footer">
-        <el-button @click="showEditDialog = false">{{ $t('m.Cancel') }}</el-button>
-        <el-button type="primary" @click="saveEdit">{{ $t('m.Save') }}</el-button>
-      </span>
+      <div slot="footer" class="dialog-footer">
+        <button class="classroom-btn classroom-btn-secondary" @click="showEditDialog = false">{{ $t('m.Cancel') }}</button>
+        <button class="classroom-btn classroom-btn-primary" @click="saveEdit">{{ $t('m.Save') }}</button>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -94,6 +127,14 @@ export default {
       rules: {
         realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
       }
+    }
+  },
+  computed: {
+    maleCount() {
+      return this.students.filter(s => s.gender === '男').length
+    },
+    femaleCount() {
+      return this.students.filter(s => s.gender === '女').length
     }
   },
   watch: {
@@ -248,34 +289,187 @@ export default {
 </script>
 
 <style scoped>
+@import '../classroom-theme.css';
+
 .students-panel {
-  padding: 20px;
+  padding: 24px;
+  background: var(--classroom-bg);
+  min-height: 100vh;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+}
+
+.header-left h3 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--classroom-text);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--classroom-text-secondary);
+  margin: 0;
+}
+
+.header .classroom-btn {
+  display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.table-card {
   margin-bottom: 20px;
 }
 
-.header h3 {
-  margin: 0;
-  font-size: 20px;
-  color: #409EFF;
+.classroom-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  overflow: hidden;
 }
 
-/* 增加学生列表表格字体大小 */
+.classroom-card ::v-deep .el-card__body {
+  padding: 20px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.action-buttons .classroom-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* 对话框样式 */
+.classroom-dialog ::v-deep .el-dialog__header {
+  background: #E3F2FD;
+  border-bottom: 2px solid var(--classroom-primary);
+  padding: 20px 24px;
+}
+
+.classroom-dialog ::v-deep .el-dialog__title {
+  color: var(--classroom-text);
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.classroom-dialog ::v-deep .el-dialog__body {
+  padding: 24px;
+}
+
+.edit-form .el-form-item {
+  margin-bottom: 20px;
+}
+
+.edit-form .el-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.edit-form ::v-deep .el-form-item__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--classroom-text);
+  line-height: 36px;
+}
+
+.edit-form ::v-deep .el-input__inner {
+  height: 36px;
+  line-height: 36px;
+  font-size: 14px;
+}
+
+.gender-radio-group {
+  display: flex;
+  gap: 20px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--classroom-border);
+}
+
+/* 表格样式 */
 .students-panel ::v-deep .el-table {
-  font-size: 15px;
+  font-size: 14px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .students-panel ::v-deep .el-table th {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
+  background: #E3F2FD;
+  color: var(--classroom-text);
+  border-bottom: 2px solid var(--classroom-primary);
+  padding: 16px 12px;
+  text-align: left;
 }
 
 .students-panel ::v-deep .el-table td {
-  font-size: 15px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--classroom-border);
+  padding: 14px 12px;
+}
+
+.students-panel ::v-deep .el-table--striped .el-table__body tr.el-table__row--striped td {
+  background: var(--classroom-hover);
+}
+
+.students-panel ::v-deep .el-table__body tr:hover > td {
+  background: var(--classroom-hover) !important;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .header .classroom-btn {
+    width: 100%;
+  }
+
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons .classroom-btn {
+    width: 100%;
+  }
 }
 </style>

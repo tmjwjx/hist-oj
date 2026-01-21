@@ -21,6 +21,7 @@ const ContestList= ()=>import('@/views/admin/contest/ContestList')
 const Training= ()=>import('@/views/admin/training/Training')
 const TrainingList= ()=>import('@/views/admin/training/TrainingList')
 const TrainingProblemList= ()=>import('@/views/admin/training/TrainingProblemList')
+const TrainingParticipants= ()=>import('@/views/admin/training/TrainingParticipants')
 const TrainingCategory= ()=>import('@/views/admin/training/Category')
 const DiscussionList= ()=>import('@/views/admin/discussion/Discussion')
 const RegistrationAdmin= ()=>import('@/views/admin/registration/RegistrationAdmin')
@@ -158,6 +159,12 @@ const adminRoutes= [
           name: 'admin-training-problem-list',
           component: TrainingProblemList,
           meta: { title:'Training Problem List'}
+        },
+        {
+          path: 'training/:trainingId/participants',
+          name: 'admin-training-participants',
+          component: TrainingParticipants,
+          meta: { title:'Training Participants'}
         },
         {
           path: 'training/category',

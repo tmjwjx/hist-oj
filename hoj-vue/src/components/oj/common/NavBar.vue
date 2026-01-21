@@ -701,6 +701,7 @@ export default {
       userRatingColor: null,
       ratingLoaded: false,
       lastUnreadCount: 0, // 记录上次的未读消息总数，用于检测新消息
+      isScrolled: false,
     };
   },
   methods: {

@@ -752,13 +752,15 @@ export default {
 
 <style scoped>
 .student-checkin {
-  padding: 20px;
+  padding: 8px;
+  min-height: 100vh;
+  background: var(--classroom-bg, #f5f7fa);
 }
 
 /* 二维码扫描器样式 */
 .qrcode-scanner {
   text-align: center;
-  padding: 20px 0;
+  padding: 10px 0;
 }
 
 .scanner-wrapper {
@@ -863,194 +865,24 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 20px;
   color: #F56C6C;
   text-align: center;
 }
 
 .scan-success {
   text-align: center;
-  padding: 40px 20px;
-}
-
-.checkin-list-card {
-  margin-bottom: 20px;
-}
-
-.checkin-items {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
-}
-
-.checkin-item {
-  border-radius: 8px;
-}
-
-.checkin-header {
-  margin-bottom: 15px;
-}
-
-.checkin-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.checkin-info h4 {
-  margin: 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.checkin-time {
-  font-size: 13px;
-  color: #909399;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.checkin-status {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  min-height: 32px;
-}
-
-
-<style scoped>
-.student-checkin {
   padding: 20px;
 }
 
-/* 二维码扫描器样式 */
-.qrcode-scanner {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.scanner-wrapper {
-  position: relative;
-  width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.camera-video {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.scan-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.scan-frame {
-  position: relative;
-  width: 250px;
-  height: 250px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-}
-
-.scan-corner {
-  position: absolute;
-  width: 30px;
-  height: 30px;
-  border-color: #409EFF;
-  border-style: solid;
-}
-
-.scan-corner.top-left {
-  top: -2px;
-  left: -2px;
-  border-width: 4px 0 0 4px;
-  border-radius: 12px 0 0 0;
-}
-
-.scan-corner.top-right {
-  top: -2px;
-  right: -2px;
-  border-width: 4px 4px 0 0;
-  border-radius: 0 12px 0 0;
-}
-
-.scan-corner.bottom-left {
-  bottom: -2px;
-  left: -2px;
-  border-width: 0 0 4px 4px;
-  border-radius: 0 0 0 12px;
-}
-
-.scan-corner.bottom-right {
-  bottom: -2px;
-  right: -2px;
-  border-width: 0 4px 4px 0;
-  border-radius: 0 0 12px 0;
-}
-
-.scan-hint {
-  position: absolute;
-  bottom: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: white;
-  font-size: 14px;
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.camera-loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-}
-
-.camera-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: #F56C6C;
-  text-align: center;
-}
-
-.scan-success {
-  text-align: center;
-  padding: 40px 20px;
-}
-
 .checkin-list-card {
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 
 .checkin-items {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
+  gap: 10px;
 }
 
 .checkin-item {
@@ -1058,65 +890,14 @@ export default {
 }
 
 .checkin-header {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
 }
 
 .checkin-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.checkin-info h4 {
-  margin: 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.checkin-time {
-  font-size: 13px;
-  color: #909399;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.checkin-status {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  min-height: 32px;
-}
-
-.checkin-list-card {
-  margin-bottom: 20px;
-}
-
-.checkin-items {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
-}
-
-.checkin-item {
-  border-radius: 8px;
-  /* 移除 transition 避免轮询时闪烁 */
-}
-
-.checkin-item:hover {
-  /* 移除 transform 避免轮询时闪烁 */
-}
-
-.checkin-header {
-  margin-bottom: 15px;
-}
-
-.checkin-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .checkin-info h4 {

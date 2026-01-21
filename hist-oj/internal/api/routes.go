@@ -55,6 +55,9 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		// 注册对战相关路由
 		RegisterBattleRoutes(api)
 
+		// 注册训练相关路由
+		RegisterTrainingRoutes(api)
+
 		// 班级功能相关接口
 		classroom := api.Group("/classroom")
 		{

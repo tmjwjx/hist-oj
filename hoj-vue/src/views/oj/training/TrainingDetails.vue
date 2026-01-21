@@ -4,25 +4,6 @@
       <div slot="header">
         <span class="panel-title">{{ training.title }}</span>
       </div>
-      <template v-if="isAuthenticated">
-        <div>
-          <el-tooltip
-            effect="dark"
-            :content="training.acCount + '/' + training.problemCount"
-            placement="top"
-          >
-            <el-progress
-              :text-inside="true"
-              :stroke-width="20"
-              :percentage="getAcProblemPercent()"
-              :color="customColors"
-            ></el-progress>
-          </el-tooltip>
-        </div>
-        <div class="count">
-          {{ training.acCount + ' / ' + training.problemCount }}
-        </div>
-      </template>
     </el-card>
     <div class="card-top">
       <el-tabs @tab-click="tabClick" v-model="route_name">
@@ -139,6 +120,26 @@
                       <span>{{ training.gmtModified | localtime }}</span>
                     </span>
                   </div>
+                  <div v-if="isAuthenticated">
+                    <span>
+                      <span>训练状态</span>
+                    </span>
+                    <span>
+                      <template v-if="!hasJoined">
+                        <el-button
+                          type="primary"
+                          size="small"
+                          @click="handleJoinTraining"
+                          :loading="joinLoading"
+                        >
+                          参加训练
+                        </el-button>
+                      </template>
+                      <template v-else>
+                        <el-tag type="success">已参加</el-tag>
+                      </template>
+                    </span>
+                  </div>
                 </div>
               </el-card>
             </el-col>
@@ -161,7 +162,7 @@
         <el-tab-pane
           :name="groupID?'GroupTrainingProblemList':'TrainingProblemList'"
           lazy
-          :disabled="trainingMenuDisabled"
+          :disabled="trainingMenuDisabled || !hasJoined"
         >
           <span slot="label"
             ><i class="fa fa-list" aria-hidden="true"></i>&nbsp;{{
@@ -170,7 +171,7 @@
           >
           <transition name="el-zoom-in-bottom">
             <router-view
-              v-if="route_name === 'TrainingProblemList' || route_name === 'GroupTrainingProblemList'"
+              v-if="(route_name === 'TrainingProblemList' || route_name === 'GroupTrainingProblemList') && hasJoined"
             ></router-view>
           </transition>
         </el-tab-pane>
@@ -178,7 +179,7 @@
         <el-tab-pane
           :name="groupID?'GroupTrainingRank':'TrainingRank'"
           lazy
-          :disabled="trainingMenuDisabled"
+          :disabled="trainingMenuDisabled || !hasJoined"
           v-if="isPrivateTraining"
         >
           <span slot="label"
@@ -187,7 +188,7 @@
             }}</span
           >
           <transition name="el-zoom-in-bottom">
-            <router-view v-if="route_name === 'TrainingRank' || route_name === 'GroupTrainingRank' "></router-view>
+            <router-view v-if="(route_name === 'TrainingRank' || route_name === 'GroupTrainingRank') && hasJoined"></router-view>
           </transition>
         </el-tab-pane>
       </el-tabs>
@@ -201,8 +202,9 @@ import { mapState, mapGetters, mapActions } from 'vuex';
 import myMessage from '@/common/message';
 import api from '@/common/api';
 import Markdown from '@/components/oj/common/Markdown';
+import { joinTraining, getMyTrainingRecord } from '@/api/training';
 export default {
-  components: { 
+  components: {
     Markdown
   },
   data() {
@@ -211,14 +213,9 @@ export default {
       TRAINING_TYPE: {},
       trainingPassword: '',
       btnLoading: false,
-      customColors: [
-        { color: '#909399', percentage: 20 },
-        { color: '#f56c6c', percentage: 40 },
-        { color: '#e6a23c', percentage: 60 },
-        { color: '#1989fa', percentage: 80 },
-        { color: '#67c23a', percentage: 100 },
-      ],
+      joinLoading: false,
       groupID:null,
+      hasJoined: false,
     };
   },
   created() {
@@ -237,10 +234,50 @@ export default {
     this.TRAINING_TYPE = Object.assign({}, TRAINING_TYPE);
     this.$store.dispatch('getTraining').then((res) => {
       this.changeDomTitle({ title: res.data.data.title });
+      // 检查用户是否已参加训练
+      if (this.isAuthenticated) {
+        this.checkJoinStatus();
+      }
     });
   },
   methods: {
     ...mapActions(['changeDomTitle']),
+    // 检查是否已参加训练
+    checkJoinStatus() {
+      const trainingId = this.$route.params.trainingID;
+      getMyTrainingRecord(trainingId).then(
+        (res) => {
+          if (res.data.code === 200 && res.data.data) {
+            this.hasJoined = true;
+          }
+        },
+        () => {
+          this.hasJoined = false;
+        }
+      );
+    },
+    // 参加训练
+    handleJoinTraining() {
+      this.joinLoading = true;
+      const trainingId = this.$route.params.trainingID;
+      joinTraining(trainingId).then(
+        (res) => {
+          this.joinLoading = false;
+          if (res.data.code === 200) {
+            myMessage.success('参加训练成功！');
+            this.hasJoined = true;
+            // 刷新训练信息以更新进度
+            this.$store.dispatch('getTraining');
+          } else {
+            myMessage.error(res.data.message || '参加训练失败');
+          }
+        },
+        (err) => {
+          this.joinLoading = false;
+          myMessage.error(err.response?.data?.message || '参加训练失败');
+        }
+      );
+    },
     tabClick(tab) {
       let name = tab.name;
       if (name !== this.$route.name) {
@@ -292,6 +329,7 @@ export default {
       'trainingMenuDisabled',
       'isPrivateTraining',
       'isAuthenticated',
+      'isTrainingAdmin',
     ]),
   },
   watch: {
@@ -326,6 +364,11 @@ export default {
   margin-top: 10px;
   font-size: 18px;
   font-weight: 700;
+}
+.join-hint {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #909399;
 }
 .password-form-card {
   text-align: center;

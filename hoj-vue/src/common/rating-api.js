@@ -1,15 +1,15 @@
 import axios from 'axios'
 
 // 根据环境自动选择 API 地址
-// 开发环境：使用 /rating-api（通过 vue.config.js 代理）
+// 开发环境：使用 /rating-api/api（通过 vue.config.js 代理到 hist-oj 的 /api）
 // 生产环境：使用 /api（通过 Nginx 代理到 hist-oj）
 const getRatingApiBaseURL = () => {
   // 生产环境（已构建的静态文件）
   if (process.env.NODE_ENV === 'production') {
     return '/api'
   }
-  // 开发环境（使用代理）
-  return '/rating-api'
+  // 开发环境（使用代理，需要加上 /api 前缀）
+  return '/rating-api/api'
 }
 
 const ratingApi = axios.create({

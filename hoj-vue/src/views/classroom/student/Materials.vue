@@ -1,41 +1,92 @@
 <template>
-  <div class="student-materials">
-    <!-- 面包屑导航 -->
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item @click.native="goToRoot">
-        <a href="javascript:;">{{ $t('m.Root_Directory') }}</a>
-      </el-breadcrumb-item>
-      <el-breadcrumb-item v-if="currentFolderId">
-        {{ currentFolderName }}
-      </el-breadcrumb-item>
-    </el-breadcrumb>
+  <div class="student-materials classroom-theme">
+    <div class="header">
+      <h3>{{ $t('m.Material_Library') }}</h3>
+    </div>
 
-    <!-- 文件夹和文件列表 - 移除 v-loading 避免轮询时闪烁 -->
-    <div class="content-area">
-      <el-row :gutter="20">
-        <el-col :span="8" v-for="folder in folders" :key="folder.id">
-          <el-card class="folder-card" @click.native="openFolder(folder)">
-            <i class="el-icon-folder-opened"></i>
-            <span>{{ folder.folderName }}</span>
-          </el-card>
-        </el-col>
-        <el-col :span="8" v-for="material in materials" :key="material.id">
-          <el-card class="material-card">
-            <div class="material-icon">
-              <i :class="getFileIcon(material.fileType)"></i>
-            </div>
-            <div class="material-info">
-              <span class="name">{{ material.fileName }}</span>
-              <span class="size">{{ formatFileSize(material.fileSize) }}</span>
-            </div>
-            <el-button size="small" type="primary" @click="downloadMaterial(material)">
-              {{ $t('m.Download') }}
-            </el-button>
-          </el-card>
-        </el-col>
-      </el-row>
+    <div class="content-layout">
+      <!-- 左侧树形导航 -->
+      <div class="tree-sidebar">
+        <div class="tree-header">
+          <span class="tree-title">文件夹结构</span>
+        </div>
+        <el-tree
+          ref="folderTree"
+          :data="folderTree"
+          :props="treeProps"
+          :highlight-current="true"
+          node-key="id"
+          :current-node-key="currentFolderId"
+          :expand-on-click-node="false"
+          :default-expand-all="true"
+          @node-click="handleNodeClick"
+          class="folder-tree"
+        >
+          <span class="custom-tree-node" slot-scope="{ node, data }">
+            <span class="node-label">
+              <i :class="data.id === 0 ? 'el-icon-folder' : 'el-icon-folder-opened'"></i>
+              {{ node.label }}
+            </span>
+          </span>
+        </el-tree>
+      </div>
 
-      <el-empty v-if="!loading && folders.length === 0 && materials.length === 0" :description="$t('m.No_Files_Yet')" />
+      <!-- 右侧内容区域 -->
+      <div class="content-area">
+        <div class="content-header">
+          <span class="current-folder-name">{{ getCurrentFolderName() }}</span>
+        </div>
+
+        <div class="files-container" v-loading="loading">
+          <!-- 文件夹列表 -->
+          <div v-if="folders.length > 0" class="section">
+            <div class="section-title">文件夹</div>
+            <div class="files-grid">
+              <div
+                v-for="folder in folders"
+                :key="folder.id"
+                class="file-item folder-item"
+                @click="openFolder(folder)"
+              >
+                <i class="el-icon-folder folder-icon"></i>
+                <span class="file-name">{{ folder.folderName }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 文件列表 -->
+          <div v-if="materials.length > 0" class="section">
+            <div class="section-title">文件</div>
+            <div class="files-grid">
+              <div
+                v-for="material in materials"
+                :key="material.id"
+                class="file-item material-item"
+              >
+                <i :class="getFileIcon(material.fileType)" class="file-icon"></i>
+                <div class="file-info">
+                  <span class="file-name">{{ material.fileName }}</span>
+                  <span class="file-size">{{ formatFileSize(material.fileSize) }}</span>
+                </div>
+                <el-button
+                  size="mini"
+                  type="primary"
+                  icon="el-icon-download"
+                  @click="downloadMaterial(material)"
+                >
+                  下载
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <el-empty
+            v-if="!loading && folders.length === 0 && materials.length === 0"
+            :description="$t('m.No_Files_Yet')"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -55,13 +106,19 @@ export default {
       loading: false,
       folders: [],
       materials: [],
-      currentFolderId: 0, // 0表示根目录
-      currentFolderName: '',
-      isInitialLoad: true, // 标记是否是真正的首次加载
+      folderTree: [],
+      allFoldersCache: [], // 缓存所有文件夹
+      currentFolderId: 0,
+      currentFolder: null,
+      isInitialLoad: true,
+      treeProps: {
+        label: 'folderName',
+        children: 'children'
+      },
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
-        interval: 500,
+        interval: 3000,
         syncFunction: 'loadContent',
         immediate: true
       }
@@ -73,6 +130,7 @@ export default {
       handler(newVal) {
         if (newVal) {
           this.loadContent()
+          this.loadFolderTree()
         }
       }
     }
@@ -97,49 +155,15 @@ export default {
           params: { parentId: this.currentFolderId }
         })
 
-        // 获取当前文件夹下的文件 - 直接传folderId值，不要包在对象里
+        // 获取当前文件夹下的文件
         const materialsRes = await this.$store.dispatch('classroom/getMaterials', this.currentFolderId || 'root')
 
         if (foldersRes.code === 200) {
-          const newFolders = foldersRes.data || []
-
-          // 智能更新:检测新增、删除、重命名
-          if (this.isInitialLoad) {
-            this.folders = newFolders
-          } else {
-            // 轮询时:检查数量或名称是否有变化
-            const folderMap = new Map(this.folders.map(f => [f.id, f.folderName]))
-            let hasFolderChanges = newFolders.length !== this.folders.length
-
-            // 如果数量相同,检查是否有文件夹重命名
-            if (!hasFolderChanges) {
-              for (const newFolder of newFolders) {
-                const oldName = folderMap.get(newFolder.id)
-                if (oldName && oldName !== newFolder.folderName) {
-                  hasFolderChanges = true
-                  break
-                }
-              }
-            }
-
-            if (hasFolderChanges) {
-              this.folders = newFolders
-            }
-          }
+          this.folders = foldersRes.data || []
         }
-        if (materialsRes.code === 200) {
-          const newMaterials = materialsRes.data || []
 
-          // 智能更新:只添加/删除变化的项,不替换整个数组
-          if (this.isInitialLoad) {
-            this.materials = newMaterials
-          } else {
-            // 轮询时:只检查数量变化
-            if (newMaterials.length !== this.materials.length) {
-              this.materials = newMaterials
-            }
-            // 数量相同时不更新,避免闪烁
-          }
+        if (materialsRes.code === 200) {
+          this.materials = materialsRes.data || []
         }
       } catch (error) {
         if (this.isInitialLoad) {
@@ -148,33 +172,142 @@ export default {
       } finally {
         if (this.isInitialLoad) {
           this.loading = false
-          this.isInitialLoad = false // 标记首次加载完成
+          this.isInitialLoad = false
         }
       }
     },
+
+    async loadFolderTree() {
+      try {
+        // 递归获取所有文件夹构建树形结构
+        const allFolders = await this.fetchAllFoldersRecursive()
+        this.allFoldersCache = allFolders
+        this.folderTree = this.buildFolderTree(allFolders)
+      } catch (error) {
+        console.error('加载文件夹树失败:', error)
+        // 如果加载失败，至少显示根节点
+        this.folderTree = [{
+          id: 0,
+          folderName: this.$t('m.Root_Directory'),
+          children: []
+        }]
+      }
+    },
+
+    async fetchAllFoldersRecursive(parentId = null) {
+      try {
+        const params = {}
+        if (parentId !== null) {
+          params.parentId = parentId
+        }
+
+        const res = await this.$store.dispatch('classroom/getFolders', {
+          classroomId: this.classroomId,
+          params
+        })
+
+        if (res.code === 200) {
+          const currentFolders = res.data || []
+          let allFolders = [...currentFolders]
+
+          // 并行获取所有子文件夹
+          const childPromises = currentFolders.map(folder =>
+            this.fetchAllFoldersRecursive(folder.id)
+          )
+
+          const childResults = await Promise.all(childPromises)
+          childResults.forEach(childFolders => {
+            allFolders = allFolders.concat(childFolders)
+          })
+
+          return allFolders
+        }
+
+        return []
+      } catch (error) {
+        console.error('获取文件夹失败:', error)
+        return []
+      }
+    },
+
+    buildFolderTree(folders) {
+      // 构建树形结构
+      const map = {}
+      const tree = []
+
+      // 先添加根节点
+      const rootNode = {
+        id: 0,
+        folderName: this.$t('m.Root_Directory'),
+        children: []
+      }
+      map[0] = rootNode
+
+      // 创建所有节点的映射
+      folders.forEach(folder => {
+        map[folder.id] = {
+          id: folder.id,
+          folderName: folder.folderName,
+          parentId: folder.parentId,
+          children: []
+        }
+      })
+
+      // 构建父子关系
+      folders.forEach(folder => {
+        const node = map[folder.id]
+        const parentId = folder.parentId || 0
+        if (map[parentId]) {
+          map[parentId].children.push(node)
+        } else {
+          // 如果找不到父节点，说明该文件夹的父文件夹没有被获取到（可能是权限问题或已删除）
+          // 不再将这种孤立文件夹添加到根节点下，而是跳过它们
+          console.warn(`buildFolderTree - 警告: 文件夹 ${folder.id} (${folder.folderName}) 的父节点 ${parentId} 不存在，跳过该文件夹`)
+        }
+      })
+
+      tree.push(rootNode)
+      return tree
+    },
+
+    handleNodeClick(data, node) {
+      this.navigateToFolder(data.id)
+    },
+
+    navigateToFolder(folderId) {
+      this.currentFolderId = folderId
+      this.isInitialLoad = true
+      this.loadContent()
+
+      // 高亮树节点
+      this.$nextTick(() => {
+        if (this.$refs.folderTree) {
+          this.$refs.folderTree.setCurrentKey(folderId)
+        }
+      })
+    },
+
+    getCurrentFolderName() {
+      if (this.currentFolderId === 0) {
+        return this.$t('m.Root_Directory')
+      }
+
+      const folder = this.allFoldersCache.find(f => f.id === this.currentFolderId)
+      return folder ? folder.folderName : this.$t('m.Root_Directory')
+    },
+
     openFolder(folder) {
-      this.currentFolderId = folder.id
-      this.currentFolderName = folder.folderName
-      this.isInitialLoad = true // 切换文件夹时重置标记
-      this.loadContent()
+      this.navigateToFolder(folder.id)
     },
-    goToRoot() {
-      this.currentFolderId = 0
-      this.currentFolderName = ''
-      this.isInitialLoad = true // 返回根目录时重置标记
-      this.loadContent()
-    },
+
     downloadMaterial(material) {
-      // 使用 window.open 触发下载，对新标签页中的文件进行下载
-      // 对于无法预览的文件（如 PDF、图片等），浏览器会自动下载
-      // 对于可预览的文件，用户可以手动右键保存
-      // 确保文件路径是完整的 URL
       let filePath = material.filePath
       if (filePath.startsWith('/')) {
         filePath = window.location.origin + filePath
       }
       window.open(filePath, '_blank')
     },
+
     getFileIcon(type) {
       const icons = {
         pdf: 'el-icon-document',
@@ -185,6 +318,7 @@ export default {
       }
       return icons[type] || 'el-icon-document'
     },
+
     formatFileSize(bytes) {
       if (bytes === 0) return '0 B'
       const k = 1024
@@ -198,72 +332,212 @@ export default {
 
 <style scoped>
 .student-materials {
-  padding: 20px;
+  padding: 8px;
+  min-height: 100vh;
+  background: var(--classroom-bg, #f5f7fa);
 }
 
-.breadcrumb {
-  margin-bottom: 20px;
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
-.breadcrumb a {
-  color: #409EFF;
-  cursor: pointer;
+.header h3 {
+  font-size: 16px;
+  color: var(--classroom-text);
+  margin: 0;
+  font-weight: 700;
 }
 
-.content-area {
-  min-height: 200px;
+.content-layout {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 100px);
 }
 
-.folder-card,
-.material-card {
-  margin-bottom: 15px;
-  text-align: center;
-  cursor: pointer;
-  /* 移除 transition 避免轮询时闪烁 */
+/* 左侧树形导航 */
+.tree-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.folder-card:hover,
-.material-card:hover {
-  /* 移除 transform 避免轮询时闪烁 */
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+.tree-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #E4E7ED;
+  background: #F5F7FA;
 }
 
-.folder-card i {
-  font-size: 48px;
+.tree-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.folder-tree {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.custom-tree-node {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.node-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-label i {
+  font-size: 16px;
   color: #E6A23C;
 }
 
-.folder-card span {
-  display: block;
-  margin-top: 10px;
-  font-size: 16px;
+/* 右侧内容区域 */
+.content-area {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.material-card {
-  padding: 15px;
+.content-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #E4E7ED;
+  background: #F5F7FA;
 }
 
-.material-icon i {
-  font-size: 36px;
+.current-folder-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.files-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 16px;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #909399;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #F5F7FA;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-item:hover {
+  background: #E6F0FF;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.15);
+}
+
+.folder-item {
+  cursor: pointer;
+}
+
+.folder-icon {
+  font-size: 32px;
+  color: #E6A23C;
+}
+
+.file-icon {
+  font-size: 28px;
   color: #409EFF;
 }
 
-.material-info {
-  margin: 10px 0;
+.file-name {
+  flex: 1;
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.material-info .name {
-  display: block;
-  font-weight: bold;
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.material-info .size {
-  display: block;
+.file-size {
   font-size: 12px;
   color: #909399;
-  margin-top: 5px;
+}
+
+.material-item {
+  cursor: default;
+}
+
+.material-item .file-info {
+  flex: 1;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .content-layout {
+    flex-direction: column;
+  }
+
+  .tree-sidebar {
+    width: 100%;
+    max-height: 200px;
+  }
+
+  .files-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

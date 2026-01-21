@@ -825,6 +825,8 @@ export const m = {
   Delete_Failed: 'Failed to delete',
   Copy_Success: 'Class code copied',
   Copy_Failed: 'Failed to copy',
+  Classroom_Detail: 'Classroom Detail',
+  No_Students_In_Classroom: 'No students in the classroom',
 
   // Classroom - Student Management
   Student_Management: 'Student Management',
