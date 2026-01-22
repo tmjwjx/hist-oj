@@ -4,6 +4,19 @@
       <div slot="header">
         <span class="panel-title">{{ training.title }}</span>
       </div>
+      <div class="training-progress" v-if="isAuthenticated">
+        <el-tooltip
+          effect="dark"
+          :content="`已完成 ${training.acCount || 0} / ${training.problemCount || 0} 题目`"
+          placement="top"
+        >
+          <el-progress
+            :text-inside="true"
+            :stroke-width="20"
+            :percentage="parseFloat(getAcProblemPercent())"
+          ></el-progress>
+        </el-tooltip>
+      </div>
     </el-card>
     <div class="card-top">
       <el-tabs @tab-click="tabClick" v-model="route_name">
@@ -359,6 +372,10 @@ export default {
 }
 .training-header {
   text-align: center;
+}
+.training-progress {
+  margin-top: 15px;
+  padding: 0 20px;
 }
 .count {
   margin-top: 10px;

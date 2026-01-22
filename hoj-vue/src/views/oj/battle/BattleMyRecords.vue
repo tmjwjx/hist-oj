@@ -11,13 +11,16 @@
             <span>我的对战记录</span>
           </div>
         </div>
+        <el-button type="success" size="small" @click="loadRecords" :loading="loading" class="refresh-button">
+          <i class="fa fa-refresh"></i> 刷新
+        </el-button>
       </div>
 
       <div class="records-content">
         <!-- 统计卡片 -->
         <el-row :gutter="20" class="stats-row">
           <el-col :span="6">
-            <el-card class="stat-card" shadow="hover">
+            <el-card class="stat-card total" shadow="hover">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.totalBattles }}</div>
                 <div class="stat-label">全部场次</div>
@@ -90,6 +93,17 @@
             </template>
           </el-table-column>
 
+          <el-table-column label="状态" width="100" align="center">
+            <template slot-scope="scope">
+              <el-tag v-if="scope.row.isExcluded" type="warning" size="small">
+                不计入
+              </el-tag>
+              <el-tag v-else type="info" size="small">
+                已计入
+              </el-tag>
+            </template>
+          </el-table-column>
+
           <el-table-column label="时间" width="180" align="center">
             <template slot-scope="scope">
               {{ formatDate(scope.row.gmtCreate) }}
@@ -141,8 +155,25 @@ export default {
   },
   mounted() {
     this.loadRecords();
+    // 添加页面可见性监听，当页面重新可见时刷新数据
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  },
+  beforeDestroy() {
+    // 移除事件监听
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+  },
+  activated() {
+    // 如果使用了 keep-alive，页面激活时刷新数据
+    this.loadRecords();
   },
   methods: {
+    handleVisibilityChange() {
+      // 当页面从隐藏变为可见时，自动刷新数据
+      if (!document.hidden) {
+        this.loadRecords();
+      }
+    },
+
     getRatingColor(rating) {
       return getRatingColor(rating);
     },
@@ -197,8 +228,10 @@ export default {
         });
         if (res.data.code === 0 && res.data.data.records) {
           const allRecords = res.data.data.records;
-          const total = allRecords.length;
-          const wins = allRecords.filter(r => r.isWinner).length;
+          // 排除不计入的记录
+          const validRecords = allRecords.filter(r => !r.isExcluded);
+          const total = validRecords.length;
+          const wins = validRecords.filter(r => r.isWinner).length;
           const losses = total - wins;
 
           this.allTimeStats = {
@@ -216,8 +249,10 @@ export default {
 
     calculateStats() {
       // 计算当前页统计（用于其他可能需要的地方）
-      const total = this.recordList.length;
-      const wins = this.recordList.filter(r => r.isWinner).length;
+      // 排除不计入的记录
+      const validRecords = this.recordList.filter(r => !r.isExcluded);
+      const total = validRecords.length;
+      const wins = validRecords.filter(r => r.isWinner).length;
       const losses = total - wins;
 
       this.stats = {
@@ -317,6 +352,25 @@ export default {
   display: flex;
   align-items: center;
   gap: 20px;
+  flex: 1;
+}
+
+.refresh-button {
+  background: linear-gradient(135deg, #67C23A 0%, #5daf34 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+  background: linear-gradient(135deg, #5daf34 0%, #4a9628 100%);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
+}
+
+.refresh-button i {
+  margin-right: 5px;
 }
 
 .back-button {
@@ -407,6 +461,10 @@ export default {
 
 .stat-card.rate {
   background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+}
+
+.stat-card.total {
+  background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%);
 }
 
 .stat-item {
@@ -502,6 +560,23 @@ export default {
   background: linear-gradient(135deg, #F56C6C 0%, #f15454 100%);
   box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
   color: white !important;
+}
+
+::v-deep .el-tag--warning {
+  background: linear-gradient(135deg, #E6A23C 0%, #d9972a 100%);
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4);
+  color: white !important;
+}
+
+::v-deep .el-tag--info {
+  background: linear-gradient(135deg, #909399 0%, #7a7d82 100%);
+  box-shadow: 0 4px 12px rgba(144, 147, 153, 0.3);
+  color: white !important;
+}
+
+::v-deep .el-tag.el-tag--small {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .opponent-cell {

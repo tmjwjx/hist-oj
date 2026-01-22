@@ -124,7 +124,7 @@
                   $t('m.Home_Page')
                 }}</el-breadcrumb-item>
                 <el-breadcrumb-item v-for="item in routeList" :key="item.path">
-                  {{ $t('m.' + item.meta.title.replaceAll(' ', '_')) }}
+                  {{ item.meta.title }}
                 </el-breadcrumb-item>
               </el-breadcrumb>
             </div>

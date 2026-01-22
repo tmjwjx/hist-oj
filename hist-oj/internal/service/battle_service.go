@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -593,8 +594,12 @@ func (s *BattleService) endBattle(room *model.BattleRoom, winnerID, endReason st
 func (s *BattleService) createBattleRecords(room *model.BattleRoom, winnerID, endReason, problemTitle string, battleTime int, hostRating, challengerRating *int) []model.BattleRecord {
 	records := make([]model.BattleRecord, 0, 2)
 
+	// 生成对局唯一标识：roomID + problemID + 当前时间戳（精确到秒，格式：YYYYMMDDHHmmss）
+	battlePairID := fmt.Sprintf("%s_%s_%s", room.RoomID, *room.ProblemID, time.Now().Format("20060102150405"))
+
 	// 房主记录
 	hostRecord := model.BattleRecord{
+		BattlePairID:     battlePairID,
 		RoomID:           room.RoomID,
 		UserID:           room.HostID,
 		Username:         room.HostUsername,
@@ -610,8 +615,9 @@ func (s *BattleService) createBattleRecords(room *model.BattleRoom, winnerID, en
 	}
 	records = append(records, hostRecord)
 
-	// 挑战者记录
+	// 挑战者记录（使用相同的 battlePairID）
 	challengerRecord := model.BattleRecord{
+		BattlePairID:     battlePairID,
 		RoomID:           room.RoomID,
 		UserID:           *room.ChallengerID,
 		Username:         *room.ChallengerUsername,
@@ -698,46 +704,141 @@ func (s *BattleService) updateUserStats(db *gorm.DB, userID, username string, is
 	return nil
 }
 
-// GetBattleRank 获取对战排行榜
+// GetBattleRank 获取对战排行榜(实时计算,排除不计入的对决)
 func (s *BattleService) GetBattleRank(limit, page int, username string) ([]model.UserBattleStats, int64, error) {
 	logger := utils.GetLogger()
 
-	var stats []model.UserBattleStats
-	var total int64
+	type UserRankResult struct {
+		UserID          string  `json:"user_id"`
+		Username        string  `json:"username"`
+		TotalBattles    int     `json:"total_battles"`
+		WinCount        int     `json:"win_count"`
+		LoseCount       int     `json:"lose_count"`
+		WinRate         float64 `json:"win_rate"`
+		TotalSubmitCount int     `json:"total_submit_count"`
+		AvgBattleTime   *float64 `json:"avg_battle_time"`
+	}
 
-	// 计算偏移量
+	var results []UserRankResult
 	offset := (page - 1) * limit
 
-	// 构建查询
-	query := s.db.Model(&model.UserBattleStats{})
+	// 实时计算每个用户的统计数据(排除不计入的对决)
+	subQuery := s.db.Table("battle_record").
+		Select(`
+			user_id,
+			username,
+			COUNT(*) as total_battles,
+			SUM(CASE WHEN is_winner = 1 THEN 1 ELSE 0 END) as win_count,
+			SUM(CASE WHEN is_winner = 0 THEN 1 ELSE 0 END) as lose_count,
+			SUM(submit_count) as total_submit_count,
+			AVG(battle_time) as avg_battle_time
+		`).
+		Where("is_excluded = 0"). // 排除不计入的对决
+		Group("user_id, username")
 
-	// 添加用户名筛选条件（支持子串搜索）
-	if username != "" {
-		query = query.Where("username LIKE ?", "%"+username+"%")
-	}
-
-	// 查询总数
-	if err := query.Count(&total).Error; err != nil {
-		logger.Error("查询排行榜总数失败", zap.Error(err))
-		return nil, 0, fmt.Errorf("查询失败: %w", err)
-	}
-
-	// 查询排行榜（按胜场数降序，胜率降序）
-	if err := query.Order("win_count DESC, win_rate DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&stats).Error; err != nil {
+	// 获取所有用户的统计
+	if err := subQuery.Scan(&results).Error; err != nil {
 		logger.Error("查询排行榜失败", zap.Error(err))
 		return nil, 0, fmt.Errorf("查询失败: %w", err)
 	}
 
-	// 为每个用户填充 Rating 信息
-	for i := range stats {
+	// 调试：输出原始查询结果
+	logger.Debug("GetBattleRank 原始查询结果",
+		zap.Int("result_count", len(results)))
+
+	// 调试：查询数据库中root用户的原始记录
+	var rootRecords []model.BattleRecord
+	s.db.Where("username = ?", "root").Find(&rootRecords)
+	logger.Debug("Root用户的原始记录",
+		zap.Int("total_records", len(rootRecords)),
+		zap.Int("excluded_count", func() int {
+			count := 0
+			for _, r := range rootRecords {
+				if r.IsExcluded {
+					count++
+				}
+			}
+			return count
+		}()))
+
+	// 输出前3个用户的详细信息
+	for i := 0; i < len(results) && i < 3; i++ {
+		logger.Debug("排行榜用户数据",
+			zap.String("username", results[i].Username),
+			zap.Int("total_battles", results[i].TotalBattles),
+			zap.Int("win_count", results[i].WinCount),
+			zap.Int("lose_count", results[i].LoseCount))
+	}
+
+	// 计算胜率并排序
+	for i := range results {
+		if results[i].TotalBattles > 0 {
+			results[i].WinRate = float64(results[i].WinCount) / float64(results[i].TotalBattles) * 100
+		}
+	}
+
+	// 按胜场数降序、胜率降序排序
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].WinCount != results[j].WinCount {
+			return results[i].WinCount > results[j].WinCount
+		}
+		return results[i].WinRate > results[j].WinRate
+	})
+
+	// 应用用户名筛选
+	if username != "" {
+		filtered := make([]UserRankResult, 0)
+		for _, r := range results {
+			if strings.Contains(r.Username, username) {
+				filtered = append(filtered, r)
+			}
+		}
+		results = filtered
+	}
+
+	total := int64(len(results))
+
+	// 分页
+	start := offset
+	end := offset + limit
+	if start > len(results) {
+		start = len(results)
+	}
+	if end > len(results) {
+		end = len(results)
+	}
+	var pagedResults []UserRankResult
+	if start < end {
+		pagedResults = results[start:end]
+	} else {
+		pagedResults = []UserRankResult{}
+	}
+
+	// 转换为 UserBattleStats
+	stats := make([]model.UserBattleStats, len(pagedResults))
+	for i, r := range pagedResults {
+		var avgTime *int
+		if r.AvgBattleTime != nil {
+			val := int(*r.AvgBattleTime + 0.5) // 四舍五入
+			avgTime = &val
+		}
+
+		stats[i] = model.UserBattleStats{
+			UserID:          r.UserID,
+			Username:        r.Username,
+			TotalBattles:    r.TotalBattles,
+			WinCount:        r.WinCount,
+			LoseCount:       r.LoseCount,
+			WinRate:         r.WinRate,
+			TotalSubmitCount: r.TotalSubmitCount,
+			AvgBattleTime:   avgTime,
+		}
+
+		// 填充 Rating 信息
 		var userRecord model.UserRecord
-		if err := s.db.Where("uid = ?", stats[i].UserID).First(&userRecord).Error; err == nil {
+		if err := s.db.Where("uid = ?", r.UserID).First(&userRecord).Error; err == nil {
 			stats[i].Rating = userRecord.HistRating
 		}
-		// 如果查询失败（用户没有 rating），Rating 保持为 nil
 	}
 
 	logger.Debug("查询排行榜成功",
@@ -756,7 +857,7 @@ func (s *BattleService) GetMyBattleRecords(userID string, limit, page int) ([]mo
 
 	offset := (page - 1) * limit
 
-	// 查询总数
+	// 查询总数（查询所有记录，包括不计入的）
 	if err := s.db.Model(&model.BattleRecord{}).
 		Where("user_id = ?", userID).
 		Count(&total).Error; err != nil {
@@ -766,7 +867,7 @@ func (s *BattleService) GetMyBattleRecords(userID string, limit, page int) ([]mo
 		return nil, 0, fmt.Errorf("查询失败: %w", err)
 	}
 
-	// 查询记录（按创建时间降序）
+	// 查询记录（按创建时间降序，查询所有记录包括不计入的）
 	if err := s.db.Where("user_id = ?", userID).
 		Order("gmt_create DESC").
 		Limit(limit).
@@ -1113,5 +1214,233 @@ func (s *BattleService) ResetRoom(roomID, userID string) error {
 	logger.Info("房间重置成功",
 		zap.String("room_id", roomID),
 		zap.String("user_id", userID))
+	return nil
+}
+
+// ExcludeRecord 标记不计本场对决，并同步更新排行榜和历史记录
+func (s *BattleService) ExcludeRecord(recordID int64, isExcluded bool) error {
+	logger := utils.GetLogger()
+
+	// 开启事务
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 查询对决记录
+	var record model.BattleRecord
+	if err := tx.Where("id = ?", recordID).First(&record).Error; err != nil {
+		logger.Error("查询对决记录失败", zap.Int64("record_id", recordID), zap.Error(err))
+		tx.Rollback()
+		return fmt.Errorf("对决记录不存在")
+	}
+
+	logger.Info("开始处理不计入请求",
+		zap.Int64("record_id", record.ID),
+		zap.String("battle_pair_id", record.BattlePairID),
+		zap.String("room_id", record.RoomID),
+		zap.String("user_id", record.UserID),
+		zap.String("opponent_id", record.OpponentID),
+		zap.Bool("current_is_excluded", record.IsExcluded),
+		zap.Bool("target_is_excluded", isExcluded))
+
+	// 检查是否需要更新（如果状态已经一致，跳过）
+	if record.IsExcluded == isExcluded {
+		logger.Info("记录状态已一致，跳过更新",
+			zap.Int64("record_id", recordID),
+			zap.Bool("is_excluded", isExcluded))
+		tx.Rollback()
+		return nil
+	}
+
+	// 更新记录的 IsExcluded 字段
+	if err := tx.Model(&record).Update("is_excluded", isExcluded).Error; err != nil {
+		logger.Error("更新对决记录失败", zap.Error(err))
+		tx.Rollback()
+		return fmt.Errorf("更新失败")
+	}
+
+	// 需要更新统计的用户ID集合（使用 map 去重）
+	userIDsToUpdate := make(map[string]bool)
+	userIDsToUpdate[record.UserID] = true
+
+	// 通过 battle_pair_id 查找对手记录（精准匹配同一场对局）
+	var opponentRecord model.BattleRecord
+	updateResult := tx.Where("battle_pair_id = ? AND id != ?", record.BattlePairID, recordID).
+		First(&opponentRecord)
+
+	logger.Info("通过 battle_pair_id 查询对手记录结果",
+		zap.String("battle_pair_id", record.BattlePairID),
+		zap.Int64("current_record_id", recordID),
+		zap.Bool("found", updateResult.Error == nil),
+		zap.Error(updateResult.Error))
+
+	if updateResult.Error == nil {
+		// 找到对手记录，更新
+		logger.Info("✓ 找到对手记录，准备更新",
+			zap.Int64("opponent_record_id", opponentRecord.ID),
+			zap.String("opponent_user_id", opponentRecord.UserID),
+			zap.Bool("current_is_excluded", opponentRecord.IsExcluded),
+			zap.Bool("new_is_excluded", isExcluded))
+
+		if err := tx.Model(&opponentRecord).Update("is_excluded", isExcluded).Error; err != nil {
+			logger.Error("更新对手记录失败", zap.Error(err))
+			tx.Rollback()
+			return fmt.Errorf("更新对手记录失败")
+		}
+		userIDsToUpdate[opponentRecord.UserID] = true
+		logger.Info("✓ 同时更新对手记录成功",
+			zap.String("battle_pair_id", record.BattlePairID),
+			zap.String("opponent_id", opponentRecord.UserID),
+			zap.Int64("opponent_record_id", opponentRecord.ID))
+	} else {
+		// 找不到对手记录
+		logger.Warn("✗ 未找到对手记录（可能已删除）",
+			zap.Error(updateResult.Error),
+			zap.String("battle_pair_id", record.BattlePairID),
+			zap.Int64("current_record_id", recordID),
+			zap.String("current_user_id", record.UserID))
+	}
+
+	// 对每个需要更新的用户重新计算统计
+	for userID := range userIDsToUpdate {
+		if err := s.recalculateUserStats(tx, userID); err != nil {
+			logger.Error("重新计算用户统计失败",
+				zap.String("user_id", userID),
+				zap.Error(err))
+			tx.Rollback()
+			return fmt.Errorf("更新用户统计失败: %w", err)
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败", zap.Error(err))
+		return fmt.Errorf("提交失败")
+	}
+
+	logger.Info("标记对决记录成功",
+		zap.Int64("record_id", recordID),
+		zap.String("battle_pair_id", record.BattlePairID),
+		zap.Bool("is_excluded", isExcluded),
+		zap.Int("affected_users", len(userIDsToUpdate)))
+
+	return nil
+}
+
+// recalculateUserStats 重新计算用户的对战统计（排除标记为不计入的记录）
+func (s *BattleService) recalculateUserStats(db *gorm.DB, userID string) error {
+	logger := utils.GetLogger()
+
+	// 查询用户所有未被排除的对战记录
+	var records []model.BattleRecord
+	if err := db.Where("user_id = ? AND is_excluded = 0", userID).Find(&records).Error; err != nil {
+		logger.Error("查询用户对战记录失败",
+			zap.String("user_id", userID),
+			zap.Error(err))
+		return err
+	}
+
+	// 计算统计数据
+	totalBattles := len(records)
+	winCount := 0
+	loseCount := 0
+	totalSubmitCount := 0
+	totalBattleTime := 0
+
+	for _, record := range records {
+		if record.IsWinner {
+			winCount++
+		} else {
+			loseCount++
+		}
+		totalSubmitCount += record.SubmitCount
+		if record.BattleTime != nil {
+			totalBattleTime += *record.BattleTime
+		}
+	}
+
+	// 计算平均对战时长
+	var avgBattleTime *int
+	if totalBattles > 0 {
+		avg := totalBattleTime / totalBattles
+		avgBattleTime = &avg
+	}
+
+	// 计算胜率
+	var winRate float64
+	if totalBattles > 0 {
+		winRate = float64(winCount) / float64(totalBattles) * 100
+	}
+
+	// 获取用户名
+	var username string
+	if len(records) > 0 {
+		username = records[0].Username
+	} else {
+		// 如果没有记录，从 user_battle_stats 表获取用户名
+		var stats model.UserBattleStats
+		if err := db.Where("user_id = ?", userID).First(&stats).Error; err == nil {
+			username = stats.Username
+		}
+	}
+
+	// 更新或创建统计记录
+	var stats model.UserBattleStats
+	err := db.Where("user_id = ?", userID).First(&stats).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// 创建新统计记录
+		stats = model.UserBattleStats{
+			UserID:          userID,
+			Username:        username,
+			TotalBattles:    totalBattles,
+			WinCount:        winCount,
+			LoseCount:       loseCount,
+			WinRate:         winRate,
+			TotalSubmitCount: totalSubmitCount,
+			AvgBattleTime:   avgBattleTime,
+		}
+		if err := db.Create(&stats).Error; err != nil {
+			logger.Error("创建用户统计失败",
+				zap.String("user_id", userID),
+				zap.Error(err))
+			return err
+		}
+	} else if err != nil {
+		logger.Error("查询用户统计失败",
+			zap.String("user_id", userID),
+			zap.Error(err))
+		return err
+	} else {
+		// 更新现有统计记录
+		stats.TotalBattles = totalBattles
+		stats.WinCount = winCount
+		stats.LoseCount = loseCount
+		stats.WinRate = winRate
+		stats.TotalSubmitCount = totalSubmitCount
+		stats.AvgBattleTime = avgBattleTime
+		if username != "" {
+			stats.Username = username
+		}
+
+		if err := db.Save(&stats).Error; err != nil {
+			logger.Error("更新用户统计失败",
+				zap.String("user_id", userID),
+				zap.Error(err))
+			return err
+		}
+	}
+
+	logger.Info("重新计算用户统计成功",
+		zap.String("user_id", userID),
+		zap.String("username", username),
+		zap.Int("total_battles", totalBattles),
+		zap.Int("win_count", winCount),
+		zap.Int("lose_count", loseCount),
+		zap.Float64("win_rate", winRate))
+
 	return nil
 }

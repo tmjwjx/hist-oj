@@ -61,7 +61,7 @@ battleRequest.interceptors.response.use(
  */
 export function createRoom() {
   return battleRequest({
-    url: '/battle/create-room',
+    url: '/api/battle/create-room',
     method: 'post',
     data: {}
   });
@@ -73,7 +73,7 @@ export function createRoom() {
  */
 export function joinRoom(data) {
   return battleRequest({
-    url: '/battle/join-room',
+    url: '/api/battle/join-room',
     method: 'post',
     data
   });
@@ -85,7 +85,7 @@ export function joinRoom(data) {
  */
 export function readyBattle(data) {
   return battleRequest({
-    url: '/battle/ready',
+    url: '/api/battle/ready',
     method: 'post',
     data
   });
@@ -97,7 +97,7 @@ export function readyBattle(data) {
  */
 export function getRoomInfo(roomId) {
   return battleRequest({
-    url: '/battle/room-info',
+    url: '/api/battle/room-info',
     method: 'get',
     params: { roomId }
   });
@@ -109,7 +109,7 @@ export function getRoomInfo(roomId) {
  */
 export function startBattle(data) {
   return battleRequest({
-    url: '/battle/start-battle',
+    url: '/api/battle/start-battle',
     method: 'post',
     data
   });
@@ -121,7 +121,7 @@ export function startBattle(data) {
  */
 export function giveupBattle(data) {
   return battleRequest({
-    url: '/battle/giveup',
+    url: '/api/battle/giveup',
     method: 'post',
     data
   });
@@ -133,7 +133,7 @@ export function giveupBattle(data) {
  */
 export function dissolveRoom(data) {
   return battleRequest({
-    url: '/battle/dissolve-room',
+    url: '/api/battle/dissolve-room',
     method: 'post',
     data
   });
@@ -145,7 +145,7 @@ export function dissolveRoom(data) {
  */
 export function leaveRoom(data) {
   return battleRequest({
-    url: '/battle/leave-room',
+    url: '/api/battle/leave-room',
     method: 'post',
     data
   });
@@ -157,7 +157,7 @@ export function leaveRoom(data) {
  */
 export function submitAC(data) {
   return battleRequest({
-    url: '/battle/submit-ac',
+    url: '/api/battle/submit-ac',
     method: 'post',
     data
   });
@@ -169,7 +169,7 @@ export function submitAC(data) {
  */
 export function getMyRecords(params) {
   return battleRequest({
-    url: '/battle/my-records',
+    url: '/api/battle/my-records',
     method: 'get',
     params
   });
@@ -181,7 +181,7 @@ export function getMyRecords(params) {
  */
 export function getAllBattleRecords(params) {
   return battleRequest({
-    url: '/battle/all-records',
+    url: '/api/battle/all-records',
     method: 'get',
     params
   });
@@ -193,7 +193,7 @@ export function getAllBattleRecords(params) {
  */
 export function getBattleRank(params) {
   return battleRequest({
-    url: '/battle/rank',
+    url: '/api/battle/rank',
     method: 'get',
     params
   });
@@ -205,8 +205,20 @@ export function getBattleRank(params) {
  */
 export function resetRoom(data) {
   return battleRequest({
-    url: '/battle/reset-room',
+    url: '/api/battle/reset-room',
     method: 'post',
     data
+  });
+}
+
+/**
+ * 管理员标记不计本场对决
+ * @param {Object} data - { recordId: number, isExcluded: boolean }
+ */
+export function excludeRecord(data) {
+  return axios.put('/battle-api/api/admin/battle/record/exclude', data, {
+    headers: {
+      Authorization: localStorage.getItem('token')
+    }
   });
 }

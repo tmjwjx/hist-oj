@@ -151,6 +151,8 @@ export default {
     },
   },
   mounted() {
+    // 设置页面标题,避免显示国际化key
+    document.title = '训练参与者列表';
     this.trainingId = this.$route.params.trainingId;
     this.trainingTitle = this.$route.query.title || `训练 ${this.trainingId}`;
     this.getParticipants();

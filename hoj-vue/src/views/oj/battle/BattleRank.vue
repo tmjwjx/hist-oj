@@ -136,8 +136,19 @@ export default {
           this.rankList = res.data.data.rankList;
           this.total = res.data.data.total;
           console.log('Rank list:', this.rankList);
+
+          // 详细的调试输出
           if (this.rankList.length > 0) {
-            console.log('First item rank:', this.rankList[0].rank);
+            console.log('=== 排行榜详细信息 ===');
+            this.rankList.forEach((user, index) => {
+              console.log(`#${index + 1} ${user.username}:`, {
+                totalBattles: user.totalBattles,
+                winCount: user.winCount,
+                loseCount: user.loseCount,
+                winRate: user.winRate
+              });
+            });
+            console.log('==================');
           }
         } else {
           this.$message.error(res.data.msg || '加载排行榜失败');

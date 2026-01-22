@@ -95,6 +95,14 @@ export default {
           iconColor: '#E6A23C',
           action: 'openBattleRecords',
           requireAuth: 'admin' // 需要管理员权限（所有管理员）
+        },
+        {
+          title: '权限说明',
+          description: '查看各管理员角色的权限说明',
+          icon: 'fa fa-key',
+          iconColor: '#909399',
+          action: 'openPermissionDocs',
+          requireAuth: 'admin' // 所有管理员可查看
         }
       ]
     };
@@ -140,6 +148,9 @@ export default {
         } else if (tool.action === 'openBattleRecords') {
           // 跳转到对战记录查询页面
           this.$router.push({ name: 'admin-battle-records' });
+        } else if (tool.action === 'openPermissionDocs') {
+          // 跳转到权限说明页面
+          this.$router.push({ name: 'admin-permission-docs' });
         }
       } else if (tool.url) {
         if (tool.url.startsWith('http')) {

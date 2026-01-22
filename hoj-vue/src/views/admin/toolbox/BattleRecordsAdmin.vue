@@ -41,62 +41,79 @@
     <!-- 记录列表 -->
     <el-card class="records-card" shadow="never">
       <el-table
-        :data="recordList"
+        :data="mergedRecordList"
         style="width: 100%"
         v-loading="loading"
         stripe
+        :row-class-name="getRowClassName"
       >
-        <el-table-column label="用户" width="120" align="center">
+        <el-table-column label="对局" width="250" align="center">
           <template slot-scope="scope">
-            <div class="user-cell">
-              <span class="username" :style="{ color: getUserRatingColor(scope.row) }">
-                {{ scope.row.username }}
-              </span>
+            <div class="match-cell">
+              <div class="player">
+                <span class="player-name" :style="{ color: getUserRatingColor(scope.row.record1) }">
+                  {{ scope.row.record1.username }}
+                </span>
+                <el-tag :type="scope.row.record1.isWinner ? 'success' : 'danger'" size="mini">
+                  {{ scope.row.record1.isWinner ? '胜' : '负' }}
+                </el-tag>
+              </div>
+              <div class="vs-divider">VS</div>
+              <div class="player">
+                <span class="player-name" :style="{ color: getOpponentRatingColor(scope.row.record1) }">
+                  {{ scope.row.record1.opponentUsername }}
+                </span>
+                <el-tag :type="scope.row.record2 ? (scope.row.record2.isWinner ? 'success' : 'danger') : (scope.row.record1.isWinner ? 'danger' : 'success')" size="mini">
+                  {{ scope.row.record2 ? (scope.row.record2.isWinner ? '胜' : '负') : (scope.row.record1.isWinner ? '负' : '胜') }}
+                </el-tag>
+              </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="对手" width="120" align="center">
-          <template slot-scope="scope">
-            <div class="opponent-cell">
-              <span class="opponent-username" :style="{ color: getOpponentRatingColor(scope.row) }">
-                {{ scope.row.opponentUsername }}
-              </span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="problemTitle" label="题目" align="center" min-width="150"></el-table-column>
-
-        <el-table-column label="结果" width="80" align="center">
-          <template slot-scope="scope">
-            <el-tag :type="scope.row.isWinner ? 'success' : 'danger'" size="small">
-              {{ scope.row.isWinner ? '胜' : '负' }}
-            </el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="record1.problemTitle" label="题目" align="center" min-width="150"></el-table-column>
 
         <el-table-column label="结束原因" width="100" align="center">
           <template slot-scope="scope">
-            {{ getEndReasonText(scope.row) }}
+            {{ getEndReasonText(scope.row.record1) }}
           </template>
         </el-table-column>
 
         <el-table-column label="房间号" width="100" align="center">
           <template slot-scope="scope">
-            <el-tag size="mini" type="info">{{ scope.row.roomId }}</el-tag>
+            <el-tag size="mini" type="info">{{ scope.row.record1.roomId }}</el-tag>
           </template>
         </el-table-column>
 
         <el-table-column label="对战时长" width="80" align="center">
           <template slot-scope="scope">
-            {{ formatTime(scope.row.battleTime) }}
+            {{ formatTime(scope.row.record1.battleTime) }}
           </template>
         </el-table-column>
 
         <el-table-column label="时间" width="180" align="center">
           <template slot-scope="scope">
-            {{ formatDate(scope.row.gmtCreate) }}
+            {{ formatDate(scope.row.record1.gmtCreate) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="状态" width="100" align="center">
+          <template slot-scope="scope">
+            <el-tag v-if="scope.row.isExcluded" type="info" size="small">不计入</el-tag>
+            <el-tag v-else type="success" size="small">正常</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="120" align="center" fixed="right">
+          <template slot-scope="scope">
+            <el-button
+              type="text"
+              size="small"
+              @click="toggleExclude(scope.row)"
+              :icon="scope.row.isExcluded ? 'el-icon-check' : 'el-icon-close'"
+            >
+              {{ scope.row.isExcluded ? '计入' : '不计入' }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -115,7 +132,7 @@
 </template>
 
 <script>
-import { getAllBattleRecords } from '@/api/battle';
+import { getAllBattleRecords, excludeRecord } from '@/api/battle';
 import { getRatingColor } from '@/common/rating-utils';
 
 export default {
@@ -128,16 +145,73 @@ export default {
         result: ''
       },
       recordList: [],
+      mergedRecordList: [], // 合并后的记录列表
       total: 0,
       limit: 20,
       currentPage: 1,
       loading: false
     };
   },
+  watch: {
+    // 监听 recordList 变化，自动合并
+    recordList: {
+      handler(newList) {
+        this.mergeRecords();
+      },
+      deep: true,
+      immediate: true
+    }
+  },
   mounted() {
     this.loadRecords();
   },
   methods: {
+    // 合并记录：将同一房间的两条记录合并为一条
+    mergeRecords() {
+      const merged = [];
+      const usedIds = new Set();
+
+      for (let i = 0; i < this.recordList.length; i++) {
+        const record = this.recordList[i];
+
+        // 如果这条记录已经被合并过，跳过
+        if (usedIds.has(record.id)) {
+          continue;
+        }
+
+        // 查找配对记录（同一房间，用户和对手互换）
+        const pairedRecord = this.recordList.find(r =>
+          r.id !== record.id &&
+          !usedIds.has(r.id) &&
+          r.roomId === record.roomId &&
+          ((r.userId === record.userId && r.opponentId === record.opponentId) ||
+           (r.userId === record.opponentId && r.opponentId === record.userId))
+        );
+
+        // 创建合并记录
+        const mergedRecord = {
+          record1: record,
+          record2: pairedRecord || null,
+          isExcluded: record.isExcluded,
+          roomId: record.roomId
+        };
+
+        merged.push(mergedRecord);
+        usedIds.add(record.id);
+
+        // 如果找到配对记录，也标记为已使用
+        if (pairedRecord) {
+          usedIds.add(pairedRecord.id);
+        }
+      }
+
+      this.mergedRecordList = merged;
+    },
+
+    getRowClassName({ row, rowIndex }) {
+      // 合并后不需要特殊样式，每行就是一个完整的对局
+      return '';
+    },
     getRatingColor(rating) {
       return getRatingColor(rating);
     },
@@ -161,8 +235,9 @@ export default {
     async loadRecords() {
       this.loading = true;
       try {
+        // 请求翻倍的数据量,因为合并后记录数会减半
         const params = {
-          limit: this.limit,
+          limit: this.limit * 2,
           currentPage: this.currentPage
         };
 
@@ -180,7 +255,8 @@ export default {
         const res = await getAllBattleRecords(params);
         if (res.data.code === 0) {
           this.recordList = res.data.data.records;
-          this.total = res.data.data.total;
+          // total 除以 2 向上取整,因为每两条记录合并为一条
+          this.total = Math.ceil(res.data.data.total / 2);
         } else {
           this.$message.error(res.data.msg || '加载记录失败');
         }
@@ -235,6 +311,43 @@ export default {
       if (!dateStr) return '-';
       const date = new Date(dateStr);
       return date.toLocaleString('zh-CN');
+    },
+
+    async toggleExclude(mergedRow) {
+      const action = mergedRow.isExcluded ? '计入' : '不计入';
+      const newExcludedState = !mergedRow.isExcluded;
+
+      try {
+        await this.$confirm(
+          `确定要将该场对决${action}吗?`,
+          '提示',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        );
+
+        // 只调用一次 API，后端会自动更新同一房间的配对记录
+        await excludeRecord({
+          recordId: mergedRow.record1.id,
+          isExcluded: newExcludedState
+        });
+
+        this.$message.success(`已${action}本场对决`);
+
+        // 更新本地状态
+        mergedRow.record1.isExcluded = newExcludedState;
+        if (mergedRow.record2) {
+          mergedRow.record2.isExcluded = newExcludedState;
+        }
+        mergedRow.isExcluded = newExcludedState;
+
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('操作失败');
+        }
+      }
     }
   }
 };
@@ -297,5 +410,48 @@ export default {
 
 ::v-deep .el-table__row:hover {
   background-color: #f5f7fa;
+}
+
+/* 对局单元格样式 */
+.match-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.player-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.vs-divider {
+  font-size: 12px;
+  font-weight: 700;
+  color: #909399;
+  letter-spacing: 2px;
+}
+
+/* 同一房间的配对记录样式 */
+::v-deep .el-table .paired-row {
+  background-color: #fef9e6 !important;
+}
+
+::v-deep .el-table .paired-row:hover {
+  background-color: #fdf0d7 !important;
+}
+
+/* 不计入的记录样式 */
+::v-deep .el-table .excluded-row {
+  opacity: 0.6;
+  background-color: #f5f5f5 !important;
 }
 </style>

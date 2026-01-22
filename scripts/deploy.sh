@@ -695,6 +695,7 @@ SQLEOF
             docker run -d \
                 --name hist-oj \
                 --network hoj_hoj-network \
+                -p 9527:9527 \
                 -v /opt/hist-oj-uploads:/app/uploads \
                 -e DATABASE_HOST=43.143.133.62 \
                 -e DATABASE_PORT=3306 \

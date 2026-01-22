@@ -49,6 +49,7 @@ const (
 // BattleRecord 对战记录模型
 type BattleRecord struct {
 	ID                int64     `json:"id" gorm:"column:id;primaryKey;autoIncrement"`
+	BattlePairID      string    `json:"battlePairId" gorm:"column:battle_pair_id;index:idx_battle_pair_id"` // 对局唯一标识（同一场对局的两条记录共享此ID）
 	RoomID            string    `json:"roomId" gorm:"column:room_id"`
 	UserID            string    `json:"userId" gorm:"column:user_id;index:idx_user_id"`
 	Username          string    `json:"username" gorm:"column:username"`
@@ -62,6 +63,7 @@ type BattleRecord struct {
 	EndReason         string    `json:"endReason" gorm:"column:end_reason"`
 	SubmitCount       int       `json:"SubmitCount" gorm:"column:submit_count;default:0"`
 	BattleTime        *int      `json:"battleTime" gorm:"column:battle_time;index"`
+	IsExcluded        bool      `json:"isExcluded" gorm:"column:is_excluded;default:false"` // 是否不计本场对决
 	GmtCreate         time.Time `json:"gmtCreate" gorm:"column:gmt_create;autoCreateTime;index"`
 }
 

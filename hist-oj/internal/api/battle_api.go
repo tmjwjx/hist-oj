@@ -787,4 +787,40 @@ func RegisterBattleRoutes(router *gin.RouterGroup) {
 		battle.GET("/all-records", battleAPI.GetAllRecords)
 		battle.GET("/rank", battleAPI.GetRank)
 	}
+
+	// 管理员对战路由（需要管理员权限）
+	adminBattle := router.Group("/admin/battle")
+	{
+		adminBattle.PUT("/record/exclude", AuthMiddleware(), battleAPI.ExcludeRecord) // 标记不计本场对决
+	}
+}
+
+// ExcludeRecord 标记不计本场对决（管理员功能）
+func (api *BattleAPI) ExcludeRecord(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		RecordID   int64 `json:"recordId" binding:"required"`
+		IsExcluded bool  `json:"isExcluded"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 调用服务层标记记录
+	err := api.battleService.ExcludeRecord(req.RecordID, req.IsExcluded)
+	if err != nil {
+		logger.Error("标记对决记录失败", zap.Error(err), zap.Int64("record_id", req.RecordID))
+		c.JSON(http.StatusOK, errorResponse(500, "操作失败"))
+		return
+	}
+
+	logger.Info("管理员标记对决记录",
+		zap.Int64("record_id", req.RecordID),
+		zap.Bool("is_excluded", req.IsExcluded))
+
+	c.JSON(http.StatusOK, successResponse(nil))
 }
