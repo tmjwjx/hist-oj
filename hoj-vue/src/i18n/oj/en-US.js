@@ -1080,6 +1080,7 @@ export const m = {
   Is_Shared: 'Is Shared',
   No_Classroom_Yet: 'No classrooms yet',
   Join_Classroom_Tip: 'Click the button above to join your first classroom!',
+  Confirm_Join: 'Confirm Join',
 
   // Role Management
   Manage_Roles: 'Manage Roles',

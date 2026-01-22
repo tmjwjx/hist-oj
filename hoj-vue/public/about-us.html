@@ -8,20 +8,26 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            /* BingoJ 风格配色 */
-            --primary-color: #1890ff;    /* 科技蓝 */
-            --primary-light: #e6f7ff;    /* 浅蓝背景 */
-            --text-main: #262626;        /* 深灰字 */
-            --text-light: #8c8c8c;       /* 浅灰字 */
-            --bg-body: #f0f2f5;          /* 背景灰 */
-            --bg-card: #ffffff;          /* 卡片白 */
-            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            --recruit-color: #52c41a;    /* 招募主题绿 */
-            --recruit-light: #f6ffed;    /* 招募浅绿背景 */
-            --class-color: #fa8c16;      /* 班级功能主题橙 */
-            --class-light: #fff7e6;      /* 班级功能浅橙背景 */
-            --interact-color: #722ed1;   /* 互动工具主题紫 */
-            --interact-light: #f9f0ff;   /* 互动工具浅紫背景 */
+            /* 核心科技蓝主色调：统一全页面使用 */
+            --primary-color: #168cff;    
+            --primary-light: #e8f3ff;    
+            --primary-hover: #0f78e6;    
+            --primary-border: #e2e8f0;   
+            
+            /* 文字色：层级分明，搭配主蓝 */
+            --text-main: #1f2937;        
+            --text-secondary: #4b5563;   
+            --text-light: #9ca3af;       
+            
+            /* 背景色：统一无差异化，仅保留基础层级 */
+            --bg-body: #f9fafb;          
+            --bg-card: #f9fafb;          
+            --bg-hover: #f3f4f6;         
+            
+            /* 阴影：自然柔和，适配科技蓝风格 */
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);  
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06); 
+            --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -33,12 +39,12 @@
             line-height: 1.6;
         }
 
-        a { text-decoration: none; color: inherit; }
+        a { text-decoration: none; color: inherit; transition: all 0.3s; }
 
-        /* 导航栏 */
+        /* 导航栏：科技蓝风格基础栏 */
         .header {
-            background-color: #fff;
-            box-shadow: 0 1px 4px rgba(0,21,41,0.08);
+            background-color: #ffffff;
+            box-shadow: var(--shadow-sm);
             position: sticky;
             top: 0;
             z-index: 100;
@@ -54,16 +60,29 @@
             justify-content: space-between;
         }
 
-        .logo { font-size: 22px; font-weight: 700; color: #000; display: flex; align-items: center; gap: 8px; }
+        .logo { 
+            font-size: 22px; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
         .logo span { color: var(--primary-color); }
 
         .nav-menu { display: flex; gap: 30px; }
-        .nav-menu a { font-size: 15px; font-weight: 500; transition: color 0.3s; }
-        .nav-menu a:hover, .nav-menu a.active { color: var(--primary-color); }
+        .nav-menu a { 
+            font-size: 15px; 
+            font-weight: 500; 
+            color: var(--text-secondary);
+        }
+        .nav-menu a:hover, .nav-menu a.active { 
+            color: var(--primary-color); 
+        }
 
-        /* Banner 区域 */
+        /* Banner 区域：科技蓝渐变主视觉 */
         .banner {
-            background: linear-gradient(135deg, #001529 0%, #003a70 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #168cff 100%);
             padding: 80px 20px;
             text-align: center;
             color: #fff;
@@ -85,7 +104,7 @@
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain;
-            opacity: 0.1;
+            opacity: 0.12;
             z-index: 0;
             filter: grayscale(100%) brightness(500%);
         }
@@ -96,27 +115,45 @@
             z-index: 1;
         }
 
-        .banner h1 { font-size: 36px; margin-bottom: 15px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-        .banner p { opacity: 0.95; font-size: 18px; max-width: 800px; margin: 0 auto; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .banner h1 { 
+            font-size: 36px; 
+            margin-bottom: 15px; 
+            font-weight: 600; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .banner p { 
+            opacity: 0.98;
+            font-size: 18px; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            color: #f8fafc;
+        }
 
         .banner-btn {
             display: inline-block;
             margin-top: 30px;
             padding: 10px 30px;
-            background-color: var(--primary-color);
-            color: #fff;
-            border-radius: 4px;
-            font-weight: 500;
-            transition: background 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            background-color: #ffffff;
+            color: var(--primary-color);
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: var(--shadow-md);
+            border: none;
+            cursor: pointer;
         }
-        .banner-btn:hover { background-color: #40a9ff; }
+        .banner-btn:hover { 
+            background-color: var(--bg-hover); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
 
-        /* 数据统计条 */
+        /* 数据统计条：白色底+蓝色字，搭配主风格 */
         .stats-bar {
-            background: #fff;
+            background: #ffffff;
             padding: 25px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-sm);
             margin-bottom: 50px;
             position: relative;
             z-index: 2;
@@ -132,42 +169,54 @@
         }
 
         .stat-item { margin: 10px; }
-        .stat-item h3 { font-size: 20px; color: var(--primary-color); margin-bottom: 2px; }
-        .stat-item p { font-size: 13px; color: var(--text-light); text-transform: uppercase; }
+        .stat-item h3 { 
+            font-size: 20px; 
+            color: var(--primary-color); 
+            margin-bottom: 2px; 
+        }
+        .stat-item p { 
+            font-size: 13px; 
+            color: var(--text-light); 
+            text-transform: uppercase; 
+        }
 
         /* 通用容器 */
-        .container { max-width: 1200px; margin: 0 auto 60px; padding: 0 20px; }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto 60px; 
+            padding: 0 20px; 
+        }
 
+        /* 所有板块标题统一蓝色下划线 */
         .section-title {
             text-align: center;
             margin-bottom: 40px;
             position: relative;
         }
-        .section-title h2 { font-size: 28px; font-weight: 600; display: inline-block; }
+        .section-title h2 { 
+            font-size: 28px; 
+            font-weight: 600; 
+            display: inline-block; 
+            color: var(--text-main);
+        }
         .section-title h3 { 
             font-size: 16px; 
             font-weight: 500; 
-            color: var(--text-light); 
+            color: var(--text-secondary);
             margin-top: 10px; 
             font-style: normal;
         }
         .section-title::after {
-            content: ''; display: block; width: 60px; height: 3px; background: var(--primary-color); margin: 10px auto 0;
-        }
-        /* 招募板块标题特殊样式 */
-        .recruit-title::after {
-            background: var(--recruit-color);
-        }
-        /* 班级板块标题特殊样式 */
-        .class-title::after {
-            background: var(--class-color);
-        }
-        /* 互动工具标题特殊样式 */
-        .interact-title::after {
-            background: var(--interact-color);
+            content: ''; 
+            display: block; 
+            width: 60px; 
+            height: 3px; 
+            background: var(--primary-color); 
+            margin: 10px auto 0;
+            border-radius: 2px;
         }
 
-        /* 特色介绍卡片 (2x2 布局) */
+        /* 特色介绍卡片：全页面统一蓝色风格，无差异化 */
         .feature-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -176,50 +225,25 @@
         }
 
         .feature-card {
-            background: #fff;
+            background: var(--bg-card);
             padding: 40px 30px;
             border-radius: 12px;
             text-align: left;
-            transition: transform 0.3s, box-shadow 0.3s;
-            border: 1px solid #e8e8e8;
+            transition: all 0.3s ease;
+            border: 1px solid var(--primary-border);
             display: flex;
             align-items: flex-start;
             gap: 20px;
         }
-        /* 招募卡片特殊样式 */
-        .recruit-card {
-            border-color: var(--recruit-color);
-            background: var(--recruit-light);
-        }
-        .recruit-card:hover {
-            box-shadow: 0 10px 30px rgba(82, 196, 26, 0.15);
-            border-color: var(--recruit-color);
-        }
-        /* 班级卡片特殊样式 */
-        .class-card {
-            border-color: var(--class-color);
-            background: var(--class-light);
-        }
-        .class-card:hover {
-            box-shadow: 0 10px 30px rgba(250, 140, 22, 0.15);
-            border-color: var(--class-color);
-        }
-        /* 互动工具卡片特殊样式 */
-        .interact-card {
-            border-color: var(--interact-color);
-            background: var(--interact-light);
-        }
-        .interact-card:hover {
-            box-shadow: 0 10px 30px rgba(114, 46, 209, 0.15);
-            border-color: var(--interact-color);
-        }
-
+        /* 所有卡片hover统一蓝色边框+阴影 */
         .feature-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-lg);
             border-color: var(--primary-color);
+            background: var(--bg-hover);
         }
 
+        /* 所有图标统一蓝色系：浅蓝底+蓝字，hover反色 */
         .feature-icon {
             min-width: 60px;
             height: 60px;
@@ -230,55 +254,46 @@
             align-items: center;
             justify-content: center;
             font-size: 26px;
+            transition: all 0.3s;
         }
-        /* 招募卡片图标样式 */
-        .recruit-icon {
-            background: rgba(82, 196, 26, 0.1);
-            color: var(--recruit-color);
-        }
-        /* 班级卡片图标样式 */
-        .class-icon {
-            background: rgba(250, 140, 22, 0.1);
-            color: var(--class-color);
-        }
-        /* 互动工具图标样式 */
-        .interact-icon {
-            background: rgba(114, 46, 209, 0.1);
-            color: var(--interact-color);
+        .feature-card:hover .feature-icon {
+            background: var(--primary-color);
+            color: #ffffff;
         }
 
-        .feature-content h3 { font-size: 20px; margin-bottom: 10px; color: #333; }
-        .feature-content p { font-size: 14px; color: #666; line-height: 1.7; }
-        /* 招募卡片文字样式 */
-        .recruit-content h3 {
-            color: var(--recruit-color);
+        .feature-content h3 { 
+            font-size: 20px; 
+            margin-bottom: 10px; 
+            color: var(--primary-color); 
+            font-weight: 600;
         }
-        /* 班级卡片文字样式 */
-        .class-content h3 {
-            color: var(--class-color);
+        .feature-content p { 
+            font-size: 14px; 
+            color: var(--text-secondary);
+            line-height: 1.7;
         }
-        /* 互动工具文字样式 */
-        .interact-content h3 {
-            color: var(--interact-color);
-        }
+
+        /* 招募板块提示框：统一蓝色左侧边框 */
         .contact-tip {
-            background: #fff;
+            background: var(--bg-card);
             padding: 10px;
             border-radius: 6px;
             margin-top: 15px;
-            border-left: 3px solid var(--recruit-color);
+            border-left: 3px solid var(--primary-color);
+            box-shadow: var(--shadow-sm);
         }
         .contact-tip strong {
-            color: var(--recruit-color);
+            color: var(--primary-color);
         }
 
-        /* 团队部分样式 */
+        /* 团队部分：统一蓝色风格，轻量边框 */
         .team-section {
-            background: #fff;
+            background: var(--bg-card);
             padding: 60px 20px;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            box-shadow: var(--shadow-sm);
             margin-bottom: 80px;
+            border: 1px solid var(--primary-border);
         }
 
         .sub-title {
@@ -287,19 +302,22 @@
             border-left: 4px solid var(--primary-color);
             padding-left: 12px;
             margin: 40px 0 20px;
+            font-weight: 600;
         }
-        /* 队长标注样式 */
+
+        /* 队长标签：统一蓝色系 */
         .capt-tag {
             display: inline-block;
-            background: var(--recruit-light);
-            color: var(--recruit-color);
+            background: var(--primary-light);
+            color: var(--primary-color);
             font-size: 12px;
             padding: 2px 8px;
             border-radius: 10px;
             margin-left: 8px;
+            font-weight: 500;
         }
 
-        /* 教师卡片 */
+        /* 教师卡片：统一蓝色风格 */
         .teacher-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -307,23 +325,31 @@
         }
 
         .teacher-card {
-            background: var(--bg-body);
+            background: var(--bg-card);
             padding: 20px;
             border-radius: 8px;
             display: flex;
             align-items: center;
             gap: 15px;
+            transition: all 0.3s;
+            border: 1px solid var(--primary-border);
+        }
+        .teacher-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            background: var(--bg-hover);
         }
 
         .teacher-avatar {
             width: 60px; height: 60px;
-            background: #d6e4ff; color: var(--primary-color);
+            background: var(--primary-light);
+            color: var(--primary-color);
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
             font-size: 24px; font-weight: bold;
         }
 
-        /* 学生卡片 */
+        /* 学生卡片：统一蓝色风格，顶部色条区分角色但主色为蓝 */
         .student-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -331,8 +357,8 @@
         }
 
         .member-card {
-            background: #fff;
-            border: 1px solid #eee;
+            background: var(--bg-card);
+            border: 1px solid var(--primary-border);
             border-radius: 8px;
             padding: 25px 20px;
             text-align: center;
@@ -344,38 +370,75 @@
         .member-card::before {
             content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
         }
-        .role-admin::before { background: #faad14; }
-        .role-capt::before { background: #52c41a; }
-        .role-dev::before { background: #1890ff; }
+        /* 角色顶部条：主蓝系渐变区分，保持整体统一 */
+        .role-admin::before { background: #f59e0b; }
+        .role-capt::before { background: var(--primary-color); }
+        .role-dev::before { background: var(--primary-hover); }
 
-        .member-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .member-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: var(--shadow-md); 
+            background: var(--bg-hover);
+        }
 
         .m-avatar {
             width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 15px;
-            border: 3px solid var(--bg-body);
+            border: 3px solid var(--bg-hover);
         }
 
-        .m-name { font-weight: bold; font-size: 18px; margin-bottom: 5px; }
+        .m-name { 
+            font-weight: 600; 
+            font-size: 18px; 
+            margin-bottom: 5px; 
+            color: var(--text-main);
+        }
+        /* 角色标签：统一蓝色浅底 */
         .m-role {
-            font-size: 12px; padding: 3px 10px; border-radius: 12px; display: inline-block; margin-bottom: 10px;
+            font-size: 12px; 
+            padding: 3px 10px; 
+            border-radius: 12px; 
+            display: inline-block; 
+            margin-bottom: 10px;
+            font-weight: 500;
+            background: var(--primary-light);
+            color: var(--primary-color);
         }
-        .role-admin .m-role { background: #fffbe6; color: #faad14; }
-        .role-capt .m-role { background: #f6ffed; color: #52c41a; }
-        .role-dev .m-role { background: #e6f7ff; color: #1890ff; }
 
-        .m-info { font-size: 13px; color: #666; margin-bottom: 15px; min-height: 40px; }
-        .m-qq {
-            font-size: 13px; color: #888;
-            display: flex; align-items: center; justify-content: center; gap: 5px;
-            background: #f9f9f9; padding: 5px; border-radius: 4px;
+        .m-info { 
+            font-size: 13px; 
+            color: var(--text-secondary);
+            margin-bottom: 15px; 
+            min-height: 40px; 
         }
-        .m-qq i { color: #1890ff; }
+        .m-qq {
+            font-size: 13px; 
+            color: var(--text-secondary);
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 5px;
+            background: var(--bg-hover); 
+            padding: 5px; 
+            border-radius: 4px;
+        }
+        .m-qq i { color: var(--primary-color); }
         .qq-text { user-select: text; }
 
-        /* 页脚 */
+        /* 页脚：白色底+蓝色爱心，统一主风格 */
         footer {
-            text-align: center; padding: 40px 0; color: #888; font-size: 14px;
-            background: #fff; border-top: 1px solid #eee; margin-top: 60px;
+            text-align: center; 
+            padding: 40px 0; 
+            color: var(--text-light); 
+            font-size: 14px;
+            background: #ffffff; 
+            border-top: 1px solid var(--primary-border); 
+            margin-top: 60px;
+        }
+        footer p {
+            margin-bottom: 8px;
+        }
+        footer .fas.fa-heart {
+            color: var(--primary-color);
         }
 
         /* 响应式调整 */
@@ -383,6 +446,7 @@
             .feature-grid { grid-template-columns: 1fr; }
             .nav-menu { display: none; }
             .banner h1 { font-size: 28px; }
+            .banner p { font-size: 16px; }
         }
     </style>
 </head>
@@ -402,14 +466,14 @@
         </div>
     </header>
 
-    <!-- Banner (更新描述，突出教学管理核心功能) -->
+    <!-- Banner 科技蓝主视觉 -->
     <div class="banner">
         <h1>Bing Online Judge</h1>
         <p>承办校级程序设计竞赛 · 全语言支持的高效评测系统 · 在线编程对战平台<br>一站式班级教学管理：题库建设、作业布置、在线阅卷、课堂互动全覆盖！</p>
         <a href="http://bingoj.cn" class="banner-btn">进入评测系统</a>
     </div>
 
-    <!-- 数据统计条 - 替换QQ Bot为Online Battle -->
+    <!-- 数据统计条 -->
     <div class="stats-bar">
         <div class="stats-grid">
             <div class="stat-item">
@@ -436,256 +500,15 @@
     </div>
 
     <div class="container">
-        <!-- 团队介绍 -->
-        <div class="team-section">
-            <div class="section-title" style="margin-bottom: 10px;">
-                <h2>团队成员</h2>
-            </div>
-            <p style="text-align: center; color: #666; margin-bottom: 40px;">致力于构建专业的算法竞赛训练平台与一站式教学管理系统</p>
-
-            <!-- 指导教师 -->
-            <div class="sub-title">指导教师</div>
-            <div class="teacher-grid">
-                <div class="teacher-card">
-                    <div class="teacher-avatar">李</div>
-                    <div>
-                        <h3 style="margin-bottom: 5px;">李学勇</h3>
-                        <p style="font-size: 13px; color: #666;">校队指导教师 / 竞赛总指导</p>
-                    </div>
-                </div>
-                <div class="teacher-card">
-                    <div class="teacher-avatar">孙</div>
-                    <div>
-                        <h3 style="margin-bottom: 5px;">孙甲霞</h3>
-                        <p style="font-size: 13px; color: #666;">校队指导教师 / 教学管理</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 核心团队成员 -->
-            <div class="sub-title">团队成员</div>
-            <div class="student-grid">
-
-                <!-- 庄青佳 -->
-                <div class="member-card role-admin">
-                    <img src="https://ui-avatars.com/api/?name=Zhuang+Qingjia&background=faad14&color=fff&size=128&bold=true" class="m-avatar">
-                    <div class="m-name">庄青佳</div>
-                    <span class="m-role">管理员 / 第一任队长</span>
-                    <div class="m-info">21级 信息工程<br>平台统筹与校队建设</div>
-                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">3311918412</span></div>
-                </div>
-
-                <!-- 赵禹铭（队长） -->
-                <div class="member-card role-capt">
-                    <img src="https://ui-avatars.com/api/?name=Zhao+Yuming&background=52c41a&color=fff&size=128&bold=true" class="m-avatar">
-                    <div class="m-name">赵禹铭 <span class="capt-tag">招新对接</span></div>
-                    <span class="m-role">第二任队长</span>
-                    <div class="m-info">24级 计算机科学与技术<br>校队管理与纳新，欢迎咨询加入</div>
-                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">3175829058</span></div>
-                </div>
-
-                <!-- 宁赵星 -->
-                <div class="member-card role-dev">
-                    <img src="https://ui-avatars.com/api/?name=Ning+Zhaoxing&background=1890ff&color=fff&size=128&bold=true" class="m-avatar">
-                    <div class="m-name">宁赵星</div>
-                    <span class="m-role">OJ 技术人员</span>
-                    <div class="m-info">22级 计算机科学与技术<br>Online Judge 平台的搭建和维护</div>
-                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">1282270052</span></div>
-                </div>
-
-                <!-- 田家杰 -->
-                <div class="member-card role-dev">
-                    <img src="https://ui-avatars.com/api/?name=Tian+Jiajie&background=1890ff&color=fff&size=128&bold=true" class="m-avatar">
-                    <div class="m-name">田家杰</div>
-                    <span class="m-role">OJ 技术人员</span>
-                    <div class="m-info">22级 计算机科学与技术<br>Online Judge 平台的开发和建设</div>
-                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">2937693919</span></div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- OJ 特色介绍 -->
+        <!-- 校队招募（优先展示，统一蓝色） -->
         <div class="section-title">
-            <h2>平台特色</h2>
-        </div>
-        <div class="feature-grid">
-            <!-- 特色 1: 全面语言支持 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-code"></i></div>
-                <div class="feature-content">
-                    <h3>全面语言支持</h3>
-                    <p>打破语言壁垒！平台完美支持 <strong>C/C++、Java、Python、Go</strong> 等主流语言，同时特色支持 <strong>C#、JavaScript</strong>，内置多种编译器配置，满足各类开发者的刷题偏好。</p>
-                </div>
-            </div>
-
-            <!-- 特色 2: 专业赛事承办 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-flag-checkered"></i></div>
-                <div class="feature-content">
-                    <h3>专业赛事承办</h3>
-                    <p>BingoJ 已成功承办多次<strong>校级程序设计竞赛、新生赛及校队选拔赛</strong>，并且定期举办周赛。平台配备<strong>独立的赛事报名系统</strong>，支持选手在线报名、信息审核、报名状态查询等全流程管理，实现赛事报名-参赛-评测-排名的完整闭环；同时支持 ACM/OI 赛制，具备实时滚榜（Ranklist）、防作弊检测、气球颜色标记等全套竞赛功能，大幅提升赛事组织效率。</p>
-                </div>
-            </div>
-
-            <!-- 特色 3: 梯度化题库 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-database"></i></div>
-                <div class="feature-content">
-                    <h3>梯度化题库</h3>
-                    <p>拥有从语法入门到高难度的海量题库，覆盖<strong>校招算法题专项</strong>：包含主流互联网大厂（字节、腾讯、阿里、华为等）近三年校招/实习笔试、面试高频算法题，按后端、前端、算法岗分类整理，贴合校招考点；同时涵盖经典算法模板题与大量高质量原创竞赛题目，分类标签清晰，兼顾竞赛备赛与校招求职双重需求，适合循序渐进的学习路径。</p>
-                </div>
-            </div>
-
-            <!-- 特色 4: 独立 Rating 系统 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
-                <div class="feature-content">
-                    <h3>独立 Rating 系统</h3>
-                    <p>采用类 Codeforces 的 <strong>Elo Rating 积分算法</strong>。系统根据选手在每场比赛中的排名动态计算 Rating 分值，生成专属<strong>积分变化曲线</strong>，直观反映选手的真实竞赛水平与成长轨迹。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 在线对战平台板块（补全4个卡片，布局均衡） -->
-        <div class="section-title">
-            <h2>在线对战平台</h2>
-            <h3>实时编程PK，提升竞技水平</h3>
-        </div>
-        <div class="feature-grid">
-            <!-- 对战特色 1: 实时一对一PK -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-users-gear"></i></div>
-                <div class="feature-content">
-                    <h3>实时一对一PK</h3>
-                    <p>支持用户自主发起/接受编程对战，系统随机匹配双方未写过的题目，实时监控代码提交与评测状态，率先通过的用户自动判定获胜，胜场数据持久化存储；支持投降、强制结束对局等灵活操作，满足多样化对战需求。</p>
-                </div>
-            </div>
-
-            <!-- 对战特色 2: 多难度对战模式 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
-                <div class="feature-content">
-                    <h3>多难度对战模式</h3>
-                    <p>提供入门/简单/中等/困难/大师/专家6个难度等级的对战选题，支持自定义对战时长（15/30/60分钟），系统根据双方历史Rating值匹配实力相近的对手，保证对战公平性；对战过程中实时显示双方提交次数、通过用例数，增强竞技体验。</p>
-                </div>
-            </div>
-
-            <!-- 对战特色 3: 对战记录与复盘 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-clipboard-list"></i></div>
-                <div class="feature-content">
-                    <h3>对战记录与复盘</h3>
-                    <p>自动保存所有对战记录，包含双方提交的代码、评测结果、AC时间等详细数据；支持对战复盘功能，可查看对手的解题思路与代码实现，对比分析自身不足，快速提升算法解题能力。</p>
-                </div>
-            </div>
-
-            <!-- 对战特色 4: 对战排行榜 -->
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-trophy"></i></div>
-                <div class="feature-content">
-                    <h3>对战排行榜</h3>
-                    <p>按胜场数、胜率、连胜次数等维度生成对战排行榜，支持日/周/月/总榜切换；上榜用户可获得专属徽章与平台积分奖励，激励用户积极参与对战，形成良性竞争氛围。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 新增：课堂互动工具板块（签到、公告、随机选人） -->
-        <div class="section-title interact-title">
-            <h2>课堂互动工具</h2>
-            <h3>轻量化课堂管理，提升教学互动效率</h3>
-        </div>
-        <div class="feature-grid">
-            <!-- 互动工具 1: 智能签到 -->
-            <div class="feature-card interact-card">
-                <div class="feature-icon interact-icon"><i class="fas fa-clipboard-check"></i></div>
-                <div class="feature-content interact-content">
-                    <h3>智能签到管理</h3>
-                    <p>支持<strong>一键发起课堂签到</strong>自动统计签到数据，生成签到率报表，支持导出未签到学生名单；支持补签申请审核，签到记录永久留存，方便考勤管理与学情分析。</p>
-                </div>
-            </div>
-
-            <!-- 互动工具 2: 班级公告系统 -->
-            <div class="feature-card interact-card">
-                <div class="feature-icon interact-icon"><i class="fas fa-bullhorn"></i></div>
-                <div class="feature-content interact-content">
-                    <h3>班级公告系统</h3>
-                    <p>支持发布<strong>班级专属公告</strong>，可设置公告置顶、有效期、是否需要已读回执；学生端自动推送公告提醒，满足作业通知、课程调整、活动安排等各类通知需求。</p>
-                </div>
-            </div>
-
-            <!-- 互动工具 3: 随机选人互动 -->
-            <div class="feature-card interact-card">
-                <div class="feature-icon interact-icon"><i class="fas fa-random"></i></div>
-                <div class="feature-content interact-content">
-                    <h3>随机选人互动</h3>
-                    <p>内置<strong>课堂随机选人</strong>抽取结果大屏展示；自动记录选人互动历史，可导出课堂互动频次报表，兼顾课堂公平性与互动趣味性。</p>
-                </div>
-            </div>
-
-            <!-- 互动工具 4: 资料共享中心 -->
-            <div class="feature-card interact-card">
-                <div class="feature-icon interact-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                <div class="feature-content interact-content">
-                    <h3>班级资料共享</h3>
-                    <p>支持上传课件、讲义、代码模板、学习资料等文件（支持PDF/Word/PPT/压缩包等格式），按科目/章节分类管理；可设置资料查看权限（仅教师/全体学生），支持资料下载次数统计，打造专属班级学习资源库。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 班级教学管理板块（优化功能描述，聚焦题库/作业/阅卷核心） -->
-        <div class="section-title class-title">
-            <h2>班级教学管理</h2>
-            <h3>一站式算法教学解决方案</h3>
-        </div>
-        <div class="feature-grid">
-            <!-- 班级管理与基础设置 -->
-            <div class="feature-card class-card">
-                <div class="feature-icon class-icon"><i class="fas fa-classroom"></i></div>
-                <div class="feature-content class-content">
-                    <h3>精细化班级管理</h3>
-                    <p>支持<strong>自定义创建多个班级</strong>，通过班级码快速纳新，支持修改学生姓名、学号、联系方式等信息；按班级维度管理所有教学数据，打造专属班级教学空间。</p>
-                </div>
-            </div>
-
-            <!-- 多题型题库体系 -->
-            <div class="feature-card class-card">
-                <div class="feature-icon class-icon"><i class="fas fa-database"></i></div>
-                <div class="feature-content class-content">
-                    <h3>多题型题库体系</h3>
-                    <p>支持<strong>个人题库与教师共享题库</strong>双模式，满足个性化备课与集体教研需求。题型覆盖单选、判断、多选、主观题四大类，编程题可直接从平台主题库一键导入；所有题面均支持<strong>Markdown 语法编辑</strong>，公式、代码块、图片等内容一键排版，轻松打造标准化、高质量题库。</p>
-                </div>
-            </div>
-
-            <!-- 灵活作业创建与权限控制 -->
-            <div class="feature-card class-card">
-                <div class="feature-icon class-icon"><i class="fas fa-clipboard-check"></i></div>
-                <div class="feature-content class-content">
-                    <h3>灵活作业创建与权限控制</h3>
-                    <p>支持单选、判断、多选、主观题、编程题<strong>多题型自由组卷</strong>，可自定义每道题的分值、难度与作答要求，提供<strong>全卷预览功能</strong>，组卷效果一目了然。作业发布后可灵活配置权限：自主设置学生是否可查看个人作答详情、是否允许查询作业成绩，兼顾教学反馈与自主学习需求。</p>
-                </div>
-            </div>
-
-            <!-- 智能阅卷与数据导出 -->
-            <div class="feature-card class-card">
-                <div class="feature-icon class-icon"><i class="fas fa-chart-pie"></i></div>
-                <div class="feature-content class-content">
-                    <h3>智能阅卷与数据导出</h3>
-                    <p>支持<strong>逐题查看学生作答详情与得分情况</strong>，针对主观题提供在线手动评分功能，可添加批改评语，实现精细化在线阅卷。同时支持<strong>多维度数据导出</strong>：一键导出学生作业成绩报表、班级学生名单等数据，格式兼容Excel，方便教师归档分析与教学总结。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 校队招贤纳士板块 -->
-        <div class="section-title recruit-title">
             <h2>校队招募 · 招贤纳士</h2>
             <h3>只要你热爱算法，愿意坚持，我们都欢迎！</h3>
         </div>
         <div class="feature-grid">
-            <!-- 校队介绍 -->
-            <div class="feature-card recruit-card">
-                <div class="feature-icon recruit-icon"><i class="fas fa-users"></i></div>
-                <div class="feature-content recruit-content">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <div class="feature-content">
                     <h3>关于我们的校队</h3>
                     <p>本校程序设计校队是由专业教师指导、学生自主管理的高水平竞赛团队，依托BingoJ平台开展日常训练与赛事备战。<br><br>
                     ✅ 定期算法周赛<br>
@@ -694,11 +517,9 @@
                     ✅ 评优评奖、保研加分等政策支持</p>
                 </div>
             </div>
-
-            <!-- 招募要求与联系 -->
-            <div class="feature-card recruit-card">
-                <div class="feature-icon recruit-icon"><i class="fas fa-handshake"></i></div>
-                <div class="feature-content recruit-content">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-handshake"></i></div>
+                <div class="feature-content">
                     <h3>招募要求 & 联系我们</h3>
                     <p><strong>招募对象</strong>：全体在校学生（无年级/专业限制）<br>
                     <strong>基本要求</strong>：<br>
@@ -713,11 +534,219 @@
                 </div>
             </div>
         </div>
+
+        <!-- 团队介绍（统一蓝色） -->
+        <div class="team-section">
+            <div class="section-title" style="margin-bottom: 10px;">
+                <h2>团队成员</h2>
+            </div>
+            <p style="text-align: center; color: var(--text-secondary); margin-bottom: 40px;">致力于构建专业的算法竞赛训练平台与一站式教学管理系统</p>
+
+            <!-- 指导教师 -->
+            <div class="sub-title">指导教师</div>
+            <div class="teacher-grid">
+                <div class="teacher-card">
+                    <div class="teacher-avatar">李</div>
+                    <div>
+                        <h3 style="margin-bottom: 5px;">李学勇</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary);">校队指导教师 / 竞赛总指导</p>
+                    </div>
+                </div>
+                <div class="teacher-card">
+                    <div class="teacher-avatar">孙</div>
+                    <div>
+                        <h3 style="margin-bottom: 5px;">孙甲霞</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary);">校队指导教师 / 教学管理</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 核心团队成员 -->
+            <div class="sub-title">团队成员</div>
+            <div class="student-grid">
+                <!-- 庄青佳 -->
+                <div class="member-card role-admin">
+                    <img src="https://ui-avatars.com/api/?name=Zhuang+Qingjia&background=168cff&color=fff&size=128&bold=true" class="m-avatar">
+                    <div class="m-name">庄青佳</div>
+                    <span class="m-role">管理员 / 第一任队长</span>
+                    <div class="m-info">21级 信息工程<br>平台统筹与校队建设</div>
+                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">3311918412</span></div>
+                </div>
+                <!-- 赵禹铭（队长） -->
+                <div class="member-card role-capt">
+                    <img src="https://ui-avatars.com/api/?name=Zhao+Yuming&background=168cff&color=fff&size=128&bold=true" class="m-avatar">
+                    <div class="m-name">赵禹铭 <span class="capt-tag">招新对接</span></div>
+                    <span class="m-role">第二任队长</span>
+                    <div class="m-info">24级 计算机科学与技术<br>校队管理与纳新，欢迎咨询加入</div>
+                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">3175829058</span></div>
+                </div>
+                <!-- 宁赵星 -->
+                <div class="member-card role-dev">
+                    <img src="https://ui-avatars.com/api/?name=Ning+Zhaoxing&background=168cff&color=fff&size=128&bold=true" class="m-avatar">
+                    <div class="m-name">宁赵星</div>
+                    <span class="m-role">OJ 技术人员</span>
+                    <div class="m-info">22级 计算机科学与技术<br>Online Judge 平台的搭建和维护</div>
+                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">1282270052</span></div>
+                </div>
+                <!-- 田家杰 -->
+                <div class="member-card role-dev">
+                    <img src="https://ui-avatars.com/api/?name=Tian+Jiajie&background=168cff&color=fff&size=128&bold=true" class="m-avatar">
+                    <div class="m-name">田家杰</div>
+                    <span class="m-role">OJ 技术人员</span>
+                    <div class="m-info">22级 计算机科学与技术<br>Online Judge 平台的开发和建设</div>
+                    <div class="m-qq"><i class="fab fa-qq"></i> <span class="qq-text">2937693919</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OJ 平台特色（统一蓝色） -->
+        <div class="section-title">
+            <h2>平台特色</h2>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-code"></i></div>
+                <div class="feature-content">
+                    <h3>全面语言支持</h3>
+                    <p>打破语言壁垒！平台完美支持 <strong>C/C++、Java、Python、Go</strong> 等主流语言，同时特色支持 <strong>C#、JavaScript</strong>，内置多种编译器配置，满足各类开发者的刷题偏好。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-flag-checkered"></i></div>
+                <div class="feature-content">
+                    <h3>专业赛事承办</h3>
+                    <p>BingoJ 已成功承办多次<strong>校级程序设计竞赛、新生赛及校队选拔赛</strong>，并且定期举办周赛。平台配备<strong>独立的赛事报名系统</strong>，支持选手在线报名、信息审核、报名状态查询等全流程管理，实现赛事报名-参赛-评测-排名的完整闭环；同时支持 ACM/OI 赛制，具备实时滚榜（Ranklist）、防作弊检测、气球颜色标记等全套竞赛功能，大幅提升赛事组织效率。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-database"></i></div>
+                <div class="feature-content">
+                    <h3>梯度化题库</h3>
+                    <p>拥有从语法入门到高难度的海量题库，覆盖<strong>校招算法题专项</strong>：包含主流互联网大厂（字节、腾讯、阿里、华为等）近三年校招/实习笔试、面试高频算法题，按后端、前端、算法岗分类整理，贴合校招考点；同时涵盖经典算法模板题与大量高质量原创竞赛题目，分类标签清晰，兼顾竞赛备赛与校招求职双重需求，适合循序渐进的学习路径。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                <div class="feature-content">
+                    <h3>独立 Rating 系统</h3>
+                    <p>采用类 Codeforces 的 <strong>Elo Rating 积分算法</strong>。系统根据选手在每场比赛中的排名动态计算 Rating 分值，生成专属<strong>积分变化曲线</strong>，直观反映选手的真实竞赛水平与成长轨迹。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 在线对战平台（统一蓝色） -->
+        <div class="section-title">
+            <h2>在线对战平台</h2>
+            <h3>实时编程PK，提升竞技水平</h3>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-users-gear"></i></div>
+                <div class="feature-content">
+                    <h3>实时一对一PK</h3>
+                    <p>支持用户自主发起/接受编程对战，系统随机匹配双方未写过的题目，实时监控代码提交与评测状态，率先通过的用户自动判定获胜，胜场数据持久化存储；支持投降、强制结束对局等灵活操作，满足多样化对战需求。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                <div class="feature-content">
+                    <h3>多难度对战模式</h3>
+                    <p>提供入门/简单/中等/困难/大师/专家6个难度等级的对战选题，支持自定义对战时长（15/30/60分钟），系统根据双方历史Rating值匹配实力相近的对手，保证对战公平性；对战过程中实时显示双方提交次数、通过用例数，增强竞技体验。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div class="feature-content">
+                    <h3>对战记录与复盘</h3>
+                    <p>自动保存所有对战记录，包含双方提交的代码、评测结果、AC时间等详细数据；支持对战复盘功能，可查看对手的解题思路与代码实现，对比分析自身不足，快速提升算法解题能力。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-trophy"></i></div>
+                <div class="feature-content">
+                    <h3>对战排行榜</h3>
+                    <p>按胜场数、胜率、连胜次数等维度生成对战排行榜，支持日/周/月/总榜切换；上榜用户可获得专属徽章与平台积分奖励，激励用户积极参与对战，形成良性竞争氛围。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 课堂互动工具（统一蓝色） -->
+        <div class="section-title">
+            <h2>课堂互动工具</h2>
+            <h3>轻量化课堂管理，提升教学互动效率</h3>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-clipboard-check"></i></div>
+                <div class="feature-content">
+                    <h3>智能签到管理</h3>
+                    <p>支持<strong>一键发起课堂签到</strong>自动统计签到数据，生成签到率报表，支持导出未签到学生名单；支持补签申请审核，签到记录永久留存，方便考勤管理与学情分析。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-bullhorn"></i></div>
+                <div class="feature-content">
+                    <h3>班级公告系统</h3>
+                    <p>支持发布<strong>班级专属公告</strong>，可设置公告置顶、有效期、是否需要已读回执；学生端自动推送公告提醒，满足作业通知、课程调整、活动安排等各类通知需求。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-random"></i></div>
+                <div class="feature-content">
+                    <h3>随机选人互动</h3>
+                    <p>内置<strong>课堂随机选人</strong>抽取结果大屏展示；自动记录选人互动历史，可导出课堂互动频次报表，兼顾课堂公平性与互动趣味性。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div class="feature-content">
+                    <h3>班级资料共享</h3>
+                    <p>支持上传课件、讲义、代码模板、学习资料等文件（支持PDF/Word/PPT/压缩包等格式），按科目/章节分类管理；可设置资料查看权限（仅教师/全体学生），支持资料下载次数统计，打造专属班级学习资源库。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 班级教学管理（修复图标为fas fa-school，统一蓝色） -->
+        <div class="section-title">
+            <h2>班级教学管理</h2>
+            <h3>一站式算法教学解决方案</h3>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <!-- 修复：替换为有效图标fas fa-school -->
+                <div class="feature-icon"><i class="fas fa-school"></i></div>
+                <div class="feature-content">
+                    <h3>精细化班级管理</h3>
+                    <p>支持<strong>自定义创建多个班级</strong>，通过班级码快速纳新，支持修改学生姓名、学号、联系方式等信息；按班级维度管理所有教学数据，打造专属班级教学空间。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-database"></i></div>
+                <div class="feature-content">
+                    <h3>多题型题库体系</h3>
+                    <p>支持<strong>个人题库与教师共享题库</strong>双模式，满足个性化备课与集体教研需求。题型覆盖单选、判断、多选、主观题四大类，编程题可直接从平台主题库一键导入；所有题面均支持<strong>Markdown 语法编辑</strong>，公式、代码块、图片等内容一键排版，轻松打造标准化、高质量题库。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-clipboard-check"></i></div>
+                <div class="feature-content">
+                    <h3>灵活作业创建与权限控制</h3>
+                    <p>支持单选、判断、多选、主观题、编程题<strong>多题型自由组卷</strong>，可自定义每道题的分值、难度与作答要求，提供<strong>全卷预览功能</strong>，组卷效果一目了然。作业发布后可灵活配置权限：自主设置学生是否可查看个人作答详情、是否允许查询作业成绩，兼顾教学反馈与自主学习需求。</p>
+                </div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-pie"></i></div>
+                <div class="feature-content">
+                    <h3>智能阅卷与数据导出</h3>
+                    <p>支持<strong>逐题查看学生作答详情与得分情况</strong>，针对主观题提供在线手动评分功能，可添加批改评语，实现精细化在线阅卷。同时支持<strong>多维度数据导出</strong>：一键导出学生作业成绩报表、班级学生名单等数据，格式兼容Excel，方便教师归档分析与教学总结。</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <footer>
         <p>&copy; 2025 BingoJ Online Judge. All Rights Reserved.</p>
-        <p>Made with <i class="fas fa-heart" style="color:#ff4d4f"></i> by BingoJ Team | 加入校队，一起成长，冲击更高水平竞赛！</p>
+        <p>Made with <i class="fas fa-heart"></i> by BingoJ Team | 加入校队，一起成长，冲击更高水平竞赛！</p>
     </footer>
 
 </body>

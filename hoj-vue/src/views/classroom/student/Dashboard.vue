@@ -100,16 +100,23 @@ export default {
         studentClass: '',
         studentNo: ''
       },
-      rules: {
-        classCode: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }],
-        realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
-      },
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
         interval: 3000,
         syncFunction: 'loadMyClassrooms',
         immediate: true
+      }
+    }
+  },
+  computed: {
+    rules() {
+      return {
+        classCode: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }],
+        realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }],
+        gender: [{ required: true, message: this.$t('m.Required'), trigger: 'change' }],
+        studentClass: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }],
+        studentNo: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
       }
     }
   },
