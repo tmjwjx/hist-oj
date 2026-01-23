@@ -25,8 +25,8 @@
 
         <el-divider></el-divider>
 
-        <!-- 试卷列表 - 根据教师设置控制是否显示 -->
-        <div v-if="canViewHomework" class="questions-container">
+        <!-- 试卷列表 - 根据教师设置控制是否显示，数据加载完成前不显示 -->
+        <div v-if="canViewHomework && !dataLoading" class="questions-container">
           <h4>{{ $t('m.Questions') }}</h4>
           <div v-for="(item, index) in homework.questions" :key="item.id" class="question-item">
             <!-- 编程题：使用 problemId 判断 -->
@@ -83,6 +83,7 @@
                     v-model="answers[item.question.id]"
                     :label="option.letter"
                     @change="handleAnswerChange"
+                    :disabled="isSubmitted"
                   >
                     <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
                   </el-radio>
@@ -104,6 +105,7 @@
                     v-model="multipleAnswers[item.question.id]"
                     :label="option.letter"
                     @change="handleMultipleChoiceChange(item.question.id)"
+                    :disabled="isSubmitted"
                   >
                     <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
                   </el-checkbox>
@@ -124,11 +126,13 @@
                   v-model="answers[item.question.id]"
                   label="true"
                   @change="handleAnswerChange"
+                  :disabled="isSubmitted"
                 >正确</el-radio>
                 <el-radio
                   v-model="answers[item.question.id]"
                   label="false"
                   @change="handleAnswerChange"
+                  :disabled="isSubmitted"
                 >错误</el-radio>
                 <!-- 显示学生已选择的选项 -->
                 <div v-if="answers[item.question.id]" class="student-answer">
@@ -148,6 +152,7 @@
                   :rows="4"
                   placeholder="请输入你的答案"
                   @blur="handleAnswerChange"
+                  :disabled="isSubmitted"
                 />
                 <!-- 图片上传区域 -->
                 <div v-if="!isSubmitted" class="image-upload-area">
@@ -299,6 +304,7 @@ export default {
   data() {
     return {
       loading: false,
+      dataLoading: true, // 数据加载状态，用于控制题目显示时机
       homework: {},
       submission: null,
       submitting: false,
@@ -387,6 +393,7 @@ export default {
       const isFirstLoad = !this.homework || !this.homework.id
       if (isFirstLoad) {
         this.loading = true
+        this.dataLoading = true
       }
 
       try {
@@ -460,6 +467,7 @@ export default {
       } finally {
         if (isFirstLoad) {
           this.loading = false
+          this.dataLoading = false
         }
       }
     },

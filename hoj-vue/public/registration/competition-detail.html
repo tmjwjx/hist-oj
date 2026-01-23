@@ -376,11 +376,6 @@
             font-size: 14px;
         }
 
-        .btn-logout {
-            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
-            color: white;
-        }
-
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -398,10 +393,7 @@
                         {{ registrationStatus.text }}
                     </p>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <a href="registration.html" class="back-btn">← 返回比赛列表</a>
-                    <button class="btn btn-logout" @click="logout">退出登录</button>
-                </div>
+                <a href="registration.html" class="back-btn">← 返回比赛列表</a>
             </div>
 
             <!-- 比赛说明 -->
@@ -965,11 +957,6 @@
                     if (container) {
                         container.scrollTop = container.scrollHeight
                     }
-                },
-                logout() {
-                    this.stopPolling()
-                    localStorage.removeItem('user')
-                    window.location.href = 'registration.html'
                 },
                 startPolling() {
                     // 每5秒轮询一次数据（比赛信息和报名状态）

@@ -865,7 +865,7 @@ export const m = {
   Please_Select_At_Least_One_Question: 'Please select at least one question',
   Display_Settings: 'Display Settings',
   Show_Homework_After_Complete: 'View homework after completion',
-  Show_Homework_Tip: 'Students can view homework questions and answers after completion',
+  Show_Homework_Tip: 'Students can view homework questions and their answers after completion',
   Show_Score_After_Complete: 'Show score after completion',
   Show_Score_Tip: 'Students can view homework scores after completion',
   Homework_Submitted_No_View_Tip: 'Homework has been submitted. The teacher has not enabled viewing of homework content.',

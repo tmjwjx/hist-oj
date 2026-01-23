@@ -40,12 +40,6 @@
                 @change="changeDuration"
                 type="datetime"
                 :placeholder="$t('m.Contest_Start_Time')"
-                :editable="false"
-                style="width: 100%"
-                prefix-icon="el-icon-date"
-                class="clickable-input"
-                :key="'start-' + contest.startTime"
-                value-format="yyyy-MM-dd HH:mm:ss"
               >
               </el-date-picker>
             </el-form-item>
@@ -63,12 +57,6 @@
                 @change="changeDuration"
                 type="datetime"
                 :placeholder="$t('m.Contest_End_Time')"
-                :editable="false"
-                style="width: 100%"
-                prefix-icon="el-icon-date"
-                class="clickable-input"
-                :key="'end-' + contest.endTime"
-                value-format="yyyy-MM-dd HH:mm:ss"
               >
               </el-date-picker>
             </el-form-item>
@@ -1045,8 +1033,5 @@ export default {
 }
 .input-new-star-user {
   width: 200px;
-}
-.clickable-input >>> .el-input__inner {
-  cursor: pointer;
 }
 </style>

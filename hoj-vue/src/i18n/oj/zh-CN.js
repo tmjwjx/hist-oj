@@ -879,7 +879,7 @@ export const m = {
   Please_Select_At_Least_One_Question: '请至少选择一道题目',
   Display_Settings: '显示设置',
   Show_Homework_After_Complete: '完成后查看作业',
-  Show_Homework_Tip: '学生完成后可以查看作业题目和答案',
+  Show_Homework_Tip: '学生完成后可以查看作业题目和作答情况',
   Show_Score_After_Complete: '完成后显示成绩',
   Show_Score_Tip: '学生完成后可以查看作业成绩',
   Homework_Submitted_No_View_Tip: '作业已提交，教师未设置允许查看作业内容',
