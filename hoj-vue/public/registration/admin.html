@@ -1120,6 +1120,15 @@
                         return
                     }
 
+                    // 验证报名时间：开始时间必须早于结束时间
+                    const startTime = new Date(this.newCompetition.startTime)
+                    const endTime = new Date(this.newCompetition.endTime)
+
+                    if (startTime >= endTime) {
+                        alert('报名时间设置错误：报名开始时间必须早于报名结束时间！')
+                        return
+                    }
+
                     const fields = JSON.stringify(this.newCompetition.fields)
 
                     // 确保时间格式正确（添加秒数和中国时区 +08:00）

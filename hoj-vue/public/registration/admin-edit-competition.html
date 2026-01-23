@@ -801,6 +801,15 @@
                     }
                 },
                 async saveCompetition() {
+                    // 验证报名时间：开始时间必须早于结束时间
+                    const startTime = new Date(this.competition.startTime)
+                    const endTime = new Date(this.competition.endTime)
+
+                    if (startTime >= endTime) {
+                        alert('报名时间设置错误：报名开始时间必须早于报名结束时间！')
+                        return
+                    }
+
                     try {
                         const payload = {
                             name: this.competition.name,
