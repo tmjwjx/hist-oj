@@ -83,11 +83,39 @@ func (s *JudgeService) GetInfo(req *GetInfoRequest) (*GetInfoResponse, error) {
 	if req.Mode == "contest" {
 		displayID = strings.ToUpper(req.PID)
 		dbCID = req.CID
+		// 比赛模式暂不支持管理员API
 		problem, err = s.bingoJClient.GetContestProblemDetail(displayID, req.CID)
 	} else {
 		displayID = req.PID
 		dbCID = "0"
+
+		// 统一使用显示ID，先尝试普通API
+		s.logger.Info("使用显示ID获取题目", zap.String("display_id", req.PID))
 		problem, err = s.bingoJClient.GetProblemDetail(req.PID)
+
+		if err != nil {
+			// 普通API失败，可能是隐藏题目，尝试使用管理员API
+			s.logger.Warn("普通API获取失败，尝试管理员API", zap.Error(err))
+
+			// 通过显示ID搜索数据库ID
+			dbPID, searchErr := s.bingoJClient.SearchProblemByDisplayID(req.PID)
+			if searchErr != nil {
+				s.logger.Error("搜索题目失败", zap.Error(searchErr))
+				return nil, fmt.Errorf("获取题目失败: %w (搜索失败: %v)", err, searchErr)
+			}
+
+			// 使用数据库ID调用管理员API
+			s.logger.Info("找到数据库ID，使用管理员API获取", zap.Int64("pid", dbPID))
+			problem, err = s.bingoJClient.GetProblemDetailAdmin(dbPID)
+			if err != nil {
+				s.logger.Error("管理员API获取失败", zap.Error(err))
+				return nil, fmt.Errorf("获取题目失败: %w", err)
+			}
+
+			s.logger.Info("管理员API获取成功", zap.String("problem_id", problem.ProblemId))
+		} else {
+			s.logger.Info("普通API获取成功", zap.String("problem_id", problem.ProblemId))
+		}
 	}
 
 	if err != nil {

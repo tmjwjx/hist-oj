@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	BaseURL              = "http://bingoj.cn"
+	BaseURL              = "https://bingoj.cn"
 	APILogin             = BaseURL + "/api/login"
 	APISubmit            = BaseURL + "/api/submit-problem-judge"
 	APIResult            = BaseURL + "/api/get-submission-detail"
 	APISubmissionList    = BaseURL + "/api/get-submission-list"
 	APIProblemNormal     = BaseURL + "/api/get-problem-detail"
 	APIProblemContest    = BaseURL + "/api/get-contest-problem-details"
+	APIProblemAdmin      = BaseURL + "/api/admin/problem"
+	APIProblemAdminList  = BaseURL + "/api/admin/problem/get-problem-list"
 )
 
 // StatusMap 状态映射表
@@ -270,6 +272,9 @@ func (c *BingoJClient) SubmitCode(pid string, cid int, language, code string) (s
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Origin", BaseURL)
+	req.Header.Set("Referer", BaseURL+"/")
+	req.Header.Set("Url-Type", "general")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -278,10 +283,19 @@ func (c *BingoJClient) SubmitCode(pid string, cid int, language, code string) (s
 	}
 	defer resp.Body.Close()
 
+	c.logger.Debug("提交响应状态码", zap.Int("status_code", resp.StatusCode))
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("读取响应失败: %w", err)
 	}
+
+	// 打印请求和响应详情用于调试
+	c.logger.Debug("提交代码请求详情",
+		zap.String("url", APISubmit),
+		zap.String("request_body", string(jsonData)),
+		zap.Int("response_status", resp.StatusCode),
+		zap.String("response_body", string(body)))
 
 	var result struct {
 		Data struct {
@@ -452,3 +466,108 @@ func GetStatusText(statusCode int) string {
 	}
 	return "未知状态"
 }
+
+// GetProblemDetailAdmin 管理员获取题目详情（可以访问隐藏题目和比赛题目）
+func (c *BingoJClient) GetProblemDetailAdmin(pid int64) (*ProblemDetail, error) {
+	if c.token == "" {
+		c.logger.Error("未登录，无法获取题目详情")
+		return nil, fmt.Errorf("未登录")
+	}
+
+	c.logger.Info("管理员获取题目详情", zap.Int64("pid", pid))
+
+	url := fmt.Sprintf("%s?pid=%d", APIProblemAdmin, pid)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.token)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.logger.Error("管理员获取题目详情请求失败", zap.Error(err))
+		return nil, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	// 管理员API返回格式: { data: Problem }
+	var result struct {
+		Data *ProblemDetail `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		c.logger.Error("解析管理员题目详情失败", zap.Error(err), zap.String("response", string(body)))
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if result.Data == nil {
+		c.logger.Warn("管理员API返回题目为空", zap.String("response", string(body)))
+		return nil, fmt.Errorf("题目不存在或无权限")
+	}
+
+	c.logger.Info("管理员获取题目成功", zap.String("problem_id", result.Data.ProblemId))
+	return result.Data, nil
+}
+
+// SearchProblemByDisplayID 通过显示ID搜索题目，返回数据库ID
+func (c *BingoJClient) SearchProblemByDisplayID(displayID string) (int64, error) {
+	if c.token == "" {
+		return 0, fmt.Errorf("未登录")
+	}
+
+	c.logger.Info("搜索题目", zap.String("display_id", displayID))
+
+	// 调用管理员题目列表API
+	url := fmt.Sprintf("%s?currentPage=1&limit=100&keyword=%s", APIProblemAdminList, displayID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.token)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			Records []struct {
+				ID        int64  `json:"id"`
+				ProblemId string `json:"problemId"`
+				Title     string `json:"title"`
+				Auth      int    `json:"auth"`
+			} `json:"records"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	// 在返回的题目列表中查找匹配的显示ID
+	for _, problem := range result.Data.Records {
+		if problem.ProblemId == displayID {
+			c.logger.Info("找到题目", zap.String("display_id", displayID), zap.Int64("db_id", problem.ID))
+			return problem.ID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("未找到匹配的题目")
+}
+

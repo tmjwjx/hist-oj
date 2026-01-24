@@ -272,11 +272,36 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	displayID = req.PID
 	dbCID = "0"
 	submitCID = 0
+
+	// 统一使用显示ID，先尝试普通API
+	sendSSE(c, "log", fmt.Sprintf("尝试获取题目: %s", req.PID))
 	problem, err = bingoJClient.GetProblemDetail(req.PID)
 
 	if err != nil {
-		sendSSE(c, "log", fmt.Sprintf("获取题目失败: %s", err.Error()))
-		return
+		// 普通API失败，可能是隐藏题目，尝试使用管理员API
+		sendSSE(c, "log", "普通API获取失败，尝试管理员API...")
+
+		// 通过显示ID搜索数据库ID
+		var dbPID int64
+		dbPID, err = bingoJClient.SearchProblemByDisplayID(req.PID)
+		if err != nil {
+			sendSSE(c, "log", fmt.Sprintf("搜索题目失败: %s", err.Error()))
+			sendSSE(c, "log", "获取题目失败")
+			return
+		}
+
+		// 使用数据库ID调用管理员API
+		sendSSE(c, "log", fmt.Sprintf("使用管理员API获取题目 (dbID: %d)", dbPID))
+		problem, err = bingoJClient.GetProblemDetailAdmin(dbPID)
+		if err != nil {
+			sendSSE(c, "log", fmt.Sprintf("管理员API获取失败: %s", err.Error()))
+			sendSSE(c, "log", "获取题目失败")
+			return
+		}
+
+		sendSSE(c, "log", "管理员API获取成功")
+	} else {
+		sendSSE(c, "log", "普通API获取成功")
 	}
 
 	// 调试：输出题目ID
@@ -289,6 +314,11 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	// 样例测试需要使用 HOJ 数据库的主键ID（problem.ID）
 	// 这个ID会被发送到HOJ后端的样例测试接口
 	pidForTest := fmt.Sprintf("%d", problem.ID)
+
+	// 重要：提交代码时使用 problem.ProblemId（从BingOJ返回的真实显示ID）
+	// 而不是 displayID（用户输入的值），因为两者可能不一致
+	submitDisplayID := problem.ProblemId
+	h.logger.Info("将使用显示ID提交代码", zap.String("用户输入", displayID), zap.String("实际使用", submitDisplayID))
 
 	h.logger.Info("样例测试将使用数据库ID", zap.String("dbID", pidForTest))
 
@@ -343,8 +373,8 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	sendSSE(c, "log", "正在提交远程 OJ...")
 	sendSSE(c, "remote_status", map[string]string{"status": "提交中"})
 
-	// 提交代码
-	submitID, err := bingoJClient.SubmitCode(displayID, submitCID, req.Language, req.Code)
+	// 提交代码：使用从BingOJ返回的真实显示ID
+	submitID, err := bingoJClient.SubmitCode(submitDisplayID, submitCID, req.Language, req.Code)
 	if err != nil {
 		sendSSE(c, "log", fmt.Sprintf("提交失败: %s", err.Error()))
 		sendSSE(c, "remote_status", map[string]string{"status": "提交失败"})
