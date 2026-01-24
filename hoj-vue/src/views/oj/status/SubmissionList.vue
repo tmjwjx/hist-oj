@@ -13,6 +13,7 @@
               }}</span>
             </el-col>
             <el-col
+              v-if="canViewAllSubmissions"
               :xs="10"
               :sm="8"
               :md="4"
@@ -105,6 +106,7 @@
               ></vxe-input>
             </el-col>
             <el-col
+              v-if="canViewAllSubmissions"
               :xs="24"
               :sm="12"
               :md="5"
@@ -577,7 +579,14 @@ export default {
       let query = this.$route.query;
       this.formFilter.problemID = query.problemID;
       this.formFilter.username = query.username || "";
-      this.formFilter.onlyMine = query.onlyMine + "" == "true" ? true : false; // 统一换成字符串判断
+
+      // 非管理员用户只能查看自己的提交
+      if (!this.canViewAllSubmissions) {
+        this.formFilter.onlyMine = true;
+      } else {
+        this.formFilter.onlyMine = query.onlyMine + "" == "true" ? true : false; // 统一换成字符串判断
+      }
+
       this.formFilter.status = query.status;
       this.formFilter.completeProblemID = query.completeProblemID || false;
       if (this.formFilter.onlyMine) {
@@ -1030,6 +1039,10 @@ export default {
       "contestStatus",
       "ContestRealTimePermission",
     ]),
+    canViewAllSubmissions() {
+      // 只有管理员（普通管理员、题目管理员、超级管理员）可以查看全部提交记录
+      return this.isAdminRole;
+    },
     title() {
       if (!this.contestID) {
         return "Status";
