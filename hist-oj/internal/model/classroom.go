@@ -149,6 +149,14 @@ type ClassroomHomework struct {
 	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
+	// 考试模式字段
+	IsExamMode              int `gorm:"type:int;default:0;comment:是否考试模式(0否1是)" json:"isExamMode"`
+	ExamDuration            int `gorm:"type:int;not null;default:60;comment:考试时长(分钟)" json:"examDuration"`
+	AllowSubmitAfterMinutes int `gorm:"type:int;default:0;comment:开考后多少分钟允许交卷(0表示立即允许)" json:"allowSubmitAfterMinutes"`
+	DisableCopyPaste        int `gorm:"type:int;default:1;comment:是否禁止复制粘贴(0否1是)" json:"disableCopyPaste"`
+	RequireFullscreen       int `gorm:"type:int;default:1;comment:是否要求全屏(0否1是)" json:"requireFullscreen"`
+	DisallowTabSwitch       int `gorm:"type:int;default:1;comment:是否禁止切换标签页(0否1是)" json:"disallowTabSwitch"`
+
 	// 关联字段
 	Questions   []HomeworkQuestion `gorm:"foreignKey:HomeworkID" json:"questions,omitempty"`
 	IsCompleted bool               `gorm:"-" json:"isCompleted"` // 学生是否已完成（非数据库字段，仅用于API返回）
@@ -194,6 +202,16 @@ type HomeworkSubmit struct {
 	JudgeResult         string   `gorm:"type:varchar(50)" json:"judgeResult"` // 评测结果（编程题）
 	CreatedAt           time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt           time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+
+	// 考试模式字段
+	ExamStartTime           *time.Time `gorm:"type:datetime;comment:考试开始时间" json:"examStartTime,omitempty"`
+	ExamEndTime             *time.Time `gorm:"type:datetime;comment:考试结束时间" json:"examEndTime,omitempty"`
+	IsForcedSubmit          int        `gorm:"type:int;default:0;comment:是否强制收卷(0否1是)" json:"isForcedSubmit"`
+	TabSwitchCount          int        `gorm:"type:int;default:0;comment:切换标签页次数" json:"tabSwitchCount"`
+	FullscreenExitCount     int        `gorm:"type:int;default:0;comment:退出全屏次数" json:"fullscreenExitCount"`
+	CopyPasteAttemptCount   int        `gorm:"type:int;default:0;comment:尝试复制粘贴次数" json:"copyPasteAttemptCount"`
+	DeviceInfo              string     `gorm:"type:varchar(500);comment:设备信息" json:"deviceInfo"`
+	BrowserInfo             string     `gorm:"type:varchar(500);comment:浏览器信息" json:"browserInfo"`
 
 	// 关联字段
 	Student  *UserInfo     `gorm:"foreignKey:UID;references:UUID" json:"student,omitempty"`
@@ -288,6 +306,36 @@ func (ClassroomMessage) TableName() string {
 	return "classroom_message"
 }
 
+// StudentQuestionOrder 学生题目顺序映射表（考试模式用）
+type StudentQuestionOrder struct {
+	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID   uint64 `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	UID          string `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	OrderMapping string `gorm:"type:text;not null;comment:题目顺序映射JSON" json:"orderMapping"`
+	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+}
+
+// TableName 指定表名
+func (StudentQuestionOrder) TableName() string {
+	return "student_question_order"
+}
+
+// ExamViolationLog 考试违规日志表
+type ExamViolationLog struct {
+	ID            uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID    uint64 `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	UID           string `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	ViolationType string `gorm:"type:varchar(50);not null;index:idx_violation_type;comment:违规类型(tab_switch, fullscreen_exit, copy_attempt, paste_attempt, context_menu, devtools_attempt)" json:"violationType"`
+	Description   string `gorm:"type:text;comment:违规详情" json:"description"`
+	IP            string `gorm:"type:varchar(50);comment:IP地址" json:"ip"`
+	CreatedAt     time.Time `gorm:"column:create_time;autoCreateTime;index:idx_create_time" json:"createdAt"`
+}
+
+// TableName 指定表名
+func (ExamViolationLog) TableName() string {
+	return "exam_violation_log"
+}
+
 // InitClassroomTables 初始化班级相关数据库表
 func InitClassroomTables(db *gorm.DB) error {
 	return db.AutoMigrate(
@@ -304,5 +352,7 @@ func InitClassroomTables(db *gorm.DB) error {
 		&ClassroomMaterial{},
 		&ClassroomRandomPick{},
 		&ClassroomMessage{},
+		&StudentQuestionOrder{},
+		&ExamViolationLog{},
 	)
 }

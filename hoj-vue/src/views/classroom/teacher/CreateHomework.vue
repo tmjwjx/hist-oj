@@ -1,5 +1,11 @@
 <template>
   <div class="create-homework-wrapper">
+    <!-- 编辑模式数据加载遮罩 -->
+    <div v-if="loadingData" class="loading-overlay">
+      <el-icon class="is-loading"><i class="el-icon-loading"></i></el-icon>
+      <p>正在加载作业数据...</p>
+    </div>
+
     <!-- 顶部固定导航栏 -->
     <div class="create-homework-header">
       <div class="header-content">
@@ -75,24 +81,148 @@
           </div>
 
           <div class="display-settings">
+            <!-- 作业模式选择 -->
+            <div class="mode-selection">
+              <div class="mode-label">作业模式</div>
+              <el-radio-group v-model="form.isExamMode">
+                <el-radio :label="0">普通作业模式</el-radio>
+                <el-radio :label="1">考试模式</el-radio>
+              </el-radio-group>
+            </div>
+
             <div class="setting-item">
               <el-checkbox v-model="form.showHomework">
                 <span class="setting-label">{{ $t('m.Show_Homework_After_Complete') }}</span>
               </el-checkbox>
-              <div class="setting-tip">{{ $t('m.Show_Homework_Tip') }}</div>
+              <div class="setting-tip">
+                {{ form.isExamMode === 1 ? '考试模式下，需等到考试结束时间后才能查看' : $t('m.Show_Homework_Tip') }}
+              </div>
             </div>
             <div class="setting-item">
               <el-checkbox v-model="form.showScore">
                 <span class="setting-label">{{ $t('m.Show_Score_After_Complete') }}</span>
               </el-checkbox>
-              <div class="setting-tip">{{ $t('m.Show_Score_Tip') }}</div>
+              <div class="setting-tip">
+                {{ form.isExamMode === 1 ? '考试模式下，需等到考试结束时间后才能查看' : $t('m.Show_Score_Tip') }}
+              </div>
             </div>
             <div class="setting-item">
               <el-checkbox v-model="form.showAnswer">
                 <span class="setting-label">允许学生提交后查看答案</span>
               </el-checkbox>
-              <div class="setting-tip">学生提交作业后，可以查看每道题的正确答案（主观题显示参考答案，编程题显示题库链接）</div>
+              <div class="setting-tip">
+                {{ form.isExamMode === 1 ? '考试模式下，需等到考试结束时间后才能查看' : '学生提交作业后，可以查看每道题的正确答案（主观题显示参考答案，编程题显示题库链接）' }}
+              </div>
             </div>
+          </div>
+
+          <!-- 考试模式配置 -->
+          <div v-if="form.isExamMode === 1" class="exam-config-section">
+            <el-divider content-position="left">时间设置</el-divider>
+
+            <el-form-item label="考试时长" prop="examDuration" required>
+              <el-input-number
+                v-model="form.examDuration"
+                :min="10"
+                :max="600"
+                :step="5"
+                controls-position="right"
+              />
+              <span class="unit-label">分钟</span>
+              <span class="setting-tip">学生从开始答题算起的时长限制</span>
+            </el-form-item>
+
+            <!-- 时间差异提醒 -->
+            <el-alert
+              v-if="timeRangeMismatch"
+              type="warning"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 20px;"
+            >
+              <template slot="title">
+                <div style="line-height: 1.6;">
+                  <strong>⚠️ 时间区间不匹配：</strong>
+                  作业开放时间段为 {{ timeRangeMinutes }} 分钟，但考试时长为 {{ form.examDuration }} 分钟。
+                  <br>
+                  <span style="color: #E6A23C;">学生可以在作业开放时间段内的任意时刻开始考试，</span>
+                  从开始答题起计时 {{ form.examDuration }} 分钟后或者考试截止时间自动交卷。
+                </div>
+              </template>
+            </el-alert>
+
+            <el-alert
+              v-else
+              type="success"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 20px;"
+            >
+              <template slot="title">
+                <div style="line-height: 1.6;">
+                  <strong>✓ 时间配置一致：</strong>
+                  作业开放时间段和考试时长一致（{{ form.examDuration }} 分钟）。
+                  <br>
+                  学生必须在作业开始时间后立即开始考试，考试时长固定为 {{ form.examDuration }} 分钟。
+                </div>
+              </template>
+            </el-alert>
+
+            <el-form-item label="允许交卷时间" prop="allowSubmitAfterMinutes">
+              <el-input-number
+                v-model="form.allowSubmitAfterMinutes"
+                :min="0"
+                :max="600"
+                :step="5"
+                controls-position="right"
+              />
+              <span class="unit-label">分钟</span>
+              <span class="setting-tip">开考后至少需要答题多少分钟才能交卷（0表示可以立即交卷）</span>
+            </el-form-item>
+
+            <el-divider content-position="left">防作弊设置</el-divider>
+
+            <div class="exam-settings-grid">
+              <div class="exam-setting-item">
+                <el-checkbox v-model="form.disableCopyPaste">
+                  <span class="setting-label">禁止复制粘贴</span>
+                </el-checkbox>
+                <div class="setting-tip">禁止学生在考试期间复制或粘贴内容</div>
+              </div>
+
+              <div class="exam-setting-item">
+                <el-checkbox v-model="form.requireFullscreen">
+                  <span class="setting-label">要求全屏模式</span>
+                </el-checkbox>
+                <div class="setting-tip">学生必须在全屏模式下答题，退出全屏会记录违规</div>
+              </div>
+
+              <div class="exam-setting-item">
+                <el-checkbox v-model="form.disallowTabSwitch">
+                  <span class="setting-label">禁止切换标签页</span>
+                </el-checkbox>
+                <div class="setting-tip">检测学生切换浏览器标签页的行为并记录</div>
+              </div>
+            </div>
+
+            <el-alert
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-top: 15px;"
+            >
+              <template slot="title">
+                <div style="line-height: 1.8;">
+                  <strong>考试模式说明：</strong>
+                  <ul style="margin: 10px 0 0 20px; padding: 0;">
+                    <li>每位学生的题目顺序会随机打乱，防止作弊</li>
+                    <li>超时未交卷将自动强制收卷</li>
+                    <li>教师可以实时监控学生答题状态</li>
+                    <li>所有违规行为（退出全屏、切换标签页等）都会被记录</li>
+                  </ul>
+                </div>
+              </template>
+            </el-alert>
           </div>
         </el-card>
 
@@ -576,8 +706,12 @@ export default {
   name: 'CreateHomework',
   mixins: [teacherAuth],
   data() {
+    // 从路由参数读取初始 isExamMode，避免页面闪烁
+    const initialIsExamMode = this.$route.query.isExamMode ? parseInt(this.$route.query.isExamMode) : 0
+
     return {
       submitting: false,
+      loadingData: false, // 编辑模式下加载数据的loading状态
       questionsLoading: false,
       searchKeyword: '',
       filterType: '',
@@ -606,7 +740,14 @@ export default {
         endTime: null,
         showHomework: false,
         showScore: false,
-        showAnswer: false
+        showAnswer: false,
+        // 考试模式字段 - 使用路由参数作为初始值
+        isExamMode: initialIsExamMode,
+        examDuration: 60,
+        allowSubmitAfterMinutes: 0,
+        disableCopyPaste: true,
+        requireFullscreen: true,
+        disallowTabSwitch: true
       },
       rules: {
         title: [{ required: true, message: this.$t('m.Please_Enter_Homework_Title'), trigger: 'blur' }],
@@ -624,6 +765,19 @@ export default {
     },
     editId() {
       return this.$route.query.editId
+    },
+    // 计算作业时间区间（分钟）
+    timeRangeMinutes() {
+      if (!this.form.startTime || !this.form.endTime) return 0
+      const start = new Date(this.form.startTime)
+      const end = new Date(this.form.endTime)
+      const diffMs = end - start
+      const diffMinutes = Math.floor(diffMs / (1000 * 60))
+      return diffMinutes > 0 ? diffMinutes : 0
+    },
+    // 时间区间和考试时长是否不匹配
+    timeRangeMismatch() {
+      return this.timeRangeMinutes > 0 && this.timeRangeMinutes !== this.form.examDuration
     }
   },
   mounted() {
@@ -778,6 +932,7 @@ export default {
       this.loadQuestionBank()
     },
     async loadHomeworkData() {
+      this.loadingData = true
       try {
         console.log('开始加载作业数据, editId:', this.editId)
         const res = await this.$store.dispatch('classroom/getHomeworkDetail', this.editId)
@@ -787,17 +942,7 @@ export default {
           console.log('作业数据:', homework)
           console.log('题目列表:', homework.questions)
 
-          // 先加载所有编程题的详情
-          const programmingProblemIds = homework.questions
-            .filter(q => q.problemId)
-            .map(q => q.problemId)
-
-          if (programmingProblemIds.length > 0) {
-            console.log('预加载编程题数据:', programmingProblemIds)
-            await this.loadProgrammingProblemByIds(programmingProblemIds)
-          }
-
-          // 填充表单数据
+          // 先填充表单数据（包括 isExamMode），立即更新界面
           this.form = {
             title: homework.title,
             description: homework.description,
@@ -805,8 +950,16 @@ export default {
             endTime: new Date(homework.endTime),
             showHomework: homework.showHomework === 1,
             showScore: homework.showScore === 1,
-            showAnswer: homework.showAnswer === 1
+            showAnswer: homework.showAnswer === 1,
+            // 考试模式字段
+            isExamMode: homework.isExamMode || 0,
+            examDuration: homework.examDuration || 60,
+            allowSubmitAfterMinutes: homework.allowSubmitAfterMinutes || 0,
+            disableCopyPaste: homework.disableCopyPaste !== 0,
+            requireFullscreen: homework.requireFullscreen !== 0,
+            disallowTabSwitch: homework.disallowTabSwitch !== 0
           }
+
           // 填充已选题目
           if (homework.questions && homework.questions.length > 0) {
             this.selectedQuestions = homework.questions.map((item, index) => {
@@ -814,7 +967,7 @@ export default {
               // 编程题：使用 problemId
               if (item.problemId) {
                 console.log('  -> 这是编程题')
-                // 从缓存获取编程题详情（现在已经预加载过了）
+                // 从缓存获取编程题详情
                 const cached = this.programmingProblemsCache[item.problemId]
                 console.log('  -> 缓存数据:', cached)
                 const score = item.score || item.question?.score || 20
@@ -868,10 +1021,26 @@ export default {
             }).filter(q => q !== null)
             console.log('最终 selectedQuestions:', this.selectedQuestions)
           }
+
+          // 关键数据填充完成，隐藏 loading
+          this.loadingData = false
+
+          // 异步加载编程题详情（不阻塞界面）
+          const programmingProblemIds = homework.questions
+            .filter(q => q.problemId)
+            .map(q => q.problemId)
+
+          if (programmingProblemIds.length > 0) {
+            console.log('预加载编程题数据:', programmingProblemIds)
+            // 不使用 await，让加载在后台进行，完成后会自动更新界面
+            this.loadProgrammingProblemByIds(programmingProblemIds)
+          }
         }
       } catch (error) {
         console.error('加载作业数据失败:', error)
         this.$message.error('加载作业数据失败: ' + (error.message || error))
+      } finally {
+        this.loadingData = false
       }
     },
     async saveHomework() {
@@ -900,6 +1069,13 @@ export default {
           showHomework: this.form.showHomework ? 1 : 0,
           showScore: this.form.showScore ? 1 : 0,
           showAnswer: this.form.showAnswer ? 1 : 0,
+          // 考试模式字段
+          isExamMode: this.form.isExamMode,
+          examDuration: this.form.examDuration,
+          allowSubmitAfterMinutes: this.form.allowSubmitAfterMinutes,
+          disableCopyPaste: this.form.disableCopyPaste ? 1 : 0,
+          requireFullscreen: this.form.requireFullscreen ? 1 : 0,
+          disallowTabSwitch: this.form.disallowTabSwitch ? 1 : 0,
           questions: this.selectedQuestions.map((q, index) => {
             const result = {
               score: Number(q.score) || 10,
@@ -1370,6 +1546,64 @@ export default {
 }
 
 /* 显示设置 */
+/* 模式选择区域 - 方形样式 */
+.mode-selection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+}
+
+.mode-label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 14px;
+  min-width: 70px;
+}
+
+/* 将 radio 改为方形按钮样式 */
+.mode-selection ::v-deep .el-radio-group {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-selection ::v-deep .el-radio {
+  margin-right: 0;
+}
+
+.mode-selection ::v-deep .el-radio__input {
+  display: none; /* 隐藏原圆形 radio */
+}
+
+.mode-selection ::v-deep .el-radio__label {
+  padding: 8px 16px;
+  border: 2px solid #dcdfe6;
+  border-radius: 4px; /* 方形圆角 */
+  background-color: #fff;
+  color: #606266;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  user-select: none;
+}
+
+.mode-selection ::v-deep .el-radio__label:hover {
+  border-color: #5b9bd5;
+  color: #5b9bd5;
+}
+
+/* 选中状态 */
+.mode-selection ::v-deep .el-radio.is-checked .el-radio__label {
+  background-color: #5b9bd5;
+  border-color: #5b9bd5;
+  color: #fff;
+  font-weight: 500;
+}
+
 .display-settings {
   background-color: #f8f9fa;
   border-radius: 8px;
@@ -1946,6 +2180,83 @@ export default {
   .question-list {
     padding: 0 12px 16px;
   }
+
+  .exam-config-section {
+    padding: 0 12px;
+  }
+}
+
+/* 考试模式配置区域 - 确保与基本信息对齐 */
+.exam-config-section {
+  padding: 0 20px;
+}
+
+/* 调整考试模式下 el-divider 的左对齐，与表单标签对齐 */
+.exam-config-section ::v-deep .el-divider {
+  margin: 20px 0 24px 0;
+}
+
+.exam-config-section ::v-deep .el-divider__text {
+  padding-left: 0;
+}
+
+.exam-config-section ::v-deep .el-divider__text.is-left {
+  left: 0;
+}
+
+/* 考试模式设置网格布局 */
+.exam-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 0;
+}
+
+.exam-setting-item {
+  padding: 14px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+  transition: all 0.2s ease;
+}
+
+.exam-setting-item:hover {
+  border-color: #5b9bd5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* 单位标签样式 */
+.unit-label {
+  margin: 0 8px;
+  color: #606266;
+  font-size: 14px;
+}
+
+/* 编辑模式数据加载遮罩 */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-overlay i {
+  font-size: 48px;
+  color: #5b9bd5;
+  margin-bottom: 20px;
+}
+
+.loading-overlay p {
+  font-size: 16px;
+  color: #606266;
+  margin: 0;
 }
 </style>
 

@@ -275,6 +275,126 @@
         <el-button type="primary" @click="confirmSubmit" :loading="submitting">确认提交</el-button>
       </span>
     </el-dialog>
+
+    <!-- 考试模式确认弹窗 -->
+    <el-dialog
+      title="📝 考试模式确认"
+      :visible.sync="examConfirmDialogVisible"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      width="600px"
+      custom-class="exam-confirm-dialog"
+    >
+      <div class="exam-confirm-content">
+        <div class="warning-icon">
+          <i class="el-icon-warning-outline"></i>
+        </div>
+
+        <h2>当前为考试模式</h2>
+
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          <template slot="title">
+            请认真阅读以下考试规则，开始后将无法修改
+          </template>
+        </el-alert>
+
+        <div class="exam-rules">
+          <h3>⏱️ 时间规则</h3>
+          <ul>
+            <li><strong>考试时长：</strong>{{ examConfig.examDuration }} 分钟</li>
+            <li>
+              <strong>开始时间：</strong>点击"开始答题"后立即开始计时
+            </li>
+            <li v-if="examConfig.allowSubmitAfterMinutes > 0">
+              <strong>最早交卷时间：</strong>开考后 {{ examConfig.allowSubmitAfterMinutes }} 分钟
+            </li>
+            <li class="warning">
+              <strong>重要：</strong>考试时间到后系统将<strong>强制收卷</strong>，未保存的答案将丢失
+            </li>
+          </ul>
+
+          <h3>🔒 防作弊规则</h3>
+          <ul>
+            <li v-if="examConfig.disableCopyPaste">
+              ✅ 禁止复制、粘贴任何内容
+            </li>
+            <li v-if="examConfig.requireFullscreen">
+              ✅ 必须保持全屏模式，退出全屏将被记录
+            </li>
+            <li v-if="examConfig.disallowTabSwitch">
+              ✅ 禁止切换浏览器标签页，将被记录
+            </li>
+            <li>
+              ✅ 禁止同时打开其他软件或窗口（系统会检测）
+            </li>
+          </ul>
+
+          <h3>💡 答题建议</h3>
+          <ul>
+            <li>请确保网络连接稳定</li>
+            <li>建议使用 Chrome 或 Edge 浏览器</li>
+            <li>系统会自动保存您的答题进度</li>
+            <li>考试结束前可随时修改已答题目</li>
+          </ul>
+        </div>
+
+        <div class="checkbox-group">
+          <el-checkbox v-model="hasReadRules">
+            我已仔细阅读并理解以上考试规则
+          </el-checkbox>
+          <el-checkbox v-model="hasConfirmedEnvironment">
+            我确认当前网络和环境适合参加考试
+          </el-checkbox>
+        </div>
+      </div>
+
+      <span slot="footer" class="dialog-footer">
+        <el-button size="large" @click="examConfirmDialogVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          size="large"
+          :disabled="!canStartExam"
+          :loading="submitting"
+          @click="startExam"
+        >
+          <i class="el-icon-edit"></i>
+          开始答题
+        </el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 考试模式顶部标识栏 -->
+    <div v-if="isExamMode && examStarted" class="exam-header-bar">
+      <div class="exam-badge">
+        <i class="el-icon-warning-outline"></i>
+        考试模式进行中
+      </div>
+
+      <div class="exam-timer" :class="timeState">
+        <i class="el-icon-time"></i>
+        <span class="timer-label">剩余时间：</span>
+        <span class="timer-value">{{ formattedTime }}</span>
+      </div>
+
+      <div class="exam-actions">
+        <el-button
+          type="danger"
+          size="small"
+          @click="handleExamSubmit"
+          :loading="submitting"
+        >
+          <i class="el-icon-check"></i>
+          交卷
+        </el-button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -330,12 +450,32 @@ export default {
         interval: 3000,
         syncFunction: 'loadHomeworkDetail',
         immediate: true
-      }
+      },
+      // 考试模式相关
+      examConfirmDialogVisible: false, // 考试确认弹窗
+      hasReadRules: false, // 是否已阅读考试规则
+      hasConfirmedEnvironment: false, // 是否确认环境
+      examConfig: {}, // 考试配置
+      examStartTime: null, // 考试开始时间
+      remainingSeconds: 0, // 剩余秒数
+      timeState: 'normal', // 时间状态: normal, warning, critical, overtime
+      canSubmitInExam: false, // 考试模式下是否允许交卷
+      examTimerInterval: null, // 考试计时器
+      isExamMode: false, // 是否是考试模式
+      examStarted: false, // 考试是否已开始
+      fullscreenWarned: false, // 是否已经警告过退出全屏
+      hasShownForceSubmitMessage: false, // 是否已显示过强制收卷消息
+      fullscreenChangeTime: 0 // 全屏变化的时间戳，用于避免 visibilitychange 误报
     }
   },
   computed: {
     canSubmit() {
-      return this.homework.status === 2 && !this.isSubmitted
+      // 普通模式：只检查状态和是否已提交
+      if (!this.isExamMode) {
+        return this.homework.status === 2 && !this.isSubmitted
+      }
+      // 考试模式：需要额外检查是否满足交卷时间限制
+      return this.homework.status === 2 && !this.isSubmitted && this.canSubmitInExam
     },
     // 是否可以查看作业（题目和答案）
     canViewHomework() {
@@ -344,6 +484,12 @@ export default {
         // 如果教师允许查看作业内容（showHomework === 1），则可以查看
         return this.homework.showHomework === 1
       }
+
+      // 考试模式下，只有考试已开始才能查看题目
+      if (this.isExamMode && !this.examStarted) {
+        return false
+      }
+
       // 未提交时，作业进行中可以查看
       return this.homework.status === 2
     },
@@ -367,6 +513,18 @@ export default {
       return {
         'Authorization': 'Bearer ' + token
       }
+    },
+    // 考试模式：是否可以开始考试
+    canStartExam() {
+      return this.hasReadRules && this.hasConfirmedEnvironment
+    },
+    // 格式化剩余时间
+    formattedTime() {
+      if (this.remainingSeconds <= 0) return '00:00:00'
+      const hours = Math.floor(this.remainingSeconds / 3600)
+      const minutes = Math.floor((this.remainingSeconds % 3600) / 60)
+      const seconds = this.remainingSeconds % 60
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     }
   },
   mounted() {
@@ -381,6 +539,12 @@ export default {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer)
     }
+    // 清除考试计时器
+    if (this.examTimerInterval) {
+      clearInterval(this.examTimerInterval)
+    }
+    // 清理防作弊监听
+    this.cleanupAntiCheat()
     // 页面退出前总是保存所有答案（确保不丢失数据）
     this.saveDraftSync()
   },
@@ -446,7 +610,93 @@ export default {
             }
           }
 
-          // 加载已提交的答案
+          // 检查是否是考试模式（需要在加载答案之前检查，以更新题目顺序）
+          let needUpdateQuestions = false
+          let examQuestions = null
+
+          if (res.data.isExamMode === 1) {
+            this.isExamMode = true
+            this.examConfig = {
+              examDuration: res.data.examDuration,
+              allowSubmitAfterMinutes: res.data.allowSubmitAfterMinutes,
+              disableCopyPaste: res.data.disableCopyPaste === 1,
+              requireFullscreen: res.data.requireFullscreen === 1,
+              disallowTabSwitch: res.data.disallowTabSwitch === 1
+            }
+
+            // 每次加载都检查考试状态（不仅仅是首次）
+            const homeworkId = this.$route.params.homeworkId
+            const examStatusRes = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
+
+            if (examStatusRes.code === 200 && examStatusRes.data && examStatusRes.data.hasStarted) {
+              // 已开始，标记需要更新题目列表
+              if (examStatusRes.data.questions && Array.isArray(examStatusRes.data.questions) && examStatusRes.data.questions.length > 0) {
+                needUpdateQuestions = true
+                examQuestions = examStatusRes.data.questions
+                console.log('将恢复题目顺序为乱序:', examQuestions)
+              }
+
+              // 恢复考试状态
+              this.examStarted = true
+              this.examStartTime = new Date(examStatusRes.data.examStartTime)
+              this.remainingSeconds = examStatusRes.data.remainingSeconds || 0
+              this.canSubmitInExam = examStatusRes.data.canSubmit || false
+
+              // 检查是否已经被强制收卷
+              if (examStatusRes.data.isSubmitted) {
+                this.isSubmitted = true
+                // 只有在作业进行中才显示强制收卷提示
+                // 作业结束后查看不显示提示
+                if (examStatusRes.data.isForcedSubmit &&
+                    !this.hasShownForceSubmitMessage &&
+                    this.homework.status === 2) {
+                  // 判断是否是超时收卷（remainingSeconds <= 0）
+                  if (this.remainingSeconds <= 0) {
+                    this.$message.warning({
+                      message: '考试时间已到，系统已自动收卷',
+                      duration: 5000,
+                      showClose: true
+                    })
+                  } else {
+                    // 还有剩余时间但被收卷，说明是老师强制收卷
+                    this.$message.warning({
+                      message: '您已被老师强制收卷，请停止答题',
+                      duration: 5000,
+                      showClose: true
+                    })
+                  }
+                  this.hasShownForceSubmitMessage = true
+                }
+                // 如果已提交，停止之前的计时器和清理防作弊
+                if (this.examTimerInterval) {
+                  clearInterval(this.examTimerInterval)
+                  this.examTimerInterval = null
+                }
+                this.cleanupAntiCheat()
+              } else {
+                // 考试还在进行中，重新启动计时器和防作弊
+                // 先清除旧的计时器
+                if (this.examTimerInterval) {
+                  clearInterval(this.examTimerInterval)
+                  this.examTimerInterval = null
+                }
+                this.startExamTimer()
+                this.initAntiCheat()
+              }
+            } else {
+              // 未开始，显示考试确认弹窗（只在首次加载时显示）
+              if (isFirstLoad) {
+                this.examConfirmDialogVisible = true
+              }
+            }
+          }
+
+          // 如果需要更新题目列表，在加载答案之前更新
+          if (needUpdateQuestions && examQuestions) {
+            this.homework.questions = examQuestions
+          }
+
+          // 加载已提交的答案（在题目列表更新后加载）
           await this.loadSubmission(isFirstLoad)
 
           // 只在首次加载时初始化答案
@@ -602,8 +852,8 @@ export default {
       if (!Array.isArray(this.multipleAnswers[questionId])) {
         this.$set(this.multipleAnswers, questionId, [])
       }
-      // 多选题不立即触发自动保存，只在失去焦点或页面退出时保存
-      // this.handleAnswerChange()
+      // 多选题也要触发自动保存
+      this.handleAnswerChange()
     },
     // 安排自动保存（延迟执行，避免频繁保存）
     scheduleAutoSave() {
@@ -620,6 +870,13 @@ export default {
       this.autoSaving = true
       try {
         const homeworkId = parseInt(this.$route.params.homeworkId)
+
+        // 检查题目数据是否存在
+        if (!this.homework.questions || this.homework.questions.length === 0) {
+          console.warn('保存草稿失败：题目数据不存在')
+          this.$message.warning('题目数据加载中，请稍后再试')
+          return
+        }
 
         // 合并所有答案
         const answersData = {}
@@ -645,11 +902,15 @@ export default {
           }
         })
 
+        console.log('保存草稿 - homeworkId:', homeworkId, 'answers count:', Object.keys(answersData).length)
+
         // 调用草稿保存 API（不判分，不标记为已提交）
         const res = await this.$store.dispatch('classroom/saveHomeworkDraft', {
           homeworkId: homeworkId,
           answers: answersData
         })
+
+        console.log('保存草稿 - 响应:', res)
 
         if (res.code === 200) {
           this.hasUnsavedChanges = false
@@ -657,10 +918,12 @@ export default {
           this.$message.success('草稿保存成功')
           // 草稿保存后不需要重新加载提交状态（因为不会改变 isSubmitted）
         } else {
+          console.error('保存草稿失败:', res)
           this.$message.error(res.message || '保存失败')
         }
       } catch (error) {
-        this.$message.error('保存失败')
+        console.error('保存草稿异常:', error)
+        this.$message.error('保存失败：' + (error.message || '未知错误'))
       } finally {
         this.autoSaving = false
       }
@@ -1017,6 +1280,545 @@ export default {
         console.error('解析attachments失败:', e)
         return []
       }
+    },
+    // ==================== 考试模式相关方法 ====================
+    // 检查考试是否已开始
+    async checkExamStarted() {
+      try {
+        const homeworkId = this.$route.params.homeworkId
+        const res = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
+        if (res.code === 200 && res.data) {
+          return res.data.hasStarted
+        }
+        return false
+      } catch (error) {
+        console.error('检查考试状态失败:', error)
+        return false
+      }
+    },
+    // 开始考试
+    async startExam() {
+      try {
+        const homeworkId = this.$route.params.homeworkId
+        const deviceInfo = this.getDeviceInfo()
+        const browserInfo = this.getBrowserInfo()
+
+        const res = await this.$store.dispatch('classroom/startExam', {
+          homeworkId,
+          deviceInfo: JSON.stringify(deviceInfo),
+          browserInfo: JSON.stringify(browserInfo)
+        })
+
+        if (res.code === 200) {
+          this.examConfirmDialogVisible = false
+          this.showExamStartDialog = false
+          this.examStarted = true
+          this.examStartTime = new Date(res.data.examStartTime)
+          this.remainingSeconds = res.data.remainingSeconds
+          this.canSubmitInExam = res.data.canSubmit || false // 修复：设置是否允许交卷
+
+          // 如果返回了乱序的题目，更新homework.questions
+          if (res.data.questions && Array.isArray(res.data.questions)) {
+            console.log('更新题目顺序为乱序:', res.data.questions)
+            // 保留原有的答案，只更新题目顺序
+            const oldQuestions = this.homework.questions || []
+            const newQuestions = res.data.questions
+
+            // 创建问题ID到答案的映射
+            const answerMap = new Map()
+            oldQuestions.forEach(item => {
+              if (item.question) {
+                const qid = item.question.id
+                if (this.answers[qid] !== undefined) {
+                  answerMap.set(qid, this.answers[qid])
+                }
+                if (this.multipleAnswers[qid] !== undefined) {
+                  answerMap.set(qid, this.multipleAnswers[qid])
+                }
+              }
+            })
+
+            // 更新题目列表
+            this.homework.questions = newQuestions
+
+            // 恢复答案
+            newQuestions.forEach(item => {
+              if (item.question) {
+                const qid = item.question.id
+                if (answerMap.has(qid)) {
+                  const answer = answerMap.get(qid)
+                  if (Array.isArray(answer)) {
+                    this.$set(this.multipleAnswers, qid, answer)
+                  } else {
+                    this.$set(this.answers, qid, answer)
+                  }
+                }
+              }
+            })
+          }
+
+          // 启动计时器
+          this.startExamTimer()
+
+          // 初始化防作弊
+          this.initAntiCheat()
+
+          this.$message.success('考试开始，请认真答题')
+        } else {
+          this.$message.error(res.message || '开始考试失败')
+        }
+      } catch (error) {
+        console.error('开始考试失败:', error)
+        this.$message.error('开始考试失败')
+      }
+    },
+    // 启动考试计时器
+    startExamTimer() {
+      if (this.examTimerInterval) {
+        clearInterval(this.examTimerInterval)
+      }
+
+      this.examTimerInterval = setInterval(async () => {
+        this.remainingSeconds--
+
+        // 更新时间状态
+        if (this.remainingSeconds <= 0) {
+          // 超时，强制交卷
+          this.timeState = 'overtime'
+          this.handleOvertime()
+        } else if (this.remainingSeconds <= 300) {
+          // 剩余5分钟
+          this.timeState = 'critical'
+        } else if (this.remainingSeconds <= 600) {
+          // 剩余10分钟
+          this.timeState = 'warning'
+        }
+
+        // 每30秒轮询一次考试状态（包括canSubmit状态）
+        if (this.remainingSeconds % 30 === 0) {
+          await this.pollExamStatus()
+        }
+      }, 1000)
+    },
+    // 处理考试模式下的交卷按钮点击
+    handleExamSubmit() {
+      if (!this.canSubmitInExam) {
+        const elapsedMinutes = Math.floor((new Date() - this.examStartTime) / 1000 / 60)
+        const remainingMinutes = this.examConfig.allowSubmitAfterMinutes - elapsedMinutes
+        this.$message.warning({
+          message: `开考后${this.examConfig.allowSubmitAfterMinutes}分钟内不允许交卷，请再等待${remainingMinutes}分钟`,
+          duration: 3000,
+          showClose: true
+        })
+        return
+      }
+      this.showConfirmDialog = true
+    },
+    // 轮询考试状态
+    async pollExamStatus() {
+      try {
+        const homeworkId = this.$route.params.homeworkId
+        const res = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
+        if (res.code === 200 && res.data) {
+          this.remainingSeconds = res.data.remainingSeconds
+          this.canSubmitInExam = res.data.canSubmit
+
+          // 如果后端已经自动强制收卷，停止计时器并提示
+          if (res.data.isSubmitted && !this.isSubmitted) {
+            this.isSubmitted = true
+
+            // 停止计时器
+            if (this.examTimerInterval) {
+              clearInterval(this.examTimerInterval)
+              this.examTimerInterval = null
+            }
+
+            // 清理防作弊监听
+            this.cleanupAntiCheat()
+
+            // 显示提示（区分超时和老师强制收卷）
+            // 只有在作业进行中才显示提示
+            if (res.data.isForcedSubmit &&
+                !this.hasShownForceSubmitMessage &&
+                this.homework.status === 2) {
+              if (this.remainingSeconds <= 0) {
+                this.$message.warning({
+                  message: '考试时间已到，系统已自动收卷',
+                  duration: 5000,
+                  showClose: true
+                })
+              } else {
+                this.$message.warning({
+                  message: '您已被老师强制收卷，请停止答题',
+                  duration: 5000,
+                  showClose: true
+                })
+              }
+              this.hasShownForceSubmitMessage = true
+            }
+
+            // 刷新页面显示最终状态
+            setTimeout(async () => {
+              await this.loadHomeworkDetail()
+            }, 1000)
+          }
+        }
+      } catch (error) {
+        console.error('轮询考试状态失败:', error)
+      }
+    },
+    // 超时处理
+    async handleOvertime() {
+      this.$message.warning('考试时间已到，系统正在自动收卷...')
+
+      // 停止计时器
+      if (this.examTimerInterval) {
+        clearInterval(this.examTimerInterval)
+      }
+
+      // 自动提交
+      setTimeout(async () => {
+        await this.confirmSubmit(true)
+      }, 3000)
+    },
+    // 初始化防作弊
+    initAntiCheat() {
+      // 先清理旧的监听器，防止重复添加
+      this.cleanupAntiCheat()
+
+      this.$nextTick(() => {
+        // 禁止右键
+        document.addEventListener('contextmenu', this.handleContextMenu)
+
+        // 禁止复制粘贴
+        if (this.examConfig.disableCopyPaste) {
+          document.addEventListener('copy', this.handleCopy)
+          document.addEventListener('paste', this.handlePaste)
+          document.addEventListener('cut', this.handleCut)
+        }
+
+        // 监听全屏变化
+        if (this.examConfig.requireFullscreen) {
+          document.addEventListener('fullscreenchange', this.handleFullscreenChange)
+          document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+          // 进入全屏
+          this.enterFullscreen()
+          // 延迟检查全屏状态（给浏览器一点时间处理全屏请求）
+          setTimeout(() => {
+            this.checkFullscreenStatus()
+          }, 1000)
+        }
+
+        // 监听标签页切换
+        if (this.examConfig.disallowTabSwitch) {
+          document.addEventListener('visibilitychange', this.handleVisibilityChange)
+        }
+
+        // 监听窗口焦点（检测切换到其他软件）
+        window.addEventListener('blur', this.handleWindowBlur)
+        window.addEventListener('focus', this.handleWindowFocus)
+
+        // 禁用常用快捷键
+        document.addEventListener('keydown', this.handleKeyDown)
+
+        // 防止页面刷新或关闭
+        window.addEventListener('beforeunload', this.handleBeforeUnload)
+      })
+    },
+    // 清理防作弊监听
+    cleanupAntiCheat() {
+      document.removeEventListener('contextmenu', this.handleContextMenu)
+      document.removeEventListener('copy', this.handleCopy)
+      document.removeEventListener('paste', this.handlePaste)
+      document.removeEventListener('cut', this.handleCut)
+      document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+      window.removeEventListener('blur', this.handleWindowBlur)
+      window.removeEventListener('focus', this.handleWindowFocus)
+      document.removeEventListener('keydown', this.handleKeyDown)
+      window.removeEventListener('beforeunload', this.handleBeforeUnload)
+
+      // 停止计时器
+      if (this.examTimerInterval) {
+        clearInterval(this.examTimerInterval)
+      }
+    },
+    // 禁止右键
+    handleContextMenu(e) {
+      // 如果已经提交，不再检测
+      if (this.isSubmitted) {
+        return
+      }
+      e.preventDefault()
+      this.$message.warning('考试模式下禁止使用右键菜单')
+      this.logViolation('context_menu', '尝试打开右键菜单')
+    },
+    // 禁止复制
+    handleCopy(e) {
+      // 如果已经提交，不再检测
+      if (this.isSubmitted) {
+        return
+      }
+      e.preventDefault()
+      this.$message.warning('考试模式下禁止复制')
+      this.logViolation('copy_attempt', '尝试复制内容')
+    },
+    // 禁止粘贴
+    handlePaste(e) {
+      // 如果已经提交，不再检测
+      if (this.isSubmitted) {
+        return
+      }
+      e.preventDefault()
+      this.$message.warning('考试模式下禁止粘贴')
+      this.logViolation('paste_attempt', '尝试粘贴内容')
+    },
+    // 禁止剪切
+    handleCut(e) {
+      // 如果已经提交，不再检测
+      if (this.isSubmitted) {
+        return
+      }
+      e.preventDefault()
+      this.$message.warning('考试模式下禁止剪切')
+      this.logViolation('cut_attempt', '尝试剪切内容')
+    },
+    // 进入全屏
+    async enterFullscreen() {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen()
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          await document.documentElement.webkitRequestFullscreen()
+        }
+      } catch (error) {
+        // 全屏请求被拒绝或失败，提示用户
+        console.warn('进入全屏失败:', error)
+        // 不显示错误消息，因为checkFullscreenStatus会检查并提示
+      }
+    },
+    // 检查全屏状态
+    checkFullscreenStatus() {
+      // 如果已经提交，不再检查全屏状态
+      if (this.isSubmitted) {
+        return
+      }
+      // 防止重复显示消息
+      if (this.fullscreenWarned) {
+        return
+      }
+      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement
+      if (!isFullscreen && this.examConfig.requireFullscreen) {
+        this.fullscreenWarned = true
+        this.$message.warning({
+          message: '请进入全屏模式参加考试（按F11或点击页面）',
+          duration: 5000,
+          showClose: true,
+          onClose: () => {
+            // 用户关闭提示后，重置标志，允许再次提示
+            this.fullscreenWarned = false
+            // 用户关闭提示后，再次尝试进入全屏
+            this.enterFullscreen()
+          }
+        })
+      }
+    },
+    // 全屏变化监听
+    handleFullscreenChange() {
+      // 如果已经提交，不再检测全屏变化
+      if (this.isSubmitted) {
+        return
+      }
+      // 记录全屏变化时间，用于避免 visibilitychange 误报
+      this.fullscreenChangeTime = Date.now()
+
+      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement
+
+      if (!isFullscreen && this.examConfig.requireFullscreen) {
+        this.logViolation('fullscreen_exit', '退出全屏')
+
+        // 只警告一次，不强制弹窗或自动进入全屏
+        if (!this.fullscreenWarned) {
+          this.fullscreenWarned = true
+          this.$message.warning({
+            message: '检测到退出全屏，请立即返回全屏！按 F11 或在页面右键选择"进入全屏"',
+            duration: 5000,
+            showClose: true
+          })
+        }
+      } else if (isFullscreen) {
+        // 重新进入全屏后重置警告标志
+        this.fullscreenWarned = false
+      }
+    },
+    // 标签页切换监听
+    handleVisibilityChange() {
+      // 如果已经提交，不再检测标签页切换
+      if (this.isSubmitted) {
+        return
+      }
+      if (document.hidden && this.examConfig.disallowTabSwitch) {
+        // 检查是否是因为全屏变化导致的误报
+        // 如果在最近 500ms 内发生了全屏变化，则认为是全屏变化导致的 hidden，不记录为切换标签页
+        const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
+        if (timeSinceFullscreenChange < 500) {
+          console.log('忽略全屏变化导致的 visibilitychange 事件')
+          return
+        }
+
+        // 避免误报：只有在页面真的隐藏了一段时间后才认为是切换标签页
+        // 给一个短暂的缓冲期（100ms），避免因为浏览器UI交互导致的误报
+        setTimeout(() => {
+          if (document.hidden) {
+            this.$message.warning('检测到切换标签页，请专注于考试！')
+            this.logViolation('tab_switch', '切换标签页')
+          }
+        }, 100)
+      }
+    },
+    // 窗口失去焦点
+    handleWindowBlur() {
+      // 如果已经提交，不再检测窗口焦点变化
+      if (this.isSubmitted) {
+        return
+      }
+      // 检查是否是因为全屏变化导致的误报
+      // 如果在最近 500ms 内发生了全屏变化，则认为是全屏变化导致的 blur，不记录为窗口失焦
+      const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
+      if (timeSinceFullscreenChange < 500) {
+        console.log('忽略全屏变化导致的 blur 事件')
+        return
+      }
+      if (!document.hidden) {
+        this.$notify({
+          title: '警告',
+          message: '检测到切换到其他窗口，请专注于考试！',
+          type: 'warning',
+          duration: 3000
+        })
+        this.logViolation('window_blur', '切换到其他软件')
+      }
+    },
+    // 窗口获得焦点
+    handleWindowFocus() {
+      // 如果已经提交，不再检查全屏状态
+      if (this.isSubmitted) {
+        return
+      }
+      if (this.examConfig.requireFullscreen) {
+        // 延迟检查全屏状态，确保浏览器已完成焦点切换
+        setTimeout(() => {
+          this.checkFullscreenStatus()
+        }, 500)
+      }
+    },
+    // 禁用快捷键
+    handleKeyDown(e) {
+      // 禁用 Ctrl+C, Ctrl+V, Ctrl+X
+      if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+        if (this.examConfig.disableCopyPaste) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      // 禁用 F12
+      if (e.key === 'F12') {
+        e.preventDefault()
+        this.logViolation('devtools_attempt', '尝试打开开发者工具')
+        return
+      }
+
+      // 禁用 Ctrl+Shift+I
+      if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+        e.preventDefault()
+        this.logViolation('devtools_attempt', '尝试打开开发者工具')
+        return
+      }
+
+      // 禁用 Ctrl+U
+      if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault()
+        return
+      }
+
+      // 禁用 Ctrl+S
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault()
+        return
+      }
+
+      // 禁用 Esc（如果要求全屏）
+      if (e.key === 'Escape' && this.examConfig.requireFullscreen) {
+        e.preventDefault()
+        this.$message.warning('考试期间禁止退出全屏')
+        return
+      }
+    },
+    // 记录违规
+    async logViolation(type, description) {
+      try {
+        const homeworkId = this.$route.params.homeworkId
+        await this.$store.dispatch('classroom/logViolation', {
+          homeworkId,
+          violationType: type,
+          description
+        })
+      } catch (error) {
+        console.error('记录违规失败:', error)
+      }
+    },
+    // 获取设备信息
+    getDeviceInfo() {
+      return {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        screen: {
+          width: screen.width,
+          height: screen.height
+        },
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+    },
+    // 获取浏览器信息
+    getBrowserInfo() {
+      const ua = navigator.userAgent
+      let browser = 'Unknown'
+      if (ua.includes('Chrome')) browser = 'Chrome'
+      else if (ua.includes('Firefox')) browser = 'Firefox'
+      else if (ua.includes('Safari')) browser = 'Safari'
+      else if (ua.includes('Edge')) browser = 'Edge'
+
+      return {
+        name: browser,
+        version: navigator.appVersion,
+        language: navigator.language
+      }
+    },
+    // 防止页面刷新或关闭
+    handleBeforeUnload(e) {
+      if (this.isExamMode && this.examStarted && !this.isSubmitted) {
+        e.preventDefault()
+        e.returnValue = '考试正在进行中，离开会导致答案丢失！确定要离开吗？'
+        return e.returnValue
+      }
+    }
+  },
+  // 路由导航守卫：离开考试页面时给出警告
+  beforeRouteLeave(to, from, next) {
+    // 考试模式下且未提交时，给出警告但允许离开
+    if (this.isExamMode && this.examStarted && !this.isSubmitted) {
+      const answer = confirm('⚠️ 警告：考试正在进行中！\n\n离开后您可以再次进入继续考试，但请确保不会超时。确定要离开吗？')
+      if (answer) {
+        // 用户确认离开，不清理资源（组件销毁时会自动清理）
+        next()
+      } else {
+        // 用户取消，阻止导航
+        next(false)
+      }
+    } else {
+      next()
     }
   }
 }
@@ -1278,5 +2080,144 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* ==================== 考试模式样式 ==================== */
+.exam-confirm-content {
+  padding: 20px 0;
+}
+
+.warning-icon {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.warning-icon i {
+  font-size: 64px;
+  color: #E6A23C;
+}
+
+.exam-confirm-content h2 {
+  text-align: center;
+  margin: 20px 0;
+  color: #E6A23C;
+}
+
+.exam-rules {
+  margin: 20px 0;
+  padding: 20px;
+  background: #FFF9E6;
+  border-radius: 8px;
+  border: 1px solid #E6A23C;
+}
+
+.exam-rules h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.exam-rules ul {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+}
+
+.exam-rules li {
+  padding: 8px 0;
+  line-height: 1.8;
+  color: #606266;
+}
+
+.exam-rules li.warning {
+  color: #F56C6C;
+  font-weight: bold;
+}
+
+.checkbox-group {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 考试模式顶部标识栏 */
+.exam-header-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+  z-index: 1000;
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3); }
+  50% { box-shadow: 0 2px 12px rgba(255, 107, 53, 0.6); }
+}
+
+.exam-badge {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.exam-badge i {
+  margin-right: 8px;
+  font-size: 24px;
+}
+
+/* 考试计时器 */
+.exam-timer {
+  display: flex;
+  align-items: center;
+  font-size: 20px;
+  font-weight: bold;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+}
+
+.exam-timer.normal {
+  color: white;
+}
+
+.exam-timer.warning {
+  background: rgba(255, 255, 255, 0.3);
+  animation: shake 0.5s infinite;
+}
+
+.exam-timer.critical {
+  background: #F56C6C;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* 考试模式下页面边框 */
+.homework-detail {
+  transition: all 0.3s ease;
+}
+
+.homework-detail >>> .el-card {
+  margin-top: 80px; /* 为顶部栏留出空间 */
 }
 </style>

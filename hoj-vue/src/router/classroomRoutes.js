@@ -37,6 +37,12 @@ const ClassroomRoutes = {
       meta: { title: '作业详情', requiresRole: 'teacher' }
     },
     {
+      path: 'teacher/homework/:classroomId/:homeworkId/exam-monitoring',
+      name: 'ExamMonitoring',
+      component: () => import('@/views/classroom/teacher/ExamMonitoring'),
+      meta: { title: '考试监控', requiresRole: 'teacher' }
+    },
+    {
       path: 'teacher/homework/:classroomId/:homeworkId/analysis',
       name: 'HomeworkAnalysis',
       component: () => import('@/views/classroom/teacher/HomeworkAnalysis'),

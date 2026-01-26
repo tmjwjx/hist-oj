@@ -90,6 +90,13 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 		ShowScore    int                    `json:"showScore"`
 		ShowHomework int                    `json:"showHomework"`
 		ShowAnswer   int                    `json:"showAnswer"`
+		// 考试模式字段
+		IsExamMode              int `json:"isExamMode"`
+		ExamDuration            int `json:"examDuration"`
+		AllowSubmitAfterMinutes int `json:"allowSubmitAfterMinutes"`
+		DisableCopyPaste        int `json:"disableCopyPaste"`
+		RequireFullscreen       int `json:"requireFullscreen"`
+		DisallowTabSwitch       int `json:"disallowTabSwitch"`
 		Questions    []HomeworkQuestionItem `json:"questions" binding:"required"`
 	}
 
@@ -120,15 +127,21 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 
 	// 创建作业
 	homework := &model.ClassroomHomework{
-		ClassroomID:  req.ClassroomID,
-		Title:        req.Title,
-		Description:  req.Description,
-		StartTime:    startTime,
-		EndTime:      endTime,
-		ShowScore:    req.ShowScore,
-		ShowHomework: req.ShowHomework,
-		ShowAnswer:   req.ShowAnswer,
-		Status:       1,
+		ClassroomID:             req.ClassroomID,
+		Title:                   req.Title,
+		Description:             req.Description,
+		StartTime:               startTime,
+		EndTime:                 endTime,
+		ShowScore:               req.ShowScore,
+		ShowHomework:            req.ShowHomework,
+		ShowAnswer:              req.ShowAnswer,
+		Status:                  1,
+		IsExamMode:              req.IsExamMode,
+		ExamDuration:            req.ExamDuration,
+		AllowSubmitAfterMinutes: req.AllowSubmitAfterMinutes,
+		DisableCopyPaste:        req.DisableCopyPaste,
+		RequireFullscreen:       req.RequireFullscreen,
+		DisallowTabSwitch:       req.DisallowTabSwitch,
 	}
 
 	if err := db.Create(homework).Error; err != nil {
@@ -208,6 +221,13 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 		ShowHomework int    `json:"showHomework"`
 		ShowScore    int    `json:"showScore"`
 		ShowAnswer   int    `json:"showAnswer"`
+		// 考试模式字段
+		IsExamMode              int `json:"isExamMode"`
+		ExamDuration            int `json:"examDuration"`
+		AllowSubmitAfterMinutes int `json:"allowSubmitAfterMinutes"`
+		DisableCopyPaste        int `json:"disableCopyPaste"`
+		RequireFullscreen       int `json:"requireFullscreen"`
+		DisallowTabSwitch       int `json:"disallowTabSwitch"`
 		Questions    []struct {
 			QuestionID   *uint64 `json:"questionId"`   // 题库题目ID(可选)
 			ProblemID    *string `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型)
@@ -264,6 +284,12 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 	homework.ShowHomework = req.ShowHomework
 	homework.ShowScore = req.ShowScore
 	homework.ShowAnswer = req.ShowAnswer
+	homework.IsExamMode = req.IsExamMode
+	homework.ExamDuration = req.ExamDuration
+	homework.AllowSubmitAfterMinutes = req.AllowSubmitAfterMinutes
+	homework.DisableCopyPaste = req.DisableCopyPaste
+	homework.RequireFullscreen = req.RequireFullscreen
+	homework.DisallowTabSwitch = req.DisallowTabSwitch
 
 	// 更新状态
 	now := time.Now()
@@ -474,19 +500,55 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 		// 检查是否为教师
 		isTeacher = classroom.TeacherID == uid.(string)
 
-		// 检查是否为班级管理员
-		var classRole model.ClassroomStudent
-		if err := db.Where("classroom_id = ? AND uid = ? AND role = ?",
-			homework.ClassroomID, uid.(string), "admin").First(&classRole).Error; err == nil {
+		// 检查是否为班级管理员（从user_roles表查询）
+		var userRole model.ClassroomUserRole
+		err := db.Where("uid = ? AND role = ?", uid.(string), "admin").First(&userRole).Error
+		if err == nil {
 			isAdmin = true
+		} else if err != gorm.ErrRecordNotFound {
+			// 只有非"记录不存在"的错误才需要记录日志
+			logger.Warn("查询班级管理员角色失败", zap.Error(err))
 		}
 	}
 
 	// 检查学生是否已正式提交作业
 	var submissions []model.HomeworkSubmit
 	if err := db.Where("homework_id = ? AND uid = ? AND is_officially_submitted = ?",
-		homeworkID, uid.(string), true).Find(&submissions).Error; err == nil && len(submissions) > 0 {
+		homeworkID, uid.(string), 1).Find(&submissions).Error; err == nil && len(submissions) > 0 {
 		isStudentSubmitted = true
+	}
+
+	// 考试模式：检查是否需要为学生返回乱序题目
+	if homework.IsExamMode == 1 && !isTeacher && !isAdmin {
+		// 查询学生的题目顺序映射
+		var studentOrder model.StudentQuestionOrder
+		if err := db.Where("homework_id = ? AND uid = ?", homeworkID, uid.(string)).
+			First(&studentOrder).Error; err == nil {
+			// 解析顺序映射
+			type OrderMappingItem struct {
+				OriginalOrder int `json:"originalOrder"`
+				DisplayOrder  int `json:"displayOrder"`
+			}
+			var orderMapping []OrderMappingItem
+			if err := json.Unmarshal([]byte(studentOrder.OrderMapping), &orderMapping); err == nil {
+				// 创建原始顺序到显示顺序的映射
+				originalToDisplay := make(map[int]int)
+				for _, item := range orderMapping {
+					originalToDisplay[item.OriginalOrder] = item.DisplayOrder
+				}
+
+				// 创建新的题目切片，按照乱序排列
+				newQuestions := make([]model.HomeworkQuestion, len(homework.Questions))
+				for _, q := range homework.Questions {
+					// q.QuestionOrder 是题目的原始顺序（1-based，从数据库question_order字段）
+					// 找到该题目应该显示的位置
+					displayOrder := originalToDisplay[q.QuestionOrder]
+					// displayOrder 是 1-based，转换为 0-based 索引
+					newQuestions[displayOrder-1] = q
+				}
+				homework.Questions = newQuestions
+			}
+		}
 	}
 
 	// 判断是否应该显示答案
@@ -602,16 +664,18 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 			First(&existingSubmit).Error
 
 		if checkErr == nil {
-			// 更新已有记录（保持原有的 IsOfficiallySubmitted 状态）
-			existingSubmit.Answer = answer
+			// 更新已有记录（只更新需要的字段，避免更新 ExamStartTime 等字段）
+			updates := map[string]interface{}{
+				"answer": answer,
+			}
 			// 只有当 req.Attachments 不为 nil 且当前题目有附件数据时，才更新 attachment
 			// 避免自动保存草稿时清空已上传的图片
 			if req.Attachments != nil {
-				existingSubmit.Attachment = attachment
+				updates["attachment"] = attachment
 			}
-			// 草稿保存不修改分数和提交状态
+			// 草稿保存不修改分数、提交状态和考试相关字段
 
-			if err := tx.Save(&existingSubmit).Error; err != nil {
+			if err := tx.Model(&existingSubmit).Updates(updates).Error; err != nil {
 				logger.Error("更新作业草稿失败", zap.Error(err))
 				tx.Rollback()
 				c.JSON(http.StatusOK, errorResponse(500, "保存草稿失败"))
@@ -818,6 +882,11 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			existingSubmit.IsScored = isScored
 			existingSubmit.IsOfficiallySubmitted = 1 // 标记为正式提交
 
+			// 如果是考试模式，记录考试结束时间
+			if homework.IsExamMode == 1 && existingSubmit.ExamEndTime == nil {
+				existingSubmit.ExamEndTime = &now
+			}
+
 			if err := tx.Save(&existingSubmit).Error; err != nil {
 				logger.Error("更新作业提交失败", zap.Error(err))
 				tx.Rollback()
@@ -837,6 +906,11 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 				IsOfficiallySubmitted: 1, // 标记为正式提交
 			}
 
+			// 如果是考试模式，记录考试结束时间
+			if homework.IsExamMode == 1 {
+				submit.ExamEndTime = &now
+			}
+
 			if err := tx.Create(submit).Error; err != nil {
 				logger.Error("提交作业失败", zap.Error(err))
 				tx.Rollback()
@@ -854,10 +928,17 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 
 	// 将该用户的所有编程题记录也标记为正式提交
 	// 因为编程题是通过 SaveProgrammingSubmission 单独保存的
+	updates := map[string]interface{}{
+		"is_officially_submitted": 1,
+	}
+	// 如果是考试模式，同时记录考试结束时间
+	if homework.IsExamMode == 1 {
+		updates["exam_end_time"] = now
+	}
 	if err := tx.Model(&model.HomeworkSubmit{}).
 		Where("homework_id = ? AND uid = ? AND problem_id IS NOT NULL AND is_officially_submitted = 0",
 			req.HomeworkID, uid.(string)).
-		Update("is_officially_submitted", 1).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		logger.Error("更新编程题正式提交状态失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "提交失败"))

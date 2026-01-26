@@ -127,6 +127,13 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/homework/grade", AuthMiddleware(), handler.GradeHomework)
 			classroom.POST("/homework/programming/grade", AuthMiddleware(), handler.GradeProgrammingHomework)
 			classroom.POST("/homework/recalculate", AuthMiddleware(), handler.RecalculateScore)
+			// 考试模式相关接口 - 需要认证
+			classroom.POST("/homework/:homeworkId/start-exam", AuthMiddleware(), handler.StartExam)
+			classroom.GET("/homework/:homeworkId/exam-status", AuthMiddleware(), handler.GetExamStatus)
+			classroom.POST("/homework/violation", AuthMiddleware(), handler.LogViolation)
+			classroom.GET("/homework/:homeworkId/exam-monitoring", AuthMiddleware(), handler.GetExamMonitoring)
+			classroom.POST("/homework/force-submit", AuthMiddleware(), handler.ForceSubmit)
+			classroom.POST("/homework/:homeworkId/force-submit-all", AuthMiddleware(), handler.ForceSubmitAll)
 			// 参数化路径放在最后
 			classroom.GET("/homework/:homeworkId", AuthMiddleware(), handler.GetHomeworkDetail)
 			classroom.PUT("/homework/:homeworkId", AuthMiddleware(), handler.UpdateHomework)

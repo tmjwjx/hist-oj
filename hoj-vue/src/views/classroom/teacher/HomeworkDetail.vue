@@ -3,6 +3,10 @@
     <div class="header">
       <h3>{{ homework.title || '作业详情' }}</h3>
       <div>
+        <el-button v-if="isExamMode" type="warning" @click="viewExamMonitoring">
+          <i class="el-icon-view"></i>
+          <span>考试监控</span>
+        </el-button>
         <el-button type="primary" @click="viewAnalysis">学情分析</el-button>
         <el-button @click="editHomework">{{ $t('m.Edit') }}</el-button>
         <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
@@ -81,6 +85,21 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="违规" width="100">
+            <template slot-scope="{ row }">
+              <el-button
+                v-if="hasViolations(row)"
+                type="danger"
+                size="mini"
+                @click="viewViolations(row)"
+                circle
+                icon="el-icon-warning"
+                :title="`有 ${getViolationCount(row)} 条违规记录`"
+              >
+              </el-button>
+              <span v-else style="color: #909399; font-size: 12px;">无违规</span>
+            </template>
+          </el-table-column>
           <el-table-column :label="$t('m.Operation')" width="150">
             <template slot-scope="{ row }">
               <el-button size="small" type="primary" @click="viewSubmission(row)">
@@ -91,6 +110,40 @@
         </el-table>
       </div>
     </el-card>
+
+    <!-- 违规记录对话框 -->
+    <el-dialog
+      title="学生违规记录"
+      :visible.sync="violationsDialogVisible"
+      width="600px"
+    >
+      <div v-if="currentStudent">
+        <p><strong>学生：</strong>{{ currentStudent.realName || currentStudent.studentName }}</p>
+        <el-divider></el-divider>
+        <div v-if="currentStudentViolations && currentStudentViolations.length > 0">
+          <el-timeline>
+            <el-timeline-item
+              v-for="(violation, index) in currentStudentViolations"
+              :key="index"
+              :timestamp="formatTime(violation.createdAt)"
+              placement="top"
+              :type="getViolationType(violation.violationType)"
+            >
+              <el-card>
+                <h4>{{ getViolationTypeText(violation.violationType) }}</h4>
+                <p v-if="violation.description">{{ violation.description }}</p>
+                <p style="color: #909399; font-size: 12px;">
+                  <i class="el-icon-time"></i> {{ formatTime(violation.createdAt) }}
+                </p>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </div>
+        <div v-else>
+          <el-empty description="暂无违规记录"></el-empty>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -113,6 +166,11 @@ export default {
       homework: {},
       submissions: [],
       studentSubmissions: [], // 聚合后的学生提交数据
+      // 违规记录相关
+      violationsDialogVisible: false,
+      currentStudent: null,
+      currentStudentViolations: [],
+      allViolationsMap: {}, // uid -> violations[]
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -125,10 +183,28 @@ export default {
   mounted() {
     // 由 realtimeSync mixin 自动启动同步
   },
+  computed: {
+    isExamMode() {
+      return this.homework && this.homework.isExamMode === 1
+    },
+    classroomId() {
+      return this.$route.params.classroomId
+    },
+    homeworkId() {
+      return this.$route.params.homeworkId
+    }
+  },
   methods: {
     async loadHomeworkDetail() {
       // 避免重复请求
       if (this.loading) return
+
+      // 检查 homeworkId 是否有效
+      const homeworkId = this.$route.params.homeworkId
+      if (!homeworkId) {
+        console.error('homeworkId is undefined')
+        return
+      }
 
       // 只在首次加载时显示 loading，轮询时不显示
       const isFirstLoad = !this.homework || Object.keys(this.homework).length === 0
@@ -137,7 +213,6 @@ export default {
       }
 
       try {
-        const homeworkId = this.$route.params.homeworkId
         const [homeworkRes, submissionsRes] = await Promise.all([
           this.$store.dispatch('classroom/getHomeworkDetail', homeworkId),
           this.$store.dispatch('classroom/getHomeworkSubmissions', homeworkId)
@@ -168,6 +243,7 @@ export default {
           }
         }
       } catch (error) {
+        console.error('加载作业详情失败:', error)
         if (isFirstLoad) {
           this.$message.error(this.$t('m.Load_Failed'))
         }
@@ -226,7 +302,10 @@ export default {
       this.$router.push({
         name: 'CreateHomework',
         params: { classroomId: this.$route.params.classroomId },
-        query: { editId: this.homework.id }
+        query: {
+          editId: this.homework.id,
+          isExamMode: this.homework.isExamMode || 0
+        }
       })
     },
     goBack() {
@@ -235,6 +314,15 @@ export default {
     viewAnalysis() {
       this.$router.push({
         name: 'HomeworkAnalysis',
+        params: {
+          classroomId: this.$route.params.classroomId,
+          homeworkId: this.$route.params.homeworkId
+        }
+      })
+    },
+    viewExamMonitoring() {
+      this.$router.push({
+        name: 'ExamMonitoring',
         params: {
           classroomId: this.$route.params.classroomId,
           homeworkId: this.$route.params.homeworkId
@@ -356,6 +444,95 @@ export default {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+    },
+    // ==================== 违规记录相关方法 ====================
+    // 检查学生是否有违规记录
+    hasViolations(studentSubmission) {
+      if (!studentSubmission.questions || studentSubmission.questions.length === 0) {
+        return false
+      }
+      // 检查是否有任何违规计数大于0
+      return studentSubmission.questions.some(q => {
+        const tabSwitchCount = q.tabSwitchCount || 0
+        const fullscreenExitCount = q.fullscreenExitCount || 0
+        const copyPasteAttemptCount = q.copyPasteAttemptCount || 0
+        return tabSwitchCount > 0 || fullscreenExitCount > 0 || copyPasteAttemptCount > 0
+      })
+    },
+    // 获取学生违规总数
+    getViolationCount(studentSubmission) {
+      if (!studentSubmission.questions || studentSubmission.questions.length === 0) {
+        return 0
+      }
+      return studentSubmission.questions.reduce((total, q) => {
+        const tabSwitchCount = q.tabSwitchCount || 0
+        const fullscreenExitCount = q.fullscreenExitCount || 0
+        const copyPasteAttemptCount = q.copyPasteAttemptCount || 0
+        return total + tabSwitchCount + fullscreenExitCount + copyPasteAttemptCount
+      }, 0)
+    },
+    // 查看违规记录
+    async viewViolations(studentSubmission) {
+      this.currentStudent = studentSubmission
+      this.currentStudentViolations = []
+
+      // 构建违规记录列表
+      const violations = []
+      if (studentSubmission.questions && studentSubmission.questions.length > 0) {
+        studentSubmission.questions.forEach(q => {
+          const tabSwitchCount = q.tabSwitchCount || 0
+          const fullscreenExitCount = q.fullscreenExitCount || 0
+          const copyPasteAttemptCount = q.copyPasteAttemptCount || 0
+
+          // 添加违规记录
+          for (let i = 0; i < tabSwitchCount; i++) {
+            violations.push({
+              violationType: 'tab_switch',
+              description: '切换浏览器标签页',
+              createdAt: q.createdAt
+            })
+          }
+          for (let i = 0; i < fullscreenExitCount; i++) {
+            violations.push({
+              violationType: 'fullscreen_exit',
+              description: '退出全屏模式',
+              createdAt: q.createdAt
+            })
+          }
+          for (let i = 0; i < copyPasteAttemptCount; i++) {
+            violations.push({
+              violationType: 'copy_paste_attempt',
+              description: '尝试复制或粘贴',
+              createdAt: q.createdAt
+            })
+          }
+        })
+      }
+
+      this.currentStudentViolations = violations
+      this.violationsDialogVisible = true
+    },
+    // 获取违规类型（用于 timeline 颜色）
+    getViolationType(type) {
+      const typeMap = {
+        'tab_switch': 'warning',
+        'fullscreen_exit': 'danger',
+        'copy_paste_attempt': 'danger',
+        'context_menu': 'warning',
+        'devtools_attempt': 'danger'
+      }
+      return typeMap[type] || 'primary'
+    },
+    // 获取违规类型文本
+    getViolationTypeText(type) {
+      const typeMap = {
+        'tab_switch': '切换标签页',
+        'fullscreen_exit': '退出全屏',
+        'copy_paste_attempt': '尝试复制/粘贴',
+        'context_menu': '右键菜单',
+        'devtools_attempt': '开发者工具'
+      }
+      return typeMap[type] || type
     }
   }
 }

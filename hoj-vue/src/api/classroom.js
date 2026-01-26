@@ -212,5 +212,31 @@ export default {
   },
   recallMessage(messageId) {
     return axios.delete(`${BASE_URL}/message/${messageId}`)
+  },
+
+  // ==================== 考试模式相关 ====================
+  // 开始考试
+  startExam(homeworkId, data) {
+    return axios.post(`${BASE_URL}/homework/${homeworkId}/start-exam`, data)
+  },
+  // 获取考试状态
+  getExamStatus(homeworkId) {
+    return axios.get(`${BASE_URL}/homework/${homeworkId}/exam-status`)
+  },
+  // 记录违规行为
+  logViolation(data) {
+    return axios.post(`${BASE_URL}/homework/violation`, data)
+  },
+  // 获取考试监控数据
+  getExamMonitoring(homeworkId) {
+    return axios.get(`${BASE_URL}/homework/${homeworkId}/exam-monitoring`)
+  },
+  // 强制单个学生交卷
+  forceSubmit({ homeworkId, uid, reason }) {
+    return axios.post(`${BASE_URL}/homework/force-submit`, { homeworkId, uid, reason })
+  },
+  // 批量强制收卷
+  forceSubmitAll(homeworkId) {
+    return axios.post(`${BASE_URL}/homework/${homeworkId}/force-submit-all`)
   }
 }

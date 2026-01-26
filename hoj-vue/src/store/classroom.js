@@ -360,6 +360,38 @@ const actions = {
   async getProgrammingSubmissions({ commit }, params) {
     const res = await api.getProgrammingSubmissions(params)
     return res.data
+  },
+
+  // ==================== 考试模式相关 ====================
+  // 开始考试
+  async startExam({ commit }, { homeworkId, deviceInfo, browserInfo }) {
+    const res = await api.startExam(homeworkId, { deviceInfo, browserInfo })
+    return res.data
+  },
+  // 获取考试状态
+  async getExamStatus({ commit }, homeworkId) {
+    const res = await api.getExamStatus(homeworkId)
+    return res.data
+  },
+  // 记录违规
+  async logViolation({ commit }, { homeworkId, violationType, description }) {
+    const res = await api.logViolation({ homeworkId, violationType, description })
+    return res.data
+  },
+  // 获取考试监控数据
+  async getExamMonitoring({ commit }, homeworkId) {
+    const res = await api.getExamMonitoring(homeworkId)
+    return res.data
+  },
+  // 强制单个学生交卷
+  async forceSubmit({ commit }, { homeworkId, uid, reason }) {
+    const res = await api.forceSubmit({ homeworkId, uid, reason })
+    return res.data
+  },
+  // 批量强制收卷
+  async forceSubmitAll({ commit }, homeworkId) {
+    const res = await api.forceSubmitAll(homeworkId)
+    return res.data
   }
 }
 
