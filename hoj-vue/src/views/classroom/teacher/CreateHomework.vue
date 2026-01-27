@@ -123,7 +123,7 @@
             <el-form-item label="考试时长" prop="examDuration" required>
               <el-input-number
                 v-model="form.examDuration"
-                :min="10"
+                :min="1"
                 :max="600"
                 :step="5"
                 controls-position="right"

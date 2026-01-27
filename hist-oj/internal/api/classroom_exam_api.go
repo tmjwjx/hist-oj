@@ -779,16 +779,17 @@ func (h *Handler) GetExamMonitoring(c *gin.Context) {
 
 			// 获取违规记录
 			var violations []model.ExamViolationLog
+			// 初始化 violations 为空数组，确保前端始终能正确渲染
+			status.Violations = []gin.H{}
+
 			if err := db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, student.UID).Find(&violations).Error; err != nil {
-				logger.Warn("查询违规记录失败",
+				logger.Error("查询违规记录失败",
 					zap.Error(err),
 					zap.Uint64("homeworkId", homeworkIDUint64),
 					zap.String("uid", student.UID))
-			}
-
-			if len(violations) > 0 {
+				// 查询失败时保持为空数组
+			} else if len(violations) > 0 {
 				status.ViolationCount = len(violations)
-				status.Violations = make([]gin.H, 0, len(violations))
 
 				// 按类型汇总违规次数
 				violationMap := make(map[string]int)
@@ -807,6 +808,11 @@ func (h *Handler) GetExamMonitoring(c *gin.Context) {
 					zap.String("uid", student.UID),
 					zap.Int("count", len(violations)),
 					zap.Any("violations", status.Violations))
+			} else {
+				// 没有违规记录，保持为空数组
+				logger.Debug("学生无违规记录",
+					zap.String("uid", student.UID),
+					zap.Uint64("homeworkId", homeworkIDUint64))
 			}
 		}
 
@@ -1005,6 +1011,7 @@ func (h *Handler) ForceSubmitAll(c *gin.Context) {
 	// 3. 批量强制收卷
 	now := time.Now()
 	forcedCount := 0
+	var forcedStudents []string // 记录被强制收卷的学生UID
 
 	for _, student := range inProgressStudents {
 		result := db.Model(&model.HomeworkSubmit{}).
@@ -1025,6 +1032,31 @@ func (h *Handler) ForceSubmitAll(c *gin.Context) {
 
 		if result.RowsAffected > 0 {
 			forcedCount++
+			forcedStudents = append(forcedStudents, student.UID)
+		}
+	}
+
+	// 4. 批量记录违规日志
+	if len(forcedStudents) > 0 {
+		var violations []model.ExamViolationLog
+		for _, studentUID := range forcedStudents {
+			violations = append(violations, model.ExamViolationLog{
+				HomeworkID:    homeworkID,
+				UID:           studentUID,
+				ViolationType: "forced_submit",
+				Description:   "教师强制收卷",
+			})
+		}
+
+		if err := db.Create(&violations).Error; err != nil {
+			logger.Warn("批量记录强制收卷违规日志失败",
+				zap.Uint64("homeworkId", homeworkID),
+				zap.Int("count", len(violations)),
+				zap.Error(err))
+		} else {
+			logger.Info("已记录批量强制收卷违规日志",
+				zap.Uint64("homeworkId", homeworkID),
+				zap.Int("count", len(violations)))
 		}
 	}
 

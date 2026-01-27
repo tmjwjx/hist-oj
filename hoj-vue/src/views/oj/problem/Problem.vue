@@ -636,36 +636,48 @@
                           (this.contestID &&
                             this.contestRuleType == RULE_TYPE.ACM)
                       ">
-                      <span style="font-size: 14px;font-weight: bolder;">{{ $t('m.Status') }}:</span>
-                      <el-tooltip
-                        class="item"
-                        effect="dark"
-                        :content="$t('m.View_submission_details')"
-                        placement="top"
-                      >
-                        <el-tag
-                          effect="dark"
-                          class="submission-status"
-                          :color="submissionStatus.color"
-                          @click.native="submissionRoute"
-                        >
-                          <template v-if="this.result.status == JUDGE_STATUS_RESERVE['Pending'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Compiling'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Judging'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Submitting']">
-                            <i class="el-icon-loading"></i> {{ submissionStatus.text }}
-                          </template>
-                          <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.ac">
-                            <i class="el-icon-success"> {{ submissionStatus.text }}</i>
-                          </template>
-                          <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.pa">
-                            <i class="el-icon-remove"> {{ submissionStatus.text }}</i>
-                          </template>
-                          <template v-else>
-                            <i class="el-icon-error"> {{ submissionStatus.text }}</i>
-                          </template>
-                        </el-tag>
-                      </el-tooltip>
+                      <div>
+                        <img
+                          v-if="this.result.status == JUDGE_STATUS_RESERVE['Pending']
+                          || this.result.status == JUDGE_STATUS_RESERVE['Compiling']
+                          || this.result.status == JUDGE_STATUS_RESERVE['Judging']
+                          || this.result.status == JUDGE_STATUS_RESERVE['Submitting']"
+                          src="/judging.gif?v=2"
+                          style="width: 60px; height: 60px; display: block; margin: 10px auto 10px auto;"
+                        />
+                        <div style="text-align: center;">
+                          <span style="font-size: 14px;font-weight: bolder;">{{ $t('m.Status') }}:</span>
+                          <el-tooltip
+                            class="item"
+                            effect="dark"
+                            :content="$t('m.View_submission_details')"
+                            placement="top"
+                          >
+                            <el-tag
+                              effect="dark"
+                              class="submission-status"
+                              :color="submissionStatus.color"
+                              @click.native="submissionRoute"
+                            >
+                              <template v-if="this.result.status == JUDGE_STATUS_RESERVE['Pending']
+                              || this.result.status == JUDGE_STATUS_RESERVE['Compiling']
+                              || this.result.status == JUDGE_STATUS_RESERVE['Judging']
+                              || this.result.status == JUDGE_STATUS_RESERVE['Submitting']">
+                                {{ submissionStatus.text }}
+                              </template>
+                              <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.ac">
+                                <i class="el-icon-success"> {{ submissionStatus.text }}</i>
+                              </template>
+                              <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.pa">
+                                <i class="el-icon-remove"> {{ submissionStatus.text }}</i>
+                              </template>
+                              <template v-else>
+                                <i class="el-icon-error"> {{ submissionStatus.text }}</i>
+                              </template>
+                            </el-tag>
+                          </el-tooltip>
+                        </div>
+                      </div>
                     </template>
                     <template v-else-if="
                         this.contestID &&
@@ -2214,7 +2226,7 @@ a {
     height: 635px !important;
   }
   #js-right-bottom {
-    height: 49px;
+    height: 130px;
   }
   .problem-tag {
     display: inline;

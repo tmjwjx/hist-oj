@@ -205,25 +205,28 @@
                       >{{ $t('m.Cancel_Evaluation') }}</el-button>
                     </span>
                   </div>
-                  <span
-                    :class="getStatusColor(row.status)"
-                    slot="reference"
-                  >
-                    <i
-                      class="el-icon-loading"
+                  <div slot="reference">
+                    <img
                       v-if="
-                    row.status == JUDGE_STATUS_RESERVE['Pending'] ||
+                    row.status == JUDGE_STATUS_RESERVE['Submitting'] ||
+                      row.status == JUDGE_STATUS_RESERVE['Pending'] ||
                       row.status == JUDGE_STATUS_RESERVE['Compiling'] ||
                       row.status == JUDGE_STATUS_RESERVE['Judging']
                   "
-                    ></i>
-                    <i
-                      class="el-icon-refresh"
-                      v-if="row.status == JUDGE_STATUS_RESERVE['sf'] && row.uid == userInfo.uid"
-                      @click="reSubmit(row)"
-                    ></i>
-                    {{ JUDGE_STATUS[row.status].name }}
-                  </span>
+                      src="/judging.gif?v=2"
+                      style="width: 60px; height: 60px; display: block; margin: 0 auto 5px auto;"
+                    />
+                    <span
+                      :class="getStatusColor(row.status)"
+                    >
+                      <i
+                        class="el-icon-refresh"
+                        v-if="row.status == JUDGE_STATUS_RESERVE['sf'] && row.uid == userInfo.uid"
+                        @click="reSubmit(row)"
+                      ></i>
+                      {{ JUDGE_STATUS[row.status].name }}
+                    </span>
+                  </div>
                 </el-popover>
               </el-tooltip>
               <el-tooltip
@@ -304,7 +307,8 @@
                 </el-tooltip>
               </template>
               <template v-else-if="
-                  row.status == JUDGE_STATUS_RESERVE['Pending'] ||
+                  row.status == JUDGE_STATUS_RESERVE['Submitting'] ||
+                    row.status == JUDGE_STATUS_RESERVE['Pending'] ||
                     row.status == JUDGE_STATUS_RESERVE['Compiling'] ||
                     row.status == JUDGE_STATUS_RESERVE['Judging']
                 ">
@@ -690,6 +694,7 @@ export default {
           let index = 0;
           for (let v of data.records) {
             if (
+              v.status == JUDGE_STATUS_RESERVE["Submitting"] ||
               v.status == JUDGE_STATUS_RESERVE["Pending"] ||
               v.status == JUDGE_STATUS_RESERVE["Compiling"] ||
               v.status == JUDGE_STATUS_RESERVE["Judging"]
@@ -750,6 +755,7 @@ export default {
               this.$refs.xTable.reloadRow(viewData[submitIds[key]], null, null);
 
               if (
+                result[submitId].status != JUDGE_STATUS_RESERVE["Submitting"] &&
                 result[submitId].status != JUDGE_STATUS_RESERVE["Pending"] &&
                 result[submitId].status != JUDGE_STATUS_RESERVE["Compiling"] &&
                 result[submitId].status != JUDGE_STATUS_RESERVE["Judging"]

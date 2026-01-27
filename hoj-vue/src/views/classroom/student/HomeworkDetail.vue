@@ -465,7 +465,9 @@ export default {
       examStarted: false, // 考试是否已开始
       fullscreenWarned: false, // 是否已经警告过退出全屏
       hasShownForceSubmitMessage: false, // 是否已显示过强制收卷消息
-      fullscreenChangeTime: 0 // 全屏变化的时间戳，用于避免 visibilitychange 误报
+      fullscreenChangeTime: 0, // 全屏变化的时间戳，用于避免 visibilitychange 误报
+      isFullscreenChanging: false, // 标志：是否正在处理全屏变化（用于过滤blur和visibilitychange事件）
+      isWindowFocused: true // 窗口是否有焦点（用于更精确地检测切换标签页）
     }
   },
   computed: {
@@ -1630,12 +1632,15 @@ export default {
       if (this.isSubmitted) {
         return
       }
-      // 记录全屏变化时间，用于避免 visibilitychange 误报
+
+      // 设置标志：正在处理全屏变化
+      this.isFullscreenChanging = true
       this.fullscreenChangeTime = Date.now()
 
       const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement
 
       if (!isFullscreen && this.examConfig.requireFullscreen) {
+        // 只在退出全屏时记录违规，进入全屏不记录
         this.logViolation('fullscreen_exit', '退出全屏')
 
         // 只警告一次，不强制弹窗或自动进入全屏
@@ -1651,6 +1656,12 @@ export default {
         // 重新进入全屏后重置警告标志
         this.fullscreenWarned = false
       }
+
+      // 2秒后重置标志，允许正常的blur和visibilitychange检测
+      setTimeout(() => {
+        this.isFullscreenChanging = false
+        console.log('全屏变化过滤窗口结束，恢复正常检测')
+      }, 2000)
     },
     // 标签页切换监听
     handleVisibilityChange() {
@@ -1658,21 +1669,32 @@ export default {
       if (this.isSubmitted) {
         return
       }
-      if (document.hidden && this.examConfig.disallowTabSwitch) {
-        // 检查是否是因为全屏变化导致的误报
-        // 如果在最近 500ms 内发生了全屏变化，则认为是全屏变化导致的 hidden，不记录为切换标签页
+
+      // 检查是否是因为全屏变化导致的误报
+      // 使用时间窗口过滤：只在全屏变化后500ms内忽略事件
+      // 这样既能过滤误报，又不会漏检真实的违规行为
+      if (this.isFullscreenChanging) {
         const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
         if (timeSinceFullscreenChange < 500) {
-          console.log('忽略全屏变化导致的 visibilitychange 事件')
+          // 全屏变化后500ms内的事件，认为是误报
+          console.log('忽略全屏变化后立即触发的 visibilitychange 事件', timeSinceFullscreenChange, 'ms')
           return
         }
+        // 超过500ms后，即使标志位还是true，也恢复检测
+        // 这样可以检测到学生在全屏变化后真的切换标签页的行为
+        console.log('全屏变化已超过500ms，恢复 visibilitychange 检测')
+      }
 
-        // 避免误报：只有在页面真的隐藏了一段时间后才认为是切换标签页
-        // 给一个短暂的缓冲期（100ms），避免因为浏览器UI交互导致的误报
+      if (document.hidden && this.examConfig.disallowTabSwitch) {
+        // 更精确的检测：只有当页面隐藏且窗口失去焦点时，才认为是切换标签页
+        // 这样可以过滤掉调整窗口大小、缩放等操作
         setTimeout(() => {
-          if (document.hidden) {
+          if (document.hidden && !this.isWindowFocused) {
             this.$message.warning('检测到切换标签页，请专注于考试！')
             this.logViolation('tab_switch', '切换标签页')
+          } else if (document.hidden && this.isWindowFocused) {
+            // 页面隐藏但窗口有焦点：可能是调整窗口大小、缩放等操作
+            console.log('页面隐藏但窗口有焦点，忽略（可能是调整窗口大小）')
           }
         }, 100)
       }
@@ -1683,13 +1705,25 @@ export default {
       if (this.isSubmitted) {
         return
       }
+
       // 检查是否是因为全屏变化导致的误报
-      // 如果在最近 500ms 内发生了全屏变化，则认为是全屏变化导致的 blur，不记录为窗口失焦
-      const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
-      if (timeSinceFullscreenChange < 500) {
-        console.log('忽略全屏变化导致的 blur 事件')
-        return
+      // 使用时间窗口过滤：只在全屏变化后500ms内忽略事件
+      // 这样既能过滤误报，又不会漏检真实的违规行为
+      if (this.isFullscreenChanging) {
+        const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
+        if (timeSinceFullscreenChange < 500) {
+          // 全屏变化后500ms内的事件，认为是误报
+          console.log('忽略全屏变化后立即触发的 blur 事件', timeSinceFullscreenChange, 'ms')
+          return
+        }
+        // 超过500ms后，即使标志位还是true，也恢复检测
+        // 这样可以检测到学生在全屏变化后真的切换窗口的行为
+        console.log('全屏变化已超过500ms，恢复 blur 检测')
       }
+
+      // 更新窗口焦点状态（在所有过滤逻辑之后）
+      this.isWindowFocused = false
+
       if (!document.hidden) {
         this.$notify({
           title: '警告',
@@ -1706,6 +1740,10 @@ export default {
       if (this.isSubmitted) {
         return
       }
+
+      // 更新窗口焦点状态
+      this.isWindowFocused = true
+
       if (this.examConfig.requireFullscreen) {
         // 延迟检查全屏状态，确保浏览器已完成焦点切换
         setTimeout(() => {
@@ -1756,18 +1794,34 @@ export default {
         return
       }
     },
-    // 记录违规
+    // 记录违规（带重试机制）
     async logViolation(type, description) {
-      try {
-        const homeworkId = this.$route.params.homeworkId
-        await this.$store.dispatch('classroom/logViolation', {
-          homeworkId,
-          violationType: type,
-          description
-        })
-      } catch (error) {
-        console.error('记录违规失败:', error)
+      const homeworkId = this.$route.params.homeworkId
+      const maxRetries = 3
+      let lastError = null
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          await this.$store.dispatch('classroom/logViolation', {
+            homeworkId,
+            violationType: type,
+            description
+          })
+          // 上报成功，不再重试
+          console.log('违规记录上报成功:', type, description)
+          return
+        } catch (error) {
+          lastError = error
+          console.warn(`违规记录上报失败 (第${i + 1}次尝试):`, error)
+          // 等待一小段时间后重试（指数退避）
+          if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000))
+          }
+        }
       }
+
+      // 所有重试都失败，记录错误
+      console.error('违规记录上报最终失败:', type, description, lastError)
     },
     // 获取设备信息
     getDeviceInfo() {
