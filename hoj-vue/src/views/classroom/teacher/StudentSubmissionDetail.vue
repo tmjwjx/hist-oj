@@ -109,21 +109,21 @@
             <div v-if="submit.question.type === 'judge'" class="question-options">
               <div class="option-display">
                 <el-tag
-                  :type="parseJudgeAnswer(submit.answer) ? 'primary' : 'info'"
+                  :type="parseJudgeAnswer(submit.answer) === true ? 'primary' : 'info'"
                   size="small"
                   effect="plain"
                 >
                   {{ $t('m.True') }}
                 </el-tag>
                 <!-- 正确答案标识 -->
-                <el-tag v-if="parseJudgeAnswer(submit.question.answer)"
+                <el-tag v-if="parseJudgeAnswer(submit.question.answer) === true"
                   type="success"
                   size="mini"
                   style="margin-left: 8px;">
                   ✓ {{ $t('m.Correct_Answer') }}
                 </el-tag>
                 <!-- 学生选择标识 -->
-                <el-tag v-if="parseJudgeAnswer(submit.answer)"
+                <el-tag v-if="parseJudgeAnswer(submit.answer) === true"
                   type="primary"
                   size="mini"
                   style="margin-left: 4px;">
@@ -132,21 +132,21 @@
               </div>
               <div class="option-display">
                 <el-tag
-                  :type="!parseJudgeAnswer(submit.answer) ? 'primary' : 'info'"
+                  :type="parseJudgeAnswer(submit.answer) === false ? 'primary' : 'info'"
                   size="small"
                   effect="plain"
                 >
                   {{ $t('m.False') }}
                 </el-tag>
                 <!-- 正确答案标识 -->
-                <el-tag v-if="!parseJudgeAnswer(submit.question.answer)"
+                <el-tag v-if="parseJudgeAnswer(submit.question.answer) === false"
                   type="success"
                   size="mini"
                   style="margin-left: 8px;">
                   ✓ {{ $t('m.Correct_Answer') }}
                 </el-tag>
                 <!-- 学生选择标识 -->
-                <el-tag v-if="!parseJudgeAnswer(submit.answer)"
+                <el-tag v-if="parseJudgeAnswer(submit.answer) === false"
                   type="primary"
                   size="mini"
                   style="margin-left: 4px;">
@@ -202,13 +202,18 @@
               <!-- 主观题不显示学生答案（因为上面已经显示了） -->
               <p v-if="submit.question.type !== 'subjective'"><strong>{{ $t('m.Student_Answer') }}:</strong>
                 <span v-if="submit.question.type === 'judge'">
-                  {{ parseJudgeAnswer(submit.answer) ? $t('m.True') : $t('m.False') }}
+                  <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
+                  <span v-else-if="parseJudgeAnswer(submit.answer) === true">{{ $t('m.True') }}</span>
+                  <span v-else-if="parseJudgeAnswer(submit.answer) === false">{{ $t('m.False') }}</span>
+                  <span v-else>{{ $t('m.No_Answer') }}</span>
                 </span>
                 <span v-else-if="submit.question.type === 'multiple_choice'">
-                  {{ parseMultipleChoiceAnswer(submit.answer) }}
+                  <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
+                  <span v-else>{{ parseMultipleChoiceAnswer(submit.answer) }}</span>
                 </span>
                 <span v-else>
-                  {{ submit.answer }}
+                  <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
+                  <span v-else>{{ submit.answer }}</span>
                 </span>
               </p>
             </div>
@@ -439,16 +444,20 @@ export default {
       }
     },
     parseJudgeAnswer(answer) {
-      // 处理判断题答案，返回布尔值
+      // 处理判断题答案，返回布尔值或null
+      // null 表示未作答，true/false 表示已作答
       // 支持多种格式：true/false, 1/0, 对/错, 正确/错误, True/False
+      if (answer === '' || answer === null || answer === undefined) {
+        return null // 未作答
+      }
       if (answer === true || answer === 'true' || answer === 1 || answer === '1' || answer === '对' || answer === '正确' || answer === 'True' || answer === 'TRUE') {
         return true
       }
       if (answer === false || answer === 'false' || answer === 0 || answer === '0' || answer === '错' || answer === '错误' || answer === 'False' || answer === 'FALSE') {
         return false
       }
-      // 默认返回 false
-      return false
+      // 未知格式，返回null表示未作答
+      return null
     },
     // 渲染 Markdown
     renderMarkdown(content) {

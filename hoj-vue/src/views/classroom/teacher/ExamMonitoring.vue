@@ -200,7 +200,7 @@ export default {
       return this.$route.params.classroomId
     },
     routeHomeworkId() {
-      return this.$route.params.homeworkId
+      return parseInt(this.$route.params.homeworkId)
     },
     violationCount() {
       return this.studentList.filter(s => s.violationCount > 0).length
@@ -309,8 +309,8 @@ export default {
         'paste_attempt': '尝试粘贴',
         'context_menu': '右键菜单',
         'devtools_attempt': '开发者工具',
-        'window_blur': '窗口失焦',
-        'forced_submit': '强制收卷'
+        'forced_submit': '强制收卷',
+        'window_blur': '切换窗口'
       }
       return typeMap[type] || type
     },
@@ -322,11 +322,11 @@ export default {
         'forced_submit',      // 强制收卷（最重要，放最前面）
         'fullscreen_exit',    // 退出全屏
         'devtools_attempt',   // 开发者工具
+        'window_blur',        // 切换窗口
         'tab_switch',         // 切换标签页
         'copy_attempt',       // 尝试复制
         'paste_attempt',      // 尝试粘贴
-        'context_menu',       // 右键菜单
-        'window_blur'         // 窗口失焦
+        'context_menu'        // 右键菜单
       ]
 
       // 创建一个 Map 来快速查找顺序索引

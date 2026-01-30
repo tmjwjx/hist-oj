@@ -926,6 +926,83 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		})
 	}
 
+	// 对于考试模式，需要确保所有客观题都被标记为已评分（即使未作答）
+	// 因为学生可能只提交了部分题目，但所有客观题都应该能自动评分
+	if homework.IsExamMode == 1 {
+		// 查询作业的所有题目
+		var homeworkQuestions []model.HomeworkQuestion
+		if err := tx.Where("homework_id = ?", req.HomeworkID).Find(&homeworkQuestions).Error; err != nil {
+			logger.Warn("查询作业题目失败，跳过自动评分", zap.Error(err))
+		} else {
+			// 为每个客观题检查并更新未评分的提交记录
+			for _, hq := range homeworkQuestions {
+				// 只处理普通题目（非编程题）
+				if hq.QuestionID == nil {
+					continue
+				}
+
+				// 查询该题目是否已提交且已评分
+				var existingSubmit model.HomeworkSubmit
+				checkErr := tx.Where("homework_id = ? AND question_id = ? AND uid = ?",
+					req.HomeworkID, hq.QuestionID, uid.(string)).
+					First(&existingSubmit).Error
+
+				if checkErr == nil && existingSubmit.IsScored == 0 {
+					// 找到了提交记录但未评分，需要检查题目类型
+					var question model.QuestionBank
+					if err := tx.Where("id = ?", *hq.QuestionID).First(&question).Error; err == nil {
+						// 是客观题，自动评分（即使是空答案也算已评分）
+						if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
+							// 计算分数
+							score := 0.0
+							if question.Type == "single_choice" && existingSubmit.Answer == question.Answer {
+								score = float64(hq.Score)
+							} else if question.Type == "judge" && compareJudgeAnswers(existingSubmit.Answer, question.Answer) {
+								score = float64(hq.Score)
+							} else if question.Type == "multiple_choice" {
+								// 多选题比较
+								var studentAnswers, correctAnswers []string
+								if err := json.Unmarshal([]byte(existingSubmit.Answer), &studentAnswers); err != nil {
+									studentAnswers = strings.Split(existingSubmit.Answer, ",")
+									for i := range studentAnswers {
+										studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
+									}
+								}
+								if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
+									correctAnswers = strings.Split(question.Answer, ",")
+									for i := range correctAnswers {
+										correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
+									}
+								}
+								if compareArrays(studentAnswers, correctAnswers) {
+									score = float64(hq.Score)
+								}
+							}
+
+							// 更新为已评分
+							if err := tx.Model(&existingSubmit).
+								Updates(map[string]interface{}{
+									"score":      score,
+									"is_scored":  1,
+								}).Error; err != nil {
+								logger.Error("更新客观题评分失败",
+									zap.Error(err),
+									zap.Uint64("questionId", *hq.QuestionID),
+									zap.String("uid", uid.(string)))
+							} else {
+								logger.Info("自动评分未作答客观题",
+									zap.Uint64("questionId", *hq.QuestionID),
+									zap.String("uid", uid.(string)),
+									zap.String("questionType", question.Type),
+									zap.Float64("score", score))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// 将该用户的所有编程题记录也标记为正式提交
 	// 因为编程题是通过 SaveProgrammingSubmission 单独保存的
 	updates := map[string]interface{}{
@@ -3550,7 +3627,9 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 								studentData["answer"] = studentAnswer
 								logger.Info("解析答案成功(简单字符串)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
 							} else {
-								logger.Warn("答案为空", zap.String("uid", s.UID))
+								// 答案为空（学生未作答），设置为空数组，以便前端显示"未作答"
+								studentData["answer"] = []string{}
+								logger.Info("答案为空（未作答）", zap.String("uid", s.UID))
 							}
 						}
 					}

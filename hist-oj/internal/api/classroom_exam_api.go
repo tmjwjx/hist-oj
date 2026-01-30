@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -89,7 +90,7 @@ func (h *Handler) StartExam(c *gin.Context) {
 
 	// 4. 检查是否已经开始了
 	var existingSubmit model.HomeworkSubmit
-	err = db.Where("homework_id = ? AND uid = ?", homeworkID, uid).
+	err = db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid).
 		Where("exam_start_time IS NOT NULL").
 		First(&existingSubmit).Error
 	if err == nil {
@@ -218,7 +219,7 @@ func (h *Handler) StartExam(c *gin.Context) {
 	// 首先检查是否有草稿记录
 	var submitCount int64
 	db.Model(&model.HomeworkSubmit{}).
-		Where("homework_id = ? AND uid = ?", homeworkID, uid).
+		Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid).
 		Count(&submitCount)
 
 	examStartTime := now
@@ -246,15 +247,20 @@ func (h *Handler) StartExam(c *gin.Context) {
 				IsOfficiallySubmitted: 0,
 			}
 			if err := db.Create(submit).Error; err != nil {
-				logger.Error("创建考试记录失败", zap.Error(err))
-				c.JSON(http.StatusOK, errorResponse(500, "创建考试记录失败"))
+				logger.Error("创建考试记录失败",
+					zap.Error(err),
+					zap.Uint64("homeworkId", homeworkIDUint64),
+					zap.String("uid", uid.(string)),
+					zap.Any("questionId", hq.QuestionID),
+					zap.Any("problemId", hq.ProblemID))
+				c.JSON(http.StatusOK, errorResponse(500, "创建考试记录失败: "+err.Error()))
 				return
 			}
 		}
 	} else {
 		// 有草稿记录，更新 exam_start_time
 		if err := db.Model(&model.HomeworkSubmit{}).
-			Where("homework_id = ? AND uid = ?", homeworkID, uid).
+			Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid).
 			Updates(map[string]interface{}{"exam_start_time": examStartTime}).Error; err != nil {
 			logger.Error("记录考试开始时间失败", zap.Error(err))
 			c.JSON(http.StatusOK, errorResponse(500, "记录考试开始时间失败"))
@@ -264,7 +270,7 @@ func (h *Handler) StartExam(c *gin.Context) {
 
 	// 8. 更新设备信息和浏览器信息
 	if err := db.Model(&model.HomeworkSubmit{}).
-		Where("homework_id = ? AND uid = ?", homeworkID, uid).
+		Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid).
 		Updates(map[string]interface{}{
 			"device_info":  req.DeviceInfo,
 			"browser_info": req.BrowserInfo,
@@ -586,13 +592,21 @@ func (h *Handler) LogViolation(c *gin.Context) {
 		return
 	}
 
+	// 添加成功日志，确认数据已插入
+	logger.Info("违规记录已插入数据库",
+		zap.Uint64("violationId", violation.ID),
+		zap.Uint64("homeworkId", req.HomeworkID),
+		zap.String("uid", uid.(string)),
+		zap.String("violationType", req.ViolationType),
+		zap.String("description", req.Description))
+
 	// 更新提交记录中的违规计数
 	updates := map[string]interface{}{}
 	switch req.ViolationType {
-	case "tab_switch":
-		updates["tab_switch_count"] = gorm.Expr("tab_switch_count + 1")
 	case "fullscreen_exit":
 		updates["fullscreen_exit_count"] = gorm.Expr("fullscreen_exit_count + 1")
+	case "tab_switch":
+		updates["tab_switch_count"] = gorm.Expr("tab_switch_count + 1")
 	case "copy_attempt", "paste_attempt":
 		updates["copy_paste_attempt_count"] = gorm.Expr("copy_paste_attempt_count + 1")
 	}
@@ -782,6 +796,11 @@ func (h *Handler) GetExamMonitoring(c *gin.Context) {
 			// 初始化 violations 为空数组，确保前端始终能正确渲染
 			status.Violations = []gin.H{}
 
+			// 添加查询前的调试日志
+			logger.Debug("开始查询学生违规记录",
+				zap.String("uid", student.UID),
+				zap.Uint64("homeworkId", homeworkIDUint64))
+
 			if err := db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, student.UID).Find(&violations).Error; err != nil {
 				logger.Error("查询违规记录失败",
 					zap.Error(err),
@@ -804,13 +823,14 @@ func (h *Handler) GetExamMonitoring(c *gin.Context) {
 					})
 				}
 
-				logger.Debug("学生违规记录",
+				logger.Info("学生违规记录查询成功",
 					zap.String("uid", student.UID),
+					zap.Uint64("homeworkId", homeworkIDUint64),
 					zap.Int("count", len(violations)),
 					zap.Any("violations", status.Violations))
 			} else {
 				// 没有违规记录，保持为空数组
-				logger.Debug("学生无违规记录",
+				logger.Info("学生无违规记录",
 					zap.String("uid", student.UID),
 					zap.Uint64("homeworkId", homeworkIDUint64))
 			}
@@ -893,24 +913,125 @@ func (h *Handler) ForceSubmit(c *gin.Context) {
 		zap.Int("count", len(submits)),
 		zap.Int("draftCount", countDraftSubmits(submits)))
 
-	// 3. 标记所有草稿为正式提交，并标记为强制收卷
+	// 3. 对每条草稿记录进行处理：自动评分客观题并标记为正式提交
 	now := time.Now()
-	result := db.Model(&model.HomeworkSubmit{}).
-		Where("homework_id = ? AND uid = ? AND is_officially_submitted = 0", req.HomeworkID, req.UID).
-		Updates(map[string]interface{}{
+	updatedCount := 0
+
+	for _, submit := range submits {
+		// 跳过已经正式提交的记录
+		if submit.IsOfficiallySubmitted == 1 {
+			continue
+		}
+
+		// 准备更新字段
+		updates := map[string]interface{}{
 			"is_officially_submitted": 1,
 			"is_forced_submit":        1,
 			"exam_end_time":           now,
-		})
+		}
 
-	if result.Error != nil {
-		logger.Error("强制交卷失败", zap.Error(result.Error))
-		c.JSON(http.StatusOK, errorResponse(500, "强制交卷失败"))
-		return
+		// 如果是普通题目（非编程题），进行自动评分
+		if submit.QuestionID != nil {
+			var question model.QuestionBank
+			if err := db.Where("id = ?", *submit.QuestionID).First(&question).Error; err == nil {
+				// 客观题自动评分（单选、判断、多选）
+				if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
+					score := 0.0
+					isScored := 1 // 标记为已评分
+
+					// 单选题评分
+					if question.Type == "single_choice" {
+						if submit.Answer == question.Answer {
+							// 获取该题在作业中的分值
+							var homeworkQuestion model.HomeworkQuestion
+							if err := db.Where("homework_id = ? AND question_id = ?",
+								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+								score = float64(homeworkQuestion.Score)
+							}
+						}
+					} else if question.Type == "judge" {
+						// 判断题评分
+						if compareJudgeAnswers(submit.Answer, question.Answer) {
+							var homeworkQuestion model.HomeworkQuestion
+							if err := db.Where("homework_id = ? AND question_id = ?",
+								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+								score = float64(homeworkQuestion.Score)
+							}
+						}
+					} else if question.Type == "multiple_choice" {
+						// 多选题评分
+						var studentAnswers, correctAnswers []string
+
+						// 解析学生答案
+						if err := json.Unmarshal([]byte(submit.Answer), &studentAnswers); err != nil {
+							studentAnswers = strings.Split(submit.Answer, ",")
+							for i := range studentAnswers {
+								studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
+							}
+						}
+
+						// 解析正确答案
+						if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
+							correctAnswers = strings.Split(question.Answer, ",")
+							for i := range correctAnswers {
+								correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
+							}
+						}
+
+						// 比较答案
+						if compareArrays(studentAnswers, correctAnswers) {
+							var homeworkQuestion model.HomeworkQuestion
+							if err := db.Where("homework_id = ? AND question_id = ?",
+								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+								score = float64(homeworkQuestion.Score)
+							}
+						}
+					}
+
+					// 更新分数和评分状态
+					updates["score"] = score
+					updates["is_scored"] = isScored
+
+					logger.Info("强制收卷 - 客观题自动评分",
+						zap.String("uid", req.UID),
+						zap.Uint64("questionId", *submit.QuestionID),
+						zap.String("questionType", question.Type),
+						zap.Float64("score", score))
+				} else {
+					// 主观题，标记为未评分，需要教师评分
+					updates["is_scored"] = 0
+					updates["score"] = 0
+					logger.Info("强制收卷 - 主观题标记为未评分",
+						zap.String("uid", req.UID),
+						zap.Uint64("questionId", *submit.QuestionID),
+						zap.String("questionType", question.Type))
+				}
+			} else {
+				// 题目查询失败，保守起见标记为未评分
+				updates["is_scored"] = 0
+				updates["score"] = 0
+			}
+		} else if submit.ProblemID != nil {
+			// 编程题，标记为未评分，需要教师评分
+			updates["is_scored"] = 0
+			updates["score"] = 0
+			logger.Info("强制收卷 - 编程题标记为未评分",
+				zap.String("uid", req.UID),
+				zap.String("problemId", *submit.ProblemID))
+		}
+
+		// 更新该条记录
+		if err := db.Model(&model.HomeworkSubmit{}).
+			Where("id = ?", submit.ID).
+			Updates(updates).Error; err != nil {
+			logger.Error("更新草稿记录失败", zap.Error(err), zap.Uint64("submitId", submit.ID))
+		} else {
+			updatedCount++
+		}
 	}
 
 	// 检查是否真的更新了记录
-	if result.RowsAffected == 0 {
+	if updatedCount == 0 {
 		logger.Warn("强制交卷未更新任何记录",
 			zap.String("uid", req.UID),
 			zap.Uint64("homeworkId", req.HomeworkID),
@@ -932,7 +1053,7 @@ func (h *Handler) ForceSubmit(c *gin.Context) {
 		zap.String("uid", req.UID),
 		zap.Uint64("homeworkId", req.HomeworkID),
 		zap.String("reason", req.Reason),
-		zap.Int64("rowsAffected", result.RowsAffected))
+		zap.Int("updatedCount", updatedCount))
 
 	c.JSON(http.StatusOK, successResponse(nil))
 }
@@ -1008,29 +1129,111 @@ func (h *Handler) ForceSubmitAll(c *gin.Context) {
 		zap.Uint64("homeworkId", homeworkID),
 		zap.Int("inProgressCount", len(inProgressStudents)))
 
-	// 3. 批量强制收卷
+	// 3. 批量强制收卷（包括自动评分客观题）
 	now := time.Now()
 	forcedCount := 0
 	var forcedStudents []string // 记录被强制收卷的学生UID
 
 	for _, student := range inProgressStudents {
-		result := db.Model(&model.HomeworkSubmit{}).
-			Where("homework_id = ? AND uid = ? AND is_officially_submitted = 0", homeworkID, student.UID).
-			Updates(map[string]interface{}{
-				"is_officially_submitted": 1,
-				"is_forced_submit":        1,
-				"exam_end_time":           now,
-			})
-
-		if result.Error != nil {
-			logger.Error("强制收卷失败",
+		// 获取该学生的所有草稿记录
+		var submits []model.HomeworkSubmit
+		if err := db.Where("homework_id = ? AND uid = ? AND is_officially_submitted = 0", homeworkID, student.UID).
+			Find(&submits).Error; err != nil {
+			logger.Error("查询学生草稿失败",
 				zap.String("uid", student.UID),
 				zap.Uint64("homeworkId", homeworkID),
-				zap.Error(result.Error))
+				zap.Error(err))
 			continue
 		}
 
-		if result.RowsAffected > 0 {
+		if len(submits) == 0 {
+			continue
+		}
+
+		// 对每条草稿记录进行处理
+		studentUpdated := false
+		for _, submit := range submits {
+			updates := map[string]interface{}{
+				"is_officially_submitted": 1,
+				"is_forced_submit":        1,
+				"exam_end_time":           now,
+			}
+
+			// 如果是普通题目（非编程题），进行自动评分
+			if submit.QuestionID != nil {
+				var question model.QuestionBank
+				if err := db.Where("id = ?", *submit.QuestionID).First(&question).Error; err == nil {
+					// 客观题自动评分
+					if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
+						score := 0.0
+						isScored := 1 // 标记为已评分
+
+						// 单选题评分
+						if question.Type == "single_choice" {
+							if submit.Answer == question.Answer {
+								var homeworkQuestion model.HomeworkQuestion
+								if err := db.Where("homework_id = ? AND question_id = ?",
+									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+									score = float64(homeworkQuestion.Score)
+								}
+							}
+						} else if question.Type == "judge" {
+							// 判断题评分
+							if compareJudgeAnswers(submit.Answer, question.Answer) {
+								var homeworkQuestion model.HomeworkQuestion
+								if err := db.Where("homework_id = ? AND question_id = ?",
+									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+									score = float64(homeworkQuestion.Score)
+								}
+							}
+						} else if question.Type == "multiple_choice" {
+							// 多选题评分
+							var studentAnswers, correctAnswers []string
+
+							// 解析学生答案
+							if err := json.Unmarshal([]byte(submit.Answer), &studentAnswers); err != nil {
+								studentAnswers = strings.Split(submit.Answer, ",")
+								for i := range studentAnswers {
+									studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
+								}
+							}
+
+							// 解析正确答案
+							if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
+								correctAnswers = strings.Split(question.Answer, ",")
+								for i := range correctAnswers {
+									correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
+								}
+							}
+
+							// 比较答案
+							if compareArrays(studentAnswers, correctAnswers) {
+								var homeworkQuestion model.HomeworkQuestion
+								if err := db.Where("homework_id = ? AND question_id = ?",
+									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+									score = float64(homeworkQuestion.Score)
+								}
+							}
+						}
+
+						// 更新分数和评分状态
+						updates["score"] = score
+						updates["is_scored"] = isScored
+					}
+				}
+			}
+
+			// 更新该条记录
+			if err := db.Model(&model.HomeworkSubmit{}).
+				Where("id = ?", submit.ID).
+				Updates(updates).Error; err != nil {
+				logger.Error("更新草稿记录失败", zap.Error(err), zap.Uint64("submitId", submit.ID))
+			} else {
+				studentUpdated = true
+			}
+		}
+
+		if studentUpdated {
 			forcedCount++
 			forcedStudents = append(forcedStudents, student.UID)
 		}

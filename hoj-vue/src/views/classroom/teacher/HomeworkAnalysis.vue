@@ -292,7 +292,7 @@
             <span v-if="row.answer && row.answer.length > 0">
               {{ row.answer.join(', ') }}
             </span>
-            <span v-else class="text-muted">已作答</span>
+            <span v-else class="text-muted">{{ $t('m.No_Answer') }}</span>
           </template>
         </el-table-column>
       </el-table>

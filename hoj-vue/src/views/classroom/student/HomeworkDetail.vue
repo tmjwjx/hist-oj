@@ -25,6 +25,90 @@
 
         <el-divider></el-divider>
 
+        <!-- 考试模式确认信息（在题目列表上方显示） -->
+        <div v-if="isExamMode && !examStarted && !isSubmitted && !dataLoading" class="exam-confirm-inline">
+          <div class="exam-confirm-header">
+            <i class="el-icon-warning-outline" style="color: #E6A23C; font-size: 32px; margin-right: 10px;"></i>
+            <h2>当前为考试模式</h2>
+          </div>
+
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin: 15px 0;"
+          >
+            <template slot="title">
+              请认真阅读以下考试规则，开始后将无法修改
+            </template>
+          </el-alert>
+
+          <div class="exam-rules-inline">
+            <h3>⏱️ 时间规则</h3>
+            <ul>
+              <li><strong>考试时长：</strong>{{ examConfig.examDuration }} 分钟</li>
+              <li>
+                <strong>开始时间：</strong>点击"开始答题"后立即开始计时
+              </li>
+              <li v-if="examConfig.allowSubmitAfterMinutes > 0">
+                <strong>最早交卷时间：</strong>开考后 {{ examConfig.allowSubmitAfterMinutes }} 分钟
+              </li>
+              <li class="warning">
+                <strong>重要：</strong>考试时间到后系统将<strong>强制收卷</strong>，未保存的答案将丢失
+              </li>
+            </ul>
+
+            <h3>🔒 防作弊规则</h3>
+            <ul>
+              <li v-if="examConfig.disableCopyPaste">
+                ✅ 禁止复制、粘贴任何内容
+              </li>
+              <li v-if="examConfig.requireFullscreen">
+                ✅ 必须保持全屏模式，退出全屏将被记录
+              </li>
+              <li v-if="examConfig.disallowTabSwitch">
+                ✅ 禁止切换浏览器标签页，将被记录
+              </li>
+              <li>
+                ✅ 禁止同时打开其他软件或窗口（系统会检测）
+              </li>
+            </ul>
+
+            <h3>💡 答题建议</h3>
+            <ul>
+              <li>请确保网络连接稳定</li>
+              <li>建议使用 Chrome 或 Edge 浏览器</li>
+              <li>系统会自动保存您的答题进度</li>
+              <li>考试结束前可随时修改已答题目</li>
+            </ul>
+          </div>
+
+          <div class="checkbox-group">
+            <el-checkbox v-model="hasReadRules">
+              我已仔细阅读并理解以上考试规则，保证遵守考试纪律
+            </el-checkbox>
+          </div>
+
+          <div class="exam-start-actions">
+            <el-button
+              size="large"
+              @click="goBack"
+            >
+              取消
+            </el-button>
+            <el-button
+              type="primary"
+              size="large"
+              :disabled="!canStartExam"
+              :loading="submitting"
+              @click="startExam"
+            >
+              <i class="el-icon-edit"></i>
+              开始答题
+            </el-button>
+          </div>
+        </div>
+
         <!-- 试卷列表 - 根据教师设置控制是否显示，数据加载完成前不显示 -->
         <div v-if="canViewHomework && !dataLoading" class="questions-container">
           <h4>{{ $t('m.Questions') }}</h4>
@@ -276,100 +360,6 @@
       </span>
     </el-dialog>
 
-    <!-- 考试模式确认弹窗 -->
-    <el-dialog
-      title="📝 考试模式确认"
-      :visible.sync="examConfirmDialogVisible"
-      :close-on-click-modal="false"
-      :close-on-press-escape="false"
-      :show-close="false"
-      width="600px"
-      custom-class="exam-confirm-dialog"
-    >
-      <div class="exam-confirm-content">
-        <div class="warning-icon">
-          <i class="el-icon-warning-outline"></i>
-        </div>
-
-        <h2>当前为考试模式</h2>
-
-        <el-alert
-          type="warning"
-          :closable="false"
-          show-icon
-        >
-          <template slot="title">
-            请认真阅读以下考试规则，开始后将无法修改
-          </template>
-        </el-alert>
-
-        <div class="exam-rules">
-          <h3>⏱️ 时间规则</h3>
-          <ul>
-            <li><strong>考试时长：</strong>{{ examConfig.examDuration }} 分钟</li>
-            <li>
-              <strong>开始时间：</strong>点击"开始答题"后立即开始计时
-            </li>
-            <li v-if="examConfig.allowSubmitAfterMinutes > 0">
-              <strong>最早交卷时间：</strong>开考后 {{ examConfig.allowSubmitAfterMinutes }} 分钟
-            </li>
-            <li class="warning">
-              <strong>重要：</strong>考试时间到后系统将<strong>强制收卷</strong>，未保存的答案将丢失
-            </li>
-          </ul>
-
-          <h3>🔒 防作弊规则</h3>
-          <ul>
-            <li v-if="examConfig.disableCopyPaste">
-              ✅ 禁止复制、粘贴任何内容
-            </li>
-            <li v-if="examConfig.requireFullscreen">
-              ✅ 必须保持全屏模式，退出全屏将被记录
-            </li>
-            <li v-if="examConfig.disallowTabSwitch">
-              ✅ 禁止切换浏览器标签页，将被记录
-            </li>
-            <li>
-              ✅ 禁止同时打开其他软件或窗口（系统会检测）
-            </li>
-          </ul>
-
-          <h3>💡 答题建议</h3>
-          <ul>
-            <li>请确保网络连接稳定</li>
-            <li>建议使用 Chrome 或 Edge 浏览器</li>
-            <li>系统会自动保存您的答题进度</li>
-            <li>考试结束前可随时修改已答题目</li>
-          </ul>
-        </div>
-
-        <div class="checkbox-group">
-          <el-checkbox v-model="hasReadRules">
-            我已仔细阅读并理解以上考试规则
-          </el-checkbox>
-          <el-checkbox v-model="hasConfirmedEnvironment">
-            我确认当前网络和环境适合参加考试
-          </el-checkbox>
-        </div>
-      </div>
-
-      <span slot="footer" class="dialog-footer">
-        <el-button size="large" @click="examConfirmDialogVisible = false">
-          取消
-        </el-button>
-        <el-button
-          type="primary"
-          size="large"
-          :disabled="!canStartExam"
-          :loading="submitting"
-          @click="startExam"
-        >
-          <i class="el-icon-edit"></i>
-          开始答题
-        </el-button>
-      </span>
-    </el-dialog>
-
     <!-- 考试模式顶部标识栏 -->
     <div v-if="isExamMode && examStarted" class="exam-header-bar">
       <div class="exam-badge">
@@ -377,10 +367,10 @@
         考试模式进行中
       </div>
 
-      <div class="exam-timer" :class="timeState">
+      <div class="exam-timer">
         <i class="el-icon-time"></i>
         <span class="timer-label">剩余时间：</span>
-        <span class="timer-value">{{ formattedTime }}</span>
+        <span class="timer-value" :style="{ color: timerColor }">{{ formattedTime }}</span>
       </div>
 
       <div class="exam-actions">
@@ -393,6 +383,32 @@
           <i class="el-icon-check"></i>
           交卷
         </el-button>
+      </div>
+    </div>
+
+    <!-- 考试模式题目导航 -->
+    <div v-if="isExamMode && examStarted && canViewHomework" class="question-navigator">
+      <!-- 剩余时间显示 -->
+      <div class="navigator-timer">
+        <i class="el-icon-time"></i>
+        <span class="timer-text" :style="{ color: timerColor }">剩余时间：{{ formattedTime }}</span>
+      </div>
+
+      <div class="navigator-title">题目导航</div>
+      <div class="navigator-grid">
+        <div
+          v-for="(item, index) in homework.questions"
+          :key="item.id"
+          class="question-nav-item"
+          :class="getQuestionNavClass(item)"
+          @click="scrollToQuestion(index)"
+        >
+          {{ index + 1 }}
+        </div>
+      </div>
+      <div class="navigator-legend">
+        <span class="legend-item"><span class="legend-color unanswered"></span>未答</span>
+        <span class="legend-item"><span class="legend-color answered"></span>已答</span>
       </div>
     </div>
   </div>
@@ -454,7 +470,6 @@ export default {
       // 考试模式相关
       examConfirmDialogVisible: false, // 考试确认弹窗
       hasReadRules: false, // 是否已阅读考试规则
-      hasConfirmedEnvironment: false, // 是否确认环境
       examConfig: {}, // 考试配置
       examStartTime: null, // 考试开始时间
       remainingSeconds: 0, // 剩余秒数
@@ -466,8 +481,9 @@ export default {
       fullscreenWarned: false, // 是否已经警告过退出全屏
       hasShownForceSubmitMessage: false, // 是否已显示过强制收卷消息
       fullscreenChangeTime: 0, // 全屏变化的时间戳，用于避免 visibilitychange 误报
-      isFullscreenChanging: false, // 标志：是否正在处理全屏变化（用于过滤blur和visibilitychange事件）
-      isWindowFocused: true // 窗口是否有焦点（用于更精确地检测切换标签页）
+      isFullscreenChanging: false, // 标志：是否正在处理全屏变化（用于过滤visibilitychange事件）
+      isWindowFocused: true, // 窗口是否有焦点
+      lastFullscreenState: false // 记录上一次的全屏状态，用于判断是进入还是退出全屏
     }
   },
   computed: {
@@ -518,15 +534,35 @@ export default {
     },
     // 考试模式：是否可以开始考试
     canStartExam() {
-      return this.hasReadRules && this.hasConfirmedEnvironment
+      return this.hasReadRules
     },
     // 格式化剩余时间
     formattedTime() {
-      if (this.remainingSeconds <= 0) return '00:00:00'
+      // 如果已提交或时间已到，显示"考试结束"
+      if (this.isSubmitted || this.remainingSeconds <= 0) {
+        return '考试结束'
+      }
       const hours = Math.floor(this.remainingSeconds / 3600)
       const minutes = Math.floor((this.remainingSeconds % 3600) / 60)
       const seconds = this.remainingSeconds % 60
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    },
+    // 计算时间颜色
+    timerColor() {
+      // 如果已提交或时间已到，显示为红色
+      if (this.isSubmitted || this.remainingSeconds <= 0) {
+        return '#F56C6C'
+      }
+      // 剩余时间 <= 5分钟，显示为红色
+      if (this.remainingSeconds <= 300) {
+        return '#F56C6C'
+      }
+      // 剩余时间 > 5分钟且 <= 10分钟，显示为黄色
+      if (this.remainingSeconds <= 600) {
+        return '#E6A23C'
+      }
+      // 剩余时间 > 10分钟，显示为绿色
+      return '#67C23A'
     }
   },
   mounted() {
@@ -686,10 +722,7 @@ export default {
                 this.initAntiCheat()
               }
             } else {
-              // 未开始，显示考试确认弹窗（只在首次加载时显示）
-              if (isFirstLoad) {
-                this.examConfirmDialogVisible = true
-              }
+              // 未开始，会在页面中显示考试确认信息（不需要弹窗）
             }
           }
 
@@ -1501,6 +1534,8 @@ export default {
 
         // 监听全屏变化
         if (this.examConfig.requireFullscreen) {
+          // 初始化全屏状态
+          this.lastFullscreenState = !!(document.fullscreenElement || document.webkitFullscreenElement)
           document.addEventListener('fullscreenchange', this.handleFullscreenChange)
           document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
           // 进入全屏
@@ -1516,7 +1551,7 @@ export default {
           document.addEventListener('visibilitychange', this.handleVisibilityChange)
         }
 
-        // 监听窗口焦点（检测切换到其他软件）
+        // 监听窗口焦点变化（检测切换到其他软件）
         window.addEventListener('blur', this.handleWindowBlur)
         window.addEventListener('focus', this.handleWindowFocus)
 
@@ -1540,11 +1575,6 @@ export default {
       window.removeEventListener('focus', this.handleWindowFocus)
       document.removeEventListener('keydown', this.handleKeyDown)
       window.removeEventListener('beforeunload', this.handleBeforeUnload)
-
-      // 停止计时器
-      if (this.examTimerInterval) {
-        clearInterval(this.examTimerInterval)
-      }
     },
     // 禁止右键
     handleContextMenu(e) {
@@ -1633,14 +1663,20 @@ export default {
         return
       }
 
+      const currentFullscreenState = !!(document.fullscreenElement || document.webkitFullscreenElement)
+
+      // 检查全屏状态是否真的发生了变化
+      if (currentFullscreenState === this.lastFullscreenState) {
+        // 状态没有变化，忽略这个事件（避免重复触发）
+        return
+      }
+
       // 设置标志：正在处理全屏变化
       this.isFullscreenChanging = true
       this.fullscreenChangeTime = Date.now()
 
-      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement
-
-      if (!isFullscreen && this.examConfig.requireFullscreen) {
-        // 只在退出全屏时记录违规，进入全屏不记录
+      if (!currentFullscreenState && this.examConfig.requireFullscreen) {
+        // 从全屏变为非全屏：记录违规
         this.logViolation('fullscreen_exit', '退出全屏')
 
         // 只警告一次，不强制弹窗或自动进入全屏
@@ -1652,10 +1688,14 @@ export default {
             showClose: true
           })
         }
-      } else if (isFullscreen) {
-        // 重新进入全屏后重置警告标志
+      } else if (currentFullscreenState) {
+        // 从非全屏变为全屏：重置警告标志
         this.fullscreenWarned = false
+        console.log('进入全屏，重置警告标志')
       }
+
+      // 更新上一次的全屏状态
+      this.lastFullscreenState = currentFullscreenState
 
       // 2秒后重置标志，允许正常的blur和visibilitychange检测
       setTimeout(() => {
@@ -1670,33 +1710,21 @@ export default {
         return
       }
 
-      // 检查是否是因为全屏变化导致的误报
-      // 使用时间窗口过滤：只在全屏变化后500ms内忽略事件
-      // 这样既能过滤误报，又不会漏检真实的违规行为
-      if (this.isFullscreenChanging) {
-        const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
-        if (timeSinceFullscreenChange < 500) {
-          // 全屏变化后500ms内的事件，认为是误报
-          console.log('忽略全屏变化后立即触发的 visibilitychange 事件', timeSinceFullscreenChange, 'ms')
-          return
-        }
-        // 超过500ms后，即使标志位还是true，也恢复检测
-        // 这样可以检测到学生在全屏变化后真的切换标签页的行为
-        console.log('全屏变化已超过500ms，恢复 visibilitychange 检测')
-      }
+      // 检查当前全屏状态
+      const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement)
 
-      if (document.hidden && this.examConfig.disallowTabSwitch) {
-        // 更精确的检测：只有当页面隐藏且窗口失去焦点时，才认为是切换标签页
-        // 这样可以过滤掉调整窗口大小、缩放等操作
-        setTimeout(() => {
-          if (document.hidden && !this.isWindowFocused) {
-            this.$message.warning('检测到切换标签页，请专注于考试！')
-            this.logViolation('tab_switch', '切换标签页')
-          } else if (document.hidden && this.isWindowFocused) {
-            // 页面隐藏但窗口有焦点：可能是调整窗口大小、缩放等操作
-            console.log('页面隐藏但窗口有焦点，忽略（可能是调整窗口大小）')
-          }
-        }, 100)
+      // 如果当前在全屏状态，但页面隐藏了（可能是用户切换到了其他标签页）
+      if (document.hidden) {
+        if (isFullscreen && this.examConfig.disallowTabSwitch) {
+          console.log('检测到全屏状态下切换标签页')
+          this.$message.warning('检测到切换标签页，请专注于考试！')
+          this.logViolation('tab_switch', '切换标签页')
+        } else if (!isFullscreen && this.examConfig.requireFullscreen) {
+          // 如果不在全屏状态且页面隐藏了，说明用户可能退出了全屏并切换到了其他应用
+          console.log('检测到退出全屏并切换到其他应用')
+          this.$message.warning('检测到退出全屏，请立即返回考试界面！')
+          this.logViolation('fullscreen_exit', '退出全屏')
+        }
       }
     },
     // 窗口失去焦点
@@ -1706,25 +1734,16 @@ export default {
         return
       }
 
-      // 检查是否是因为全屏变化导致的误报
-      // 使用时间窗口过滤：只在全屏变化后500ms内忽略事件
-      // 这样既能过滤误报，又不会漏检真实的违规行为
-      if (this.isFullscreenChanging) {
-        const timeSinceFullscreenChange = Date.now() - this.fullscreenChangeTime
-        if (timeSinceFullscreenChange < 500) {
-          // 全屏变化后500ms内的事件，认为是误报
-          console.log('忽略全屏变化后立即触发的 blur 事件', timeSinceFullscreenChange, 'ms')
-          return
-        }
-        // 超过500ms后，即使标志位还是true，也恢复检测
-        // 这样可以检测到学生在全屏变化后真的切换窗口的行为
-        console.log('全屏变化已超过500ms，恢复 blur 检测')
-      }
-
-      // 更新窗口焦点状态（在所有过滤逻辑之后）
+      // 更新窗口焦点状态
       this.isWindowFocused = false
 
-      if (!document.hidden) {
+      // 检查当前全屏状态
+      const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement)
+
+      // 窗口失焦：点击了浏览器窗口以外的界面
+      // 如果页面还是可见的，但窗口失焦了，说明是点击了其他软件
+      if (!document.hidden && isFullscreen) {
+        console.log('检测到全屏状态下窗口失焦（点击了浏览器以外的界面）')
         this.$notify({
           title: '警告',
           message: '检测到切换到其他窗口，请专注于考试！',
@@ -1736,7 +1755,7 @@ export default {
     },
     // 窗口获得焦点
     handleWindowFocus() {
-      // 如果已经提交，不再检查全屏状态
+      // 如果已经提交，不再检查
       if (this.isSubmitted) {
         return
       }
@@ -1745,7 +1764,7 @@ export default {
       this.isWindowFocused = true
 
       if (this.examConfig.requireFullscreen) {
-        // 延迟检查全屏状态，确保浏览器已完成焦点切换
+        // 延迟检查全屏状态
         setTimeout(() => {
           this.checkFullscreenStatus()
         }, 500)
@@ -1796,7 +1815,7 @@ export default {
     },
     // 记录违规（带重试机制）
     async logViolation(type, description) {
-      const homeworkId = this.$route.params.homeworkId
+      const homeworkId = parseInt(this.$route.params.homeworkId)
       const maxRetries = 3
       let lastError = null
 
@@ -1856,6 +1875,37 @@ export default {
         e.preventDefault()
         e.returnValue = '考试正在进行中，离开会导致答案丢失！确定要离开吗？'
         return e.returnValue
+      }
+    },
+    // ==================== 考试模式题目导航 ====================
+    // 获取题目导航样式类
+    getQuestionNavClass(question) {
+      const classes = []
+
+      // 判断是否已答题
+      let isAnswered = false
+      if (question.problemId) {
+        // 编程题
+        isAnswered = this.programmingStatus[question.problemId] === 'submitted'
+      } else if (question.question) {
+        // 普通题目
+        const qid = question.question.id
+        if (question.question.type === 'multiple_choice') {
+          isAnswered = this.multipleAnswers[qid] && this.multipleAnswers[qid].length > 0
+        } else {
+          isAnswered = this.answers[qid] && this.answers[qid].toString().trim() !== ''
+        }
+      }
+
+      classes.push(isAnswered ? 'answered' : 'unanswered')
+
+      return classes.join(' ')
+    },
+    // 滚动到指定题目
+    scrollToQuestion(index) {
+      const questions = document.querySelectorAll('.question-item')
+      if (questions && questions[index]) {
+        questions[index].scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
   },
@@ -2137,62 +2187,82 @@ export default {
 }
 
 /* ==================== 考试模式样式 ==================== */
-.exam-confirm-content {
-  padding: 20px 0;
+/* 考试模式确认区域（内联显示） */
+.exam-confirm-inline {
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #E6A23C;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.2);
 }
 
-.warning-icon {
-  text-align: center;
+.exam-confirm-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 20px;
 }
 
-.warning-icon i {
-  font-size: 64px;
+.exam-confirm-header h2 {
+  margin: 0;
   color: #E6A23C;
+  font-size: 24px;
+  font-weight: bold;
 }
 
-.exam-confirm-content h2 {
-  text-align: center;
-  margin: 20px 0;
-  color: #E6A23C;
-}
-
-.exam-rules {
+.exam-rules-inline {
   margin: 20px 0;
   padding: 20px;
-  background: #FFF9E6;
+  background: white;
   border-radius: 8px;
   border: 1px solid #E6A23C;
 }
 
-.exam-rules h3 {
+.exam-rules-inline h3 {
   color: #333;
   margin-bottom: 15px;
   font-size: 16px;
+  font-weight: bold;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #E6A23C;
 }
 
-.exam-rules ul {
+.exam-rules-inline ul {
   list-style: none;
   padding: 0;
   margin: 10px 0;
 }
 
-.exam-rules li {
+.exam-rules-inline li {
   padding: 8px 0;
   line-height: 1.8;
   color: #606266;
 }
 
-.exam-rules li.warning {
+.exam-rules-inline li.warning {
   color: #F56C6C;
   font-weight: bold;
+}
+
+.exam-start-actions {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #E6A23C;
 }
 
 .checkbox-group {
   margin-top: 20px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
 }
 
 /* 考试模式顶部标识栏 */
@@ -2237,22 +2307,8 @@ export default {
   font-size: 20px;
   font-weight: bold;
   padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.2);
   border-radius: 20px;
-}
-
-.exam-timer.normal {
   color: white;
-}
-
-.exam-timer.warning {
-  background: rgba(255, 255, 255, 0.3);
-  animation: shake 0.5s infinite;
-}
-
-.exam-timer.critical {
-  background: #F56C6C;
-  animation: blink 1s infinite;
 }
 
 @keyframes blink {
@@ -2273,5 +2329,114 @@ export default {
 
 .homework-detail >>> .el-card {
   margin-top: 80px; /* 为顶部栏留出空间 */
+}
+
+/* ==================== 考试模式题目导航 ==================== */
+.question-navigator {
+  position: fixed;
+  right: 20px;
+  top: 80px;
+  max-width: 280px;
+  width: auto;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  padding: 15px;
+  z-index: 998;
+}
+
+.navigator-timer {
+  text-align: center;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: white;
+  white-space: nowrap;
+}
+
+.navigator-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #303133;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.navigator-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  justify-content: center;
+}
+
+.question-nav-item {
+  min-width: 36px;
+  width: auto;
+  height: 36px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #DCDFE6;
+}
+
+.question-nav-item.unanswered {
+  background: #F5F7FA;
+  color: #909399;
+}
+
+.question-nav-item.answered {
+  background: #67C23A;
+  color: white;
+  border-color: #67C23A;
+}
+
+.question-nav-item:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.navigator-legend {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 11px;
+  color: #606266;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid #DCDFE6;
+}
+
+.legend-color.unanswered {
+  background: #F5F7FA;
+}
+
+.legend-color.answered {
+  background: #67C23A;
+  border-color: #67C23A;
 }
 </style>
