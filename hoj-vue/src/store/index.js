@@ -5,6 +5,7 @@ import contest from "@/store/contest"
 import training from "@/store/training"
 import group from "@/store/group"
 import classroom from "@/store/classroom"
+import contestQuestion from "@/store/contestQuestion"
 import api from '@/common/api'
 import i18n from '@/i18n'
 import storage from '@/common/storage'
@@ -140,7 +141,8 @@ export default new Vuex.Store({
     contest,
     training,
     group,
-    classroom
+    classroom,
+    contestQuestion
   },
   state: rootState,
   getters: rootGetters,

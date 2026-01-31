@@ -44,8 +44,8 @@ func (Role) TableName() string {
 	return "role"
 }
 
-// getUserRoles 获取用户的所有角色
-func getUserRoles(db *gorm.DB, uid string) ([]string, error) {
+// GetUserRoles 获取用户的所有角色
+func GetUserRoles(db *gorm.DB, uid string) ([]string, error) {
 	var userRoles []UserRole
 	if err := db.Where("uid = ?", uid).Find(&userRoles).Error; err != nil {
 		return nil, err
@@ -76,8 +76,8 @@ func getUserRoles(db *gorm.DB, uid string) ([]string, error) {
 	return roleNames, nil
 }
 
-// hasRole 检查用户是否拥有指定角色
-func hasRole(roles []string, targetRole string) bool {
+// HasRole 检查用户是否拥有指定角色
+func HasRole(roles []string, targetRole string) bool {
 	for _, role := range roles {
 		if role == targetRole {
 			return true
@@ -86,8 +86,8 @@ func hasRole(roles []string, targetRole string) bool {
 	return false
 }
 
-// hasAnyRole 检查用户是否拥有任意一个指定角色
-func hasAnyRole(roles []string, targetRoles []string) bool {
+// HasAnyRole 检查用户是否拥有任意一个指定角色
+func HasAnyRole(roles []string, targetRoles []string) bool {
 	for _, role := range roles {
 		for _, target := range targetRoles {
 			if role == target {
@@ -124,7 +124,7 @@ func AdminAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB) gin.HandlerFunc {
 		uid := userId.(string)
 
 		// 获取用户角色
-		roles, err := getUserRoles(db, uid)
+		roles, err := GetUserRoles(db, uid)
 		if err != nil {
 			logger.Error("管理员权限检查：查询用户角色失败",
 				zap.String("uid", uid),
@@ -138,7 +138,7 @@ func AdminAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// 检查是否为管理员
-		if !hasAnyRole(roles, []string{RoleRoot, RoleAdmin}) {
+		if !HasAnyRole(roles, []string{RoleRoot, RoleAdmin}) {
 			logger.Warn("管理员权限检查：用户权限不足",
 				zap.String("uid", uid),
 				zap.Strings("roles", roles),
@@ -187,7 +187,7 @@ func RootAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB) gin.HandlerFunc {
 		uid := userId.(string)
 
 		// 获取用户角色
-		roles, err := getUserRoles(db, uid)
+		roles, err := GetUserRoles(db, uid)
 		if err != nil {
 			logger.Error("超级管理员权限检查：查询用户角色失败",
 				zap.String("uid", uid),
@@ -201,7 +201,7 @@ func RootAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// 检查是否为超级管理员
-		if !hasRole(roles, RoleRoot) {
+		if !HasRole(roles, RoleRoot) {
 			logger.Warn("超级管理员权限检查：用户权限不足",
 				zap.String("uid", uid),
 				zap.Strings("roles", roles),
@@ -250,7 +250,7 @@ func RoleAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB, allowedRoles []strin
 		uid := userId.(string)
 
 		// 获取用户角色
-		roles, err := getUserRoles(db, uid)
+		roles, err := GetUserRoles(db, uid)
 		if err != nil {
 			logger.Error("角色权限检查：查询用户角色失败",
 				zap.String("uid", uid),
@@ -264,7 +264,7 @@ func RoleAuthMiddleware(cfg *config.JWTConfig, db *gorm.DB, allowedRoles []strin
 		}
 
 		// 检查是否拥有允许的角色
-		if !hasAnyRole(roles, allowedRoles) {
+		if !HasAnyRole(roles, allowedRoles) {
 			logger.Warn("角色权限检查：用户权限不足",
 				zap.String("uid", uid),
 				zap.Strings("user_roles", roles),

@@ -36,11 +36,15 @@ export default {
     bold: {
       type: Boolean,
       default: false
+    },
+    rating: {
+      type: Number,
+      default: null
     }
   },
   data() {
     return {
-      rating: null,
+      internalRating: null,
       loading: false
     }
   },
@@ -49,23 +53,29 @@ export default {
       return this.username;
     },
     userColor() {
-      if (this.rating !== null) {
-        return getRatingColor(this.rating);
+      const ratingToUse = this.rating !== null ? this.rating : this.internalRating;
+      if (ratingToUse !== null) {
+        return getRatingColor(ratingToUse);
       }
       // 加载中或失败时使用默认颜色
       return 'inherit';
     },
     tooltip() {
-      if (!this.showTooltip || this.rating === null) return '';
-      return `Rating: ${this.rating}`;
+      const ratingToUse = this.rating !== null ? this.rating : this.internalRating;
+      if (!this.showTooltip || ratingToUse === null) return '';
+      return `Rating: ${ratingToUse}`;
     }
   },
   mounted() {
-    this.fetchRating();
+    // 只有在未传入 rating prop 时才自动获取
+    if (this.rating === null) {
+      this.fetchRating();
+    }
   },
   watch: {
     username(newVal, oldVal) {
-      if (newVal !== oldVal) {
+      // 只有在未传入 rating prop 时才自动获取
+      if (newVal !== oldVal && this.rating === null) {
         this.fetchRating();
       }
     }
@@ -76,7 +86,7 @@ export default {
 
       // 检查缓存
       if (ratingCache.has(this.username)) {
-        this.rating = ratingCache.get(this.username);
+        this.internalRating = ratingCache.get(this.username);
         return;
       }
 
@@ -84,10 +94,10 @@ export default {
       if (pendingRequests.has(this.username)) {
         try {
           const rating = await pendingRequests.get(this.username);
-          this.rating = rating;
+          this.internalRating = rating;
         } catch (error) {
           // 请求失败，使用默认值
-          this.rating = 1500;
+          this.internalRating = 1500;
         }
         return;
       }
@@ -113,7 +123,7 @@ export default {
         });
 
       pendingRequests.set(this.username, promise);
-      this.rating = await promise;
+      this.internalRating = await promise;
     },
     handleClick() {
       if (this.clickable) {

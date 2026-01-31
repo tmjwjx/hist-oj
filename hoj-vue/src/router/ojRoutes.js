@@ -23,6 +23,9 @@ import ContestPrint from "@/views/oj/contest/children/ContestPrint.vue"
 import ContestAdminPrint from "@/views/oj/contest/children/ContestAdminPrint.vue"
 import ScrollBoard from "@/views/oj/contest/children/ScrollBoard.vue"
 import ContestRejudgeAdmin from "@/views/oj/contest/children/ContestRejudgeAdmin.vue"
+import ContestQuestionQA from "@/views/oj/contest/children/ContestQuestionQA.vue"
+import ContestQuestionList from "@/views/oj/contest/children/ContestQuestionList.vue"
+import ContestQuestionDetail from "@/views/oj/contest/children/ContestQuestionDetail.vue"
 import DiscussionList from "@/views/oj/discussion/discussionList.vue"
 import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
@@ -228,6 +231,24 @@ const ojRoutes = [
         path:'scroll-board',
         component: ScrollBoard,
         meta: { title: 'Contest Scroll Board'}
+      },
+      {
+        name: 'ContestQuestionQA',
+        path: 'question-qa',
+        component: ContestQuestionQA,
+        meta: { title: 'Contest Question QA'}
+      },
+      {
+        name: 'ContestQuestionList',
+        path: 'questions',
+        component: ContestQuestionList,
+        meta: { title: 'Contest Questions'}
+      },
+      {
+        name: 'ContestQuestionDetail',
+        path: 'question/:questionId',
+        component: ContestQuestionDetail,
+        meta: { title: 'Contest Question Detail'}
       }
     ]
   },

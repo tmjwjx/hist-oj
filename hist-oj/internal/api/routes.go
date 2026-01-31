@@ -167,6 +167,17 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/message/upload-image", AuthMiddleware(), handler.UploadMessageImage)
 			classroom.DELETE("/message/:messageId", AuthMiddleware(), handler.RecallMessage)
 		}
+
+		// 比赛问题答疑 - 需要认证
+		contestQuestion := api.Group("/contest-question")
+		{
+			contestQuestion.POST("", AuthMiddleware(), handler.CreateContestQuestion)
+			contestQuestion.GET(":contestId/questions", AuthMiddleware(), handler.GetContestQuestions)
+			contestQuestion.GET("/question/:questionId", AuthMiddleware(), handler.GetContestQuestionDetail)
+			contestQuestion.PUT("/question/:questionId/status", AuthMiddleware(), handler.UpdateQuestionStatus)
+			contestQuestion.POST("/question/:questionId/reply", AuthMiddleware(), handler.SendQuestionReply)
+			contestQuestion.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteContestQuestion)
+		}
 	}
 
 	router.GET("/health", handler.HealthCheck)

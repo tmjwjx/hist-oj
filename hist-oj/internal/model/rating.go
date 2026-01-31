@@ -66,7 +66,8 @@ type UserInfo struct {
 	Password  string    `gorm:"type:varchar(255)" json:"password"`
 	Nickname  string    `gorm:"type:varchar(255)" json:"nickname"`
 	Realname  string    `gorm:"type:varchar(255)" json:"realname"` // 真实姓名
-	Rating    int       `gorm:"type:int;default:1200" json:"rating"` // 当前 Rating
+	Rating    int       `gorm:"type:int;default:1200" json:"rating"` // 当前 Rating（已废弃，使用HistRating）
+	HistRating int      `gorm:"-" json:"histRating"` // Hist Rating（从user_record表获取）
 	Status    int       `gorm:"type:int;default:0" json:"status"` // 0: 正常, 1: 禁用
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
@@ -80,6 +81,8 @@ func (UserInfo) TableName() string {
 // Contest 比赛信息（对应HOJ的contest表）
 type Contest struct {
 	ID        uint64    `gorm:"primaryKey;type:bigint unsigned" json:"id"`
+	UID       string    `gorm:"type:varchar(32);not null;column:uid" json:"uid"` // 创建者ID
+	Author    string    `gorm:"type:varchar(255);column:author" json:"author"` // 创建者用户名
 	Type      int       `gorm:"type:int;not null;default:0" json:"type"` // 0: ACM, 1: OI
 	IsRating  bool      `gorm:"type:tinyint(1);not null;default:0;column:is_rating" json:"isRating"` // 0: unrated, 1: rated
 	Title     string    `gorm:"type:varchar(255)" json:"title"`
@@ -139,6 +142,13 @@ func InitTables(db *gorm.DB) error {
 	}
 	// 创建班级相关表
 	if err := InitClassroomTables(db); err != nil {
+		return err
+	}
+	// 创建比赛问题答疑相关表
+	if err := db.AutoMigrate(&ContestQuestion{}); err != nil {
+		return err
+	}
+	if err := db.AutoMigrate(&ContestQuestionReply{}); err != nil {
 		return err
 	}
 	return nil

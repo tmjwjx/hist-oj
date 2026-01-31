@@ -147,7 +147,11 @@
     <div class="sub-menu">
       <!-- 判断是否需要密码验证 -->
 
-      <el-tabs @tab-click="tabClick" v-model="route_name">
+      <!-- 比赛问题详情页面（不显示 tabs） -->
+      <router-view v-if="route_name === 'ContestQuestionDetail'"></router-view>
+
+      <!-- 其他页面显示 tabs -->
+      <el-tabs @tab-click="tabClick" v-model="route_name" v-show="route_name !== 'ContestQuestionDetail'">
         <el-tab-pane name="ContestDetails" lazy>
           <span slot="label"
             ><i class="el-icon-s-home"></i>&nbsp;{{ $t('m.Overview') }}</span
@@ -347,6 +351,33 @@
             <router-view
               v-if="route_name === 'ScrollBoard'"
             ></router-view>
+          </transition>
+        </el-tab-pane>
+
+        <el-tab-pane
+          name="ContestQuestionQA"
+          lazy
+          :disabled="contestMenuDisabled"
+        >
+          <span slot="label">
+            <i class="fa fa-question-circle" aria-hidden="true"></i>&nbsp;问题答疑
+          </span>
+          <transition name="el-zoom-in-bottom">
+            <router-view v-if="route_name === 'ContestQuestionQA'"></router-view>
+          </transition>
+        </el-tab-pane>
+
+        <el-tab-pane
+          name="ContestQuestionList"
+          lazy
+          :disabled="contestMenuDisabled"
+          v-if="isContestAdmin"
+        >
+          <span slot="label">
+            <i class="fa fa-comments" aria-hidden="true"></i>&nbsp;答疑列表
+          </span>
+          <transition name="el-zoom-in-bottom">
+            <router-view v-if="route_name === 'ContestQuestionList'"></router-view>
           </transition>
         </el-tab-pane>
 
