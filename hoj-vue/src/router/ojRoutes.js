@@ -26,6 +26,7 @@ import ContestRejudgeAdmin from "@/views/oj/contest/children/ContestRejudgeAdmin
 import ContestQuestionQA from "@/views/oj/contest/children/ContestQuestionQA.vue"
 import ContestQuestionList from "@/views/oj/contest/children/ContestQuestionList.vue"
 import ContestQuestionDetail from "@/views/oj/contest/children/ContestQuestionDetail.vue"
+import ContestPlagiarism from "@/views/oj/contest/children/ContestPlagiarism.vue"
 import DiscussionList from "@/views/oj/discussion/discussionList.vue"
 import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
@@ -249,6 +250,12 @@ const ojRoutes = [
         path: 'question/:questionId',
         component: ContestQuestionDetail,
         meta: { title: 'Contest Question Detail'}
+      },
+      {
+        name: 'ContestPlagiarism',
+        path: 'plagiarism',
+        component: ContestPlagiarism,
+        meta: { title: 'Contest Plagiarism', requireAuth: true }
       }
     ]
   },

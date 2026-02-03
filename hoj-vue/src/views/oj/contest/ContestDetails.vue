@@ -381,6 +381,20 @@
           </transition>
         </el-tab-pane>
 
+        <el-tab-pane
+          name="ContestPlagiarism"
+          lazy
+          :disabled="contestMenuDisabled"
+          v-if="isContestAdmin || isSuperAdmin"
+        >
+          <span slot="label">
+            <i class="fa fa-search" aria-hidden="true"></i>&nbsp;代码查重
+          </span>
+          <transition name="el-zoom-in-bottom">
+            <router-view v-if="route_name === 'ContestPlagiarism'"></router-view>
+          </transition>
+        </el-tab-pane>
+
       </el-tabs>
     </div>
   </div>

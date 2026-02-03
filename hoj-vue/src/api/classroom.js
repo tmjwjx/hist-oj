@@ -83,6 +83,9 @@ export default {
   getCheckinRecords(checkinId) {
     return axios.get(`${BASE_URL}/checkin/${checkinId}/records`)
   },
+  createCheckinRecord(checkinId, data) {
+    return axios.post(`${BASE_URL}/checkin/${checkinId}/record`, data)
+  },
   updateCheckinRecord(data) {
     return axios.put(`${BASE_URL}/checkin/record`, data)
   },

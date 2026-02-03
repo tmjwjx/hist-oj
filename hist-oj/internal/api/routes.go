@@ -100,6 +100,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/:classroomId/checkins", AuthMiddleware(), handler.GetCheckinList)
 			classroom.GET("/:classroomId/checkins/student", AuthMiddleware(), handler.GetCheckinListForStudent) // 学生端安全API
 			classroom.GET("/checkin/:checkinId/records", AuthMiddleware(), handler.GetCheckinRecords)
+			classroom.POST("/checkin/:checkinId/record", AuthMiddleware(), handler.CreateCheckinRecord)
 			classroom.PUT("/checkin/record", AuthMiddleware(), handler.UpdateCheckinRecord)
 			classroom.POST("/checkin/:checkinId/end", AuthMiddleware(), handler.EndCheckin)
 			classroom.PUT("/checkin/:checkinId", AuthMiddleware(), handler.UpdateCheckin)
@@ -178,6 +179,9 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			contestQuestion.POST("/question/:questionId/reply", AuthMiddleware(), handler.SendQuestionReply)
 			contestQuestion.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteContestQuestion)
 		}
+
+		// 代码查重功能 - 管理员
+		RegisterPlagiarismRoutes(api, cfg, db)
 	}
 
 	router.GET("/health", handler.HealthCheck)

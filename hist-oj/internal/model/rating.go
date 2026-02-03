@@ -151,6 +151,24 @@ func InitTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&ContestQuestionReply{}); err != nil {
 		return err
 	}
+	// 创建查重相关表
+	if err := InitPlagiarismTables(db); err != nil {
+		return err
+	}
+	return nil
+}
+
+// InitPlagiarismTables 初始化查重相关表
+func InitPlagiarismTables(db *gorm.DB) error {
+	if err := db.AutoMigrate(&PlagiarismCheckConfig{}); err != nil {
+		return err
+	}
+	if err := db.AutoMigrate(&PlagiarismCheck{}); err != nil {
+		return err
+	}
+	if err := db.AutoMigrate(&PlagiarismResult{}); err != nil {
+		return err
+	}
 	return nil
 }
 

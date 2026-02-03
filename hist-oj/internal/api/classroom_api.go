@@ -1142,6 +1142,62 @@ func (h *Handler) GetCheckinRecords(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(records))
 }
 
+// CreateCheckinRecord 创建签到记录（教师）- 为未签到学生创建记录
+func (h *Handler) CreateCheckinRecord(c *gin.Context) {
+	logger := utils.GetLogger()
+	db := client.GetDB()
+
+	checkinIDStr := c.Param("checkinId")
+	checkinID, err := strconv.ParseUint(checkinIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "checkinId参数格式错误"))
+		return
+	}
+
+	var req struct {
+		UID    string `json:"uid" binding:"required"`
+		Status string `json:"status" binding:"required,oneof=present absent sick_leave personal_leave"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 查询签到信息
+	var checkin model.ClassroomCheckin
+	if err := db.Where("id = ?", checkinID).First(&checkin).Error; err != nil {
+		logger.Error("查询签到信息失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "签到不存在"))
+		return
+	}
+
+	// 检查是否已经存在记录
+	var existingRecord model.ClassroomCheckinRecord
+	if err := db.Where("checkin_id = ? AND uid = ?", checkinID, req.UID).First(&existingRecord).Error; err == nil {
+		c.JSON(http.StatusOK, errorResponse(400, "该用户已有签到记录"))
+		return
+	}
+
+	// 创建签到记录
+	record := &model.ClassroomCheckinRecord{
+		CheckinID:   checkinID,
+		UID:         req.UID,
+		Status:      req.Status,
+		CheckinTime: nil, // 教师手动创建的记录，签到时间设为空
+	}
+
+	if err := db.Create(record).Error; err != nil {
+		logger.Error("创建签到记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "创建失败"))
+		return
+	}
+
+	logger.Info("创建签到记录", zap.Uint64("checkin_id", checkinID), zap.String("uid", req.UID), zap.String("status", req.Status))
+	c.JSON(http.StatusOK, successResponse(record))
+}
+
 // UpdateCheckinRecord 修改签到状态（教师）
 func (h *Handler) UpdateCheckinRecord(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -1258,6 +1314,30 @@ func (h *Handler) UpdateCheckin(c *gin.Context) {
 		updates["end_time"] = *req.EndTime
 	} else {
 		updates["end_time"] = nil
+	}
+
+	// 根据当前时间和新的时间范围自动更新 status
+	now := time.Now()
+	startTime, err := time.Parse(time.RFC3339, req.StartTime)
+	if err == nil {
+		// 检查是否需要更新状态
+		var newStatus int
+		if req.EndTime != nil && *req.EndTime != "" {
+			endTime, err := time.Parse(time.RFC3339, *req.EndTime)
+			if err == nil && now.After(endTime) {
+				newStatus = 0 // 已结束
+			} else if (now.Equal(startTime) || now.After(startTime)) && now.Before(endTime) {
+				newStatus = 1 // 进行中
+			} else {
+				newStatus = 0 // 未开始
+			}
+		} else if now.Equal(startTime) || now.After(startTime) {
+			newStatus = 1 // 进行中（没有结束时间）
+		} else {
+			newStatus = 0 // 未开始
+		}
+
+		updates["status"] = newStatus
 	}
 
 	if err := db.Model(&checkin).Updates(updates).Error; err != nil {

@@ -63,14 +63,14 @@ build_images() {
     docker builder prune -af
     docker system prune -af --volumes 2>/dev/null || true
 
-    # 构建 hist-oj
-    log_info "构建 hist-oj 镜像（不使用缓存）..."
+    # 构建 hist-oj（包含 sim 代码查重工具）
+    log_info "构建 hist-oj 镜像（不使用缓存，包含 sim 查重工具）..."
     cd hist-oj
     docker build --no-cache --platform linux/amd64 -t hist-oj:latest . || {
         log_error "hist-oj 镜像构建失败"
         exit 1
     }
-    log_info "✓ hist-oj 镜像构建成功"
+    log_info "✓ hist-oj 镜像构建成功（包含 sim_c, sim_java 查重工具）"
 
     # 构建报名系统后端
     log_info "构建 registration-backend 镜像（不使用缓存）..."
@@ -797,6 +797,14 @@ SQLEOF
         echo "[INFO] 测试班级管理系统路由（学生端）..."
         docker exec hoj-frontend curl -s -o /dev/null -w "%{http_code}" http://localhost/classroom/student | grep -q "200" && echo "[INFO] ✓ 学生工作台路由正常" || echo "[WARN] 学生工作台路由异常"
 
+        echo "[INFO] 验证 sim 代码查重工具..."
+        if docker exec hist-oj ls /usr/local/bin/sim_c >/dev/null 2>&1; then
+            echo "[INFO] ✓ sim_c 工具已安装"
+            docker exec hist-oj ls -la /usr/local/bin/sim_* || echo "[WARN] 无法列出 sim 工具"
+        else
+            echo "[WARN] sim_c 工具未找到，查重功能将无法使用"
+        fi
+
         echo "[INFO] 验证工具箱组件文件是否在容器中..."
         # 查找实际的 app.js 文件（文件名带有 hash）
         APP_JS=$(docker exec hoj-frontend find /usr/share/nginx/html/assets/js -name "app.*.js" -type f 2>/dev/null | head -1)
@@ -962,9 +970,15 @@ show_result() {
     log_info "=========================================="
     log_info "部署完成！"
     log_info "=========================================="
-    log_info "✅ HTTPS 已启用，SSL 证书配置成功！"
+    log_info "✅ 所有功能已部署完成！"
     log_info ""
-    log_info "服务访问地址（推荐使用 HTTPS）："
+    log_info "📋 服务清单："
+    log_info "  1. hist-oj 后端服务（含 sim 查重工具）"
+    log_info "  2. hoj-frontend 前端服务"
+    log_info "  3. registration-backend 报名系统"
+    log_info "  4. Nginx + SSL 证书"
+    log_info ""
+    log_info "🌐 访问地址（推荐使用 HTTPS）："
     log_info "  - 前端主页: https://bingoj.cn 或 http://${SERVER_IP}"
     log_info "  - hist-oj API: http://${SERVER_IP}:9527"
     log_info "  - 用户工具箱: https://bingoj.cn/toolbox"
@@ -1027,6 +1041,15 @@ show_result() {
     log_info "     - 即时通讯：班级群聊、私信"
     log_info "     - API: http://${SERVER_IP}:9527/api/classroom/*"
     log_info ""
+    log_info "  9. ✅ 代码查重系统（基于 sim 工具）"
+    log_info "     - 支持 C/C++ 和 Java 代码查重"
+    log_info "     - 比赛结束后可进行代码查重"
+    log_info "     - 管理员设置阈值，自动检测相似度"
+    log_info "     - 查重结果：相似度百分比、代码对比"
+    log_info "     - 工具位置: /usr/local/bin/sim_c, sim_java"
+    log_info "     - API: http://${SERVER_IP}:9527/api/plagiarism/*"
+    log_info "     - 使用方法：比赛详情页 -> 代码查重标签"
+    log_info ""
     log_info "  8. ✅ HTTPS + 二维码签到功能（已修复）"
     log_info "     - SSL 证书已配置，支持 HTTPS 访问"
     log_info "     - 使用 jsQR 库实现跨浏览器二维码扫描"
@@ -1077,6 +1100,9 @@ show_result() {
     log_info "  - 验证班级系统表:"
     log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
     log_info "      'SHOW TABLES LIKE \"classroom%\"' hoj"
+    log_info "  - 验证查重系统表:"
+    log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
+    log_info "      'SHOW TABLES LIKE \"plagiarism%\"' hoj"
     log_info ""
     log_info "代码变更（代码对战系统）："
     log_info "  - 后端:"

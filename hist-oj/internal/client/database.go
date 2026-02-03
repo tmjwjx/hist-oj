@@ -34,9 +34,10 @@ func InitDatabase(cfg *config.DatabaseConfig) error {
 		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
 
-	// 使用默认连接池配置
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetMaxIdleConns(10)
+	// 配置连接池参数
+	// 查重功能需要高并发（200个goroutine），因此需要足够的连接数
+	sqlDB.SetMaxOpenConns(300)      // 最大连接数提高到300，支持高并发查重
+	sqlDB.SetMaxIdleConns(50)       // 最大空闲连接数提高到50，减少连接建立开销
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 测试连接

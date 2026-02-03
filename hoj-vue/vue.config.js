@@ -100,6 +100,13 @@ module.exports={
         pathRewrite: {
           '^/training-api': ''                  //   去掉 /training-api 前缀
         }
+      },
+      '/plagiarism-api': {                     //   代码查重服务代理
+        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
+        changeOrigin: true,
+        pathRewrite: {
+          '^/plagiarism-api': ''                //   去掉 /plagiarism-api 前缀
+        }
       }
     },
     disableHostCheck: true,
@@ -130,6 +137,10 @@ module.exports={
         "maxEntrypointSize": 10000000,
         "maxAssetSize": 30000000
       }
+          // 添加版本号到输出文件名，强制浏览器刷新
+      config.output.filename = 'js/[name].[contenthash:8].js'
+      config.output.chunkFilename = 'js/[name].[contenthash:8].js'
+
       config.plugins.push(
         new UglifyJsPlugin({
           uglifyOptions: {

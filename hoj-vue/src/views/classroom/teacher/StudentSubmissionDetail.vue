@@ -36,7 +36,9 @@
                 <p><strong>编程语言:</strong> {{ parseProgrammingAnswer(submit.answer).language }}</p>
                 <el-divider></el-divider>
                 <p><strong>学生代码:</strong></p>
-                <pre class="code-block">{{ parseProgrammingAnswer(submit.answer).code }}</pre>
+                <div class="code-preview-wrapper">
+                  <pre class="code-preview"><code :ref="`codeBlock_${index}`" :class="`language-${mapLanguage(parseProgrammingAnswer(submit.answer).language)}`">{{ parseProgrammingAnswer(submit.answer).code }}</code></pre>
+                </div>
               </div>
             </div>
 
@@ -287,6 +289,8 @@ import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import realtimeSync from '@/mixins/realtimeSync'
 import UserName from '@/components/oj/common/UserName.vue'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -407,6 +411,8 @@ export default {
         questions: questions
       }
 
+      // 应用代码高亮
+      this.highlightAllCodeBlocks()
     },
     parseOptions(optionsStr) {
       if (!optionsStr) return []
@@ -669,6 +675,107 @@ export default {
         console.error('解析attachment失败:', e, attachment)
         return []
       }
+    },
+    // 高亮所有代码块
+    highlightAllCodeBlocks() {
+      this.$nextTick(() => {
+        if (this.studentSubmission && this.studentSubmission.questions) {
+          this.studentSubmission.questions.forEach((submit, index) => {
+            if (submit.problemId && submit.answer && this.parseProgrammingAnswer(submit.answer)) {
+              const refName = `codeBlock_${index}`
+              const codeBlock = this.$refs[refName]
+              if (codeBlock) {
+                // 如果是数组（v-for产生的ref），取第一个元素
+                const element = Array.isArray(codeBlock) ? codeBlock[0] : codeBlock
+                if (element) {
+                  hljs.highlightElement(element)
+                }
+              }
+            }
+          })
+        }
+      })
+    },
+    // 映射编程语言到 highlight.js 支持的语言标识
+    mapLanguage(lang) {
+      const languageMap = {
+        // C语言变体
+        'c': 'c',
+        'C': 'c',
+        'C With O2': 'c',
+
+        // C++变体
+        'cpp': 'cpp',
+        'C++': 'cpp',
+        'c++': 'cpp',
+        'C++ 17 With O2': 'cpp',
+        'C++ 17': 'cpp',
+        'C++ 20 With O2': 'cpp',
+        'C++ 20': 'cpp',
+
+        // Java
+        'java': 'java',
+        'Java': 'java',
+
+        // Python变体
+        'python': 'python',
+        'Python': 'python',
+        'py': 'py',
+        'python3': 'python',
+        'Python3': 'python',
+        'python2': 'python',
+        'Python2': 'python',
+        'pypy3': 'python',
+        'PyPy3': 'python',
+        'pypy2': 'python',
+        'PyPy2': 'python',
+
+        // Go
+        'go': 'go',
+        'golang': 'go',
+        'Go': 'go',
+
+        // Rust
+        'rust': 'rust',
+        'Rust': 'rust',
+
+        // JavaScript变体
+        'javascript': 'javascript',
+        'js': 'javascript',
+        'JavaScript': 'javascript',
+        'javascript node': 'javascript',
+        'JavaScript Node': 'javascript',
+        'javascript v8': 'javascript',
+        'JavaScript V8': 'javascript',
+
+        // TypeScript
+        'typescript': 'typescript',
+        'ts': 'typescript',
+        'TypeScript': 'typescript',
+
+        // PHP
+        'php': 'php',
+        'PHP': 'php',
+
+        // Ruby
+        'ruby': 'ruby',
+        'Ruby': 'ruby',
+
+        // Kotlin
+        'kotlin': 'kotlin',
+        'Kotlin': 'kotlin',
+
+        // Scala
+        'scala': 'scala',
+        'Scala': 'scala',
+
+        // C#
+        'csharp': 'csharp',
+        'c#': 'csharp',
+        'C#': 'csharp',
+        'CSharp': 'csharp'
+      }
+      return languageMap[lang] || 'plaintext'
     }
   }
 }
@@ -792,17 +899,28 @@ export default {
   border-radius: 4px;
 }
 
-.code-block {
+.code-preview-wrapper {
+  max-height: 500px;
+  overflow: auto;
   background: #282c34;
-  color: #abb2bf;
-  padding: 15px;
   border-radius: 4px;
-  overflow-x: auto;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
+}
+
+.code-preview {
+  margin: 0;
+  padding: 20px;
+  background: #282c34;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
   line-height: 1.5;
-  max-height: 400px;
-  overflow-y: auto;
+  color: #abb2bf;
+}
+
+.code-preview code {
+  background: transparent !important;
+  padding: 0 !important;
+  display: block;
+  white-space: pre;
 }
 
 .judge-result {
@@ -946,5 +1064,92 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* Highlight.js 代码高亮全局样式 - 与查重代码一致 */
+.code-preview .hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0;
+  background: #282c34;
+  color: #abb2bf;
+}
+
+.code-preview .hljs-comment,
+.code-preview .hljs-quote {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.code-preview .hljs-keyword,
+.code-preview .hljs-selector-tag,
+.code-preview .hljs-subst {
+  color: #c678dd;
+}
+
+.code-preview .hljs-number,
+.code-preview .hljs-literal,
+.code-preview .hljs-variable,
+.code-preview .hljs-template-variable,
+.code-preview .hljs-tag .hljs-attr {
+  color: #d19a66;
+}
+
+.code-preview .hljs-string,
+.code-preview .hljs-doctag {
+  color: #98c379;
+}
+
+.code-preview .hljs-title,
+.code-preview .hljs-section,
+.code-preview .hljs-selector-id {
+  color: #61afef;
+}
+
+.code-preview .hljs-type,
+.code-preview .hljs-class .hljs-title {
+  color: #e5c07b;
+}
+
+.code-preview .hljs-tag,
+.code-preview .hljs-name,
+.code-preview .hljs-attribute {
+  color: #e06c75;
+  font-weight: normal;
+}
+
+.code-preview .hljs-regexp,
+.code-preview .hljs-link {
+  color: #56b6c2;
+}
+
+.code-preview .hljs-symbol,
+.code-preview .hljs-bullet {
+  color: #61afef;
+}
+
+.code-preview .hljs-built_in,
+.code-preview .hljs-builtin-name {
+  color: #e6c07b;
+}
+
+.code-preview .hljs-meta {
+  color: #61afef;
+}
+
+.code-preview .hljs-deletion {
+  background: #f8756f;
+}
+
+.code-preview .hljs-addition {
+  background: #98c379;
+}
+
+.code-preview .hljs-emphasis {
+  font-style: italic;
+}
+
+.code-preview .hljs-strong {
+  font-weight: bold;
 }
 </style>

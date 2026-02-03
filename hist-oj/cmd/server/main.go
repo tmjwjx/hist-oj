@@ -40,6 +40,13 @@ func main() {
 		logger.Fatal("Failed to init database", zap.Error(err))
 	}
 
+	// 初始化数据库表（查重表需要使用 SQL 脚本手动创建，不使用 AutoMigrate）
+	db := client.GetDB()
+	// 查重表通过 SQL 脚本手动创建，不使用 AutoMigrate（避免字段名问题）
+	// if err := model.InitPlagiarismTables(db); err != nil {
+	// 	logger.Warn("Failed to init plagiarism tables (service will continue)", zap.Error(err))
+	// }
+
 	// 初始化HOJ API客户端
 	client.InitHojAPIClient(&cfg.HojAPI)
 
@@ -49,7 +56,6 @@ func main() {
 	}
 
 	// 创建服务
-	db := client.GetDB()
 	ratingService := service.NewRatingService(db, &cfg.Rating)
 	queryService := service.NewQueryService(db)
 

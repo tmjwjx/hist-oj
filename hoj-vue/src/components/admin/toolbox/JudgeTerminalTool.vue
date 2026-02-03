@@ -264,14 +264,18 @@
       </el-row>
 
       <!-- 代码预览对话框 -->
-      <el-dialog title="提交代码预览" :visible.sync="codeDialogVisible" width="60%" append-to-body>
-        <pre class="code-preview">{{ currentCode }}</pre>
+      <el-dialog title="提交代码预览" :visible.sync="codeDialogVisible" width="60%" append-to-body @opened="highlightCode">
+        <div class="code-preview-wrapper">
+          <pre class="code-preview"><code :key="codeDialogVisible" ref="previewCodeBlock" :class="`language-${mapLanguage(currentLanguage)}`">{{ currentCode }}</code></pre>
+        </div>
       </el-dialog>
     </el-dialog>
   </div>
 </template>
 
 <script>
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 import { getJudgeInfo, getJudgeHistory, runCombinedJudge } from '@/common/judgeTerminal'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
@@ -315,7 +319,8 @@ export default {
       sampleSummary: '等待中',
       expandedSamples: {},
       codeDialogVisible: false,
-      currentCode: ''
+      currentCode: '',
+      currentLanguage: ''
     }
   },
   methods: {
@@ -633,7 +638,99 @@ export default {
     // 显示代码
     showCode(row) {
       this.currentCode = row.code
+      this.currentLanguage = row.language || ''
       this.codeDialogVisible = true
+    },
+
+    // 代码高亮
+    highlightCode() {
+      this.$nextTick(() => {
+        if (this.$refs.previewCodeBlock) {
+          hljs.highlightElement(this.$refs.previewCodeBlock)
+        }
+      })
+    },
+
+    // 映射编程语言到 highlight.js 支持的语言标识
+    mapLanguage(lang) {
+      const languageMap = {
+        // C语言变体
+        'c': 'c',
+        'C': 'c',
+        'C With O2': 'c',
+
+        // C++变体
+        'cpp': 'cpp',
+        'C++': 'cpp',
+        'c++': 'cpp',
+        'C++ 17 With O2': 'cpp',
+        'C++ 17': 'cpp',
+        'C++ 20 With O2': 'cpp',
+        'C++ 20': 'cpp',
+
+        // Java
+        'java': 'java',
+        'Java': 'java',
+
+        // Python变体
+        'python': 'python',
+        'Python': 'python',
+        'py': 'py',
+        'python3': 'python',
+        'Python3': 'python',
+        'python2': 'python',
+        'Python2': 'python',
+        'pypy3': 'python',
+        'PyPy3': 'python',
+        'pypy2': 'python',
+        'PyPy2': 'python',
+
+        // Go
+        'go': 'go',
+        'golang': 'go',
+        'Go': 'go',
+
+        // Rust
+        'rust': 'rust',
+        'Rust': 'rust',
+
+        // JavaScript变体
+        'javascript': 'javascript',
+        'js': 'javascript',
+        'JavaScript': 'javascript',
+        'javascript node': 'javascript',
+        'JavaScript Node': 'javascript',
+        'javascript v8': 'javascript',
+        'JavaScript V8': 'javascript',
+
+        // TypeScript
+        'typescript': 'typescript',
+        'ts': 'typescript',
+        'TypeScript': 'typescript',
+
+        // PHP
+        'php': 'php',
+        'PHP': 'php',
+
+        // Ruby
+        'ruby': 'ruby',
+        'Ruby': 'ruby',
+
+        // Kotlin
+        'kotlin': 'kotlin',
+        'Kotlin': 'kotlin',
+
+        // Scala
+        'scala': 'scala',
+        'Scala': 'scala',
+
+        // C#
+        'csharp': 'csharp',
+        'c#': 'csharp',
+        'C#': 'csharp',
+        'CSharp': 'csharp'
+      }
+      return languageMap[lang] || 'plaintext'
     },
 
     // 获取判题模式文本
@@ -898,18 +995,28 @@ export default {
 }
 
 /* 代码预览 */
-.code-preview {
-  background: #2d2d2d;
-  color: #f8f8f2;
-  padding: 15px;
-  border-radius: 4px;
-  font-family: 'Consolas', monospace;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+.code-preview-wrapper {
   max-height: 600px;
-  overflow-y: auto;
-  font-size: 13px;
-  line-height: 1.6;
+  overflow: auto;
+  background: #282c34;
+  border-radius: 4px;
+}
+
+.code-preview {
+  margin: 0;
+  padding: 20px;
+  background: #282c34;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #abb2bf;
+  white-space: pre;
+}
+
+.code-preview code {
+  background: transparent !important;
+  padding: 0 !important;
+  display: block;
 }
 
 /* 滚动条样式 */
@@ -933,5 +1040,94 @@ export default {
 .log-area::-webkit-scrollbar-track,
 .code-preview::-webkit-scrollbar-track {
   background: #2d2d2d;
+}
+</style>
+
+<style>
+/* Highlight.js 代码高亮全局样式 - 与查重代码一致 */
+.code-preview .hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0;
+  background: #282c34;
+  color: #abb2bf;
+}
+
+.code-preview .hljs-comment,
+.code-preview .hljs-quote {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.code-preview .hljs-keyword,
+.code-preview .hljs-selector-tag,
+.code-preview .hljs-subst {
+  color: #c678dd;
+}
+
+.code-preview .hljs-number,
+.code-preview .hljs-literal,
+.code-preview .hljs-variable,
+.code-preview .hljs-template-variable,
+.code-preview .hljs-tag .hljs-attr {
+  color: #d19a66;
+}
+
+.code-preview .hljs-string,
+.code-preview .hljs-doctag {
+  color: #98c379;
+}
+
+.code-preview .hljs-title,
+.code-preview .hljs-section,
+.code-preview .hljs-selector-id {
+  color: #61afef;
+}
+
+.code-preview .hljs-type,
+.code-preview .hljs-class .hljs-title {
+  color: #e5c07b;
+}
+
+.code-preview .hljs-tag,
+.code-preview .hljs-name,
+.code-preview .hljs-attribute {
+  color: #e06c75;
+  font-weight: normal;
+}
+
+.code-preview .hljs-regexp,
+.code-preview .hljs-link {
+  color: #56b6c2;
+}
+
+.code-preview .hljs-symbol,
+.code-preview .hljs-bullet {
+  color: #61afef;
+}
+
+.code-preview .hljs-built_in,
+.code-preview .hljs-builtin-name {
+  color: #e6c07b;
+}
+
+.code-preview .hljs-meta {
+  color: #61afef;
+}
+
+.code-preview .hljs-deletion {
+  background: #f8756f;
+}
+
+.code-preview .hljs-addition {
+  background: #98c379;
+}
+
+.code-preview .hljs-emphasis {
+  font-style: italic;
+}
+
+.code-preview .hljs-strong {
+  font-weight: bold;
 }
 </style>
