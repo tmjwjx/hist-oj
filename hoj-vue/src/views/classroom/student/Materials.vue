@@ -4,87 +4,161 @@
       <h3>{{ $t('m.Material_Library') }}</h3>
     </div>
 
-    <div class="content-layout">
-      <!-- 左侧树形导航 -->
-      <div class="tree-sidebar">
-        <div class="tree-header">
-          <span class="tree-title">文件夹结构</span>
-        </div>
-        <el-tree
-          ref="folderTree"
-          :data="folderTree"
-          :props="treeProps"
-          :highlight-current="true"
-          node-key="id"
-          :current-node-key="currentFolderId"
-          :expand-on-click-node="false"
-          :default-expand-all="true"
-          @node-click="handleNodeClick"
-          class="folder-tree"
-        >
-          <span class="custom-tree-node" slot-scope="{ node, data }">
-            <span class="node-label">
-              <i :class="data.id === 0 ? 'el-icon-folder' : 'el-icon-folder-opened'"></i>
-              {{ node.label }}
-            </span>
-          </span>
-        </el-tree>
-      </div>
-
-      <!-- 右侧内容区域 -->
-      <div class="content-area">
-        <div class="content-header">
-          <span class="current-folder-name">{{ getCurrentFolderName() }}</span>
-        </div>
-
-        <div class="files-container" v-loading="loading">
-          <!-- 文件夹列表 -->
-          <div v-if="folders.length > 0" class="section">
-            <div class="section-title">文件夹</div>
-            <div class="files-grid">
-              <div
-                v-for="folder in folders"
-                :key="folder.id"
-                class="file-item folder-item"
-                @click="openFolder(folder)"
-              >
-                <i class="el-icon-folder folder-icon"></i>
-                <span class="file-name">{{ folder.folderName }}</span>
-              </div>
-            </div>
+    <!-- 左右分屏布局 -->
+    <div class="content-layout-split">
+      <!-- 左侧：文件列表面板 -->
+      <div class="file-list-panel">
+        <!-- 树形导航 -->
+        <div class="tree-sidebar">
+          <div class="tree-header">
+            <span class="tree-title">文件夹</span>
           </div>
+          <el-tree
+            ref="folderTree"
+            :data="folderTree"
+            :props="treeProps"
+            :highlight-current="true"
+            node-key="id"
+            :current-node-key="currentFolderId"
+            :expand-on-click-node="false"
+            :default-expand-all="true"
+            @node-click="handleNodeClick"
+            class="folder-tree"
+          >
+            <span class="custom-tree-node" slot-scope="{ node, data }">
+              <span class="node-label">
+                <i :class="data.id === 0 ? 'el-icon-folder' : 'el-icon-folder-opened'"></i>
+                {{ node.label }}
+              </span>
+            </span>
+          </el-tree>
+        </div>
 
-          <!-- 文件列表 -->
-          <div v-if="materials.length > 0" class="section">
-            <div class="section-title">文件</div>
-            <div class="files-grid">
+        <!-- 文件列表 -->
+        <div class="files-list">
+          <div v-loading="loading">
+            <!-- 文件列表 -->
+            <div v-if="materials.length > 0" class="section">
               <div
                 v-for="material in materials"
-                :key="material.id"
+                :key="'material-' + material.id"
                 class="file-item material-item"
+                :class="{ active: selectedMaterial && selectedMaterial.id === material.id }"
+                @click="selectMaterial(material)"
               >
-                <i :class="getFileIcon(material.fileType)" class="file-icon"></i>
+                <i :class="getFileIcon(getFileType(material.fileName))"></i>
                 <div class="file-info">
-                  <span class="file-name">{{ material.fileName }}</span>
+                  <span class="file-name" :title="material.fileName">{{ material.fileName }}</span>
                   <span class="file-size">{{ formatFileSize(material.fileSize) }}</span>
                 </div>
-                <el-button
-                  size="mini"
-                  type="primary"
-                  icon="el-icon-download"
-                  @click="downloadMaterial(material)"
-                >
-                  下载
-                </el-button>
+                <div class="file-actions">
+                  <el-button
+                    v-if="canPreview(getFileType(material.fileName))"
+                    size="mini"
+                    type="text"
+                    icon="el-icon-view"
+                  >
+                    预览
+                  </el-button>
+                  <el-button
+                    size="mini"
+                    type="text"
+                    icon="el-icon-download"
+                    @click.stop="downloadMaterial(material)"
+                  >
+                    下载
+                  </el-button>
+                </div>
               </div>
+            </div>
+
+            <!-- 空状态 -->
+            <el-empty
+              v-if="!loading && materials.length === 0"
+              :description="$t('m.No_Files_Yet')"
+              :image-size="80"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：预览面板 -->
+      <div class="preview-panel" v-if="selectedMaterial">
+        <div class="preview-header">
+          <div class="preview-info">
+            <div class="current-path">
+              <i class="el-icon-folder-opened"></i>
+              <span>{{ getCurrentFolderPath() }}</span>
+            </div>
+            <span class="file-title" :title="selectedMaterial.fileName">
+              <i :class="getFileIcon(getFileType(selectedMaterial.fileName))"></i>
+              {{ selectedMaterial.fileName }}
+            </span>
+          </div>
+          <div class="preview-actions">
+            <el-button size="small" icon="el-icon-download" @click="downloadCurrentFile">
+              下载
+            </el-button>
+            <el-button size="small" icon="el-icon-full-screen" @click="toggleFullscreen">
+              全屏
+            </el-button>
+          </div>
+        </div>
+
+        <div class="preview-content" v-loading="previewLoading" element-loading-text="加载中...">
+          <!-- PDF 预览 -->
+          <iframe
+            v-if="getFileType(selectedMaterial.fileName) === 'pdf' && !previewLoading"
+            :src="previewUrl"
+            class="preview-iframe"
+          ></iframe>
+
+          <!-- 视频预览 -->
+          <video
+            v-if="getFileType(selectedMaterial.fileName) === 'video' && !previewLoading"
+            :src="previewUrl"
+            controls
+            class="preview-video"
+          ></video>
+
+          <!-- 音频预览 -->
+          <div v-if="getFileType(selectedMaterial.fileName) === 'audio' && !previewLoading" class="preview-audio">
+            <audio :src="previewUrl" controls style="width: 100%; max-width: 600px;"></audio>
+            <div class="audio-icon">
+              <i class="el-icon-headset"></i>
+              <p>音频文件</p>
             </div>
           </div>
 
-          <!-- 空状态 -->
-          <el-empty
-            v-if="!loading && folders.length === 0 && materials.length === 0"
-            :description="$t('m.No_Files_Yet')"
-          />
+          <!-- 图片预览 -->
+          <div v-if="getFileType(selectedMaterial.fileName) === 'image' && !previewLoading" class="preview-image">
+            <img :src="previewUrl" alt="预览图片" />
+          </div>
+
+          <!-- TXT 预览 -->
+          <iframe
+            v-if="getFileType(selectedMaterial.fileName) === 'txt' && !previewLoading"
+            :src="previewUrl"
+            class="preview-iframe"
+          ></iframe>
+
+          <!-- 不支持预览 -->
+          <div v-if="!canPreview(getFileType(selectedMaterial.fileName))" class="preview-unsupported">
+            <i :class="getFileIcon(getFileType(selectedMaterial.fileName))"></i>
+            <p>该文件类型不支持在线预览</p>
+            <el-button type="primary" icon="el-icon-download" @click="downloadCurrentFile">
+              点击下载
+            </el-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 未选中文件时的提示 -->
+      <div class="preview-panel empty" v-else>
+        <div class="empty-hint">
+          <i class="el-icon-document"></i>
+          <p>点击左侧文件进行预览</p>
+          <p class="hint-text">支持 PDF、视频、图片、音频、文本文件在线预览</p>
         </div>
       </div>
     </div>
@@ -115,6 +189,9 @@ export default {
         label: 'folderName',
         children: 'children'
       },
+      // 预览相关
+      selectedMaterial: null,
+      previewLoading: false,
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -122,6 +199,16 @@ export default {
         syncFunction: 'loadContent',
         immediate: true
       }
+    }
+  },
+  computed: {
+    previewUrl() {
+      if (!this.selectedMaterial || !this.selectedMaterial.filePath) return ''
+      let url = this.selectedMaterial.filePath
+      if (url.startsWith('/')) {
+        url = window.location.origin + url
+      }
+      return url
     }
   },
   watch: {
@@ -296,6 +383,27 @@ export default {
       return folder ? folder.folderName : this.$t('m.Root_Directory')
     },
 
+    // 获取当前文件夹的完整路径
+    getCurrentFolderPath() {
+      if (this.currentFolderId === 0) {
+        return this.$t('m.Root_Directory')
+      }
+
+      const path = []
+      let currentId = this.currentFolderId
+
+      while (currentId !== 0) {
+        const folder = this.allFoldersCache.find(f => f.id === currentId)
+        if (!folder) break
+
+        path.unshift(folder.folderName)
+        currentId = folder.parentId || 0
+      }
+
+      path.unshift(this.$t('m.Root_Directory'))
+      return path.join(' / ')
+    },
+
     openFolder(folder) {
       this.navigateToFolder(folder.id)
     },
@@ -306,6 +414,66 @@ export default {
         filePath = window.location.origin + filePath
       }
       window.open(filePath, '_blank')
+    },
+
+    // 根据文件名获取文件类型
+    getFileType(fileName) {
+      if (!fileName) return 'unknown'
+      const ext = fileName.split('.').pop().toLowerCase()
+
+      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp']
+      const videoTypes = ['mp4', 'webm', 'ogv', 'mov']
+      const audioTypes = ['mp3', 'wav', 'aac', 'ogg', 'm4a']
+      const documentTypes = ['pdf']
+      const textTypes = ['txt', 'md']
+      const officeTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+
+      if (imageTypes.includes(ext)) return 'image'
+      if (videoTypes.includes(ext)) return 'video'
+      if (audioTypes.includes(ext)) return 'audio'
+      if (documentTypes.includes(ext)) return 'pdf'
+      if (textTypes.includes(ext)) return 'txt'
+      if (officeTypes.includes(ext)) {
+        if (['doc', 'docx'].includes(ext)) return 'word'
+        if (['xls', 'xlsx'].includes(ext)) return 'excel'
+        if (['ppt', 'pptx'].includes(ext)) return 'ppt'
+      }
+
+      return 'unknown'
+    },
+
+    // 判断是否可预览
+    canPreview(fileType) {
+      const previewableTypes = ['pdf', 'txt', 'image', 'video', 'audio']
+      return previewableTypes.includes(fileType)
+    },
+
+    // 选择文件进行预览
+    selectMaterial(material) {
+      this.selectedMaterial = material
+      this.previewLoading = false
+    },
+
+    // 下载当前选中的文件
+    downloadCurrentFile() {
+      if (this.previewUrl) {
+        window.open(this.previewUrl, '_blank')
+      }
+    },
+
+    // 全屏切换
+    toggleFullscreen() {
+      const element = document.querySelector('.preview-content')
+      if (element) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen()
+        } else {
+          element.requestFullscreen().catch(err => {
+            console.error('无法进入全屏模式:', err)
+            this.$message.warning('您的浏览器不支持全屏预览')
+          })
+        }
+      }
     },
 
     getFileIcon(type) {
@@ -355,48 +523,57 @@ export default {
   font-weight: 700;
 }
 
-.content-layout {
-  display: flex;
+/* 左右分屏布局 */
+.content-layout-split {
+  display: grid;
+  grid-template-columns: 400px 1fr;
   gap: 16px;
   height: calc(100vh - 100px);
 }
 
-/* 左侧树形导航 */
-.tree-sidebar {
-  width: 240px;
-  flex-shrink: 0;
+/* 左侧列表面板 */
+.file-list-panel {
+  display: flex;
+  flex-direction: column;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+}
+
+/* 树形导航 */
+.tree-sidebar {
+  padding: 12px;
+  border-bottom: 1px solid #E4E7ED;
+  background: #F5F7FA;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .tree-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #E4E7ED;
-  background: #F5F7FA;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: white;
+  border-radius: 6px;
 }
 
 .tree-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #303133;
 }
 
 .folder-tree {
-  flex: 1;
+  background: white;
   padding: 8px;
-  overflow-y: auto;
+  border-radius: 6px;
 }
 
 .custom-tree-node {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .node-label {
@@ -407,13 +584,114 @@ export default {
 }
 
 .node-label i {
-  font-size: 16px;
+  font-size: 14px;
   color: #E6A23C;
 }
 
-/* 右侧内容区域 */
-.content-area {
+/* 文件列表 */
+.files-list {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.files-list .content-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #E4E7ED;
+  background: #F5F7FA;
+}
+
+.current-folder-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.files-list > div {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #F5F7FA;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 6px;
+}
+
+.file-item:hover {
+  background: #E6F0FF;
+  transform: translateX(2px);
+}
+
+.file-item.active {
+  background: #E6F0FF;
+  border-left: 3px solid #409EFF;
+}
+
+.file-item i {
+  font-size: 18px;
+  color: #409EFF;
+  flex-shrink: 0;
+}
+
+.file-item.folder-item i {
+  color: #E6A23C;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 13px;
+  color: #303133;
+  font-weight: 500;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+
+.file-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 右侧预览面板 */
+.preview-panel {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
@@ -422,122 +700,194 @@ export default {
   overflow: hidden;
 }
 
-.content-header {
+.preview-panel.empty {
+  justify-content: center;
+  align-items: center;
+  background: #F5F7FA;
+}
+
+.empty-hint {
+  text-align: center;
+  color: #909399;
+}
+
+.empty-hint i {
+  font-size: 64px;
+  color: #C0C4CC;
+  margin-bottom: 16px;
+}
+
+.empty-hint p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.hint-text {
+  font-size: 12px !important;
+  color: #C0C4CC !important;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   padding: 16px 20px;
   border-bottom: 1px solid #E4E7ED;
   background: #F5F7FA;
 }
 
-.current-folder-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.files-container {
+.preview-info {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: visible;
-  padding: 16px;
+  min-width: 0;
 }
 
-.section {
-  margin-bottom: 24px;
-}
-
-.section:last-child {
-  margin-bottom: 0;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
+.current-path {
+  font-size: 12px;
   color: #909399;
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.files-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.file-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: #F5F7FA;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: 4px;
+  margin-bottom: 6px;
 }
 
-.file-item:hover {
-  background: #E6F0FF;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.15);
-}
-
-.folder-item {
-  cursor: pointer;
-}
-
-.folder-icon {
-  font-size: 32px;
+.current-path i {
+  font-size: 13px;
   color: #E6A23C;
 }
 
-.file-icon {
-  font-size: 28px;
-  color: #409EFF;
-}
-
-.file-name {
-  flex: 1;
-  font-size: 14px;
-  color: #303133;
-  font-weight: 500;
+.current-path span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.file-info {
-  flex: 1;
+.file-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
 }
 
-.file-size {
-  font-size: 12px;
+.file-title i {
+  font-size: 20px;
+  color: #409EFF;
+  flex-shrink: 0;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.preview-content {
+  flex: 1;
+  background: #f5f5f5;
+  position: relative;
+  overflow: auto;
+}
+
+/* PDF预览 */
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+  display: block;
+}
+
+/* 视频预览 */
+.preview-video {
+  width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+/* 音频预览 */
+.preview-audio {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.audio-icon {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.audio-icon i {
+  font-size: 80px;
+  opacity: 0.8;
+}
+
+.audio-icon p {
+  margin-top: 16px;
+  font-size: 16px;
+}
+
+/* 图片预览 */
+.preview-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background: #f5f5f5;
+}
+
+.preview-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* 不支持预览 */
+.preview-unsupported {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
   color: #909399;
 }
 
-.material-item {
-  cursor: default;
+.preview-unsupported i {
+  font-size: 64px;
+  color: #C0C4CC;
+  margin-bottom: 16px;
 }
 
-.material-item .file-info {
-  flex: 1;
+.preview-unsupported p {
+  margin-bottom: 16px;
+  font-size: 14px;
 }
 
 /* 响应式 */
+@media (max-width: 1024px) {
+  .content-layout-split {
+    grid-template-columns: 320px 1fr;
+  }
+}
+
 @media (max-width: 768px) {
-  .content-layout {
-    flex-direction: column;
-  }
-
-  .tree-sidebar {
-    width: 100%;
-    max-height: 200px;
-  }
-
-  .files-grid {
+  .content-layout-split {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+  }
+
+  .file-list-panel {
+    max-height: 400px;
+  }
+
+  .preview-panel {
+    min-height: 500px;
   }
 }
 </style>
