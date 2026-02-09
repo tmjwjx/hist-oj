@@ -2,311 +2,74 @@
   <div class="rating-management">
     <el-card shadow="never">
       <div slot="header" class="card-header">
-        <span class="title">手动调整用户 Rating</span>
-        <el-tag type="warning" size="small">管理员功能</el-tag>
+        <span class="title">Rating 管理中心</span>
+        <el-tag type="warning" size="small">超级管理员功能</el-tag>
       </div>
 
-      <el-form
-        ref="form"
-        :model="form"
-        :rules="rules"
-        label-width="120px"
-        @submit.native.prevent
-      >
-        <el-form-item label="用户名" prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="请输入要调整的用户名"
-            clearable
-            @blur="fetchUserInfo"
-          >
-            <template slot="append">
-              <el-button
-                icon="el-icon-search"
-                @click="fetchUserInfo"
-                :loading="loadingUserInfo"
-              >
-                查询
-              </el-button>
-            </template>
-          </el-input>
-        </el-form-item>
+      <!-- Tab标签页 -->
+      <el-tabs v-model="activeTab" type="border-card" @tab-click="handleTabClick">
+        <!-- Tab 1: 个人调整 -->
+        <el-tab-pane label="👤 个人调整" name="personal">
+          <personal-adjust />
+        </el-tab-pane>
 
-        <!-- 用户信息预览 -->
-        <el-alert
-          v-if="userInfo"
-          :title="`当前用户: ${userInfo.username || ''} | Rating: ${userInfo.rating || 'N/A'}`"
-          type="info"
-          :closable="false"
-          style="margin-bottom: 20px"
-        >
-          <div slot>
-            <el-tag :style="{ color: getRatingColor(userInfo.rating) }" size="medium">
-              {{ getRatingName(userInfo.rating) }}
-            </el-tag>
-          </div>
-        </el-alert>
+        <!-- Tab 2: 比赛Skip管理 -->
+        <el-tab-pane label="🏆 比赛Skip管理" name="skip">
+          <contest-skip />
+        </el-tab-pane>
 
-        <el-form-item label="Rating 变化" prop="ratingChange">
-          <el-input-number
-            v-model="form.ratingChange"
-            :step="10"
-            controls-position="right"
-            style="width: 200px"
-          />
-          <span class="form-tip">
-            <el-tag
-              :type="form.ratingChange > 0 ? 'success' : 'danger'"
-              size="small"
-              effect="plain"
-            >
-              {{ form.ratingChange > 0 ? '+' : '' }}{{ form.ratingChange }}
-            </el-tag>
-          </span>
-        </el-form-item>
-
-        <el-form-item label="调整后 Rating" v-if="userInfo">
-          <el-statistic :value="expectedRating">
-            <template slot="prefix">
-              <span :style="{ color: getRatingColor(expectedRating) }">
-                {{ getRatingName(expectedRating) }}
-              </span>
-            </template>
-          </el-statistic>
-        </el-form-item>
-
-        <el-form-item label="操作原因" prop="reason">
-          <el-select
-            v-model="form.reason"
-            placeholder="选择或输入操作原因"
-            filterable
-            allow-create
-            style="width: 100%"
-          >
-            <el-option label="比赛中使用AI作弊" value="比赛中使用AI作弊" />
-            <el-option label="账号违规" value="账号违规" />
-            <el-option label="代打作弊" value="代打作弊" />
-            <el-option label="发现系统漏洞奖励" value="发现系统漏洞奖励" />
-            <el-option label="贡献代码奖励" value="贡献代码奖励" />
-            <el-option label="其他原因" value="其他原因" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="submitting"
-            @click="handleSubmit"
-          >
-            <i class="el-icon-edit"></i> 确认调整
-          </el-button>
-          <el-button @click="handleReset">
-            <i class="el-icon-refresh-left"></i> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
-    <!-- 调整历史记录 -->
-    <el-card shadow="never" style="margin-top: 20px">
-      <div slot="header">
-        <span>最近的手动调整记录</span>
-        <el-button
-          type="text"
-          icon="el-icon-refresh"
-          @click="fetchHistory"
-          style="float: right"
-        >
-          刷新
-        </el-button>
-      </div>
-
-      <el-table
-        :data="history"
-        v-loading="loadingHistory"
-        stripe
-        style="width: 100%"
-      >
-        <el-table-column prop="username" label="用户名" width="150" />
-        <el-table-column label="Rating 变化" width="150">
-          <template slot-scope="{ row }">
-            <el-tag
-              :type="row.rating_change > 0 ? 'success' : 'danger'"
-              size="small"
-            >
-              {{ row.rating_change > 0 ? '+' : '' }}{{ row.rating_change }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="变化详情" width="200">
-          <template slot-scope="{ row }">
-            <span style="color: #909399">
-              {{ row.old_rating }} → {{ row.new_rating }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="reason" label="操作原因" />
-        <el-table-column prop="operator_uid" label="操作人" width="120" />
-        <el-table-column label="操作时间" width="180">
-          <template slot-scope="{ row }">
-            {{ formatDate(row.created_at) }}
-          </template>
-        </el-table-column>
-      </el-table>
+        <!-- Tab 3: 操作日志 -->
+        <el-tab-pane label="📋 操作日志" name="logs">
+          <operation-logs />
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
   </div>
 </template>
 
 <script>
-import axios from 'axios'
-import { getRatingColor, getRatingName } from '@/common/rating-utils'
-import ratingApi from '@/common/rating-api'
+import PersonalAdjust from './rating/PersonalAdjust.vue'
+import ContestSkip from './rating/ContestSkip.vue'
+import OperationLogs from './rating/OperationLogs.vue'
 
 export default {
   name: 'RatingManagement',
+  components: {
+    PersonalAdjust,
+    ContestSkip,
+    OperationLogs
+  },
   data() {
     return {
-      form: {
-        username: '',
-        ratingChange: 0,
-        reason: ''
-      },
-      rules: {
-        username: [
-          { required: true, message: '请输入用户名', trigger: 'blur' }
-        ],
-        ratingChange: [
-          { required: true, message: '请输入Rating变化值', trigger: 'blur' },
-          {
-            validator: (rule, value, callback) => {
-              if (value === 0) {
-                callback(new Error('Rating变化值不能为0'))
-              } else {
-                callback()
-              }
-            },
-            trigger: 'blur'
-          }
-        ],
-        reason: [
-          { required: true, message: '请输入或选择操作原因', trigger: 'change' }
-        ]
-      },
-      userInfo: null,
-      loadingUserInfo: false,
-      submitting: false,
-      history: [],
-      loadingHistory: false
-    }
-  },
-  computed: {
-    expectedRating() {
-      if (!this.userInfo || this.userInfo.rating === undefined) {
-        return 0
-      }
-      const newRating = this.userInfo.rating + this.form.ratingChange
-      return Math.max(800, newRating) // 最低800分
+      activeTab: 'personal'
     }
   },
   mounted() {
-    this.fetchHistory()
+    // 从URL参数中恢复tab状态
+    const tabFromUrl = this.$route.query.tab
+    const contestIdFromUrl = this.$route.query.contestId
+
+    // 如果有contestId但没有tab，说明是在skip tab中刷新的
+    if (contestIdFromUrl && !tabFromUrl) {
+      this.activeTab = 'skip'
+    } else if (tabFromUrl && ['personal', 'skip', 'logs'].includes(tabFromUrl)) {
+      this.activeTab = tabFromUrl
+    }
   },
   methods: {
-    getRatingColor,
-    getRatingName,
-
-    // 查询用户信息
-    async fetchUserInfo() {
-      if (!this.form.username) {
-        this.$message.warning('请先输入用户名')
-        return
+    handleTabClick(tab) {
+      // 当tab切换时，更新URL参数（保留其他参数，如contestId）
+      const query = { ...this.$route.query, tab: tab.name }
+      // 如果切换回personal或logs，清除contestId
+      if (tab.name !== 'skip') {
+        delete query.contestId
       }
-
-      this.loadingUserInfo = true
-      try {
-        const data = await ratingApi.getUserRating(this.form.username)
-        this.userInfo = data
-        this.$message.success('查询成功')
-      } catch (error) {
-        this.$message.error('查询用户信息失败: ' + (error.message || '未知错误'))
-        this.userInfo = null
-      } finally {
-        this.loadingUserInfo = false
-      }
-    },
-
-    // 提交调整
-    async handleSubmit() {
-      this.$refs.form.validate(async (valid) => {
-        if (!valid) {
-          return false
-        }
-
-        if (!this.userInfo) {
-          this.$message.warning('请先查询用户信息')
-          return
-        }
-
-        this.submitting = true
-        try {
-          const result = await axios.post('/api/rating/admin/adjust', {
-            username: this.form.username,
-            ratingChange: this.form.ratingChange,
-            reason: this.form.reason
-          })
-
-          this.$message.success('调整成功！')
-          this.$notify({
-            title: 'Rating 调整成功',
-            message: `${this.form.username}: ${this.userInfo.rating} → ${this.expectedRating} (${this.form.ratingChange > 0 ? '+' : ''}${this.form.ratingChange})`,
-            type: 'success',
-            duration: 5000
-          })
-
-          // 刷新用户信息和历史记录
-          await this.fetchUserInfo()
-          await this.fetchHistory()
-
-          // 重置表单
-          this.handleReset()
-        } catch (error) {
-          this.$message.error('调整失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-        } finally {
-          this.submitting = false
+      this.$router.replace({ query }).catch(err => {
+        // 忽略路由导航重复的错误
+        if (err.name !== 'NavigationDuplicated') {
+          console.error('更新URL参数失败:', err)
         }
       })
-    },
-
-    // 重置表单
-    handleReset() {
-      this.$refs.form.resetFields()
-      this.userInfo = null
-    },
-
-    // 查询历史记录
-    async fetchHistory() {
-      this.loadingHistory = true
-      try {
-        const response = await axios.get('/api/rating/admin/history', {
-          params: {
-            page: 1,
-            limit: 20
-          }
-        })
-        this.history = response.data.data.records || []
-      } catch (error) {
-        console.error('查询历史记录失败:', error)
-        this.$message.warning('查询历史记录失败')
-      } finally {
-        this.loadingHistory = false
-      }
-    },
-
-    // 格式化日期
-    formatDate(dateStr) {
-      if (!dateStr) return '-'
-      const date = new Date(dateStr)
-      return date.toLocaleString('zh-CN')
     }
   }
 }
@@ -326,17 +89,5 @@ export default {
 .card-header .title {
   font-size: 18px;
   font-weight: bold;
-}
-
-.form-tip {
-  margin-left: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.tip-text {
-  color: #909399;
-  font-size: 12px;
 }
 </style>

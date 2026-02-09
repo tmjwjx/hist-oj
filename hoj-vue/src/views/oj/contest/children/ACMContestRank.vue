@@ -304,7 +304,18 @@
                 {{ getContestRating(row.uid) }}
               </span>
               <span
-                v-if="getRatingChange(row.uid) !== null"
+                v-if="isUserSkipped(row.uid)"
+                :style="{
+                  color: '#f56c6c',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  marginLeft: '4px'
+                }"
+              >
+                （SKIP）
+              </span>
+              <span
+                v-else-if="getRatingChange(row.uid) !== null"
                 :style="{
                   color: getRatingChange(row.uid) > 0 ? '#67c23a' : '#f56c6c',
                   fontSize: '12px',

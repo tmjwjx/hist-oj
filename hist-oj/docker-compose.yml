@@ -33,6 +33,11 @@ services:
 
     restart: unless-stopped
 
+    # 持久化存储卷挂载
+    volumes:
+      - ./data/problemset_images:/app/problemset_images
+      - ./data/uploads:/app/uploads
+
     # 日志配置
     logging:
       driver: "json-file"

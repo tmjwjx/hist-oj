@@ -92,27 +92,34 @@ export default {
 
       // 统一格式化日期为 YYYY-MM-DD
       const dates = this.chartData.map(item => {
+        // 兼容两种字段命名方式
+        const isManual = item.is_manual || item.isManual
+        const contestTime = item.contest_time || item.contestTime
+        const createdAt = item.created_at || item.createdAt
+
         // 手动调整记录使用创建时间
-        if (item.is_manual) {
-          const date = new Date(item.created_at)
+        if (isManual) {
+          const date = new Date(createdAt)
           const year = date.getFullYear()
           const month = String(date.getMonth() + 1).padStart(2, '0')
           const day = String(date.getDate()).padStart(2, '0')
           return `${year}-${month}-${day}`
         }
         // 比赛记录使用比赛时间
-        if (!item.contest_time) return '未知日期'
-        const date = new Date(item.contest_time)
+        if (!contestTime) return '未知日期'
+        const date = new Date(contestTime)
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
         const day = String(date.getDate()).padStart(2, '0')
         return `${year}-${month}-${day}`
       })
-      const ratings = this.chartData.map(item => item.new_rating)
+      const ratings = this.chartData.map(item => item.new_rating || item.newRating)
 
-      // 区分比赛记录和手动调整记录
+      // 区分比赛记录、Skip 记录和手动调整记录
       const itemColors = this.chartData.map(item => {
-        return item.is_manual ? '#FF4D4F' : '#409EFF' // 手动调整用红色，比赛记录用蓝色
+        if (item.is_skip || item.isSkip) return '#F56C6C'  // Skip 用户用红色
+        if (item.is_manual || item.isManual) return '#FF4D4F'  // 手动调整用红色
+        return '#409EFF'  // 比赛记录用蓝色
       })
 
       const option = {
@@ -125,25 +132,49 @@ export default {
           formatter: (params) => {
             const data = this.chartData[params[0].dataIndex]
 
+            // 兼容两种字段命名方式
+            const isManual = data.is_manual || data.isManual
+            const isSkip = data.is_skip || data.isSkip
+            const skipReason = data.skip_reason || data.skipReason
+            const oldRating = data.old_rating || data.oldRating
+            const newRating = data.new_rating || data.newRating
+            // 优先使用 rating_change 字段，如果不存在则从 newRating 和 oldRating 计算
+            let ratingChange = data.rating_change ?? data.ratingChange ?? null
+            if (ratingChange === null || ratingChange === undefined) {
+              if (oldRating !== null && oldRating !== undefined && newRating !== null && newRating !== undefined) {
+                ratingChange = newRating - oldRating
+              } else {
+                ratingChange = 0
+              }
+            }
+            const contestTitle = data.contest_title || data.contestTitle
+            const rank = data.rank
+            const participants = data.participants
+            const createdAt = data.created_at || data.createdAt
+
             // 手动调整记录的 tooltip
-            if (data.is_manual) {
+            if (isManual) {
               return `
                 <div style="text-align: left;">
                   <strong style="color: #FF4D4F;">⚠️ ${data.reason || '手动调整'}</strong><br/>
-                  Rating: ${data.old_rating} → ${data.new_rating}<br/>
-                  变化: <span style="color: ${data.rating_change > 0 ? '#67C23A' : '#F56C6C'}">${data.rating_change > 0 ? '+' : ''}${data.rating_change}</span><br/>
-                  <span style="color: #999; font-size: 12px;">${new Date(data.created_at).toLocaleString('zh-CN')}</span>
+                  Rating: ${oldRating} → ${newRating}<br/>
+                  变化: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
+                  <span style="color: #999; font-size: 12px;">${new Date(createdAt).toLocaleString('zh-CN')}</span>
                 </div>
               `
             }
 
             // 比赛记录的 tooltip
+            const skipInfo = isSkip
+              ? `<br/><strong style="color: #F56C6C;">⚠️ Skip: ${skipReason || '该比赛不计入 Rating'}</strong>`
+              : ''
+
             return `
               <div style="text-align: left;">
-                <strong>${data.contest_title || '比赛'}</strong><br/>
-                Rating: ${data.old_rating} → ${data.new_rating}<br/>
-                变化: ${data.rating_change > 0 ? '+' : ''}${data.rating_change}<br/>
-                排名: ${data.rank} / ${data.participants}
+                <strong>${contestTitle || '比赛'}</strong><br/>
+                Rating: ${oldRating} → ${newRating}<br/>
+                变化: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
+                排名: ${rank} / ${participants}${skipInfo}
               </div>
             `
           }
@@ -187,14 +218,37 @@ export default {
               color: '#409EFF'
             }
           },
-          // 标记手动调整的点
+          // 标记手动调整和 Skip 的点
           markPoint: {
             data: this.chartData
               .map((item, index) => {
-                if (item.is_manual) {
+                // 兼容两种字段命名方式
+                const isSkip = item.is_skip || item.isSkip
+                const isManual = item.is_manual || item.isManual
+                const skipReason = item.skip_reason || item.skipReason
+                const reason = item.reason
+                const newRating = item.new_rating || item.newRating
+
+                // Skip 用户标记
+                if (isSkip) {
                   return {
-                    name: item.reason || '手动调整',
-                    coord: [index, item.new_rating],
+                    name: skipReason || 'Skip',
+                    coord: [index, newRating],
+                    itemStyle: {
+                      color: '#F56C6C'
+                    },
+                    label: {
+                      show: true,
+                      formatter: '⛔',
+                      fontSize: 20
+                    }
+                  }
+                }
+                // 手动调整标记
+                if (isManual) {
+                  return {
+                    name: reason || '手动调整',
+                    coord: [index, newRating],
                     itemStyle: {
                       color: '#FF4D4F'
                     },

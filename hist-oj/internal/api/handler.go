@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -471,24 +472,31 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 		return
 	}
 
-	// 获取操作人UID（从认证中间件中获取，如果没有则使用默认值）
-	operatorUID, _ := c.Get("operatorUID")
-	operatorUIDStr := ""
-	if operatorUID != nil {
-		operatorUIDStr = operatorUID.(string)
+	// 获取操作人UID（从认证中间件中获取）
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+
+	// 获取操作人用户名
+	operatorUsername := ""
+	if username, exists := c.Get("username"); exists {
+		operatorUsername = username.(string)
 	}
 
 	logger.Info("手动调整用户rating请求",
 		zap.String("username", req.Username),
 		zap.Int("rating_change", req.RatingChange),
 		zap.String("reason", req.Reason),
-		zap.String("operator_uid", operatorUIDStr))
+		zap.String("operator_uid", operatorUID.(string)))
 
 	oldRating, newRating, ratingChange, err := h.ratingService.AdjustUserRating(
 		req.Username,
 		req.RatingChange,
 		req.Reason,
-		operatorUIDStr,
+		operatorUID.(string),
+		operatorUsername,
 	)
 
 	if err != nil {
@@ -505,7 +513,7 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 		"newRating":     newRating,
 		"ratingChange":  ratingChange,
 		"reason":        req.Reason,
-		"operatorUID":   operatorUIDStr,
+		"operatorUID":   operatorUID.(string),
 	}
 
 	logger.Info("手动调整用户rating成功",
@@ -545,4 +553,344 @@ func (h *Handler) GetManualAdjustmentHistory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, successResponse(result))
 }
+
+// BatchSkipContestUsers 批量Skip用户
+func (h *Handler) BatchSkipContestUsers(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ContestID  uint64   `json:"contestId" binding:"required"`
+		Usernames  []string `json:"usernames" binding:"required"`
+		Reason     string   `json:"reason" binding:"required"`
+		AutoRecalc bool     `json:"autoRecalc"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "请求参数错误: "+err.Error()))
+		return
+	}
+
+	// 获取操作人信息（从认证中间件获取）
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+
+	// 获取操作人用户名（优先从context获取，否则从数据库查询）
+	operatorUsername := ""
+	if username, exists := c.Get("username"); exists {
+		operatorUsername = username.(string)
+	}
+
+	result, err := h.ratingService.BatchSkipContestUsers(
+		int64(req.ContestID),
+		req.Usernames,
+		req.Reason,
+		operatorUID.(string),
+		operatorUsername,
+		req.AutoRecalc,
+	)
+
+	if err != nil {
+		logger.Error("批量skip用户失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	logger.Info("批量skip用户成功",
+		zap.Uint64("contest_id", req.ContestID),
+		zap.Int("success_count", len(result.SuccessUsers)),
+		zap.Int("failed_count", len(result.FailedUsers)))
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// GetContestSkipUsers 获取比赛的Skip用户列表
+func (h *Handler) GetContestSkipUsers(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseInt(contestIDStr, 10, 64)
+	if err != nil {
+		logger.Warn("比赛ID参数错误", zap.String("contestId", contestIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "比赛ID参数错误"))
+		return
+	}
+
+	skipUsers, err := h.ratingService.GetContestSkipUsers(contestID)
+	if err != nil {
+		logger.Error("获取skip用户列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(skipUsers))
+}
+
+// CancelSkip 取消Skip
+func (h *Handler) CancelSkip(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ContestID uint64   `json:"contestId" binding:"required"`
+		UIDs      []string `json:"uids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "请求参数错误: "+err.Error()))
+		return
+	}
+
+	// 获取操作人UID
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+
+	// 获取操作人用户名
+	operatorUsername := ""
+	if username, exists := c.Get("username"); exists {
+		operatorUsername = username.(string)
+	}
+
+	err := h.ratingService.CancelSkip(
+		int64(req.ContestID),
+		req.UIDs,
+		operatorUID.(string),
+		operatorUsername,
+	)
+
+	if err != nil {
+		errMsg := err.Error()
+		// 检查是否是"已存在重算任务"的特殊情况
+		if strings.Contains(errMsg, "已存在从比赛") && strings.Contains(errMsg, "的重算任务") {
+			// 这种情况不算失败，只是提示用户已有重算任务
+			logger.Info("取消Skip成功，但已存在覆盖范围的重算任务",
+				zap.Uint64("contest_id", req.ContestID),
+				zap.Int("uid_count", len(req.UIDs)),
+				zap.String("existing_task_info", errMsg))
+			c.JSON(http.StatusOK, gin.H{
+				"code":    200,
+				"message": errMsg,
+				"data": gin.H{
+					"hasExistingTask": true,
+					"message":         "已存在覆盖范围的重算任务，系统会自动处理本次修改",
+				},
+			})
+			return
+		}
+
+		// 其他错误情况
+		logger.Error("取消skip失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	logger.Info("取消skip成功",
+		zap.Uint64("contest_id", req.ContestID),
+		zap.Int("uid_count", len(req.UIDs)))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"message": "取消skip成功",
+	}))
+}
+
+// GetRecalculateProgress 获取重算进度
+func (h *Handler) GetRecalculateProgress(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	taskIDStr := c.Param("taskId")
+	taskID, err := strconv.ParseUint(taskIDStr, 10, 64)
+	if err != nil {
+		logger.Warn("任务ID参数错误", zap.String("taskId", taskIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "任务ID参数错误"))
+		return
+	}
+
+	progress, err := h.ratingService.GetRecalculateProgress(taskID)
+	if err != nil {
+		logger.Error("获取重算进度失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(progress))
+}
+
+// RecalculateFromContest 从指定比赛开始重算
+func (h *Handler) RecalculateFromContest(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseInt(contestIDStr, 10, 64)
+	if err != nil {
+		logger.Warn("比赛ID参数错误", zap.String("contestId", contestIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "比赛ID参数错误"))
+		return
+	}
+
+	// 获取操作人UID
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+
+	// 创建重算任务
+	taskID, err := h.ratingService.CreateRecalculateTask(contestID, operatorUID.(string))
+	if err != nil {
+		logger.Error("创建重算任务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	// 异步执行
+	go h.ratingService.ExecuteRecalculateTask(taskID)
+
+	logger.Info("创建重算任务成功", zap.Uint64("task_id", taskID))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"taskId":  taskID,
+		"message": "重算任务已创建",
+	}))
+}
+
+// ResetRecalculateLock 重置比赛重算锁
+func (h *Handler) ResetRecalculateLock(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseInt(contestIDStr, 10, 64)
+	if err != nil {
+		logger.Warn("比赛ID参数错误", zap.String("contestId", contestIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "比赛ID参数错误"))
+		return
+	}
+
+	// 获取操作人UID
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+
+	// 检查是否有正在运行的重算任务
+	hasRunningTask, err := h.ratingService.HasRunningRecalculateTask(contestID)
+	if err != nil {
+		logger.Error("检查重算任务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "检查重算任务失败"))
+		return
+	}
+
+	if hasRunningTask {
+		logger.Warn("尝试重置锁，但有任务正在运行", zap.Int64("contest_id", contestID))
+		c.JSON(http.StatusOK, errorResponse(400, "有重算任务正在运行，无法重置锁"))
+		return
+	}
+
+	// 重置锁
+	err = h.ratingService.ResetRecalculateLock(contestID, operatorUID.(string))
+	if err != nil {
+		logger.Error("重置重算锁失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	logger.Info("重置重算锁成功", zap.Int64("contest_id", contestID), zap.String("operator", operatorUID.(string)))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"message": "重算锁已重置",
+	}))
+}
+
+// SyncContestSkipFlag 同步比赛的 Skip 标记到 rating_history 表
+func (h *Handler) SyncContestSkipFlag(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseInt(contestIDStr, 10, 64)
+	if err != nil || contestID <= 0 {
+		logger.Warn("请求参数错误",
+			zap.String("param", "contestId"),
+			zap.String("value", contestIDStr))
+		c.JSON(http.StatusOK, errorResponse(400, "contestId参数格式错误"))
+		return
+	}
+
+	// 调用 service 层同步 Skip 标记
+	updatedCount, err := h.ratingService.SyncContestSkipFlag(contestID)
+	if err != nil {
+		logger.Error("同步Skip标记失败",
+			zap.Int64("contest_id", contestID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	logger.Info("同步Skip标记成功",
+		zap.Int64("contest_id", contestID),
+		zap.Int("updated_count", updatedCount))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"message":      "Skip标记同步成功",
+		"contestId":    contestID,
+		"updatedCount": updatedCount,
+	}))
+}
+
+// GetOperationLogs 获取操作日志
+func (h *Handler) GetOperationLogs(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取查询参数
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	operationType := c.DefaultQuery("type", "")
+	timeRange := c.DefaultQuery("timeRange", "7d")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	// 获取操作人UID（用于权限验证）
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+	_ = operatorUID // 后续可用于权限验证
+
+	// 获取操作日志
+	logs, total, err := h.ratingService.GetOperationLogs(page, limit, operationType, timeRange)
+	if err != nil {
+		logger.Error("获取操作日志失败",
+			zap.Int("page", page),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	logger.Info("获取操作日志成功",
+		zap.Int("page", page),
+		zap.Int("limit", limit),
+		zap.String("operation_type", operationType),
+		zap.String("time_range", timeRange),
+		zap.Int64("total", total),
+		zap.Int("count", len(logs)))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"records": logs,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	}))
+}
+
 

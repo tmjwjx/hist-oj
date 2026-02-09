@@ -1,0 +1,36 @@
+% Problem header
+\begin{center}
+  {\LARGE \textbf{Problem}~\textbf{[[.ProblemLetter]]}}\\[0.2em]
+  {\LARGE [[.Title]]}\\[0.3em]
+  {\large Time limit: [[.TimeLimit]]~ms}
+\end{center}
+\vspace{0.5em}
+
+\subsection*{Description}
+[[.Description]]
+
+\subsection*{Input}
+[[.InputFormat]]
+
+\subsection*{Output}
+[[.OutputFormat]]
+
+[[range .Examples]]
+\sampleInputOutputFromFile{Sample Input [[.ExampleNo]]}{%
+[[.InputFile]]%
+}{Sample Output [[.ExampleNo]]}{%
+[[.OutputFile]]%
+}
+[[if .Description]]
+\vspace{0.3em}
+{\small \textbf{Explanation:} [[.Description]]}
+[[end]]
+\vspace{0.5em}
+[[end]]
+
+[[if .Note]]
+\subsection*{Note}
+[[.Note]]
+
+\vspace{0.5em}
+[[end]]

@@ -59,35 +59,40 @@ func min(a, b int) int {
 }
 
 // AdminAuthMiddleware 管理员权限验证中间件
-// TODO: 当前版本简化实现，不进行实际的权限验证
-// 后续需要接入 HOJ 后端的认证系统，从 JWT Token 中解析用户信息
+// 从请求头中获取 Authorization token，验证并设置用户信息到 context
 func AdminAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger()
 
-		// TODO: 实际实现应该：
-		// 1. 从 Header 或 Query 中获取 token
-		// 2. 调用 HOJ API 验证 token
-		// 3. 检查用户是否为管理员
-		// 4. 将操作人信息存入 context
+		// 从 Header 中获取 token
+		token := c.GetHeader("Authorization")
 
-		// 临时方案：从请求头或参数中获取操作人UID
-		operatorUID := c.GetHeader("X-Operator-UID")
-		if operatorUID == "" {
-			operatorUID = c.Query("operatorUID")
+		if token == "" {
+			logger.Warn("未提供认证token")
+			c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+			c.Abort()
+			return
 		}
 
-		// 如果没有提供操作人UID，使用默认值
-		if operatorUID == "" {
-			operatorUID = "admin"
+		// 调用 ValidateToken 验证 token 并获取用户信息
+		userAuth, err := client.ValidateToken(token)
+		if err != nil {
+			logger.Warn("token验证失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(401, "用户认证失败"))
+			c.Abort()
+			return
 		}
 
-		logger.Info("管理员权限验证（临时简化版）",
-			zap.String("operator_uid", operatorUID),
+		// 将用户信息存入context，供后续handler使用
+		c.Set("userId", userAuth.UID)    // 兼容旧代码
+		c.Set("uid", userAuth.UID)       // 新代码使用 uid
+		c.Set("username", userAuth.Username)
+		c.Set("roles", userAuth.Roles)
+
+		logger.Info("管理员认证成功",
+			zap.String("uid", userAuth.UID),
+			zap.String("username", userAuth.Username),
 			zap.String("path", c.Request.URL.Path))
-
-		// 将操作人UID存入context，供后续handler使用
-		c.Set("operatorUID", operatorUID)
 
 		c.Next()
 	}
@@ -99,6 +104,23 @@ func RequireAdmin(handler *Handler) gin.HandlerFunc {
 		// 调用管理员权限验证中间件
 		AdminAuthMiddleware()(c)
 		// 如果验证通过，继续执行
+		c.Next()
+	}
+}
+
+// CORSMiddleware 跨域中间件
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
 		c.Next()
 	}
 }

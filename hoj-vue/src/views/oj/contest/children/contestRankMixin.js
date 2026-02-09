@@ -144,10 +144,12 @@ export default {
         const contestId = this.$route.params.contestID;
 
         // 1. 如果是 Rating 比赛，获取比赛参赛者的 Rating 变化
+        console.log(`[Rating Debug] isRatingContest=${this.isRatingContest}, contestId=${contestId}`)
         if (this.isRatingContest) {
           try {
             const contestRatingData = await ratingApi.getContestParticipantsRating(contestId);
             const ratingRecords = contestRatingData.records || [];
+            console.log(`[Rating Debug] Loaded ${ratingRecords.length} rating records for contest ${contestId}`)
 
             // 清空旧数据和缓存
             this.contestRatings.clear();
@@ -159,6 +161,8 @@ export default {
                   oldRating: item.oldRating,
                   newRating: item.newRating,
                   ratingChange: item.ratingChange,
+                  isSkip: item.isSkip || false,
+                  skipReason: item.skipReason || '',
                 };
                 this.contestRatings.set(item.uid, ratingInfo);
 
@@ -166,12 +170,21 @@ export default {
                 this.ratingCache[`change_${item.uid}`] = item.ratingChange;
                 this.ratingCache[`rating_${item.uid}`] = item.newRating;
                 this.ratingCache[`color_${item.uid}`] = getRatingColor(item.newRating);
+                this.ratingCache[`isskip_${item.uid}`] = item.isSkip || false;
+                this.ratingCache[`skipreason_${item.uid}`] = item.skipReason || '';
+
+                if (item.isSkip) {
+                  console.log(`[Rating Debug] Found skipped user: uid=${item.uid}, reason=${item.skipReason}`)
+                }
               }
             });
+            console.log(`[Rating Debug] Total skipped users: ${ratingRecords.filter(r => r.isSkip).length}`)
           } catch (error) {
             console.error('获取比赛 Rating 数据失败:', error);
             hasError = true;
           }
+        } else {
+          console.log(`[Rating Debug] Contest ${contestId} is NOT a rating contest, skipping rating data load`)
         }
 
         // 2. 批量获取用户当前 Rating（用于用户名着色）- 所有比赛都需要
@@ -251,9 +264,17 @@ export default {
       return '#808080';
     },
     getRatingChange(uid) {
+      // Skip 用户没有 Rating 变化，返回 null
+      const skipped = this.isUserSkipped(uid);
+      console.log(`[Rating Debug] getRatingChange for uid=${uid}, skipped=${skipped}, isRatingContest=${this.isRatingContest}`)
+      if (skipped) {
+        return null;
+      }
+
       // 优先使用缓存
       const cacheKey = `change_${uid}`;
       if (this.ratingCache[cacheKey] !== undefined) {
+        console.log(`[Rating Debug] getRatingChange from cache: uid=${uid}, change=${this.ratingCache[cacheKey]}`)
         return this.ratingCache[cacheKey];
       }
 
@@ -261,8 +282,10 @@ export default {
       const contestRating = this.contestRatings.get(uid);
       if (contestRating && contestRating.ratingChange !== undefined) {
         this.ratingCache[cacheKey] = contestRating.ratingChange;
+        console.log(`[Rating Debug] getRatingChange from Map: uid=${uid}, change=${contestRating.ratingChange}`)
         return contestRating.ratingChange;
       }
+      console.log(`[Rating Debug] getRatingChange: uid=${uid}, not found, returning null`)
       return null;
     },
     // 获取比赛结束时的 Rating（newRating）
@@ -297,6 +320,41 @@ export default {
         return color;
       }
       return '#808080'; // 默认灰色
+    },
+    // 检查用户是否被 Skip
+    isUserSkipped(uid) {
+      // 优先使用缓存
+      const cacheKey = `isskip_${uid}`;
+      if (this.ratingCache[cacheKey] !== undefined) {
+        console.log(`[Rating Debug] isUserSkipped from cache: uid=${uid}, skipped=${this.ratingCache[cacheKey]}`)
+        return this.ratingCache[cacheKey];
+      }
+
+      // 缓存未命中，查询 Map
+      const contestRating = this.contestRatings.get(uid);
+      if (contestRating && contestRating.isSkip !== undefined) {
+        this.ratingCache[cacheKey] = contestRating.isSkip;
+        console.log(`[Rating Debug] isUserSkipped from Map: uid=${uid}, skipped=${contestRating.isSkip}, reason=${contestRating.skipReason}`)
+        return contestRating.isSkip;
+      }
+      console.log(`[Rating Debug] isUserSkipped: uid=${uid}, not found in contestRatings (map size=${this.contestRatings.size}), returning false`)
+      return false;
+    },
+    // 获取用户 Skip 原因
+    getUserSkipReason(uid) {
+      // 优先使用缓存
+      const cacheKey = `skipreason_${uid}`;
+      if (this.ratingCache[cacheKey] !== undefined) {
+        return this.ratingCache[cacheKey];
+      }
+
+      // 缓存未命中，查询 Map
+      const contestRating = this.contestRatings.get(uid);
+      if (contestRating && contestRating.skipReason) {
+        this.ratingCache[cacheKey] = contestRating.skipReason;
+        return contestRating.skipReason;
+      }
+      return '';
     }
   },
   computed: {

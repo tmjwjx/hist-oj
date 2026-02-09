@@ -33,6 +33,8 @@ import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
 import Registration from "@/views/oj/registration/Registration.vue"
 import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
+import ProblemSetList from "@/views/oj/toolbox/ProblemSetList.vue"
+import ProblemSetDetail from "@/views/oj/toolbox/ProblemSetDetail.vue"
 import BattleHome from "@/views/oj/battle/BattleHome.vue"
 import BattleRoom from "@/views/oj/battle/BattleRoom.vue"
 import BattleRank from "@/views/oj/battle/BattleRank.vue"
@@ -459,6 +461,24 @@ const ojRoutes = [
     name: 'Toolbox',
     component: Toolbox,
     meta: { title: 'Toolbox' }
+  },
+  {
+    path: '/toolbox/problem-set',
+    name: 'ProblemSetList',
+    component: ProblemSetList,
+    meta: { title: 'XCPC 题目集', requireAuth: true }
+  },
+  {
+    path: '/toolbox/problem-set/create',
+    name: 'ProblemSetCreate',
+    component: ProblemSetDetail,
+    meta: { title: '创建题目集', requireAuth: true }
+  },
+  {
+    path: '/toolbox/problem-set/:id',
+    name: 'ProblemSetDetail',
+    component: ProblemSetDetail,
+    meta: { title: '题目集详情', requireAuth: true }
   },
   {
     path: '/battle',

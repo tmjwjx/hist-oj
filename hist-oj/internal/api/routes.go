@@ -9,6 +9,9 @@ import (
 )
 
 func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *gorm.DB) {
+	// 应用CORS中间件到所有路由
+	router.Use(CORSMiddleware())
+
 	api := router.Group("/api")
 	{
 		// Rating 相关接口
@@ -36,6 +39,23 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			{
 				admin.POST("/adjust", handler.AdjustUserRating)
 				admin.GET("/history", handler.GetManualAdjustmentHistory)
+
+				// Skip用户管理
+				admin.POST("/contest/skip-users", handler.BatchSkipContestUsers)
+				admin.GET("/contest/:contestId/skip-users", handler.GetContestSkipUsers)
+				admin.DELETE("/contest/skip-users", handler.CancelSkip)
+				admin.POST("/contest/:contestId/recalculate", handler.RecalculateFromContest)
+				admin.GET("/recalculate-progress/:taskId", handler.GetRecalculateProgress)
+				admin.POST("/contest/:contestId/reset-recalculate-lock", handler.ResetRecalculateLock)
+				admin.POST("/contest/:contestId/sync-skip", handler.SyncContestSkipFlag)
+
+				// 操作日志
+				admin.GET("/operation-logs", handler.GetOperationLogs)
+				admin.POST("/migrate-logs", handler.MigrateOperationLogs)
+				admin.POST("/fix-logs-username", handler.FixOperationLogsUsername)
+
+				// 测试接口（插入测试数据）
+				admin.POST("/test-insert-logs", handler.TestInsertOperationLog)
 			}
 		}
 
@@ -182,6 +202,39 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 		// 代码查重功能 - 管理员
 		RegisterPlagiarismRoutes(api, cfg, db)
+
+		// 题目集 PDF 生成器 - 需要认证
+		problemSetHandler := NewProblemSetHandler(db, service.NewProblemToolsPDFGenerator("./third_party/problemtools", cfg.PDF.TempDir))
+		problemSet := api.Group("/problem-set")
+		problemSet.Use(AuthMiddleware())
+		{
+			problemSet.GET("", problemSetHandler.GetProblemSets)              // 获取题目集列表
+			problemSet.POST("", problemSetHandler.CreateProblemSet)           // 创建题目集
+			problemSet.GET("/:id", problemSetHandler.GetProblemSet)              // 获取题目集详情
+			problemSet.PUT("/:id", problemSetHandler.UpdateProblemSet)           // 更新题目集
+			problemSet.DELETE("/:id", problemSetHandler.DeleteProblemSet)        // 删除题目集
+			problemSet.GET("/:id/pdf", problemSetHandler.GeneratePDF)            // 生成 PDF（从数据库）
+			problemSet.POST("/pdf/from-data", problemSetHandler.GeneratePDFFromData) // 生成 PDF（从前端数据，所见即所得）
+			problemSet.GET("/:id/diagnostic", problemSetHandler.DiagnosticPDF)    // 诊断PDF生成
+
+			// 题目管理
+			problemSet.POST("/:id/problem", problemSetHandler.CreateProblem)                          // 添加题目
+			problemSet.PUT("/:id/problem/:problemId", problemSetHandler.UpdateProblem)               // 更新题目
+			problemSet.DELETE("/:id/problem/:problemId", problemSetHandler.DeleteProblem)            // 删除题目
+			problemSet.POST("/:id/reorder", problemSetHandler.ReorderProblems)                       // 批量重新排序题目
+			problemSet.POST("/:id/problem/:problemId/move-up", problemSetHandler.MoveProblemUp)      // 上移题目
+			problemSet.POST("/:id/problem/:problemId/move-down", problemSetHandler.MoveProblemDown)  // 下移题目
+
+			// 样例管理
+			problemSet.POST("/:id/problem/:problemId/example", problemSetHandler.CreateExample)      // 添加样例
+			problemSet.PUT("/:id/problem/:problemId/example/:exampleId", problemSetHandler.UpdateExample) // 更新样例
+			problemSet.DELETE("/:id/problem/:problemId/example/:exampleId", problemSetHandler.DeleteExample) // 删除样例
+
+			// 图片管理
+			problemSet.POST("/:id/images", problemSetHandler.UploadImage)    // 上传图片
+			problemSet.GET("/:id/images", problemSetHandler.ListImages)      // 列出图片
+			problemSet.DELETE("/:id/images/:imageId", problemSetHandler.DeleteImage) // 删除图片
+		}
 	}
 
 	router.GET("/health", handler.HealthCheck)

@@ -2,6 +2,7 @@ package service
 
 import (
 	"strconv"
+	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -149,7 +150,7 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 	var histories []model.RatingHistory
 	var total int64
 
-	// 查询总数
+	// 查询rating历史总数
 	if err := s.db.Model(&model.RatingHistory{}).Where("uid = ?", actualUID).Count(&total).Error; err != nil {
 		logger.Error("查询rating历史总数失败",
 			zap.String("uid", actualUID),
@@ -157,7 +158,7 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 		return nil, err
 	}
 
-	// 查询记录
+	// 查询rating历史记录
 	if err := s.db.Where("uid = ?", actualUID).
 		Order("created_at DESC").
 		Offset(offset).
@@ -171,8 +172,69 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 		return nil, err
 	}
 
+	// 构建已有rating历史的比赛ID集合
+	historyContestIDs := make(map[uint64]bool)
+	for _, h := range histories {
+		if h.ContestID != nil {
+			historyContestIDs[*h.ContestID] = true
+		}
+	}
+
+	// 查询该用户被标记为skip但还没有rating历史的比赛（待应用状态的skip）
+	var pendingSkipUsers []model.ContestSkipUser
+	if err := s.db.Where("uid = ?", actualUID).Find(&pendingSkipUsers).Error; err == nil {
+		// 获取用户当前rating
+		currentRating := 1500 // 默认初始rating
+		if userRecord.HistRating != nil {
+			currentRating = *userRecord.HistRating
+		}
+
+		// 为每个待应用的skip比赛创建虚拟rating历史记录
+		for _, skipUser := range pendingSkipUsers {
+			// 如果该比赛已经有rating历史记录，跳过
+			if historyContestIDs[uint64(skipUser.ContestID)] {
+				continue
+			}
+
+			// 获取比赛信息
+			var contest model.Contest
+			contestTitle := "未知比赛"
+			var contestEndTime time.Time
+			if err := s.db.Where("id = ?", skipUser.ContestID).First(&contest).Error; err == nil {
+				contestTitle = contest.Title
+				contestEndTime = contest.EndTime
+			}
+
+			// 创建虚拟rating历史记录（用于前端显示）
+			contestID := uint64(skipUser.ContestID)
+			skipHistory := model.RatingHistory{
+				UID:          skipUser.UID,
+				ContestID:    &contestID,
+				OldRating:    &currentRating,
+				NewRating:    currentRating,
+				RatingChange: 0,
+				Rank:         0,
+				Participants: 0,
+				Reason:       skipUser.Reason,
+				IsSkip:       true,
+				SkipReason:   skipUser.Reason,
+				CreatedAt:    skipUser.CreatedAt,
+				ContestTitle: contestTitle,
+				ContestTime:  &contestEndTime,
+			}
+
+			histories = append(histories, skipHistory)
+			total++ // 增加总数
+		}
+	}
+
 	// 填充比赛标题和比赛时间
 	for i := range histories {
+		// 如果比赛标题已经填充过（skip用户），跳过
+		if histories[i].ContestTitle != "" {
+			continue
+		}
+
 		var contest model.Contest
 		if err := s.db.Where("id = ?", histories[i].ContestID).First(&contest).Error; err == nil {
 			histories[i].ContestTitle = contest.Title
@@ -207,7 +269,7 @@ func (s *QueryService) GetRatingColor(rating int) map[string]interface{} {
 func (s *QueryService) GetContestParticipantsRating(contestID int64) ([]map[string]interface{}, error) {
 	logger := utils.GetLogger()
 
-	// 查询该比赛的所有rating历史记录
+	// 1. 查询该比赛的所有rating历史记录
 	var histories []model.RatingHistory
 	if err := s.db.Where("contest_id = ?", contestID).
 		Order("`rank` ASC").
@@ -218,11 +280,31 @@ func (s *QueryService) GetContestParticipantsRating(contestID int64) ([]map[stri
 		return nil, err
 	}
 
-	// 构建返回结果
+	// 构建一个map存储已有rating记录的用户
+	historyMap := make(map[string]*model.RatingHistory)
+	for i := range histories {
+		historyMap[histories[i].UID] = &histories[i]
+	}
+
+	// 2. 查询该比赛的所有skip用户（包括未应用的）
+	var skipUsers []model.ContestSkipUser
+	if err := s.db.Where("contest_id = ?", contestID).
+		Find(&skipUsers).Error; err != nil {
+		logger.Error("查询比赛skip用户失败",
+			zap.Int64("contest_id", contestID),
+			zap.Error(err))
+		// 继续处理，不影响其他逻辑
+	}
+
+	// 3. 构建返回结果
 	results := make([]map[string]interface{}, 0, len(histories))
+
+	// 先处理有rating历史的用户
 	for _, h := range histories {
 		colorInfo := utils.GetRatingColorInfo(h.NewRating)
-		results = append(results, map[string]interface{}{
+
+		// 构建基本信息
+		record := map[string]interface{}{
 			"uid":          h.UID,
 			"rank":         h.Rank,
 			"oldRating":    h.OldRating,
@@ -230,7 +312,50 @@ func (s *QueryService) GetContestParticipantsRating(contestID int64) ([]map[stri
 			"ratingChange": h.RatingChange,
 			"color":        colorInfo.Color,
 			"level":        colorInfo.Name,
-		})
+		}
+
+		// 如果是skip用户，添加skip相关信息
+		if h.IsSkip {
+			record["isSkip"] = true
+			record["skipReason"] = h.SkipReason
+		}
+
+		results = append(results, record)
+	}
+
+	// 4. 处理skip但没有rating历史的用户（待应用状态的skip用户）
+	for _, skipUser := range skipUsers {
+		// 如果该用户已经在rating历史中，跳过
+		if _, exists := historyMap[skipUser.UID]; exists {
+			continue
+		}
+
+		// 获取用户当前rating
+		var userRecord model.UserRecord
+		currentRating := 1500 // 默认初始rating
+		if err := s.db.Where("uid = ?", skipUser.UID).First(&userRecord).Error; err == nil {
+			if userRecord.HistRating != nil {
+				currentRating = *userRecord.HistRating
+			}
+		}
+
+		colorInfo := utils.GetRatingColorInfo(currentRating)
+
+		// 为skip用户创建虚拟rating记录
+		record := map[string]interface{}{
+			"uid":          skipUser.UID,
+			"rank":         0, // 待应用skip用户没有排名
+			"oldRating":    currentRating,
+			"newRating":    currentRating,
+			"ratingChange": 0,
+			"color":        colorInfo.Color,
+			"level":        colorInfo.Name,
+			"isSkip":       true,
+			"skipReason":   skipUser.Reason,
+			"pendingSkip":  true, // 标记为待应用状态
+		}
+
+		results = append(results, record)
 	}
 
 	return results, nil
@@ -394,14 +519,20 @@ func (s *QueryService) GetContestInfo(contestID uint64) (map[string]interface{},
 		return nil, err
 	}
 
+	// 查询比赛rating状态
+	var ratingStatus model.ContestRatingStatus
+	s.db.Where("contest_id = ?", contestID).First(&ratingStatus)
+
 	result := map[string]interface{}{
-		"id":        contest.ID,
-		"title":     contest.Title,
-		"type":      contest.Type,
-		"isRating":  contest.IsRating,
-		"startTime": contest.StartTime,
-		"endTime":   contest.EndTime,
-		"status":    contest.Status,
+		"id":                 contest.ID,
+		"title":              contest.Title,
+		"type":               contest.Type,
+		"isRating":           contest.IsRating,
+		"startTime":          contest.StartTime,
+		"endTime":            contest.EndTime,
+		"status":             contest.Status,
+		"calculatedAt":       ratingStatus.CalculatedAt,
+		"skipDataChangedAt":  ratingStatus.SkipDataChangedAt,
 	}
 
 	return result, nil
