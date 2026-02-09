@@ -66,6 +66,8 @@ build_images() {
     # 构建 hist-oj（包含 sim 代码查重工具）
     log_info "构建 hist-oj 镜像（不使用缓存，包含 sim 查重工具）..."
     cd hist-oj
+    # 删除旧镜像以避免冲突
+    docker rmi hist-oj:latest 2>/dev/null || true
     docker build --no-cache --platform linux/amd64 -t hist-oj:latest . || {
         log_error "hist-oj 镜像构建失败"
         exit 1
