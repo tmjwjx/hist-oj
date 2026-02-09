@@ -49,48 +49,7 @@
           </el-row>
         </el-form>
 
-        <el-divider>题目列表</el-divider>
-
-        <!-- 图片管理（仅在非创建模式且已保存后显示） -->
-        <div v-if="!isCreate && setId" class="images-section">
-          <el-divider>图片管理</el-divider>
-          <el-button type="primary" icon="el-icon-upload" @click="showImageUploadDialog = true" style="margin-bottom: 15px;">
-            上传图片
-          </el-button>
-          <el-button icon="el-icon-refresh" @click="loadImages" style="margin-bottom: 15px;">
-            刷新列表
-          </el-button>
-
-          <el-empty v-if="images.length === 0" description="暂无图片，点击上传按钮添加"></el-empty>
-
-          <div v-else class="images-list">
-            <el-card
-              v-for="image in images"
-              :key="image.id"
-              class="image-card"
-            >
-              <div class="image-item">
-                <div class="image-info">
-                  <i class="fa fa-image"></i>
-                  <span class="image-filename">{{ image.filename }}</span>
-                  <span class="image-size">({{ formatFileSize(image.file_size) }})</span>
-                </div>
-                <el-button
-                  type="danger"
-                  size="mini"
-                  icon="el-icon-delete"
-                  @click="deleteImage(image.id)"
-                >
-                  删除
-                </el-button>
-              </div>
-              <div class="image-tip">
-                在题面中使用: <code>\includegraphics[width=9cm]{{ image.filename }}</code>
-              </div>
-            </el-card>
-          </div>
-        </div>
-
+        <!-- 题目列表 -->
         <div class="problems-section">
           <el-button type="primary" icon="el-icon-plus" @click="addProblem" style="margin-bottom: 15px;">
             添加题目
@@ -257,6 +216,46 @@
         </div>
       </div>
 
+      <!-- 图片管理（仅在非创建模式且已保存后显示） -->
+      <div v-if="!isCreate && setId" class="images-section">
+        <el-divider>图片管理</el-divider>
+        <el-button type="primary" icon="el-icon-upload" @click="showImageUploadDialog = true" style="margin-bottom: 15px;">
+          上传图片
+        </el-button>
+        <el-button icon="el-icon-refresh" @click="loadImages" style="margin-bottom: 15px;">
+          刷新列表
+        </el-button>
+
+        <el-empty v-if="images.length === 0" description="暂无图片，点击上传按钮添加"></el-empty>
+
+        <div v-else class="images-list">
+          <el-card
+            v-for="image in images"
+            :key="image.id"
+            class="image-card"
+          >
+            <div class="image-item">
+              <div class="image-info">
+                <i class="fa fa-image"></i>
+                <span class="image-filename">{{ image.filename }}</span>
+                <span class="image-size">({{ formatFileSize(image.file_size) }})</span>
+              </div>
+              <el-button
+                type="danger"
+                size="mini"
+                icon="el-icon-delete"
+                @click="deleteImage(image.id)"
+              >
+                删除
+              </el-button>
+            </div>
+            <div class="image-tip">
+              在题面中使用: <code>\includegraphics[width=9cm]{{ image.filename }}</code>
+            </div>
+          </el-card>
+        </div>
+      </div>
+
       <!-- 预览模式 -->
       <div v-show="viewMode === 'preview'" class="preview-container">
         <div class="preview-content">
@@ -335,7 +334,7 @@
     <el-dialog
       title="上传图片"
       :visible.sync="showImageUploadDialog"
-      width="500px"
+      width="600px"
       :close-on-click-modal="false"
     >
       <el-upload
@@ -348,6 +347,7 @@
         :file-list="uploadFileList"
         :auto-upload="false"
         drag
+        class="image-upload-dialog"
       >
         <i class="el-icon-upload"></i>
         <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
@@ -1326,5 +1326,15 @@ export default {
     border-right: none;
     border-bottom: 1px solid #000;
   }
+}
+
+/* 图片上传对话框样式 */
+.image-upload-dialog .el-upload-dragger {
+  width: 100% !important;
+  height: 200px !important;
+}
+
+.image-upload-dialog .el-upload {
+  width: 100%;
 }
 </style>
