@@ -144,6 +144,28 @@ limits:
 	return nil
 }
 
+// escapeLaTeXSpecialChars 转义 LaTeX 特殊字符
+func escapeLaTeXSpecialChars(text string) string {
+	// 转义 LaTeX 特殊字符
+	replacer := strings.NewReplacer(
+		"\\", "\\textbackslash{}",
+		"&", "\\&",
+		"%", "\\%",
+		"$", "\\$",
+		"#", "\\#",
+		"_", "\\_",
+		"{", "\\{",
+		"}", "\\}",
+		"~", "\\textasciitilde{}",
+		"^", "\\textasciicircum{}",
+		"+", "\\textplus{}",
+		"<", "\\textless{}",
+		">", "\\textgreater{}",
+		"|", "\\textbar{}",
+	)
+	return replacer.Replace(text)
+}
+
 // writeProblemStatement 写入题目描述 LaTeX 文件（使用 problemtools 格式）
 func (g *ProblemToolsPDFGenerator) writeProblemStatement(statementDir string, problem model.ProblemSetProblem) error {
 	texPath := filepath.Join(statementDir, "problem.en.tex")
@@ -151,9 +173,9 @@ func (g *ProblemToolsPDFGenerator) writeProblemStatement(statementDir string, pr
 	// 使用 problemtools 的命令格式
 	var builder strings.Builder
 
-	// 题目名称
+	// 题目名称 - 转义特殊字符
 	builder.WriteString(fmt.Sprintf(`\problemname{%s}
-`, problem.Title))
+`, escapeLaTeXSpecialChars(problem.Title)))
 
 	// 题目描述
 	builder.WriteString(convertToProblemtoolsFormat(problem.Description))
