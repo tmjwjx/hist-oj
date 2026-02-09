@@ -413,7 +413,7 @@ export default {
       }
       this.loadProblemSet()
       this.loadImages()
-      this.uploadUrl = `${process.env.VUE_APP_BASE_API || 'http://localhost:8888'}/api/problem-set/${this.setId}/images`
+      this.uploadUrl = `${process.env.VUE_APP_BASE_API || '/'}/api/problem-set/${this.setId}/images`
       this.uploadHeaders = {
         'Authorization': localStorage.getItem('token')
       }
