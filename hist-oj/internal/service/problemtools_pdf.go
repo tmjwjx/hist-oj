@@ -147,6 +147,7 @@ limits:
 // escapeLaTeXSpecialChars 转义 LaTeX 特殊字符
 func escapeLaTeXSpecialChars(text string) string {
 	// 转义 LaTeX 特殊字符
+	// 注意：使用数学模式替代 textcomp 包命令，因为 problemset.cls 不加载 textcomp
 	replacer := strings.NewReplacer(
 		"\\", "\\textbackslash{}",
 		"&", "\\&",
@@ -158,10 +159,10 @@ func escapeLaTeXSpecialChars(text string) string {
 		"}", "\\}",
 		"~", "\\textasciitilde{}",
 		"^", "\\textasciicircum{}",
-		"+", "\\textplus{}",
-		"<", "\\textless{}",
-		">", "\\textgreater{}",
-		"|", "\\textbar{}",
+		"+", "$+$",           // 使用数学模式替代 \textplus{}
+		"<", "$<$",           // 使用数学模式替代 \textless{}
+		">", "$>$",           // 使用数学模式替代 \textgreater{}
+		"|", "$|$",           // 使用数学模式替代 \textbar{}
 	)
 	return replacer.Replace(text)
 }
