@@ -147,7 +147,7 @@ limits:
 // escapeLaTeXSpecialChars 转义 LaTeX 特殊字符
 func escapeLaTeXSpecialChars(text string) string {
 	// 转义 LaTeX 特殊字符
-	// 注意：使用数学模式替代 textcomp 包命令，因为 problemset.cls 不加载 textcomp
+	// 使用 textcomp 包的命令（会在 problem statement 中加载该包）
 	replacer := strings.NewReplacer(
 		"\\", "\\textbackslash{}",
 		"&", "\\&",
@@ -159,10 +159,10 @@ func escapeLaTeXSpecialChars(text string) string {
 		"}", "\\}",
 		"~", "\\textasciitilde{}",
 		"^", "\\textasciicircum{}",
-		"+", "$+$",           // 使用数学模式替代 \textplus{}
-		"<", "$<$",           // 使用数学模式替代 \textless{}
-		">", "$>$",           // 使用数学模式替代 \textgreater{}
-		"|", "$|$",           // 使用数学模式替代 \textbar{}
+		"+", "\\textplus{}",
+		"<", "\\textless{}",
+		">", "\\textgreater{}",
+		"|", "\\textbar{}",
 	)
 	return replacer.Replace(text)
 }
@@ -173,6 +173,10 @@ func (g *ProblemToolsPDFGenerator) writeProblemStatement(statementDir string, pr
 
 	// 使用 problemtools 的命令格式
 	var builder strings.Builder
+
+	// 添加 textcomp 包以支持特殊字符命令
+	builder.WriteString(`\usepackage{textcomp}
+`)
 
 	// 题目名称 - 转义特殊字符
 	builder.WriteString(fmt.Sprintf(`\problemname{%s}
