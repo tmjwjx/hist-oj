@@ -147,7 +147,7 @@ limits:
 // escapeLaTeXSpecialChars 转义 LaTeX 特殊字符
 func escapeLaTeXSpecialChars(text string) string {
 	// 转义 LaTeX 特殊字符
-	// 使用 textcomp 包的命令（会在 problem statement 中加载该包）
+	// 只转义最基本的特殊字符，避免在\problemname等命令中出错
 	replacer := strings.NewReplacer(
 		"\\", "\\textbackslash{}",
 		"&", "\\&",
@@ -159,11 +159,8 @@ func escapeLaTeXSpecialChars(text string) string {
 		"}", "\\}",
 		"~", "\\textasciitilde{}",
 		"^", "\\textasciicircum{}",
-		"+", "\\textplus{}",
-		"<", "\\textless{}",
-		">", "\\textgreater{}",
-		"|", "\\textbar{}",
 	)
+	// 注意：不转义 + < > |，因为在luatexja中这些字符通常可以直接使用
 	return replacer.Replace(text)
 }
 
@@ -247,6 +244,10 @@ func (g *ProblemToolsPDFGenerator) createProblemSetTex(texPath string, problemSe
 \usepackage{luatexja}
 \usepackage{luatexja-fontspec}
 \usepackage{textcomp}
+
+% 使用更完整的字体支持中文
+\setmainfont{Harano Aji Mincho}
+\setsansfont{Harano Aji Gothic}
 
 \problemparentpath{problemset}
 
