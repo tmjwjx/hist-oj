@@ -209,7 +209,6 @@ func (g *ProblemToolsPDFGenerator) writeProblemStatement(statementDir string, pr
 	if err := os.WriteFile(texPath, []byte(builder.String()), 0644); err != nil {
 		return fmt.Errorf("写入题目描述失败: %w", err)
 	}
-
 	return nil
 }
 
@@ -251,6 +250,7 @@ func (g *ProblemToolsPDFGenerator) createProblemSetTex(texPath string, problemSe
 
 \usepackage{luatexja}
 \usepackage{luatexja-fontspec}
+\usepackage{textcomp}
 
 \problemparentpath{problemset}
 

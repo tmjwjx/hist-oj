@@ -413,7 +413,7 @@ export default {
       }
       this.loadProblemSet()
       this.loadImages()
-      this.uploadUrl = `${process.env.VUE_APP_BASE_API || ''}api/problem-set/${this.setId}/images`
+      this.uploadUrl = `/api/problem-set/${this.setId}/images`
       this.uploadHeaders = {
         'Authorization': localStorage.getItem('token')
       }
@@ -919,7 +919,7 @@ export default {
     setId(newVal) {
       if (newVal) {
         this.loadImages()
-        this.uploadUrl = `${process.env.VUE_APP_BASE_API}api/problem-set/${newVal}/images`
+        this.uploadUrl = `/api/problem-set/${newVal}/images`
         this.uploadHeaders = {
           'Authorization': 'Bearer ' + localStorage.getItem('token')
         }
