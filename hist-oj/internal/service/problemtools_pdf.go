@@ -174,10 +174,6 @@ func (g *ProblemToolsPDFGenerator) writeProblemStatement(statementDir string, pr
 	// 使用 problemtools 的命令格式
 	var builder strings.Builder
 
-	// 添加 textcomp 包以支持特殊字符命令
-	builder.WriteString(`\usepackage{textcomp}
-`)
-
 	// 题目名称 - 转义特殊字符
 	builder.WriteString(fmt.Sprintf(`\problemname{%s}
 `, escapeLaTeXSpecialChars(problem.Title)))
