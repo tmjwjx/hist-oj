@@ -294,14 +294,13 @@
           ></iframe>
 
           <!-- Office 文件预览 (PPT/Word/Excel) -->
-          <div v-if="['ppt', 'word', 'excel'].includes(getFileType(selectedMaterial.fileName)) && !previewLoading" class="office-wrapper">
-            <iframe
-              :src="officeViewerUrl"
-              class="preview-iframe office-preview"
-              sandbox="allow-scripts allow-same-origin"
-            ></iframe>
-            <!-- 下载按钮遮罩层 -->
-            <div class="office-download-mask"></div>
+          <div v-if="['ppt', 'word', 'excel'].includes(getFileType(selectedMaterial.fileName)) && !previewLoading" class="preview-unsupported">
+            <i :class="getFileIcon(getFileType(selectedMaterial.fileName))"></i>
+            <p>Office 文件（PPT/Word/Excel）暂不支持在线预览</p>
+            <p class="hint-text">请下载后使用 Microsoft Office 或 WPS 打开</p>
+            <el-button type="primary" icon="el-icon-download" @click="downloadCurrentFile">
+              下载文件
+            </el-button>
           </div>
 
           <!-- 不支持预览 -->
@@ -547,20 +546,6 @@ export default {
       }
 
       return url
-    },
-    // Office Online Viewer URL for PPT/Word/Excel files
-    officeViewerUrl() {
-      if (!this.selectedMaterial || !this.selectedMaterial.filePath) return ''
-      const fileType = this.getFileType(this.selectedMaterial.fileName)
-      if (!['ppt', 'word', 'excel'].includes(fileType)) return ''
-
-      let url = this.selectedMaterial.filePath
-      if (url.startsWith('/')) {
-        url = window.location.origin + url
-      }
-
-      // 使用 Microsoft Office Online Viewer
-      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`
     }
   },
   watch: {
@@ -1988,31 +1973,6 @@ export default {
   z-index: 10;
   pointer-events: auto;
   /* 透明背景，但阻止点击 */
-  background: transparent;
-  cursor: default;
-}
-
-/* Office文件预览 */
-.office-preview {
-  background: #f5f5f5;
-}
-
-/* Office 容器 */
-.office-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-/* Office 下载按钮遮罩层 - 覆盖右下角下载按钮 */
-.office-download-mask {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 50px;
-  height: 50px;
-  z-index: 10;
-  pointer-events: auto; /* 只在遮罩区域阻止点击 */
   background: transparent;
   cursor: default;
 }
