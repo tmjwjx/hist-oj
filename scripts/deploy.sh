@@ -290,9 +290,9 @@ upload_images() {
             log_warn "Rating Skip系统迁移脚本上传失败（可能不存在）"
         }
 
-        # 上传XCPC题目集PDF生成器迁移脚本（新增）
-        sshpass -p "$SERVER_PASS" scp hist-oj/migrations/problem_set_migration.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
-            log_warn "XCPC题目集PDF生成器迁移脚本上传失败（可能不存在）"
+        # 上传班级资料库权限管理迁移脚本（新增）
+        sshpass -p "$SERVER_PASS" scp migrations/fix_material_permission_table_v2.sql ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ 2>/dev/null || {
+            log_warn "资料库权限管理迁移脚本上传失败（可能不存在）"
         }
 
         log_info "✓ 数据库迁移脚本上传完成"
@@ -636,6 +636,24 @@ SQLEOF
             echo "[INFO] ✓ 班级系统数据库表已存在"
         fi
 
+        # 检查班级资料库权限管理表是否已存在（新增）
+        MATERIAL_PERMISSION_TABLE_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES \
+             WHERE TABLE_SCHEMA='hoj' \
+             AND TABLE_NAME='classroom_material_permission'" 2>/dev/null || echo "0")
+
+        if [ "$MATERIAL_PERMISSION_TABLE_EXISTS" -lt "1" ]; then
+            echo "[INFO] 需要执行班级资料库权限管理数据库迁移..."
+            if [ -f "/opt/fix_material_permission_table_v2.sql" ]; then
+                echo "[INFO] 执行班级资料库权限管理数据库迁移..."
+                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/fix_material_permission_table_v2.sql && echo "[INFO] ✓ 资料库权限管理迁移成功" || echo "[WARN] 资料库权限管理迁移失败"
+            else
+                echo "[WARN] 资料库权限管理迁移脚本不存在"
+            fi
+        else
+            echo "[INFO] ✓ 班级资料库权限管理数据库表已存在"
+        fi
+
         # 检查Rating Skip系统表是否已存在（新增）
         SKIP_TABLE_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES \
@@ -729,24 +747,6 @@ SQLEOF
             fi
         else
             echo "[INFO] ✓ homework_submit.is_officially_submitted 字段已存在"
-        fi
-
-        # 检查XCPC题目集PDF生成器表是否已存在（新增）
-        XCPC_PROBLEM_SET_EXISTS=$(mysql -h43.143.133.62 -uroot -phist2025 -sN -e \
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES \
-             WHERE TABLE_SCHEMA='hoj' \
-             AND TABLE_NAME='xcpc_problem_set'" 2>/dev/null || echo "0")
-
-        if [ "$XCPC_PROBLEM_SET_EXISTS" -lt "1" ]; then
-            echo "[INFO] 需要执行XCPC题目集PDF生成器数据库迁移..."
-            if [ -f "/opt/problem_set_migration.sql" ]; then
-                echo "[INFO] 执行XCPC题目集PDF生成器数据库迁移..."
-                mysql -h43.143.133.62 -uroot -phist2025 hoj < /opt/problem_set_migration.sql && echo "[INFO] ✓ XCPC题目集PDF生成器迁移成功" || echo "[WARN] XCPC题目集PDF生成器迁移失败"
-            else
-                echo "[WARN] XCPC题目集PDF生成器迁移脚本不存在"
-            fi
-        else
-            echo "[INFO] ✓ XCPC题目集PDF生成器数据库表已存在"
         fi
 
         echo "[INFO] 停止并删除旧容器..."
@@ -997,7 +997,8 @@ cleanup_server() {
               005_add_manual_rating_fields.sql 001_add_last_view_time_fields.sql \
               battle.sql alter_battle_problem_id.sql alter_battle_tables.sql \
               add_battle_record_opponent_rating.sql backfill_opponent_rating.sql \
-              classroom.sql 006_add_rating_skip.sql problem_set_migration.sql
+              classroom.sql 006_add_rating_skip.sql \
+              fix_material_permission_table_v2.sql
         echo "[INFO] ✓ 服务器清理完成"
 ENDSSH
 }
@@ -1087,7 +1088,6 @@ show_result() {
     log_info "  - 班级签到: https://bingoj.cn/classroom/student (支持摄像头扫码)"
     log_info "  - 报名系统: https://bingoj.cn/toolbox -> 赛事报名系统"
     log_info "  - 报名管理: https://bingoj.cn/admin/toolbox -> 赛事报名系统管理"
-    log_info "  - PDF生成器: https://bingoj.cn/toolbox -> PDF 生成器"
     log_info ""
     log_info "架构更新："
     log_info "  - 已将赛事报名系统封装到工具箱中"
@@ -1135,20 +1135,14 @@ show_result() {
     log_info "     - 题库管理：班级题目、作业题库"
     log_info "     - 作业系统：发布作业、提交作业、批改作业"
     log_info "     - 资料库：课程资料上传、下载"
+    log_info "     - ✅ 资料库权限管理（新增）：教师可设置每个学生的预览权限和下载权限"
+    log_info "     - ✅ PPT在线预览（新增）：支持Office文件在线预览，无需下载"
+    log_info "     - 考试计时器优化：移动到右下角，带渐变背景和动画"
     log_info "     - 随机选人：课堂随机提问功能"
     log_info "     - 即时通讯：班级群聊、私信"
     log_info "     - API: http://${SERVER_IP}:9527/api/classroom/*"
     log_info ""
-    log_info "  11. ✅ XCPC题目集PDF生成器（新增）"
-    log_info "     - 访问路径: /toolbox/problem-set"
-    log_info "     - 支持创建题目集、添加题目、配置样例"
-    log_info "     - 实时预览XCPC风格题目格式"
-    log_info "     - 一键生成专业PDF题面"
-    log_info "     - 支持LaTeX公式（KaTeX渲染）"
-    log_info "     - 每个用户独立管理自己的题目集"
-    log_info "     - API: http://${SERVER_IP}:9527/api/problem-set/*"
-    log_info ""
-    log_info "  10. ✅ Rating Skip管理系统（新增）"
+    log_info "  8. ✅ Rating Skip管理系统（新增）"
     log_info "     - 比赛作弊用户Skip功能"
     log_info "     - 批量Skip：一次跳过多个用户，仅重算一次"
     log_info "     - 支持延迟重算和手动触发重算"
@@ -1212,8 +1206,8 @@ show_result() {
     log_info "  - 对战记录对手rating: add_battle_record_opponent_rating.sql (新增)"
     log_info "  - 回填旧记录rating数据: backfill_opponent_rating.sql (新增)"
     log_info "  - 班级管理系统: classroom.sql (新增)"
+    log_info "  - 班级资料库权限管理: fix_material_permission_table_v2.sql (新增)"
     log_info "  - Rating Skip系统: 006_add_rating_skip.sql (新增)"
-    log_info "  - XCPC题目集PDF生成器: problem_set_migration.sql (新增)"
     log_info "  - 验证对战表:"
     log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
     log_info "      'SHOW TABLES LIKE \"battle%\"' hoj"
@@ -1240,9 +1234,6 @@ show_result() {
     log_info "      'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \\"
     log_info "       WHERE TABLE_SCHEMA=\"hoj\" AND TABLE_NAME=\"rating_history\" \\"
     log_info "       AND COLUMN_NAME IN (\"is_skip\", \"skip_reason\")' hoj"
-    log_info "  - 验证XCPC题目集PDF生成器表:"
-    log_info "    mysql -h43.143.133.62 -uroot -phist2025 -e \\"
-    log_info "      'SHOW TABLES LIKE \"xcpc_problem%\"' hoj"
     log_info ""
     log_info "代码变更（代码对战系统）："
     log_info "  - 后端:"

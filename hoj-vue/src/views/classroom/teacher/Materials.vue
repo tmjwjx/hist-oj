@@ -142,6 +142,16 @@
                       预览
                     </el-button>
                   </el-tooltip>
+                  <el-tooltip content="权限设置" placement="top">
+                    <el-button
+                      size="mini"
+                      type="text"
+                      icon="el-icon-setting"
+                      @click.stop="openPermissionDialog(material)"
+                    >
+                      权限
+                    </el-button>
+                  </el-tooltip>
                   <el-tooltip content="下载" placement="top">
                     <el-button
                       size="mini"
@@ -204,12 +214,55 @@
         </div>
 
         <div class="preview-content" v-loading="previewLoading" element-loading-text="加载中...">
-          <!-- PDF 预览 -->
-          <iframe
-            v-if="getFileType(selectedMaterial.fileName) === 'pdf' && !previewLoading"
-            :src="previewUrl"
-            class="preview-iframe"
-          ></iframe>
+          <!-- PDF 预览 - 使用 PDF.js Canvas 渲染 -->
+          <div v-if="getFileType(selectedMaterial.fileName) === 'pdf' && !previewLoading" class="pdf-wrapper">
+            <!-- PDF.js 工具栏 -->
+            <div class="pdf-toolbar" v-if="pdfDocument">
+              <div class="pdf-toolbar-left">
+                <el-button
+                  size="mini"
+                  icon="el-icon-arrow-left"
+                  :disabled="pdfPage <= 1 || pdfRendering"
+                  @click="prevPage"
+                >
+                  上一页
+                </el-button>
+                <span class="pdf-page-info">
+                  {{ pdfPage }} / {{ pdfPages }}
+                </span>
+                <el-button
+                  size="mini"
+                  :disabled="pdfPage >= pdfPages || pdfRendering"
+                  @click="nextPage"
+                >
+                  下一页
+                  <i class="el-icon-arrow-right el-icon--right"></i>
+                </el-button>
+              </div>
+              <div class="pdf-toolbar-right">
+                <el-select
+                  v-model="pdfScale"
+                  size="mini"
+                  @change="renderPage"
+                  :disabled="pdfRendering"
+                  style="width: 100px"
+                >
+                  <el-option
+                    v-for="scale in pdfScales"
+                    :key="scale"
+                    :label="Math.round(scale * 100) + '%'"
+                    :value="scale"
+                  >
+                  </el-option>
+                </el-select>
+              </div>
+            </div>
+
+            <!-- Canvas 渲染区域 -->
+            <div class="pdf-canvas-container">
+              <canvas id="pdf-render-canvas"></canvas>
+            </div>
+          </div>
 
           <!-- 视频预览 -->
           <video
@@ -239,6 +292,17 @@
             :src="previewUrl"
             class="preview-iframe"
           ></iframe>
+
+          <!-- Office 文件预览 (PPT/Word/Excel) -->
+          <div v-if="['ppt', 'word', 'excel'].includes(getFileType(selectedMaterial.fileName)) && !previewLoading" class="office-wrapper">
+            <iframe
+              :src="officeViewerUrl"
+              class="preview-iframe office-preview"
+              sandbox="allow-scripts allow-same-origin"
+            ></iframe>
+            <!-- 下载按钮遮罩层 -->
+            <div class="office-download-mask"></div>
+          </div>
 
           <!-- 不支持预览 -->
           <div v-if="!canPreview(getFileType(selectedMaterial.fileName))" class="preview-unsupported">
@@ -318,6 +382,84 @@
         </el-menu-item>
       </el-menu>
     </div>
+
+    <!-- 权限设置对话框 -->
+    <el-dialog
+      title="资料权限设置"
+      :visible.sync="showPermissionDialog"
+      width="800px"
+      custom-class="classroom-dialog permission-dialog"
+      @open="loadPermissions"
+    >
+      <div v-loading="permissionLoading">
+        <div class="permission-header">
+          <div class="material-info">
+            <i :class="getFileIcon(getFileType(currentPermissionMaterial?.fileName))"></i>
+            <span>{{ currentPermissionMaterial?.fileName }}</span>
+          </div>
+          <div class="batch-actions">
+            <el-button size="small" @click="batchSetPermission(true, false)">
+              <i class="el-icon-view"></i>
+              全部可预览
+            </el-button>
+            <el-button size="small" @click="batchSetPermission(false, true)">
+              <i class="el-icon-download"></i>
+              全部可下载
+            </el-button>
+            <el-button size="small" type="primary" @click="batchSetPermission(true, true)">
+              <i class="el-icon-check"></i>
+              全部开启
+            </el-button>
+            <el-button size="small" @click="batchSetPermission(false, false)">
+              <i class="el-icon-close"></i>
+              全部关闭
+            </el-button>
+          </div>
+        </div>
+
+        <el-table
+          :data="studentPermissions"
+          style="width: 100%; margin-top: 16px;"
+          max-height="400"
+        >
+          <el-table-column prop="realName" label="学生姓名" width="150">
+            <template slot-scope="scope">
+              <div class="student-info">
+                <span class="student-name">{{ scope.row.realName }}</span>
+                <span class="student-username">{{ scope.row.username }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="可预览" width="100" align="center">
+            <template slot-scope="scope">
+              <el-checkbox v-model="scope.row.canPreview"></el-checkbox>
+            </template>
+          </el-table-column>
+          <el-table-column label="可下载" width="100" align="center">
+            <template slot-scope="scope">
+              <el-checkbox v-model="scope.row.canDownload"></el-checkbox>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="120" align="center">
+            <template slot-scope="scope">
+              <el-tag
+                :type="scope.row.canPreview || scope.row.canDownload ? 'success' : 'info'"
+                size="small"
+              >
+                {{ scope.row.canPreview || scope.row.canDownload ? '有权限' : '无权限' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <span slot="footer">
+        <el-button @click="showPermissionDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="savePermissions" :loading="permissionLoading">
+          保存设置
+        </el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -364,6 +506,19 @@ export default {
       // 预览相关
       selectedMaterial: null,
       previewLoading: false,
+      // PDF.js 渲染相关
+      pdfjsLib: null,
+      pdfDocument: null,
+      pdfRendering: false,
+      pdfPage: 1,
+      pdfPages: 0,
+      pdfScale: 1.5,
+      pdfScales: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0],
+      // 权限管理相关
+      showPermissionDialog: false,
+      currentPermissionMaterial: null,
+      permissionLoading: false,
+      studentPermissions: [],
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -385,7 +540,27 @@ export default {
       if (url.startsWith('/')) {
         url = window.location.origin + url
       }
+
+      // 对于PDF文件，添加参数隐藏工具栏（禁用下载按钮）
+      if (this.getFileType(this.selectedMaterial.fileName) === 'pdf') {
+        url += '#toolbar=0&navpanes=0&scrollbar=0'
+      }
+
       return url
+    },
+    // Office Online Viewer URL for PPT/Word/Excel files
+    officeViewerUrl() {
+      if (!this.selectedMaterial || !this.selectedMaterial.filePath) return ''
+      const fileType = this.getFileType(this.selectedMaterial.fileName)
+      if (!['ppt', 'word', 'excel'].includes(fileType)) return ''
+
+      let url = this.selectedMaterial.filePath
+      if (url.startsWith('/')) {
+        url = window.location.origin + url
+      }
+
+      // 使用 Microsoft Office Online Viewer
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`
     }
   },
   watch: {
@@ -400,7 +575,13 @@ export default {
     }
   },
   mounted() {
+    // 初始化 PDF.js
+    this.initPDFJS()
     // mounted 时也会通过 watch 触发加载
+    this.disableDownloads()
+  },
+  beforeDestroy() {
+    this.enableDownloads()
   },
   methods: {
     async loadContent() {
@@ -867,11 +1048,44 @@ export default {
     },
 
     downloadMaterial(material) {
-      let filePath = material.filePath
-      if (filePath.startsWith('/')) {
-        filePath = window.location.origin + filePath
-      }
-      window.open(filePath, '_blank')
+      // 使用带权限验证的下载API
+      const downloadUrl = `/rating-api/api/classroom/material/${material.id}/download`
+      this.downloadFile(downloadUrl, material.fileName)
+    },
+
+    // 下载文件（携带token）
+    downloadFile(url, filename) {
+      this.$axios({
+        method: 'get',
+        url: url,
+        responseType: 'blob'
+      }).then(response => {
+        // 创建blob链接，使用正确的MIME类型
+        const blob = new Blob([response.data], {
+          type: response.headers['content-type'] || 'application/octet-stream'
+        })
+        const link = document.createElement('a')
+        link.href = window.URL.createObjectURL(blob)
+        // 强制下载，不预览
+        link.download = filename
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        // 延迟清理，确保下载开始
+        setTimeout(() => {
+          document.body.removeChild(link)
+          window.URL.revokeObjectURL(link.href)
+        }, 100)
+      }).catch(error => {
+        console.error('下载失败:', error)
+        if (error.response && error.response.status === 401) {
+          this.$message.error('请先登录')
+        } else if (error.response && error.response.status === 403) {
+          this.$message.error('您没有下载该资料的权限')
+        } else {
+          this.$message.error('下载失败：' + (error.response?.data?.message || error.message))
+        }
+      })
     },
 
     async deleteMaterial(material) {
@@ -955,14 +1169,29 @@ export default {
 
     // 判断是否可预览
     canPreview(fileType) {
-      const previewableTypes = ['pdf', 'txt', 'image', 'video', 'audio']
+      const previewableTypes = ['pdf', 'txt', 'image', 'video', 'audio', 'ppt', 'word', 'excel']
       return previewableTypes.includes(fileType)
     },
 
     // 选择文件进行预览
-    selectMaterial(material) {
+    async selectMaterial(material) {
       this.selectedMaterial = material
-      this.previewLoading = false
+      const fileType = this.getFileType(material.fileName)
+
+      // 如果是 PDF 文件，使用 PDF.js 加载
+      if (fileType === 'pdf') {
+        this.previewLoading = true
+        try {
+          await this.loadPDF(material.id)
+        } catch (error) {
+          console.error('[PDF] 加载失败:', error)
+          this.$message.error('PDF 加载失败，请尝试下载后查看')
+        } finally {
+          this.previewLoading = false
+        }
+      } else {
+        this.previewLoading = false
+      }
     },
 
     // 关闭预览
@@ -991,6 +1220,320 @@ export default {
           })
         }
       }
+    },
+
+    // 打开权限设置对话框
+    openPermissionDialog(material) {
+      this.currentPermissionMaterial = material
+      this.showPermissionDialog = true
+    },
+
+    // 加载学生权限列表
+    async loadPermissions() {
+      if (!this.currentPermissionMaterial) return
+
+      this.permissionLoading = true
+      try {
+        const response = await this.$axios.get(`/rating-api/api/classroom/material/${this.currentPermissionMaterial.id}/permissions`)
+        if (response.data.code === 200) {
+          this.studentPermissions = response.data.data || []
+        } else {
+          this.$message.error(response.data.message || '加载权限失败')
+        }
+      } catch (error) {
+        console.error('加载权限失败:', error)
+        this.$message.error('加载权限失败')
+      } finally {
+        this.permissionLoading = false
+      }
+    },
+
+    // 批量设置权限
+    batchSetPermission(canPreview, canDownload) {
+      this.studentPermissions.forEach(student => {
+        student.canPreview = canPreview
+        student.canDownload = canDownload
+      })
+      this.$message.success('已批量设置，请点击保存按钮保存更改')
+    },
+
+    // 保存权限设置
+    async savePermissions() {
+      this.permissionLoading = true
+      try {
+        const data = {
+          materialId: this.currentPermissionMaterial.id,
+          permissions: this.studentPermissions.map(student => ({
+            uid: student.uid,
+            canPreview: student.canPreview,
+            canDownload: student.canDownload
+          }))
+        }
+
+        const response = await this.$axios.post('/rating-api/api/classroom/material/permissions', data)
+        if (response.data.code === 200) {
+          this.$message.success('权限设置保存成功')
+          this.showPermissionDialog = false
+        } else {
+          this.$message.error(response.data.message || '保存失败')
+        }
+      } catch (error) {
+        console.error('保存权限失败:', error)
+        this.$message.error('保存权限失败')
+      } finally {
+        this.permissionLoading = false
+      }
+    },
+
+    // 禁用页面下载功能（安全措施）
+    disableDownloads() {
+      // 禁用右键菜单
+      this.contextMenuHandler = (e) => {
+        e.preventDefault()
+        return false
+      }
+      document.addEventListener('contextmenu', this.contextMenuHandler)
+
+      // 禁用常见快捷键（保存、打印、源代码等）
+      this.keyDownHandler = (e) => {
+        // Ctrl+S (保存)
+        if (e.ctrlKey && e.key === 's') {
+          e.preventDefault()
+          return false
+        }
+        // Ctrl+P (打印)
+        if (e.ctrlKey && e.key === 'p') {
+          e.preventDefault()
+          return false
+        }
+        // F12 (开发者工具)
+        if (e.key === 'F12') {
+          e.preventDefault()
+          return false
+        }
+        // Ctrl+U (查看源代码)
+        if (e.ctrlKey && e.key === 'u') {
+          e.preventDefault()
+          return false
+        }
+        // Ctrl+Shift+I (开发者工具)
+        if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+          e.preventDefault()
+          return false
+        }
+        // Ctrl+Shift+C (检查元素)
+        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+          e.preventDefault()
+          return false
+        }
+        // Ctrl+Shift+S (另存为)
+        if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+          e.preventDefault()
+          return false
+        }
+      }
+      document.addEventListener('keydown', this.keyDownHandler, true)
+    },
+
+    // 恢复页面功能
+    enableDownloads() {
+      if (this.contextMenuHandler) {
+        document.removeEventListener('contextmenu', this.contextMenuHandler)
+      }
+      if (this.keyDownHandler) {
+        document.removeEventListener('keydown', this.keyDownHandler, true)
+      }
+    },
+
+    // ==================== PDF.js 相关方法 ====================
+
+    // 初始化 PDF.js
+    async initPDFJS() {
+      try {
+        // 检查是否已经加载
+        if (this.pdfjsLib) {
+          console.log('[PDF] PDF.js 已初始化')
+          return
+        }
+
+        // 检查是否在全局对象中
+        if (window.pdfjsLib) {
+          this.pdfjsLib = window.pdfjsLib
+          console.log('[PDF] 使用全局 PDF.js')
+          return
+        }
+
+        // 动态加载 PDF.js（通过 CDN）
+        console.log('[PDF] 动态加载 PDF.js...')
+        const script = document.createElement('script')
+        script.src = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.min.js'
+
+        await new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+
+        // 加载 worker
+        const workerScript = document.createElement('script')
+        workerScript.src = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js'
+
+        await new Promise((resolve, reject) => {
+          workerScript.onload = resolve
+          workerScript.onerror = reject
+          document.head.appendChild(workerScript)
+        })
+
+        // 设置 worker
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js'
+        this.pdfjsLib = window.pdfjsLib
+
+        console.log('[PDF] PDF.js 初始化成功')
+      } catch (error) {
+        console.error('[PDF] PDF.js 初始化失败:', error)
+        // 尝试备用 CDN
+        try {
+          if (window.pdfjsLib) {
+            this.pdfjsLib = window.pdfjsLib
+            this.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.staticfile.org/pdf.js/2.16.105/pdf.worker.min.js'
+            console.log('[PDF] 使用备用 CDN')
+          }
+        } catch (fallbackError) {
+          console.error('[PDF] 备用 CDN 也失败:', fallbackError)
+          this.pdfjsLib = null
+        }
+      }
+    },
+
+    // 加载 PDF 文件
+    async loadPDF(materialId) {
+      if (!this.pdfjsLib) {
+        console.warn('[PDF] PDF.js 未初始化，尝试初始化...')
+        await this.initPDFJS()
+        if (!this.pdfjsLib) {
+          throw new Error('PDF.js 初始化失败')
+        }
+      }
+
+      const loadingMessage = { message: '正在加载 PDF...' }
+      this.previewLoading = true
+
+      try {
+        console.log('[PDF] 开始加载 PDF，materialId:', materialId)
+
+        const apiUrl = `/rating-api/api/classroom/material/${materialId}/pdf/binary`
+        let lastLoggedPercent = 0
+
+        const response = await this.$axios.get(apiUrl, {
+          responseType: 'arraybuffer',
+          onDownloadProgress: (progressEvent) => {
+            if (progressEvent.total > 0) {
+              const percentComplete = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              // 每 10% 记录一次日志
+              if (percentComplete % 10 === 0 && percentComplete !== lastLoggedPercent) {
+                console.log(`[PDF] 下载进度: ${percentComplete}%`)
+                lastLoggedPercent = percentComplete
+                loadingMessage.message = `正在加载 PDF... ${percentComplete}%`
+              }
+            }
+          }
+        })
+
+        if (!response.data || response.data.byteLength === 0) {
+          throw new Error('PDF 数据为空')
+        }
+
+        console.log('[PDF] PDF 下载完成，大小:', (response.data.byteLength / 1024 / 1024).toFixed(2), 'MB')
+
+        // 使用 PDF.js 加载文档
+        const loadingTask = this.pdfjsLib.getDocument({ data: response.data })
+        this.pdfDocument = await loadingTask.promise
+        this.pdfPages = this.pdfDocument.numPages
+        this.pdfPage = 1
+
+        console.log('[PDF] PDF 解析成功，总页数:', this.pdfPages)
+
+        // 渲染第一页
+        await this.renderPage()
+      } catch (error) {
+        console.error('[PDF] 加载 PDF 失败:', error)
+        throw error
+      } finally {
+        this.previewLoading = false
+      }
+    },
+
+    // 渲染指定页面
+    async renderPage() {
+      if (!this.pdfDocument) {
+        console.warn('[PDF] 没有可用的 PDF 文档')
+        return
+      }
+
+      this.pdfRendering = true
+
+      try {
+        const page = await this.pdfDocument.getPage(this.pdfPage)
+        const viewport = page.getViewport({ scale: this.pdfScale })
+
+        // 获取设备像素比，优化高DPI显示
+        const devicePixelRatio = window.devicePixelRatio || 1
+
+        // 获取或创建 canvas
+        let canvas = document.getElementById('pdf-render-canvas')
+        if (!canvas) {
+          console.warn('[PDF] Canvas 元素不存在')
+          return
+        }
+
+        const context = canvas.getContext('2d')
+
+        // 设置canvas的实际渲染尺寸（考虑设备像素比）
+        canvas.height = viewport.height * devicePixelRatio
+        canvas.width = viewport.width * devicePixelRatio
+
+        // 设置canvas的CSS显示尺寸
+        canvas.style.height = viewport.height + 'px'
+        canvas.style.width = viewport.width + 'px'
+
+        // 缩放context以适应高DPI显示
+        context.scale(devicePixelRatio, devicePixelRatio)
+
+        // 渲染 PDF 页面到 canvas
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise
+
+        console.log(`[PDF] 第 ${this.pdfPage} 页渲染成功 (devicePixelRatio: ${devicePixelRatio})`)
+      } catch (error) {
+        console.error('[PDF] 渲染页面失败:', error)
+        throw error
+      } finally {
+        this.pdfRendering = false
+      }
+    },
+
+    // 上一页
+    prevPage() {
+      if (this.pdfPage > 1) {
+        this.pdfPage--
+        this.renderPage()
+      }
+    },
+
+    // 下一页
+    nextPage() {
+      if (this.pdfPage < this.pdfPages) {
+        this.pdfPage++
+        this.renderPage()
+      }
+    },
+
+    // 缩放
+    setScale(scale) {
+      this.pdfScale = scale
+      this.renderPage()
     }
   }
 }
@@ -1381,6 +1924,99 @@ export default {
   display: block;
 }
 
+/* PDF 容器 */
+.pdf-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #525252;
+}
+
+/* PDF.js 工具栏 */
+.pdf-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: #323232;
+  color: white;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.pdf-toolbar-left,
+.pdf-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-page-info {
+  padding: 0 12px;
+  font-size: 13px;
+  color: #fff;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Canvas 容器 */
+.pdf-canvas-container {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: #525252;
+}
+
+.pdf-canvas-container canvas {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: white;
+  max-width: 100%;
+  height: auto;
+}
+
+/* PDF 工具栏遮罩层 (旧版，已弃用) */
+.pdf-toolbar-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  z-index: 10;
+  pointer-events: auto;
+  /* 透明背景，但阻止点击 */
+  background: transparent;
+  cursor: default;
+}
+
+/* Office文件预览 */
+.office-preview {
+  background: #f5f5f5;
+}
+
+/* Office 容器 */
+.office-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Office 下载按钮遮罩层 - 覆盖右下角下载按钮 */
+.office-download-mask {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 50px;
+  height: 50px;
+  z-index: 10;
+  pointer-events: auto; /* 只在遮罩区域阻止点击 */
+  background: transparent;
+  cursor: default;
+}
+
 /* 视频预览 */
 .preview-video {
   width: 100%;
@@ -1454,6 +2090,61 @@ export default {
 @media (max-width: 1024px) {
   .content-layout-split {
     grid-template-columns: 320px 1fr;
+  }
+}
+
+/* 权限对话框样式 */
+.permission-dialog .permission-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #E4E7ED;
+  margin-bottom: 16px;
+}
+
+.permission-dialog .material-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+.permission-dialog .material-info i {
+  font-size: 18px;
+  color: #409EFF;
+}
+
+.permission-dialog .batch-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.permission-dialog .student-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.permission-dialog .student-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.permission-dialog .student-username {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .permission-dialog .batch-actions {
+    flex-direction: column;
+  }
+
+  .permission-dialog .batch-actions .el-button {
+    width: 100%;
   }
 }
 

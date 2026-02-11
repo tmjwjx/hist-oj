@@ -388,12 +388,6 @@
 
     <!-- 考试模式题目导航 -->
     <div v-if="isExamMode && examStarted && canViewHomework" class="question-navigator">
-      <!-- 剩余时间显示 -->
-      <div class="navigator-timer">
-        <i class="el-icon-time"></i>
-        <span class="timer-text" :style="{ color: timerColor }">剩余时间：{{ formattedTime }}</span>
-      </div>
-
       <div class="navigator-title">题目导航</div>
       <div class="navigator-grid">
         <div
@@ -410,6 +404,13 @@
         <span class="legend-item"><span class="legend-color unanswered"></span>未答</span>
         <span class="legend-item"><span class="legend-color answered"></span>已答</span>
       </div>
+    </div>
+
+    <!-- 考试模式右下角计时器 -->
+    <div v-if="isExamMode && examStarted && canViewHomework" class="exam-corner-timer">
+      <i class="el-icon-time"></i>
+      <span class="timer-label">剩余时间：</span>
+      <span class="timer-value" :style="{ color: timerColor }">{{ formattedTime }}</span>
     </div>
   </div>
 </template>
@@ -2335,16 +2336,28 @@ export default {
 .question-navigator {
   position: fixed;
   right: 20px;
-  top: 80px;
+  bottom: 80px;
   max-width: 280px;
   width: auto;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   padding: 15px;
   z-index: 998;
+  animation: slideInFromBottom 0.3s ease-out;
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .navigator-timer {
@@ -2438,5 +2451,50 @@ export default {
 .legend-color.answered {
   background: #67C23A;
   border-color: #67C23A;
+}
+
+/* 考试模式右下角计时器 */
+.exam-corner-timer {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  font-size: 16px;
+  font-weight: 600;
+  z-index: 999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.exam-corner-timer i {
+  font-size: 18px;
+}
+
+.exam-corner-timer .timer-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.exam-corner-timer .timer-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 </style>

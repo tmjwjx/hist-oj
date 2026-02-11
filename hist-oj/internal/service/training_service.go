@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -23,14 +24,87 @@ func NewTrainingService() *TrainingService {
 	}
 }
 
+// GetTrainingAccess 获取用户对训练的访问权限
+func (s *TrainingService) GetTrainingAccess(trainingID uint64, uid string) (bool, error) {
+	logger := utils.GetLogger()
+	db := client.GetDB()
+
+	// 检查训练是否存在且可用
+	var training model.Training
+	err := db.Where("id = ?", trainingID).First(&training).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("训练不存在", zap.Uint64("training_id", trainingID))
+			return false, nil
+		}
+		logger.Error("查询训练失败", zap.Error(err))
+		return false, err
+	}
+
+	if !training.Status {
+		logger.Warn("训练不可用", zap.Uint64("training_id", trainingID))
+		return false, nil
+	}
+
+	// 如果是私有训练，检查用户是否已注册（在 training_participant 表中有记录）
+	if training.Auth == "Private" {
+		var participant model.TrainingParticipant
+		err := db.Where("training_id = ? AND uid = ?", trainingID, uid).First(&participant).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// 未找到注册记录，无访问权限
+				logger.Info("用户未注册私有训练，无访问权限", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+				return false, nil
+			}
+			logger.Error("查询训练参与记录失败", zap.Error(err))
+			return false, err
+		}
+	}
+
+	logger.Info("用户有训练访问权限", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+	return true, nil
+}
+
 // JoinTraining 用户参加训练
 func (s *TrainingService) JoinTraining(trainingID uint64, uid string) (*model.TrainingParticipant, error) {
 	logger := utils.GetLogger()
 	db := client.GetDB()
 
+	// 检查训练是否存在及其权限
+	var training model.Training
+	err := db.Where("id = ?", trainingID).First(&training).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("训练不存在", zap.Uint64("training_id", trainingID))
+			return nil, gorm.ErrRecordNotFound
+		}
+		logger.Error("查询训练失败", zap.Error(err))
+		return nil, err
+	}
+
+	// 如果是私有训练，检查用户是否已注册（通过密码验证）
+	if training.Auth == "Private" {
+		var register model.TrainingRegister
+		err := db.Where("tid = ? AND uid = ?", trainingID, uid).First(&register).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				logger.Warn("私有训练：用户未注册", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+				return nil, fmt.Errorf("私有训练需要先通过密码验证")
+			}
+			logger.Error("查询训练注册记录失败", zap.Error(err))
+			return nil, err
+		}
+		if !register.Status {
+			logger.Warn("私有训练：用户注册状态不可用", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+			return nil, fmt.Errorf("训练注册状态异常")
+		}
+		// 用户已通过密码验证，继续创建参与记录
+		logger.Info("私有训练：用户已通过密码验证", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+	}
+
 	// 检查是否已参加
 	var record model.TrainingParticipant
-	err := db.Where("training_id = ? AND uid = ?", trainingID, uid).First(&record).Error
+	err = db.Where("training_id = ? AND uid = ?", trainingID, uid).First(&record).Error
 	if err == nil {
 		// 已存在记录,直接返回
 		logger.Info("用户已参加训练", zap.Uint64("training_id", trainingID), zap.String("uid", uid))

@@ -178,6 +178,14 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.DELETE("/material/:materialId", AuthMiddleware(), handler.DeleteMaterial)
 			classroom.POST("/material/copy", AuthMiddleware(), handler.CopyMaterialToClassroom)
 
+			// 资料库权限管理 - 需要认证
+			classroom.GET("/material/:materialId/permissions", AuthMiddleware(), handler.GetMaterialPermissions)      // 获取权限设置
+			classroom.POST("/material/permissions", AuthMiddleware(), handler.SetMaterialPermissions)              // 批量设置权限
+			classroom.POST("/material/:materialId/permissions/batch", AuthMiddleware(), handler.BatchSetAllMaterialPermissions) // 全部开启/关闭权限
+			classroom.GET("/material/:materialId/download", AuthMiddleware(), handler.DownloadMaterial)            // 下载资料（带权限验证）
+			classroom.GET("/material/:materialId/pdf", AuthMiddleware(), handler.GetMaterialPDFBase64)             // 获取PDF base64（旧版，兼容）
+			classroom.GET("/material/:materialId/pdf/binary", AuthMiddleware(), handler.GetMaterialPDFBinary)       // 获取PDF二进制（新版，性能更好）
+
 			// 随机选人（教师）- 需要认证
 			classroom.POST("/:classroomId/random-pick", AuthMiddleware(), handler.RandomPick)
 			classroom.GET("/:classroomId/pick-history", AuthMiddleware(), handler.GetPickHistory)
@@ -202,39 +210,6 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 		// 代码查重功能 - 管理员
 		RegisterPlagiarismRoutes(api, cfg, db)
-
-		// 题目集 PDF 生成器 - 需要认证
-		problemSetHandler := NewProblemSetHandler(db, service.NewProblemToolsPDFGenerator("./third_party/problemtools", cfg.PDF.TempDir))
-		problemSet := api.Group("/problem-set")
-		problemSet.Use(AuthMiddleware())
-		{
-			problemSet.GET("", problemSetHandler.GetProblemSets)              // 获取题目集列表
-			problemSet.POST("", problemSetHandler.CreateProblemSet)           // 创建题目集
-			problemSet.GET("/:id", problemSetHandler.GetProblemSet)              // 获取题目集详情
-			problemSet.PUT("/:id", problemSetHandler.UpdateProblemSet)           // 更新题目集
-			problemSet.DELETE("/:id", problemSetHandler.DeleteProblemSet)        // 删除题目集
-			problemSet.GET("/:id/pdf", problemSetHandler.GeneratePDF)            // 生成 PDF（从数据库）
-			problemSet.POST("/pdf/from-data", problemSetHandler.GeneratePDFFromData) // 生成 PDF（从前端数据，所见即所得）
-			problemSet.GET("/:id/diagnostic", problemSetHandler.DiagnosticPDF)    // 诊断PDF生成
-
-			// 题目管理
-			problemSet.POST("/:id/problem", problemSetHandler.CreateProblem)                          // 添加题目
-			problemSet.PUT("/:id/problem/:problemId", problemSetHandler.UpdateProblem)               // 更新题目
-			problemSet.DELETE("/:id/problem/:problemId", problemSetHandler.DeleteProblem)            // 删除题目
-			problemSet.POST("/:id/reorder", problemSetHandler.ReorderProblems)                       // 批量重新排序题目
-			problemSet.POST("/:id/problem/:problemId/move-up", problemSetHandler.MoveProblemUp)      // 上移题目
-			problemSet.POST("/:id/problem/:problemId/move-down", problemSetHandler.MoveProblemDown)  // 下移题目
-
-			// 样例管理
-			problemSet.POST("/:id/problem/:problemId/example", problemSetHandler.CreateExample)      // 添加样例
-			problemSet.PUT("/:id/problem/:problemId/example/:exampleId", problemSetHandler.UpdateExample) // 更新样例
-			problemSet.DELETE("/:id/problem/:problemId/example/:exampleId", problemSetHandler.DeleteExample) // 删除样例
-
-			// 图片管理
-			problemSet.POST("/:id/images", problemSetHandler.UploadImage)    // 上传图片
-			problemSet.GET("/:id/images", problemSetHandler.ListImages)      // 列出图片
-			problemSet.DELETE("/:id/images/:imageId", problemSetHandler.DeleteImage) // 删除图片
-		}
 	}
 
 	router.GET("/health", handler.HealthCheck)

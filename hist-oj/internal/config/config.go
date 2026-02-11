@@ -12,7 +12,6 @@ type Config struct {
 	HojAPI   HojAPIConfig   `mapstructure:"hoj_api"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Rating   RatingConfig   `mapstructure:"rating"`
-	PDF      PDFConfig      `mapstructure:"pdf"`
 }
 
 type ServerConfig struct {
@@ -40,11 +39,6 @@ type RatingConfig struct {
 	InitialRating int `mapstructure:"initial_rating"`
 	KFactor       int `mapstructure:"k_factor"`
 	CheckInterval int `mapstructure:"check_interval"`
-}
-
-type PDFConfig struct {
-	TemplateDir string `mapstructure:"template_dir"`
-	TempDir     string `mapstructure:"temp_dir"`
 }
 
 // LogConfig 日志配置（简化，使用默认值）
@@ -93,9 +87,6 @@ func setDefaults() {
 	viper.SetDefault("rating.initial_rating", 1200)
 	viper.SetDefault("rating.k_factor", 32)
 	viper.SetDefault("rating.check_interval", 5)
-
-	viper.SetDefault("pdf.template_dir", "./templates/pdf")
-	viper.SetDefault("pdf.temp_dir", "/tmp/hist_oj_pdf")
 }
 
 func (c *DatabaseConfig) DSN() string {

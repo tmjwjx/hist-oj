@@ -62,7 +62,7 @@ module.exports={
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)
     port: 8066, // 开发服务器运行端口号
     proxy: {
-      // hist-oj APIs (battle, rating, judge, classroom, problem-set, plagiarism)
+      // hist-oj APIs (battle, rating, judge, classroom, plagiarism)
       // 注意：这些规则必须在通用 /api 规则之前，因为 webpack proxy 按顺序匹配
       '/api/rating': {
         target: 'http://43.143.133.62:9527',
@@ -73,10 +73,6 @@ module.exports={
         changeOrigin: true
       },
       '/api/classroom': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/problem-set': {
         target: 'http://43.143.133.62:9527',
         changeOrigin: true
       },

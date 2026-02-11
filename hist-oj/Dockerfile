@@ -57,13 +57,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache ca-certificates tzdata wget python3 py3-pip || \
     apk add --no-cache ca-certificates tzdata wget python3 py3-pip
 
-# 安装 Python 依赖（problemtools 需要）
-RUN pip3 install --no-cache-dir pyyaml plastex PyPDF2 pydantic colorlog nh3 || \
-    pip3 install --no-cache-dir pyyaml plastex PyPDF2 pydantic colorlog nh3
-
-# 安装 LaTeX (用于 PDF 生成) - 使用 texlive-full 包含所有必需的包
-RUN apk add --no-cache texlive-full font-noto-cjk font-noto-cjk-extra
-
 # 设置时区
 ENV TZ=Asia/Shanghai
 
@@ -96,17 +89,11 @@ RUN echo "检查 sim-tools 目录..." && \
 # 复制配置文件目录（运行时通过环境变量覆盖）
 COPY --from=builder /app/configs ./configs
 
-# 复制模板文件（用于 PDF 生成）
-COPY --from=builder /app/templates ./templates
-
-# 复制 problemtools（用于 PDF 生成）
-COPY --from=builder /app/third_party/problemtools ./third_party/problemtools
-
 # 创建持久化存储目录
-RUN mkdir -p /app/uploads /app/problemset_images
+RUN mkdir -p /app/uploads
 
 # 声明数据卷
-VOLUME ["/app/uploads", "/app/problemset_images"]
+VOLUME ["/app/uploads"]
 
 # 暴露端口
 EXPOSE 9527

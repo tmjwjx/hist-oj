@@ -11,6 +11,50 @@ import (
 	"github.com/hoj/hist-oj/internal/utils"
 )
 
+// GetTrainingAccess 获取训练访问权限（对应HOJ的 get-training-access 接口）
+func (h *Handler) GetTrainingAccess(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取训练ID（从query参数）
+	trainingIDStr := c.Query("tid")
+	if trainingIDStr == "" {
+		logger.Warn("缺少tid参数")
+		c.JSON(http.StatusOK, errorResponse(400, "缺少tid参数"))
+		return
+	}
+
+	trainingID, err := strconv.ParseUint(trainingIDStr, 10, 64)
+	if err != nil {
+		logger.Warn("tid参数格式错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	// 调用服务层获取访问权限
+	trainingService := service.NewTrainingService()
+	access, err := trainingService.GetTrainingAccess(trainingID, uid.(string))
+	if err != nil {
+		logger.Error("获取训练访问权限失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "获取失败"))
+		return
+	}
+
+	// 返回AccessVO格式的响应
+	type AccessVO struct {
+		Access bool `json:"access"`
+	}
+
+	logger.Info("获取训练访问权限成功", zap.Uint64("training_id", trainingID), zap.String("uid", uid.(string)), zap.Bool("access", access))
+	c.JSON(http.StatusOK, successResponse(AccessVO{Access: access}))
+}
+
 // JoinTraining 用户参加训练
 func (h *Handler) JoinTraining(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -36,6 +80,15 @@ func (h *Handler) JoinTraining(c *gin.Context) {
 	record, err := trainingService.JoinTraining(trainingID, uid.(string))
 	if err != nil {
 		logger.Error("参加训练失败", zap.Error(err))
+		// 检查是否是私有训练未注册的错误
+		if err.Error() == "私有训练需要先通过密码验证" {
+			c.JSON(http.StatusOK, errorResponse(403, "私有训练需要先通过密码验证"))
+			return
+		}
+		if err.Error() == "训练注册状态异常" {
+			c.JSON(http.StatusOK, errorResponse(403, "训练注册状态异常"))
+			return
+		}
 		c.JSON(http.StatusOK, errorResponse(500, "参加训练失败"))
 		return
 	}
@@ -158,6 +211,9 @@ func (h *Handler) GetMyTrainingProgress(c *gin.Context) {
 // RegisterTrainingRoutes 注册训练相关路由
 func RegisterTrainingRoutes(router *gin.RouterGroup) {
 	h := &Handler{}
+
+	// HOJ 兼容接口：直接在 /api 下注册（对应 HOJ 的 get-training-access）
+	router.GET("/get-training-access", AuthMiddleware(), h.GetTrainingAccess)
 
 	training := router.Group("/training")
 	{

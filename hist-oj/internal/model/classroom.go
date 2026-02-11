@@ -247,7 +247,7 @@ func (ClassroomFolder) TableName() string {
 
 // ClassroomMaterial 资料库文件表
 type ClassroomMaterial struct {
-	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID            uint64    `gorm:"primaryKey;autoIncrement;type:bigint unsigned" json:"id"`
 	FolderID      uint64    `gorm:"type:bigint unsigned;not null;index:idx_folder_id" json:"folderId"`
 	FileName      string    `gorm:"type:varchar(255);not null" json:"fileName"`
 	FileType      string    `gorm:"type:varchar(20);not null" json:"fileType"` // pdf, word, ppt, txt, mp4
@@ -261,12 +261,33 @@ type ClassroomMaterial struct {
 	UpdatedAt     time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Creator *UserInfo `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
+	Creator    *UserInfo                      `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
+	Permission *ClassroomMaterialPermission   `gorm:"-" json:"permission,omitempty"` // 当前用户的权限（不存储在数据库）
 }
 
 // TableName 指定表名
 func (ClassroomMaterial) TableName() string {
 	return "classroom_material"
+}
+
+// ClassroomMaterialPermission 资料库文件权限表
+type ClassroomMaterialPermission struct {
+	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	MaterialID   uint64    `gorm:"type:bigint unsigned;not null;index:idx_material_id" json:"materialId"`
+	StudentUID   string    `gorm:"type:varchar(32);not null;index:idx_student_uid" json:"studentUid"`
+	CanPreview   int       `gorm:"type:int;default:0;comment:是否可预览(0否1是)" json:"canPreview"`
+	CanDownload  int       `gorm:"type:int;default:0;comment:是否可下载(0否1是)" json:"canDownload"`
+	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+
+	// 关联字段
+	Material *ClassroomMaterial `gorm:"foreignKey:MaterialID" json:"material,omitempty"`
+	Student  *UserInfo          `gorm:"foreignKey:StudentUID;references:UUID" json:"student,omitempty"`
+}
+
+// TableName 指定表名
+func (ClassroomMaterialPermission) TableName() string {
+	return "classroom_material_permission"
 }
 
 // ClassroomRandomPick 随机选人记录表
@@ -350,6 +371,7 @@ func InitClassroomTables(db *gorm.DB) error {
 		&HomeworkSubmit{},
 		&ClassroomFolder{},
 		&ClassroomMaterial{},
+		&ClassroomMaterialPermission{},
 		&ClassroomRandomPick{},
 		&ClassroomMessage{},
 		&StudentQuestionOrder{},

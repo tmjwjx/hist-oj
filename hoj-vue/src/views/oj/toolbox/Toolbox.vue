@@ -65,13 +65,6 @@ export default {
           icon: 'fa fa-trophy',
           iconColor: '#FFD700',
           url: '/registration/registration.html'
-        },
-        {
-          title: 'PDF 生成器',
-          description: 'XCPC 题目集 PDF 生成工具',
-          icon: 'fa fa-file-pdf-o',
-          iconColor: '#E74C3C',
-          url: '/toolbox/problem-set'
         }
         // 未来可以在这里添加更多工具
         // {

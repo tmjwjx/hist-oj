@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math/rand"
@@ -1723,6 +1724,42 @@ func (h *Handler) GetMaterials(c *gin.Context) {
 		logger.Error("查询资料列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	// 获取当前用户ID，用于权限查询
+	uid, exists := c.Get("userId")
+	if exists {
+		// 批量查询所有资料的权限
+		materialIDs := make([]uint64, len(materials))
+		for i, m := range materials {
+			materialIDs[i] = m.ID
+		}
+
+		var permissions []model.ClassroomMaterialPermission
+		if err := db.Where("material_id IN ? AND student_uid = ?", materialIDs, uid.(string)).
+			Find(&permissions).Error; err == nil {
+			// 构建权限映射
+			permissionMap := make(map[uint64]*model.ClassroomMaterialPermission)
+			for i := range permissions {
+				permissionMap[permissions[i].MaterialID] = &permissions[i]
+			}
+
+			// 为每个资料添加权限信息
+			for i := range materials {
+				if perm, exists := permissionMap[materials[i].ID]; exists {
+					materials[i].Permission = &model.ClassroomMaterialPermission{
+						CanPreview:  perm.CanPreview,
+						CanDownload: perm.CanDownload,
+					}
+				} else {
+					// 没有权限记录，默认不可访问
+					materials[i].Permission = &model.ClassroomMaterialPermission{
+						CanPreview:  0,
+						CanDownload: 0,
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, successResponse(materials))
@@ -3661,3 +3698,570 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(result))
 }
 
+// GetMaterialPermissions 获取某个资料的所有学生权限设置（教师）
+func (h *Handler) GetMaterialPermissions(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查资料是否存在
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 获取文件夹所在的班级
+	var folder model.ClassroomFolder
+	if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
+		logger.Error("查询文件夹失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取班级的所有学生
+	var students []model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND status = 1", folder.ClassroomID).
+		Preload("User").
+		Find(&students).Error; err != nil {
+		logger.Error("查询学生列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取该资料的所有权限设置
+	var permissions []model.ClassroomMaterialPermission
+	if err := db.Where("material_id = ?", materialID).Find(&permissions).Error; err != nil {
+		logger.Error("查询权限设置失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建权限映射
+	permissionMap := make(map[string]*model.ClassroomMaterialPermission)
+	for i := range permissions {
+		permissionMap[permissions[i].StudentUID] = &permissions[i]
+	}
+
+	// 构建返回数据
+	type StudentPermission struct {
+		UID         string `json:"uid"`
+		RealName    string `json:"realName"`
+		Username    string `json:"username"`
+		CanPreview  bool   `json:"canPreview"`
+		CanDownload bool   `json:"canDownload"`
+	}
+
+	result := make([]StudentPermission, 0, len(students))
+	for _, student := range students {
+		username := ""
+		if student.User != nil {
+			username = student.User.Username
+		}
+
+		perm := StudentPermission{
+			UID:         student.UID,
+			RealName:    student.RealName,
+			Username:    username,
+			CanPreview:  false,
+			CanDownload: false,
+		}
+
+		if p, exists := permissionMap[student.UID]; exists {
+			perm.CanPreview = p.CanPreview == 1
+			perm.CanDownload = p.CanDownload == 1
+		}
+
+		result = append(result, perm)
+	}
+
+	logger.Info("获取资料权限设置成功", zap.Uint64("material_id", materialID), zap.Int("student_count", len(result)))
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// SetMaterialPermissions 批量设置资料权限（教师）
+func (h *Handler) SetMaterialPermissions(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		MaterialID  uint64                   `json:"materialId" binding:"required"`
+		Permissions []map[string]interface{} `json:"permissions" binding:"required"` // [{uid, canPreview, canDownload}]
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查资料是否存在
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", req.MaterialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 开始事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 删除旧权限
+	if err := tx.Where("material_id = ?", req.MaterialID).Delete(&model.ClassroomMaterialPermission{}).Error; err != nil {
+		logger.Error("删除旧权限失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+		return
+	}
+
+	// 批量创建新权限
+	for _, perm := range req.Permissions {
+		uid, _ := perm["uid"].(string)
+		canPreview, _ := perm["canPreview"].(bool)
+		canDownload, _ := perm["canDownload"].(bool)
+
+		if uid == "" {
+			continue
+		}
+
+		permission := &model.ClassroomMaterialPermission{
+			MaterialID:  req.MaterialID,
+			StudentUID:  uid,
+			CanPreview:  0,
+			CanDownload: 0,
+		}
+
+		if canPreview {
+			permission.CanPreview = 1
+		}
+		if canDownload {
+			permission.CanDownload = 1
+		}
+
+		if err := tx.Create(permission).Error; err != nil {
+			logger.Error("创建权限失败", zap.Error(err))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+			return
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+		return
+	}
+
+	logger.Info("批量设置资料权限成功", zap.Uint64("material_id", req.MaterialID), zap.Int("count", len(req.Permissions)))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// BatchSetAllMaterialPermissions 批量设置所有学生权限（教师）
+func (h *Handler) BatchSetAllMaterialPermissions(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	var req struct {
+		CanPreview  bool `json:"canPreview"`
+		CanDownload bool `json:"canDownload"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查资料是否存在
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 获取文件夹所在的班级
+	var folder model.ClassroomFolder
+	if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
+		logger.Error("查询文件夹失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 获取班级的所有学生
+	var students []model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND status = 1", folder.ClassroomID).
+		Select("uid").
+		Find(&students).Error; err != nil {
+		logger.Error("查询学生列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 开始事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 删除旧权限
+	if err := tx.Where("material_id = ?", materialID).Delete(&model.ClassroomMaterialPermission{}).Error; err != nil {
+		logger.Error("删除旧权限失败", zap.Error(err))
+		tx.Rollback()
+		c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+		return
+	}
+
+	// 为所有学生创建权限
+	canPreviewVal := 0
+	canDownloadVal := 0
+	if req.CanPreview {
+		canPreviewVal = 1
+	}
+	if req.CanDownload {
+		canDownloadVal = 1
+	}
+
+	for _, student := range students {
+		permission := &model.ClassroomMaterialPermission{
+			MaterialID:  materialID,
+			StudentUID:  student.UID,
+			CanPreview:  canPreviewVal,
+			CanDownload: canDownloadVal,
+		}
+
+		if err := tx.Create(permission).Error; err != nil {
+			logger.Error("创建权限失败", zap.Error(err))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+			return
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("提交事务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "设置失败"))
+		return
+	}
+
+	action := "全部关闭"
+	if req.CanPreview || req.CanDownload {
+		action = "全部开启"
+	}
+
+	logger.Info("批量设置所有学生权限成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("action", action),
+		zap.Int("student_count", len(students)))
+
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// checkUserMaterialPermission 检查用户对资料的权限
+func (h *Handler) checkUserMaterialPermission(db *gorm.DB, materialID uint64, uid string) (canPreview, canDownload bool, err error) {
+	// 查询权限
+	var permission model.ClassroomMaterialPermission
+	err = db.Where("material_id = ? AND student_uid = ?", materialID, uid).First(&permission).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// 没有权限记录，默认不可访问
+		return false, false, nil
+	}
+
+	if err != nil {
+		return false, false, err
+	}
+
+	return permission.CanPreview == 1, permission.CanDownload == 1, nil
+}
+
+// DownloadMaterial 下载资料文件（带权限验证）
+func (h *Handler) DownloadMaterial(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 检查用户是否为上传者（上传者始终有权限）
+	if material.CreatorID != uid.(string) {
+		// 检查下载权限
+		_, canDownload, err := h.checkUserMaterialPermission(db, materialID, uid.(string))
+		if err != nil {
+			logger.Error("检查权限失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "权限检查失败"))
+			return
+		}
+
+		if !canDownload {
+			logger.Warn("用户无下载权限",
+				zap.Uint64("material_id", materialID),
+				zap.String("uid", uid.(string)))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有下载该资料的权限"))
+			return
+		}
+	}
+
+	// 构建文件路径
+	filePath := "." + material.FilePath
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Error("文件不存在", zap.String("path", filePath))
+		c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
+		return
+	}
+
+	// 设置响应头
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename=\""+material.FileName+"\"")
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(filePath)
+
+	logger.Info("资料下载成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("filename", material.FileName),
+		zap.String("uid", uid.(string)))
+}
+
+
+// GetMaterialPDFBase64 获取PDF文件的base64编码（用于前端PDF.js渲染）
+// @deprecated 使用 GetMaterialPDFBinary 替代，性能更好
+func (h *Handler) GetMaterialPDFBase64(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("PDF API: 资料不存在", zap.Uint64("material_id", materialID))
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("PDF API: 查询资料失败", zap.Error(err), zap.Uint64("material_id", materialID))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+	logger.Info("PDF API: 查询资料成功", zap.Uint64("material_id", materialID), zap.String("filename", material.FileName), zap.String("file_path", material.FilePath))
+
+	// 检查文件类型是否为PDF
+	if !strings.HasSuffix(strings.ToLower(material.FileName), ".pdf") {
+		logger.Warn("PDF API: 不是PDF文件", zap.String("filename", material.FileName))
+		c.JSON(http.StatusOK, errorResponse(400, "该文件不是PDF文件"))
+		return
+	}
+
+	// 检查用户是否有权限查看该资料
+	// 优先检查全局权限（student_uid IS NULL），如果没有再检查用户特定权限
+	var permission model.ClassroomMaterialPermission
+	err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
+		First(&permission).Error
+
+	// 如果没有全局权限，检查用户特定权限
+	if err != nil {
+		err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+			First(&permission).Error
+	}
+
+	if err != nil {
+		logger.Warn("PDF API: 没有权限记录", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
+		return
+	}
+
+	if permission.CanPreview != 1 {
+		logger.Warn("PDF API: 没有预览权限", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Int("can_preview", permission.CanPreview))
+		c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
+		return
+	}
+	logger.Info("PDF API: 权限检查通过", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)))
+
+	// 构建文件路径
+	filePath := "." + material.FilePath
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Error("文件不存在", zap.String("path", filePath))
+		c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
+		return
+	}
+
+	// 读取文件内容
+	fileData, err := os.ReadFile(filePath)
+	if err != nil {
+		logger.Error("读取文件失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "读取文件失败"))
+		return
+	}
+
+	// 转换为base64
+	base64Data := make([]byte, base64.StdEncoding.EncodedLen(len(fileData)))
+	base64.StdEncoding.Encode(base64Data, fileData)
+
+	// 返回JSON响应
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"fileName": material.FileName,
+		"data":     string(base64Data),
+		"size":     len(fileData),
+	}))
+
+	logger.Info("PDF base64获取成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("filename", material.FileName),
+		zap.String("uid", uid.(string)),
+		zap.Int("size", len(fileData)))
+}
+
+// GetMaterialPDFBinary 获取PDF文件的二进制数据（性能更好，推荐使用）
+func (h *Handler) GetMaterialPDFBinary(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			logger.Warn("PDF Binary API: 资料不存在", zap.Uint64("material_id", materialID))
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("PDF Binary API: 查询资料失败", zap.Error(err), zap.Uint64("material_id", materialID))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 检查文件类型是否为PDF
+	if !strings.HasSuffix(strings.ToLower(material.FileName), ".pdf") {
+		c.JSON(http.StatusOK, errorResponse(400, "该文件不是PDF文件"))
+		return
+	}
+
+	// 检查用户是否有权限查看该资料
+	var permission model.ClassroomMaterialPermission
+	err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
+		First(&permission).Error
+
+	if err != nil {
+		err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+			First(&permission).Error
+	}
+
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
+		return
+	}
+
+	if permission.CanPreview != 1 {
+		c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
+		return
+	}
+
+	// 构建文件路径
+	filePath := "." + material.FilePath
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Error("文件不存在", zap.String("path", filePath))
+		c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
+		return
+	}
+
+	// 直接返回 PDF 文件
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", material.FileName))
+	c.Header("Cache-Control", "private, max-age=3600")
+	c.Header("Accept-Ranges", "bytes")
+
+	c.File(filePath)
+
+	logger.Info("PDF Binary获取成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("filename", material.FileName),
+		zap.String("uid", uid.(string)))
+}
