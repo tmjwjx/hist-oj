@@ -46,6 +46,11 @@
               <span>复制</span>
             </button>
           </div>
+          <div class="info-item">
+            <i class="el-icon-user info-icon"></i>
+            <span class="info-label">教师</span>
+            <span class="info-value">{{ getTeacherNames(classroom) }}</span>
+          </div>
         </div>
         <div class="card-footer">
           <button class="classroom-btn classroom-btn-primary" @click="viewClassroom(classroom)">
@@ -109,7 +114,27 @@ export default {
     }
   },
   mounted() {
+    // 正常加载班级列表
     this.loadClassrooms()
+
+    // 检查是否从返回按钮带着参数跳转过来
+    // 注意：需要在 loadClassrooms 完成后检查，因为需要 classrooms 数据
+    this.$watch('classrooms', (classrooms) => {
+      if (this.$route.query.classroomId && this.$route.query.tab && classrooms.length > 0) {
+        const classroomId = Number(this.$route.query.classroomId)
+        const tab = this.$route.query.tab
+        const homeworkId = this.$route.query.homeworkId
+
+        // 查找对应的班级
+        const classroom = classrooms.find(c => c.id === classroomId)
+        if (classroom) {
+          // 延迟执行，确保组件已渲染
+          this.$nextTick(() => {
+            this.navigateToClassroom(classroom, tab, homeworkId)
+          })
+        }
+      }
+    }, { immediate: true })
   },
   methods: {
     async loadClassrooms() {
@@ -182,11 +207,18 @@ export default {
         }
       })
     },
-    viewClassroom(classroom) {
+    viewClassroom(classroom, tab = 'homework') {
+      this.navigateToClassroom(classroom, tab)
+    },
+    navigateToClassroom(classroom, tab = 'homework', homeworkId = null) {
+      const query = { tab }
+      if (homeworkId) {
+        query.homeworkId = homeworkId
+      }
       this.$router.push({
         name: 'TeacherClassroomDetail',
         params: { classroomId: classroom.id },
-        query: { tab: 'homework' }
+        query
       })
     },
     copyClassCode(classCode) {
@@ -237,6 +269,29 @@ export default {
     },
     goToQuestionBank() {
       this.$router.push({ name: 'QuestionBank' })
+    },
+    getTeacherNames(classroom) {
+      const teachers = []
+
+      // 添加主教师
+      if (classroom.teacher) {
+        teachers.push(classroom.teacher.realname || classroom.teacher.username || classroom.teacher.nickname || '-')
+      }
+
+      // 添加其他教师
+      if (classroom.teachers && classroom.teachers.length > 0) {
+        classroom.teachers.forEach(t => {
+          if (t.teacher) {
+            // 避免重复添加主教师
+            const isDuplicate = classroom.teacher && t.teacher.uuid === classroom.teacher.uuid
+            if (!isDuplicate) {
+              teachers.push(t.teacher.realname || t.teacher.username || t.teacher.nickname)
+            }
+          }
+        })
+      }
+
+      return teachers.length > 0 ? teachers.join('、') : '-'
     }
   },
   computed: {

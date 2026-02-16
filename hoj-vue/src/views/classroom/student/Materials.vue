@@ -847,13 +847,18 @@ export default {
         const context = canvas.getContext('2d')
         context.scale(devicePixelRatio, devicePixelRatio)
 
+        // 清空画布（重要：在渲染前清空，避免旧内容残留）
+        context.clearRect(0, 0, canvas.width, canvas.height)
+
         // 渲染页面
         await page.render({
           canvasContext: context,
           viewport: viewport
         }).promise
 
+        // 渲染成功后才更新页码
         this.pdfPage = pageNumber
+        console.log(`[PDF] 第 ${pageNumber} 页渲染成功 (devicePixelRatio: ${devicePixelRatio})`)
       } catch (error) {
         console.error('渲染PDF页面失败:', error)
         this.$message.error('PDF渲染失败')

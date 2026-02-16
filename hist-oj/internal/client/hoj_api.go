@@ -391,6 +391,178 @@ type UserInfoBasic struct {
 	Avatar   string `json:"avatar"`
 }
 
+// UserInfoWithRealname 用户信息（包含真实姓名）
+type UserInfoWithRealname struct {
+	UUID     string `json:"uuid"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+	Realname string `json:"realname"`
+}
+
+// GetUserInfoWithRealname 获取用户信息（包含真实姓名）
+func GetUserInfoWithRealname(uuid string) (*UserInfoWithRealname, error) {
+	logger := utils.GetLogger()
+
+	type UserDB struct {
+		UUID     string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+	}
+
+	var userDB UserDB
+	err := DB.Table("user_info").
+		Where("uuid = ?", uuid).
+		First(&userDB).Error
+
+	if err != nil {
+		logger.Error("从user_info表查询用户信息失败",
+			zap.String("uuid", uuid),
+			zap.Error(err))
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	logger.Debug("从user_info表查询用户信息成功",
+		zap.String("uuid", uuid),
+		zap.String("username", userDB.Username))
+
+	return &UserInfoWithRealname{
+		UUID:     userDB.UUID,
+		Username: userDB.Username,
+		Nickname: userDB.Nickname,
+		Realname: userDB.Realname,
+	}, nil
+}
+
+// SearchUsersWithRole 搜索拥有特定角色的用户
+// 搜索 HOJ 的 user_role + role 表
+// 对于 "teacher" 角色，由于 HOJ 没有此角色，搜索 admin/root 用户（他们可以被添加为班级教师）
+func SearchUsersWithRole(role string, keyword string) ([]UserInfoWithRealname, error) {
+	logger := utils.GetLogger()
+
+	db := GetDB()
+
+	type UserDB struct {
+		UUID     string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+	}
+
+	var users []UserDB
+	var err error
+
+	if role == "teacher" {
+		// 对于教师角色，HOJ 没有 teacher 角色，所以搜索 admin 和 root 用户
+		// 这些用户可以被添加为班级教师
+		var adminRoleID, rootRoleID uint64
+		db.Table("role").Select("id").Where("role = ? AND status = 0", "admin").First(&adminRoleID)
+		db.Table("role").Select("id").Where("role = ? AND status = 0", "root").First(&rootRoleID)
+
+		roleIDs := []uint64{}
+		if adminRoleID > 0 {
+			roleIDs = append(roleIDs, adminRoleID)
+		}
+		if rootRoleID > 0 {
+			roleIDs = append(roleIDs, rootRoleID)
+		}
+
+		if len(roleIDs) == 0 {
+			// 如果没有找到角色ID，返回空结果
+			return []UserInfoWithRealname{}, nil
+		}
+
+		err = db.Table("user_info").
+			Select("uuid, username, nickname, realname").
+			Where("uuid IN (SELECT uid FROM user_role WHERE role_id IN ?) AND (username LIKE ? OR realname LIKE ?)",
+				roleIDs, "%"+keyword+"%", "%"+keyword+"%").
+			Find(&users).Error
+	} else {
+		// 对于其他角色，直接搜索对应的 role_id
+		var roleID uint64
+		err = db.Table("role").
+			Select("id").
+			Where("role = ? AND status = 0", role).
+			First(&roleID).Error
+
+		if err != nil {
+			logger.Error("查找角色失败", zap.String("role", role), zap.Error(err))
+			return nil, fmt.Errorf("failed to find role: %w", err)
+		}
+
+		err = db.Table("user_info").
+			Select("uuid, username, nickname, realname").
+			Where("uuid IN (SELECT uid FROM user_role WHERE role_id = ?) AND (username LIKE ? OR realname LIKE ?)",
+				roleID, "%"+keyword+"%", "%"+keyword+"%").
+			Find(&users).Error
+	}
+
+	if err != nil {
+		logger.Error("搜索用户失败", zap.Error(err))
+		return nil, fmt.Errorf("failed to search users: %w", err)
+	}
+
+	results := make([]UserInfoWithRealname, 0, len(users))
+	for _, u := range users {
+		results = append(results, UserInfoWithRealname{
+			UUID:     u.UUID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Realname: u.Realname,
+		})
+	}
+
+	logger.Info("搜索用户完成",
+		zap.String("role", role),
+		zap.String("keyword", keyword),
+		zap.Int("found_count", len(results)))
+
+	return results, nil
+}
+
+// SearchAllUsers 搜索所有用户（不限制角色）
+// 用于管理员添加班级教师时搜索所有用户
+func SearchAllUsers(keyword string) ([]UserInfoWithRealname, error) {
+	logger := utils.GetLogger()
+
+	db := GetDB()
+
+	type UserDB struct {
+		UUID     string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+	}
+
+	var users []UserDB
+	err := db.Table("user_info").
+		Select("uuid, username, nickname, realname").
+		Where("username LIKE ? OR realname LIKE ? OR nickname LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
+		Find(&users).Error
+
+	if err != nil {
+		logger.Error("搜索用户失败", zap.Error(err))
+		return nil, fmt.Errorf("failed to search users: %w", err)
+	}
+
+	results := make([]UserInfoWithRealname, 0, len(users))
+	for _, u := range users {
+		results = append(results, UserInfoWithRealname{
+			UUID:     u.UUID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Realname: u.Realname,
+		})
+	}
+
+	logger.Info("搜索所有用户完成",
+		zap.String("keyword", keyword),
+		zap.Int("found_count", len(results)))
+
+	return results, nil
+}
+
 // UserAuthInfoResponse 用户认证信息响应
 type UserAuthInfoResponse struct {
 	CommonResult

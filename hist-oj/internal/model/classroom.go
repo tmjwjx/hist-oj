@@ -20,19 +20,39 @@ func (ClassroomUserRole) TableName() string {
 	return "classroom_user_role"
 }
 
+// ClassroomTeacher 班级教师关联表（支持一个班级多个教师）
+type ClassroomTeacher struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassroomID uint64    `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
+	TeacherID   string    `gorm:"type:varchar(32);not null;index:idx_teacher_id" json:"teacherId"`
+	Status      int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 正常, 0: 已移除
+	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+
+	// 关联字段
+	Classroom *Classroom `gorm:"foreignKey:ClassroomID" json:"classroom,omitempty"`
+	Teacher   *UserInfo  `gorm:"foreignKey:TeacherID;references:UUID" json:"teacher,omitempty"`
+}
+
+// TableName 指定表名
+func (ClassroomTeacher) TableName() string {
+	return "classroom_teacher"
+}
+
 // Classroom 班级表
 type Classroom struct {
 	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	ClassName   string    `gorm:"type:varchar(100);not null" json:"className"`
 	ClassBelong string    `gorm:"type:varchar(100);not null" json:"classBelong"`
 	ClassCode   string    `gorm:"type:varchar(8);not null;uniqueIndex" json:"classCode"`
-	TeacherID   string    `gorm:"type:varchar(32);not null;index:idx_teacher_id" json:"teacherId"`
+	TeacherID   string    `gorm:"type:varchar(32);not null;index:idx_teacher_id" json:"teacherId"` // 主教师ID，保留用于向后兼容
 	Status      int       `gorm:"type:int;default:1" json:"status"` // 1: 正常, 0: 已删除
 	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
 	Teacher  *UserInfo            `gorm:"foreignKey:TeacherID;references:UUID" json:"teacher,omitempty"`
+	Teachers []ClassroomTeacher   `gorm:"foreignKey:ClassroomID" json:"teachers,omitempty"` // 班级所有教师
 	Students []ClassroomStudent   `gorm:"foreignKey:ClassroomID" json:"students,omitempty"`
 }
 
@@ -362,6 +382,7 @@ func InitClassroomTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&ClassroomUserRole{},
 		&Classroom{},
+		&ClassroomTeacher{},
 		&ClassroomStudent{},
 		&ClassroomCheckin{},
 		&ClassroomCheckinRecord{},

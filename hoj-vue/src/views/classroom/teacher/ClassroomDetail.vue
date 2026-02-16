@@ -6,22 +6,22 @@
     </div>
     <el-tabs v-model="activeTab" @tab-click="handleTabClick">
       <el-tab-pane :label="$t('m.Student_Management')" name="students">
-        <Students v-if="activeTab === 'students'" :classroom-id="classroomId" />
+        <Students v-if="activeTab === 'students'" :classroom-id="localClassroomId" />
       </el-tab-pane>
       <el-tab-pane :label="$t('m.Checkin_Management')" name="checkin">
-        <Checkin v-if="activeTab === 'checkin'" :classroom-id="classroomId" />
+        <Checkin v-if="activeTab === 'checkin'" :classroom-id="localClassroomId" />
       </el-tab-pane>
       <el-tab-pane :label="$t('m.Random_Pick')" name="randomPick">
-        <RandomPick v-if="activeTab === 'randomPick'" :classroom-id="classroomId" />
+        <RandomPick v-if="activeTab === 'randomPick'" :classroom-id="localClassroomId" />
       </el-tab-pane>
       <el-tab-pane :label="$t('m.Homework_Management')" name="homework">
-        <Homework v-if="activeTab === 'homework'" :classroom-id="classroomId" />
+        <Homework v-if="activeTab === 'homework'" :classroom-id="localClassroomId" />
       </el-tab-pane>
       <el-tab-pane :label="$t('m.Material_Library')" name="materials">
-        <Materials v-if="activeTab === 'materials'" :classroom-id="classroomId" />
+        <Materials v-if="activeTab === 'materials'" :classroom-id="localClassroomId" />
       </el-tab-pane>
       <el-tab-pane :label="$t('m.Discussion')" name="discussion">
-        <Discussion v-if="activeTab === 'discussion'" :classroom-id="classroomId" />
+        <Discussion v-if="activeTab === 'discussion'" :classroom-id="localClassroomId" />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -47,24 +47,51 @@ export default {
     Materials,
     Discussion
   },
+  props: {
+    // 接受 classroomId prop，优先使用（从 ClassroomAdmin 传递）
+    classroomId: [String, Number]
+  },
   data() {
     return {
       activeTab: 'students',
-      classroomId: null,
+      localClassroomId: null, // 本地 classroomId（用于 watch）
       classroomInfo: {}
     }
   },
   mounted() {
-    this.classroomId = this.$route.params.classroomId
+    // 优先使用 prop，如果没有才从路由参数获取
+    this.localClassroomId = this.classroomId || this.$route.params.classroomId
+
+    // 从路由参数初始化 activeTab
     if (this.$route.query.tab) {
       this.activeTab = this.$route.query.tab
     }
+
+    // 使用 localClassroomId 加载数据
     this.loadClassroomInfo()
+  },
+  watch: {
+    // 监听路由参数变化，动态更新 activeTab
+    '$route.query.tab'(newTab) {
+      if (newTab && newTab !== this.activeTab) {
+        this.activeTab = newTab
+      }
+    },
+    // 监听 prop classroomId 变化
+    classroomId: {
+      immediate: true,
+      handler(newVal) {
+        if (newVal) {
+          this.localClassroomId = newVal
+          this.loadClassroomInfo()
+        }
+      }
+    }
   },
   methods: {
     async loadClassroomInfo() {
       try {
-        const res = await this.$store.dispatch('classroom/getClassroomDetail', this.classroomId)
+        const res = await this.$store.dispatch('classroom/getClassroomDetail', this.localClassroomId)
         if (res.code === 200) {
           this.classroomInfo = res.data || {}
         }

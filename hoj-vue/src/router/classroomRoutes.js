@@ -59,7 +59,6 @@ const ClassroomRoutes = {
       name: 'TeacherClassroomDetail',
       component: () => import('@/views/classroom/teacher/ClassroomDetail'),
       meta: { title: '班级详情', requiresRole: 'teacher' },
-      redirect: { name: 'TeacherHomework' },
       children: [
         {
           path: 'students',
@@ -76,7 +75,7 @@ const ClassroomRoutes = {
         {
           path: 'homework',
           name: 'TeacherHomework',
-          component: () => import('@/views/classroom/teacher/Homework'),
+          component: () => import('@/views/classroom/teacher/Homework.vue'),
           meta: { title: '作业管理', requiresRole: 'teacher' }
         },
         {

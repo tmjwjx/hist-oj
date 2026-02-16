@@ -104,7 +104,16 @@ const actions = {
   },
   async getAllClassroomsForAdmin({ commit }) {
     const res = await api.getAllClassroomsForAdmin()
-    return res.data
+    // Return consistent format: { code, data, message }
+    if (res.data && res.data.code === 200) {
+      return { code: 200, data: res.data.data }
+    } else {
+      return {
+        code: res.data?.code || 500,
+        message: res.data?.message || '获取班级列表失败',
+        data: []
+      }
+    }
   },
   async deleteClassroom({ commit }, classroomId) {
     const res = await api.deleteClassroom(classroomId)
@@ -391,6 +400,23 @@ const actions = {
   // 批量强制收卷
   async forceSubmitAll({ commit }, homeworkId) {
     const res = await api.forceSubmitAll(homeworkId)
+    return res.data
+  },
+
+  // ==================== 班级教师管理 ====================
+  // 获取班级教师列表
+  async getClassroomTeachers({ commit }, classroomId) {
+    const res = await api.getClassroomTeachers(classroomId)
+    return res.data
+  },
+  // 添加班级教师
+  async addClassroomTeacher({ commit }, data) {
+    const res = await api.addClassroomTeacher(data)
+    return res.data
+  },
+  // 移除班级教师
+  async removeClassroomTeacher({ commit }, data) {
+    const res = await api.removeClassroomTeacher(data)
     return res.data
   }
 }

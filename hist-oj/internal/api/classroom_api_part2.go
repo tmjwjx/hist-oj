@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/client"
+	middlewarepkg "github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/utils"
 )
@@ -1411,8 +1412,6 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 
 // CreateFolder 创建文件夹（教师）
 func (h *Handler) CreateFolder(c *gin.Context) {
-	logger := utils.GetLogger()
-
 	var req struct {
 		ClassroomID uint64 `json:"classroomId" binding:"required"`
 		FolderName  string `json:"folderName" binding:"required"`
@@ -1420,7 +1419,6 @@ func (h *Handler) CreateFolder(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("请求参数错误", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
@@ -1443,18 +1441,15 @@ func (h *Handler) CreateFolder(c *gin.Context) {
 	}
 
 	if err := db.Create(folder).Error; err != nil {
-		logger.Error("创建文件夹失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "创建失败"))
 		return
 	}
 
-	logger.Info("创建文件夹", zap.Uint64("id", folder.ID), zap.String("name", folder.FolderName))
 	c.JSON(http.StatusOK, successResponse(folder))
 }
 
 // GetFolders 获取文件夹列表（教师/学生）
 func (h *Handler) GetFolders(c *gin.Context) {
-	logger := utils.GetLogger()
 	classroomIDStr := c.Param("classroomId")
 	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
 	if err != nil {
@@ -1471,7 +1466,6 @@ func (h *Handler) GetFolders(c *gin.Context) {
 	if err := db.Where("classroom_id = ? AND parent_id = ? AND status = 1", classroomID, parentID).
 		Order("sort_order ASC, create_time ASC").
 		Find(&folders).Error; err != nil {
-		logger.Error("查询文件夹列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
@@ -1481,7 +1475,6 @@ func (h *Handler) GetFolders(c *gin.Context) {
 
 // DeleteFolder 删除文件夹（教师）
 func (h *Handler) DeleteFolder(c *gin.Context) {
-	logger := utils.GetLogger()
 	folderIDStr := c.Param("folderId")
 	folderID, err := strconv.ParseUint(folderIDStr, 10, 64)
 	if err != nil {
@@ -1506,7 +1499,6 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 	// 查找所有子文件夹ID（包括嵌套的子文件夹）
 	var subfolders []model.ClassroomFolder
 	if err := tx.Where("parent_id = ? AND status = 1", folderID).Find(&subfolders).Error; err != nil {
-		logger.Error("查询子文件夹失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -1521,7 +1513,6 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 	// 2. 删除所有文件夹下的资料文件
 	var materials []model.ClassroomMaterial
 	if err := tx.Where("folder_id IN ? AND status = 1", allFolderIDs).Find(&materials).Error; err != nil {
-		logger.Error("查询资料文件失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -1532,9 +1523,7 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 		if material.FilePath != "" {
 			// 转换URL路径为文件系统路径
 			filePath := "." + material.FilePath
-			if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-				logger.Warn("删除资料文件失败", zap.String("path", filePath), zap.Error(err))
-			}
+			os.Remove(filePath) // 忽略错误
 		}
 	}
 
@@ -1542,7 +1531,6 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 	if err := tx.Model(&model.ClassroomMaterial{}).
 		Where("folder_id IN ?", allFolderIDs).
 		Update("status", 0).Error; err != nil {
-		logger.Error("删除资料记录失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -1552,7 +1540,6 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 	if err := tx.Model(&model.ClassroomFolder{}).
 		Where("id IN ?", allFolderIDs).
 		Update("status", 0).Error; err != nil {
-		logger.Error("删除文件夹失败", zap.Error(err))
 		tx.Rollback()
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -1560,26 +1547,21 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		logger.Error("提交事务失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
 
-	logger.Info("删除文件夹及关联内容", zap.Uint64("folder_id", folderID), zap.Int("files_deleted", len(materials)))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
 // UpdateFolder 更新文件夹名称（教师）
 func (h *Handler) UpdateFolder(c *gin.Context) {
-	logger := utils.GetLogger()
-
 	var req struct {
 		ID         uint64 `json:"id" binding:"required"`
 		FolderName string `json:"folderName" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("请求参数错误", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
@@ -1592,7 +1574,6 @@ func (h *Handler) UpdateFolder(c *gin.Context) {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusOK, errorResponse(404, "文件夹不存在"))
 		} else {
-			logger.Error("查询文件夹失败", zap.Error(err))
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		}
 		return
@@ -1600,19 +1581,15 @@ func (h *Handler) UpdateFolder(c *gin.Context) {
 
 	// 更新文件夹名称
 	if err := db.Model(&folder).Update("folder_name", req.FolderName).Error; err != nil {
-		logger.Error("更新文件夹失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
 		return
 	}
 
-	logger.Info("更新文件夹", zap.Uint64("folder_id", req.ID), zap.String("name", req.FolderName))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
 // UploadMaterial 上传资料（教师）
 func (h *Handler) UploadMaterial(c *gin.Context) {
-	logger := utils.GetLogger()
-
 	folderIDStr := c.PostForm("folderId")
 	folderID, err := strconv.ParseUint(folderIDStr, 10, 64)
 	if err != nil {
@@ -1626,7 +1603,6 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 	// 获取上传的文件
 	file, err := c.FormFile("file")
 	if err != nil {
-		logger.Warn("获取上传文件失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "请选择要上传的文件"))
 		return
 	}
@@ -1637,7 +1613,6 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 	// 保存文件到本地
 	uploadDir := "./uploads/classroom"
 	if err := c.SaveUploadedFile(file, fmt.Sprintf("%s/%s", uploadDir, uniqueFileName)); err != nil {
-		logger.Error("保存文件失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "文件保存失败"))
 		return
 	}
@@ -1686,18 +1661,15 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 	}
 
 	if err := db.Create(material).Error; err != nil {
-		logger.Error("上传资料失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "上传失败"))
 		return
 	}
 
-	logger.Info("上传资料", zap.Uint64("id", material.ID), zap.String("name", material.FileName))
 	c.JSON(http.StatusOK, successResponse(material))
 }
 
 // GetMaterials 获取资料列表（教师/学生）
 func (h *Handler) GetMaterials(c *gin.Context) {
-	logger := utils.GetLogger()
 	folderIDStr := c.Param("folderId")
 
 	var folderID uint64
@@ -1721,7 +1693,6 @@ func (h *Handler) GetMaterials(c *gin.Context) {
 		Preload("Creator").
 		Order("create_time DESC").
 		Find(&materials).Error; err != nil {
-		logger.Error("查询资料列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
@@ -1767,7 +1738,6 @@ func (h *Handler) GetMaterials(c *gin.Context) {
 
 // DeleteMaterial 删除资料（教师）
 func (h *Handler) DeleteMaterial(c *gin.Context) {
-	logger := utils.GetLogger()
 	materialIDStr := c.Param("materialId")
 	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
 	if err != nil {
@@ -1783,7 +1753,6 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
 		} else {
-			logger.Error("查询资料失败", zap.Error(err))
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		}
 		return
@@ -1793,12 +1762,7 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 	if material.FilePath != "" {
 		// 转换URL路径为文件系统路径
 		filePath := "." + material.FilePath
-		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-			logger.Warn("删除资料文件失败", zap.String("path", filePath), zap.Error(err))
-			// 继续删除数据库记录，即使文件删除失败
-		} else if err == nil {
-			logger.Info("成功删除资料文件", zap.String("path", filePath))
-		}
+		os.Remove(filePath) // 忽略错误
 	}
 
 	// 软删除数据库记录
@@ -1807,7 +1771,6 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 		Update("status", 0)
 
 	if result.Error != nil {
-		logger.Error("删除资料记录失败", zap.Error(result.Error))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
@@ -1817,21 +1780,17 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 		return
 	}
 
-	logger.Info("删除资料", zap.Uint64("material_id", materialID))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
 // CopyMaterialToClassroom 复制资料到班级（教师）
 func (h *Handler) CopyMaterialToClassroom(c *gin.Context) {
-	logger := utils.GetLogger()
-
 	var req struct {
 		MaterialID  uint64 `json:"materialId" binding:"required"`
 		FolderID    uint64 `json:"folderId" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("请求参数错误", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
@@ -1866,12 +1825,10 @@ func (h *Handler) CopyMaterialToClassroom(c *gin.Context) {
 	}
 
 	if err := db.Create(newMaterial).Error; err != nil {
-		logger.Error("复制资料失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "复制失败"))
 		return
 	}
 
-	logger.Info("复制资料到班级", zap.Uint64("material_id", req.MaterialID), zap.Uint64("folder_id", req.FolderID))
 	c.JSON(http.StatusOK, successResponse(newMaterial))
 }
 
@@ -4126,30 +4083,71 @@ func (h *Handler) GetMaterialPDFBase64(c *gin.Context) {
 		return
 	}
 
-	// 检查用户是否有权限查看该资料
-	// 优先检查全局权限（student_uid IS NULL），如果没有再检查用户特定权限
-	var permission model.ClassroomMaterialPermission
-	err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
-		First(&permission).Error
+	// 检查用户角色 - 班级教师和管理员自动拥有所有资料的预览权限
+	var classroomRoles []model.ClassroomUserRole
+	if err := db.Where("uid = ?", uid.(string)).Find(&classroomRoles).Error; err != nil {
+		logger.Error("PDF API: 查询用户角色失败", zap.Error(err), zap.String("uid", uid.(string)))
+		c.JSON(http.StatusOK, errorResponse(500, "查询用户角色失败"))
+		return
+	}
 
-	// 如果没有全局权限，检查用户特定权限
-	if err != nil {
-		err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+	// 提取角色列表
+	roleList := make([]string, len(classroomRoles))
+	for i, r := range classroomRoles {
+		roleList[i] = r.Role
+	}
+
+	// 检查是否为教师或管理员
+	isTeacherOrAdmin := false
+	for _, role := range roleList {
+		if role == "teacher" || role == "admin" {
+			isTeacherOrAdmin = true
+			break
+		}
+	}
+
+	// 同时检查 HOJ 系统管理员角色
+	hojRoles, err := middlewarepkg.GetUserRoles(db, uid.(string))
+	if err == nil {
+		if middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleRoot) ||
+			middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleAdmin) {
+			isTeacherOrAdmin = true
+		}
+	}
+
+	if !isTeacherOrAdmin {
+		// 学生需要检查权限记录
+		// 优先检查全局权限（student_uid IS NULL），如果没有再检查用户特定权限
+		var permission model.ClassroomMaterialPermission
+		err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
 			First(&permission).Error
-	}
 
-	if err != nil {
-		logger.Warn("PDF API: 没有权限记录", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
-		return
-	}
+		// 如果没有全局权限，检查用户特定权限
+		if err != nil {
+			err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+				First(&permission).Error
+		}
 
-	if permission.CanPreview != 1 {
-		logger.Warn("PDF API: 没有预览权限", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Int("can_preview", permission.CanPreview))
-		c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
-		return
+		if err != nil {
+			logger.Warn("PDF API: 学生没有权限记录", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
+			return
+		}
+
+		if permission.CanPreview != 1 {
+			logger.Warn("PDF API: 学生没有预览权限", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)), zap.Int("can_preview", permission.CanPreview))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
+			return
+		}
+		logger.Info("PDF API: 学生权限检查通过", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)))
+	} else {
+		logger.Info("PDF API: 教师或管理员访问，跳过权限检查",
+			zap.Uint64("material_id", materialID),
+			zap.String("filename", material.FileName),
+			zap.String("uid", uid.(string)),
+			zap.Strings("classroom_roles", roleList),
+			zap.Strings("hoj_roles", hojRoles))
 	}
-	logger.Info("PDF API: 权限检查通过", zap.Uint64("material_id", materialID), zap.String("uid", uid.(string)))
 
 	// 构建文件路径
 	filePath := "." + material.FilePath
@@ -4224,24 +4222,71 @@ func (h *Handler) GetMaterialPDFBinary(c *gin.Context) {
 		return
 	}
 
-	// 检查用户是否有权限查看该资料
-	var permission model.ClassroomMaterialPermission
-	err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
-		First(&permission).Error
+	// 检查用户角色 - 班级教师和管理员自动拥有所有资料的预览权限
+	var classroomRoles []model.ClassroomUserRole
+	if err := db.Where("uid = ?", uid.(string)).Find(&classroomRoles).Error; err != nil {
+		logger.Error("PDF Binary API: 查询用户角色失败", zap.Error(err), zap.String("uid", uid.(string)))
+		c.JSON(http.StatusOK, errorResponse(500, "查询用户角色失败"))
+		return
+	}
 
-	if err != nil {
-		err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+	// 提取角色列表
+	roleList := make([]string, len(classroomRoles))
+	for i, r := range classroomRoles {
+		roleList[i] = r.Role
+	}
+
+	// 检查是否为教师或管理员
+	isTeacherOrAdmin := false
+	for _, role := range roleList {
+		if role == "teacher" || role == "admin" {
+			isTeacherOrAdmin = true
+			break
+		}
+	}
+
+	// 同时检查 HOJ 系统管理员角色
+	hojRoles, err := middlewarepkg.GetUserRoles(db, uid.(string))
+	if err == nil {
+		if middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleRoot) ||
+			middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleAdmin) {
+			isTeacherOrAdmin = true
+		}
+	}
+
+	if !isTeacherOrAdmin {
+		// 学生需要检查权限记录
+		var permission model.ClassroomMaterialPermission
+		err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
 			First(&permission).Error
-	}
 
-	if err != nil {
-		c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
-		return
-	}
+		if err != nil {
+			err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+				First(&permission).Error
+		}
 
-	if permission.CanPreview != 1 {
-		c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
-		return
+		if err != nil {
+			logger.Warn("PDF Binary API: 学生没有权限记录",
+				zap.Uint64("material_id", materialID),
+				zap.String("uid", uid.(string)))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
+			return
+		}
+
+		if permission.CanPreview != 1 {
+			logger.Warn("PDF Binary API: 学生没有预览权限",
+				zap.Uint64("material_id", materialID),
+				zap.String("uid", uid.(string)))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
+			return
+		}
+	} else {
+		logger.Info("PDF Binary API: 教师或管理员访问，跳过权限检查",
+			zap.Uint64("material_id", materialID),
+			zap.String("filename", material.FileName),
+			zap.String("uid", uid.(string)),
+			zap.Strings("classroom_roles", roleList),
+			zap.Strings("hoj_roles", hojRoles))
 	}
 
 	// 构建文件路径

@@ -8,8 +8,16 @@ WORKDIR /app
 ENV GOPROXY=https://goproxy.io,https://goproxy.cn,https://proxy.golang.org,direct
 ENV GO111MODULE=on
 
-# 安装 ca-certificates（避免 TLS 证书问题）
-RUN apk --no-cache add ca-certificates git
+# 配置 Alpine 国内镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 安装 ca-certificates 和 git（带重试机制）
+RUN apk update && \
+    apk add --no-cache ca-certificates git || \
+    (echo "Retrying with default source..." && \
+     sed -i 's/mirrors.aliyun.com/dl-cdn.alpinelinux.org/g' /etc/apk/repositories && \
+     apk update && \
+     apk add --no-cache ca-certificates git)
 
 # 复制 go mod 文件
 COPY go.mod go.sum ./
@@ -30,8 +38,19 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 # 最终镜像
 FROM alpine:3.18
 
-# 安装 ca-certificates、curl 和时区数据
-RUN apk --no-cache add ca-certificates curl tzdata
+# 配置 Alpine 国内镜像源（阿里云）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    # 备份源：清华镜像
+    echo "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.18/main" >> /etc/apk/repositories && \
+    echo "https://mirrors.tuna.tsinghua.edu.cn/alpine/v3.18/community" >> /etc/apk/repositories
+
+# 安装 ca-certificates、curl 和时区数据（带重试机制）
+RUN apk update && \
+    apk add --no-cache ca-certificates curl tzdata || \
+    (echo "Retrying with default source..." && \
+     sed -i 's/mirrors.aliyun.com/dl-cdn.alpinelinux.org/g' /etc/apk/repositories && \
+     apk update && \
+     apk add --no-cache ca-certificates curl tzdata)
 
 WORKDIR /app
 

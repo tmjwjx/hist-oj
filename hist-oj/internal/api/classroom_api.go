@@ -459,6 +459,7 @@ func (h *Handler) DeleteClassroom(c *gin.Context) {
 }
 
 // GetClassroomList 获取班级列表（教师）
+// 包括：作为主教师创建的班级 + 作为额外教师加入的班级
 func (h *Handler) GetClassroomList(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -472,13 +473,62 @@ func (h *Handler) GetClassroomList(c *gin.Context) {
 	db := client.GetDB()
 	var classrooms []model.Classroom
 
+	// 1. 查询用户作为主教师的班级
+	var primaryClassrooms []model.Classroom
 	if err := db.Where("teacher_id = ? AND status = 1", teacherID.(string)).
 		Preload("Teacher").
+		Preload("Teachers", "status = ?", 1).
+		Preload("Teachers.Teacher").
 		Order("create_time DESC").
-		Find(&classrooms).Error; err != nil {
-		logger.Error("查询班级列表失败", zap.Error(err))
+		Find(&primaryClassrooms).Error; err != nil {
+		logger.Error("查询主教师班级列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	// 2. 查询用户作为额外教师的班级
+	var classroomTeachers []model.ClassroomTeacher
+	if err := db.Where("teacher_id = ? AND status = 1", teacherID.(string)).
+		Find(&classroomTeachers).Error; err != nil {
+		logger.Error("查询额外教师关联失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 3. 合并班级列表（使用 map 去重）
+	classroomMap := make(map[uint64]model.Classroom)
+	for _, c := range primaryClassrooms {
+		classroomMap[c.ID] = c
+	}
+
+	// 对于额外教师的班级，需要加载完整的班级信息
+	for _, ct := range classroomTeachers {
+		// 如果该班级不在 map 中，需要查询
+		if _, exists := classroomMap[ct.ClassroomID]; !exists {
+			var classroom model.Classroom
+			if err := db.Where("id = ? AND status = 1", ct.ClassroomID).
+				Preload("Teacher").
+				Preload("Teachers", "status = ?", 1).
+				Preload("Teachers.Teacher").
+				First(&classroom).Error; err == nil {
+				classroomMap[classroom.ID] = classroom
+			}
+		}
+	}
+
+	// 4. 转换为数组并排序
+	classrooms = make([]model.Classroom, 0, len(classroomMap))
+	for _, classroom := range classroomMap {
+		classrooms = append(classrooms, classroom)
+	}
+
+	// 按创建时间排序
+	for i := 0; i < len(classrooms); i++ {
+		for j := i + 1; j < len(classrooms); j++ {
+			if classrooms[i].CreatedAt.Before(classrooms[j].CreatedAt) {
+				classrooms[i], classrooms[j] = classrooms[j], classrooms[i]
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, successResponse(classrooms))
@@ -493,6 +543,8 @@ func (h *Handler) GetAllClassrooms(c *gin.Context) {
 
 	if err := db.Where("status = 1").
 		Preload("Teacher").
+		Preload("Teachers", "status = ?", 1).
+		Preload("Teachers.Teacher").
 		Order("create_time DESC").
 		Find(&classrooms).Error; err != nil {
 		logger.Error("查询所有班级列表失败", zap.Error(err))
@@ -518,6 +570,8 @@ func (h *Handler) GetClassroomDetail(c *gin.Context) {
 
 	if err := db.Where("id = ? AND status = 1", classroomID).
 		Preload("Teacher").
+		Preload("Teachers", "status = ?", 1).
+		Preload("Teachers.Teacher").
 		First(&classroom).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
@@ -594,6 +648,8 @@ func (h *Handler) JoinClassroom(c *gin.Context) {
 	// 重新加载班级信息（包含 Teacher 关联）
 	if err := db.Where("id = ? AND status = 1", classroom.ID).
 		Preload("Teacher").
+		Preload("Teachers", "status = ?", 1).
+		Preload("Teachers.Teacher").
 		First(&classroom).Error; err != nil {
 		logger.Error("加载班级信息失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "加入成功但加载班级信息失败"))
@@ -785,6 +841,8 @@ func (h *Handler) GetStudentClassrooms(c *gin.Context) {
 	if len(classroomIDs) > 0 {
 		if err := db.Where("id IN ? AND status = 1", classroomIDs).
 			Preload("Teacher").
+			Preload("Teachers", "status = ?", 1).
+			Preload("Teachers.Teacher").
 			Find(&classrooms).Error; err != nil {
 			logger.Error("查询班级详情失败", zap.Error(err))
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
@@ -796,6 +854,7 @@ func (h *Handler) GetStudentClassrooms(c *gin.Context) {
 }
 
 // GetTeacherClassrooms 获取教师创建的班级列表
+// 包括：作为主教师创建的班级 + 作为额外教师加入的班级
 func (h *Handler) GetTeacherClassrooms(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -809,13 +868,62 @@ func (h *Handler) GetTeacherClassrooms(c *gin.Context) {
 	db := client.GetDB()
 	var classrooms []model.Classroom
 
-	// 查询该教师创建的班级
+	// 1. 查询用户作为主教师的班级
+	var primaryClassrooms []model.Classroom
 	if err := db.Where("teacher_id = ? AND status = 1", uid.(string)).
+		Preload("Teacher").
+		Preload("Teachers", "status = ?", 1).
+		Preload("Teachers.Teacher").
 		Order("create_time DESC").
-		Find(&classrooms).Error; err != nil {
-		logger.Error("查询教师班级列表失败", zap.Error(err))
+		Find(&primaryClassrooms).Error; err != nil {
+		logger.Error("查询主教师班级列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	// 2. 查询用户作为额外教师的班级
+	var classroomTeachers []model.ClassroomTeacher
+	if err := db.Where("teacher_id = ? AND status = 1", uid.(string)).
+		Find(&classroomTeachers).Error; err != nil {
+		logger.Error("查询额外教师关联失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 3. 合并班级列表（使用 map 去重）
+	classroomMap := make(map[uint64]model.Classroom)
+	for _, c := range primaryClassrooms {
+		classroomMap[c.ID] = c
+	}
+
+	// 对于额外教师的班级，需要加载完整的班级信息
+	for _, ct := range classroomTeachers {
+		// 如果该班级不在 map 中，需要查询
+		if _, exists := classroomMap[ct.ClassroomID]; !exists {
+			var classroom model.Classroom
+			if err := db.Where("id = ? AND status = 1", ct.ClassroomID).
+				Preload("Teacher").
+				Preload("Teachers", "status = ?", 1).
+				Preload("Teachers.Teacher").
+				First(&classroom).Error; err == nil {
+				classroomMap[classroom.ID] = classroom
+			}
+		}
+	}
+
+	// 4. 转换为数组并排序
+	classrooms = make([]model.Classroom, 0, len(classroomMap))
+	for _, classroom := range classroomMap {
+		classrooms = append(classrooms, classroom)
+	}
+
+	// 按创建时间排序
+	for i := 0; i < len(classrooms); i++ {
+		for j := i + 1; j < len(classrooms); j++ {
+			if classrooms[i].CreatedAt.Before(classrooms[j].CreatedAt) {
+				classrooms[i], classrooms[j] = classrooms[j], classrooms[i]
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, successResponse(classrooms))
@@ -1916,4 +2024,338 @@ func generateQrcodeToken(checkinID uint64, refreshInterval int) string {
 
 	token := fmt.Sprintf("%d_%d_%s", checkinID, timestamp/1e6, random)
 	return token
+}
+
+// ==================== 班级教师管理 ====================
+
+// AddClassroomTeacher 为班级添加教师（仅超级管理员）
+func (h *Handler) AddClassroomTeacher(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ClassroomID uint64 `json:"classroomId" binding:"required"`
+		TeacherID   string `json:"teacherId"`
+		Username    string `json:"username"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 如果提供了 username，需要先查找用户的 UUID
+	if req.Username != "" && req.TeacherID == "" {
+		// 通过用户名查找用户
+		var userInfo model.UserInfo
+		if err := client.GetDB().Where("username = ?", req.Username).First(&userInfo).Error; err != nil {
+			c.JSON(http.StatusOK, errorResponse(404, "用户不存在"))
+			return
+		}
+		req.TeacherID = userInfo.UUID
+	}
+
+	// 如果既没有 teacherId 也没有 username，返回错误
+	if req.TeacherID == "" && req.Username == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "请提供教师ID或用户名"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查班级是否存在
+	var classroom model.Classroom
+	if err := db.Where("id = ? AND status = 1", req.ClassroomID).First(&classroom).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		return
+	}
+
+	// 检查该用户是否已经是班级的学生
+	var studentCount int64
+	db.Model(&model.ClassroomStudent{}).
+		Where("classroom_id = ? AND uid = ? AND status = 1", req.ClassroomID, req.TeacherID).
+		Count(&studentCount)
+	if studentCount > 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "该用户是班级学生，不能同时添加为教师"))
+		return
+	}
+
+	// 检查该用户是否是班级的主教师
+	if classroom.TeacherID == req.TeacherID {
+		c.JSON(http.StatusOK, errorResponse(400, "该用户已经是班级的主教师"))
+		return
+	}
+
+	// 检查教师是否已经是该班级的额外教师（只检查正常状态的记录）
+	var existingTeacher model.ClassroomTeacher
+	err := db.Model(&model.ClassroomTeacher{}).
+		Where("classroom_id = ? AND teacher_id = ? AND status = 1", req.ClassroomID, req.TeacherID).
+		First(&existingTeacher).Error
+
+	if err == nil {
+		// 记录已存在
+		if existingTeacher.Status == 1 {
+			// 已经是正常状态的教师
+			c.JSON(http.StatusOK, errorResponse(400, "该教师已经是班级教师"))
+			return
+		} else {
+			// 数据库错误或未找到记录
+			c.JSON(http.StatusOK, errorResponse(400, "添加失败：该用户不在系统中或查询教师记录时发生错误"))
+			return
+		}
+	}
+
+	classroomTeacher := &model.ClassroomTeacher{
+		ClassroomID: req.ClassroomID,
+		TeacherID:   req.TeacherID,
+		Status:      1,
+	}
+
+	if err := db.Create(classroomTeacher).Error; err != nil {
+		logger.Error("添加班级教师失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "添加失败：保存教师记录到数据库时发生错误"))
+		return
+	}
+
+	logger.Info("添加班级教师", zap.Uint64("classroom_id", req.ClassroomID), zap.String("teacher_id", req.TeacherID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// RemoveClassroomTeacher 从班级移除教师（仅超级管理员）
+func (h *Handler) RemoveClassroomTeacher(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		ClassroomID uint64 `json:"classroomId" binding:"required"`
+		TeacherID   string `json:"teacherId" binding:"required"`
+		NewTeacherID string `json:"newTeacherId"` // 删除主教师时，必须指定新主教师
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 获取班级信息（包含主教师ID）
+	var classroom model.Classroom
+	if err := db.Where("id = ? AND status = 1", req.ClassroomID).First(&classroom).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		return
+	}
+
+	// 检查要删除的是否是主教师
+	isPrimaryTeacher := (req.TeacherID == classroom.TeacherID)
+
+	if isPrimaryTeacher {
+		// 删除主教师，必须指定新主教师
+		if req.NewTeacherID == "" {
+			c.JSON(http.StatusOK, errorResponse(400, "删除主教师必须指定新的主教师"))
+			return
+		}
+
+		// 验证新主教师必须是该班级的教师
+		var newTeacherExists int64
+		db.Model(&model.ClassroomTeacher{}).
+			Where("classroom_id = ? AND teacher_id = ? AND status = 1", req.ClassroomID, req.NewTeacherID).
+			Count(&newTeacherExists)
+		if newTeacherExists == 0 {
+			c.JSON(http.StatusOK, errorResponse(400, "新主教师不是该班级的教师"))
+			return
+		}
+
+		// 更新班级的主教师ID
+		if err := db.Model(&classroom).Update("teacher_id", req.NewTeacherID).Error; err != nil {
+			logger.Error("更新班级主教师失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "更新主教师失败"))
+			return
+		}
+
+		// 如果主教师在 classroom_teacher 表中，也需要软删除该记录
+		db.Model(&model.ClassroomTeacher{}).
+			Where("classroom_id = ? AND teacher_id = ?", req.ClassroomID, req.TeacherID).
+			Update("status", 0)
+
+		logger.Info("转移班级主教师",
+			zap.Uint64("classroom_id", req.ClassroomID),
+			zap.String("old_teacher_id", req.TeacherID),
+			zap.String("new_teacher_id", req.NewTeacherID))
+
+		c.JSON(http.StatusOK, successResponse(nil))
+		return
+	}
+
+	// 删除非主教师，需要检查删除后是否还有教师
+
+	// 统计该班级在 classroom_teacher 表中的额外教师数量
+	var extraTeacherCount int64
+	db.Model(&model.ClassroomTeacher{}).
+		Where("classroom_id = ? AND status = 1", req.ClassroomID).
+		Count(&extraTeacherCount)
+
+	// 计算删除该教师后剩余的教师数量
+	remainingTeachers := extraTeacherCount
+
+	// 检查要删除的教师是否是额外教师
+	var isExtraTeacherCount int64
+	db.Model(&model.ClassroomTeacher{}).
+		Where("classroom_id = ? AND teacher_id = ? AND status = 1", req.ClassroomID, req.TeacherID).
+		Count(&isExtraTeacherCount)
+
+	if isExtraTeacherCount > 0 {
+		// 要删除的是额外教师，删除后数量减1
+		remainingTeachers = extraTeacherCount - 1
+	}
+
+	// 检查主教师是否在额外教师列表中
+	var primaryTeacherInExtra int64
+	db.Model(&model.ClassroomTeacher{}).
+		Where("classroom_id = ? AND teacher_id = ? AND status = 1", req.ClassroomID, classroom.TeacherID).
+		Count(&primaryTeacherInExtra)
+
+	if primaryTeacherInExtra == 0 && classroom.TeacherID != "" {
+		// 主教师不在额外教师列表中，所以需要+1
+		remainingTeachers++
+	}
+
+	// 如果删除后没有教师了，不允许删除
+	if remainingTeachers <= 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "班级至少需要保留一个教师"))
+		return
+	}
+
+	// 软删除教师关联
+	result := db.Model(&model.ClassroomTeacher{}).
+		Where("classroom_id = ? AND teacher_id = ?", req.ClassroomID, req.TeacherID).
+		Update("status", 0)
+
+	if result.Error != nil {
+		logger.Error("移除班级教师失败", zap.Error(result.Error))
+		c.JSON(http.StatusOK, errorResponse(500, "移除失败"))
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusOK, errorResponse(404, "教师关联不存在"))
+		return
+	}
+
+	logger.Info("移除班级教师", zap.Uint64("classroom_id", req.ClassroomID), zap.String("teacher_id", req.TeacherID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// GetClassroomTeachers 获取班级的所有教师列表
+func (h *Handler) GetClassroomTeachers(c *gin.Context) {
+	logger := utils.GetLogger()
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 先查询班级信息，获取主教师ID
+	var classroom model.Classroom
+	if err := db.Where("id = ? AND status = 1", classroomID).
+		First(&classroom).Error; err != nil {
+		logger.Error("查询班级信息失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 查询额外的教师
+	var classroomTeachers []model.ClassroomTeacher
+	if err := db.Where("classroom_id = ? AND status = 1", classroomID).
+		Order("create_time ASC").
+		Find(&classroomTeachers).Error; err != nil {
+		logger.Error("查询班级教师列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 为每个教师加载用户信息（先尝试从user_info，如果不存在则从user表）
+	teacherUIDs := make([]string, len(classroomTeachers))
+	for i, ct := range classroomTeachers {
+		teacherUIDs[i] = ct.TeacherID
+	}
+
+	// 批量查询用户信息
+	for i := range classroomTeachers {
+		userInfo, err := client.GetUserInfoWithRealname(classroomTeachers[i].TeacherID)
+		if err == nil {
+			classroomTeachers[i].Teacher = &model.UserInfo{
+				UUID:     userInfo.UUID,
+				Username: userInfo.Username,
+				Nickname: userInfo.Nickname,
+				Realname: userInfo.Realname,
+			}
+		} else {
+			logger.Warn("获取教师用户信息失败", zap.String("teacherId", classroomTeachers[i].TeacherID), zap.Error(err))
+		}
+	}
+
+	// 如果主教师不在额外教师列表中，添加主教师
+	primaryTeacherFound := false
+	for _, ct := range classroomTeachers {
+		if ct.TeacherID == classroom.TeacherID {
+			primaryTeacherFound = true
+			break
+		}
+	}
+
+	if !primaryTeacherFound && classroom.TeacherID != "" {
+		// 查询主教师信息（从 user_info 表获取）
+		var teacher model.UserInfo
+		err := db.Where("uuid = ?", classroom.TeacherID).First(&teacher).Error
+		if err == nil {
+			// 创建主教师的 ClassroomTeacher 记录用于返回
+			// 使用 classroomID * 1000000 作为主教师的虚拟 ID，确保不为 0 且不与真实 ID 冲突
+			primaryTeacherRecord := &model.ClassroomTeacher{
+				ID:          classroomID * 1000000,
+				ClassroomID: classroomID,
+				TeacherID:   classroom.TeacherID,
+				Status:      1,
+				Teacher:     &teacher,
+			}
+			classroomTeachers = append([]model.ClassroomTeacher{*primaryTeacherRecord}, classroomTeachers...)
+		} else {
+			logger.Warn("获取主教师信息失败", zap.String("teacherId", classroom.TeacherID), zap.Error(err))
+		}
+	}
+
+	c.JSON(http.StatusOK, successResponse(classroomTeachers))
+}
+
+// SearchTeachers 搜索教师（用于管理员添加班级教师时）
+// 搜索所有用户，管理员可以将任何用户添加为班级教师
+func (h *Handler) SearchTeachers(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "关键词不能为空"))
+		return
+	}
+
+	// 搜索所有用户（不限制角色）
+	users, err := client.SearchAllUsers(keyword)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(500, "搜索失败"))
+		return
+	}
+
+	// 转换为 model.UserInfo 格式
+	result := make([]model.UserInfo, len(users))
+	for i, u := range users {
+		result[i] = model.UserInfo{
+			UUID:     u.UUID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Realname: u.Realname,
+		}
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
 }

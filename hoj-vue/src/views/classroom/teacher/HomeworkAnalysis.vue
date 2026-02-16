@@ -3,7 +3,7 @@
     <div class="header">
       <h3>学情分析</h3>
       <div>
-        <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
+        <el-button v-if="!hideBackButton" @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
     </div>
 
@@ -311,6 +311,14 @@ export default {
     UserName
   },
   mixins: [teacherAuth, realtimeSync],
+  props: {
+    classroomId: [String, Number],
+    homeworkId: [String, Number],
+    hideBackButton: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
       loading: false,
@@ -335,8 +343,25 @@ export default {
     }
   },
   computed: {
+    // 统一的 homeworkId：优先从 props 获取（管理员路由），否则从 route 获取（教师路由）
+    homeworkId() {
+      // 优先从 props 获取
+      if (this.$options.propsData && this.$options.propsData.homeworkId !== undefined) {
+        return this.$options.propsData.homeworkId
+      }
+      // 否则从 route 获取
+      return this.$route.query.homeworkId || this.$route.params.homeworkId
+    },
+    classroomId() {
+      // 优先从 props 获取
+      if (this.$options.propsData && this.$options.propsData.classroomId !== undefined) {
+        return this.$options.propsData.classroomId
+      }
+      // 否则从 route 获取
+      return this.$route.query.classroomId || this.$route.params.classroomId
+    },
     submissionRate() {
-      if (!this.analysisData.totalStudentCount || this.analysisData.totalStudentCount === 0) {
+        if (!this.analysisData.totalStudentCount || this.analysisData.totalStudentCount === 0) {
         return 0
       }
       return ((this.analysisData.submittedCount || 0) / this.analysisData.totalStudentCount * 100).toFixed(1)
@@ -363,7 +388,7 @@ export default {
       }
 
       try {
-        const homeworkId = this.$route.params.homeworkId
+        const homeworkId = this.homeworkId  // 使用 computed 中的 homeworkId
         const res = await this.$store.dispatch('classroom/getHomeworkAnalysis', homeworkId)
 
         if (res.code === 200) {
@@ -455,7 +480,15 @@ export default {
       return 'danger'
     },
     goBack() {
-      this.$router.back()
+      // 返回到作业详情页
+      const homeworkId = this.$route.params.homeworkId
+      const classroomId = this.$route.params.classroomId
+      // 必须添加 tab=homework 参数，否则 ClassroomDetail 会使用默认的 students tab
+      this.$router.push({
+        name: 'TeacherHomeworkDetail',
+        params: { classroomId, homeworkId },
+        query: { tab: 'homework' }
+      })
     },
     generatePieSlices(options) {
       // 计算总提交数

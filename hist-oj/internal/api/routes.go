@@ -92,6 +92,9 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 				admin.GET("/roles/:userId", handler.GetUserRoles)
 				admin.PUT("/user/:uid/roles", handler.UpdateUserRoles) // 更新 HOJ 用户角色
 				admin.GET("/classrooms", handler.GetAllClassrooms) // 获取所有班级（管理员）
+				admin.POST("/teacher/add", handler.AddClassroomTeacher) // 添加班级教师
+				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher) // 移除班级教师
+				admin.GET("/teachers/search", handler.SearchTeachers) // 搜索教师
 			}
 
 			// 班级管理（教师）- 需要认证
@@ -99,6 +102,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.DELETE("/:classroomId", AuthMiddleware(), handler.DeleteClassroom)
 			classroom.GET("/list", AuthMiddleware(), handler.GetClassroomList)
 			classroom.GET("/:classroomId", handler.GetClassroomDetail)
+			classroom.GET("/:classroomId/teachers", AuthMiddleware(), handler.GetClassroomTeachers) // 获取班级教师列表
 
 			// 学生加入班级 - 需要认证
 			classroom.POST("/join", AuthMiddleware(), handler.JoinClassroom)

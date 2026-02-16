@@ -188,10 +188,12 @@ export default {
       return this.homework && this.homework.isExamMode === 1
     },
     classroomId() {
-      return this.$route.params.classroomId
+      // 优先从 query 参数获取（适配 /admin/classroom 路由），没有才从 params 获取
+      return this.$route.query.classroomId || this.$route.params.classroomId
     },
     homeworkId() {
-      return this.$route.params.homeworkId
+      // 优先从 query 参数获取（适配 /admin/classroom 路由），没有才从 params 获取
+      return this.$route.query.homeworkId || this.$route.params.homeworkId
     }
   },
   methods: {
@@ -199,10 +201,10 @@ export default {
       // 避免重复请求
       if (this.loading) return
 
-      // 检查 homeworkId 是否有效
-      const homeworkId = this.$route.params.homeworkId
+      // 使用 computed 属性获取 homeworkId（优先从 query 获取，适配 ClassroomAdmin 路由）
+      const homeworkId = this.homeworkId
       if (!homeworkId) {
-        console.error('homeworkId is undefined')
+        console.error('homeworkId is undefined, route:', this.$route)
         return
       }
 
@@ -291,43 +293,109 @@ export default {
       this.studentSubmissions = Array.from(studentMap.values())
     },
     viewSubmission(submission) {
-      this.$router.push({
-        name: 'StudentSubmissionDetail',
-        params: { homeworkId: this.$route.params.homeworkId },
-        query: { uid: submission.uid }
-      })
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 在管理员路由下，使用 query 参数
+        this.$router.push({
+          query: {
+            classroomId: this.classroomId,
+            homeworkId: this.homeworkId,
+            uid: submission.uid,
+            activeTab: 'homework'
+          }
+        })
+      } else {
+        // 在教师端路由下，使用命名路由
+        this.$router.push({
+          name: 'StudentSubmissionDetail',
+          params: { homeworkId: this.homeworkId },
+          query: { uid: submission.uid }
+        })
+      }
     },
     editHomework() {
-      // 跳转到编辑页面，复用 CreateHomework 组件
+      // 不管是在管理员路由还是教师路由，都跳转到教师端的创建/编辑页面
+      // 因为 CreateHomework 组件会从路由参数获取 classroomId，不需要额外传递
       this.$router.push({
         name: 'CreateHomework',
-        params: { classroomId: this.$route.params.classroomId },
         query: {
+          classroomId: this.classroomId,
           editId: this.homework.id,
           isExamMode: this.homework.isExamMode || 0
         }
       })
     },
     goBack() {
-      this.$router.back()
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 在管理员路由下，使用 query 参数返回，清除 homeworkId
+        this.$router.push({
+          query: {
+            classroomId: this.classroomId,
+            activeTab: 'homework'
+          }
+        })
+      } else {
+        // 在教师端路由下，使用命名路由
+        // 注意：必须添加 tab=homework 参数，否则 ClassroomDetail 会使用默认的 students tab
+        this.$router.push({
+          name: 'TeacherHomework',
+          params: { classroomId: this.classroomId },
+          query: { tab: 'homework' }
+        })
+      }
     },
     viewAnalysis() {
-      this.$router.push({
-        name: 'HomeworkAnalysis',
-        params: {
-          classroomId: this.$route.params.classroomId,
-          homeworkId: this.$route.params.homeworkId
-        }
-      })
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 在管理员路由下，跳转到管理员专用的分析页面
+        this.$router.push({
+          name: 'admin-classroom-homework-analysis',
+          query: {
+            classroomId: this.classroomId,
+            homeworkId: this.homeworkId
+          }
+        })
+      } else {
+        // 在教师端路由下，使用命名路由
+        this.$router.push({
+          name: 'HomeworkAnalysis',
+          params: {
+            classroomId: this.classroomId,
+            homeworkId: this.homeworkId
+          }
+        })
+      }
     },
     viewExamMonitoring() {
-      this.$router.push({
-        name: 'ExamMonitoring',
-        params: {
-          classroomId: this.$route.params.classroomId,
-          homeworkId: this.$route.params.homeworkId
-        }
-      })
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 在管理员路由下，跳转到管理员专用的监控页面
+        this.$router.push({
+          name: 'admin-classroom-exam-monitoring',
+          query: {
+            classroomId: this.classroomId,
+            homeworkId: this.homeworkId
+          }
+        })
+      } else {
+        // 在教师端路由下，使用命名路由
+        this.$router.push({
+          name: 'ExamMonitoring',
+          params: {
+            classroomId: this.classroomId,
+            homeworkId: this.homeworkId
+          }
+        })
+      }
     },
     formatTime(time) {
       return moment(time).format('YYYY-MM-DD HH:mm')

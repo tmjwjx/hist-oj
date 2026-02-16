@@ -12,6 +12,10 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN rm -f package-lock.json && \
     npm config set registry ${NPM_REGISTRY} && \
     npm config set strict-ssl false && \
+    npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 3 && \
+    npm config set fetch-retry-mintimeout 10000 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
     npm install --legacy-peer-deps --no-audit
 
 # 复制源代码

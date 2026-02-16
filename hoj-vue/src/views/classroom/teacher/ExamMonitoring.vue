@@ -7,7 +7,7 @@
           <i class="el-icon-download"></i>
           <span>强制收卷</span>
         </el-button>
-        <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
+        <el-button v-if="!hideBackButton" @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
     </div>
 
@@ -164,7 +164,11 @@ export default {
   mixins: [realtimeSync, teacherAuth],
   props: {
     classroomId: [String, Number],
-    homeworkId: [String, Number]
+    homeworkId: [String, Number],
+    hideBackButton: {
+      type: Boolean,
+      default: false
+    }
   },
   data() {
     return {
@@ -195,6 +199,23 @@ export default {
     }
   },
   computed: {
+    // 统一的 homeworkId：优先从 props 获取（管理员路由），否则从 route 获取（教师路由）
+    homeworkId() {
+      // 优先从 props 获取
+      if (this.$options.propsData && this.$options.propsData.homeworkId !== undefined) {
+        return this.$options.propsData.homeworkId
+      }
+      // 否则从 route 获取
+      return this.$route.query.homeworkId || this.$route.params.homeworkId
+    },
+    classroomId() {
+      // 优先从 props 获取
+      if (this.$options.propsData && this.$options.propsData.classroomId !== undefined) {
+        return this.$options.propsData.classroomId
+      }
+      // 否则从 route 获取
+      return this.$route.query.classroomId || this.$route.params.classroomId
+    },
     // 确保从 route params 获取正确的 ID
     routeClassroomId() {
       return this.$route.params.classroomId
@@ -218,8 +239,8 @@ export default {
   },
   methods: {
     async loadMonitoringData() {
-      // 使用 route params 而不是 props，更可靠
-      const homeworkId = this.$route.params.homeworkId
+      // 使用 computed 中的 homeworkId（优先从 query 获取，再从 params 获取）
+      const homeworkId = this.homeworkId
 
       // 检查 homeworkId 是否有效
       if (!homeworkId) {
@@ -433,9 +454,15 @@ export default {
     },
 
     goBack() {
-      // 使用 router.back() 而不是 router.push()，避免在历史记录中添加新条目
-      // 这样可以确保：作业详情 -> 监控页 -> 返回 -> 作业详情 -> 返回 -> 作业列表
-      this.$router.back()
+      // 返回到作业详情页
+      const homeworkId = this.$route.params.homeworkId
+      const classroomId = this.$route.params.classroomId
+      // 必须添加 tab=homework 参数，否则 ClassroomDetail 会使用默认的 students tab
+      this.$router.push({
+        name: 'TeacherHomeworkDetail',
+        params: { classroomId, homeworkId },
+        query: { tab: 'homework' }
+      })
     }
   }
 }

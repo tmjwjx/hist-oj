@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = '/rating-api/api/classroom'
+const BASE_URL = '/api/classroom'
 
 export default {
   // ==================== 权限管理 ====================
@@ -241,5 +241,19 @@ export default {
   // 批量强制收卷
   forceSubmitAll(homeworkId) {
     return axios.post(`${BASE_URL}/homework/${homeworkId}/force-submit-all`)
+  },
+
+  // ==================== 班级教师管理 ====================
+  // 获取班级教师列表
+  getClassroomTeachers(classroomId) {
+    return axios.get(`${BASE_URL}/${classroomId}/teachers`)
+  },
+  // 添加班级教师
+  addClassroomTeacher(data) {
+    return axios.post(`${BASE_URL}/admin/teacher/add`, data)
+  },
+  // 移除班级教师
+  removeClassroomTeacher(data) {
+    return axios.delete(`${BASE_URL}/admin/teacher/remove`, { data })
   }
 }

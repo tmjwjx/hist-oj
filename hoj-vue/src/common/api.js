@@ -60,14 +60,19 @@ axios.interceptors.response.use(
     if (response.headers['refresh-token']) { // token续约！
       store.commit('changeUserToken', response.headers['authorization'])
     }
-    if (response.data.status === 200 || response.data.status == undefined) {
+    // 检查 code 字段（hist-oj 后端返回格式：{ code: 200, message: "success", data: ... }）
+    // 也兼容 status 字段（其他后端可能使用 status）
+    const isSuccess = (response.data.code === 200 || response.data.code === undefined) &&
+                     (response.data.status === 200 || response.data.status === undefined);
+    if (isSuccess) {
       return Promise.resolve(response);
     } else {
-      mMessage.error(response.data.msg);
+      const errorMsg = response.data.msg || response.data.message || '请求失败';
+      mMessage.error(errorMsg);
       if (!isMobile) {
         Vue.prototype.$notify.error({
           title: i18n.t('m.Error'),
-          message: response.data.msg,
+          message: errorMsg,
           duration: 5000,
           offset: 50
         });

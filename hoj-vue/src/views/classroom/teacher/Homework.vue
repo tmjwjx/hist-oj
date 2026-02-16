@@ -1,12 +1,20 @@
 <template>
   <div class="homework-panel classroom-theme">
-    <div class="header">
-      <h3>{{ $t('m.Homework_Management') }}</h3>
-      <button class="classroom-btn classroom-btn-primary" @click="goToCreate">
-        <i class="el-icon-plus"></i>
-        <span>{{ $t('m.Create_Homework') }}</span>
-      </button>
-    </div>
+    <!-- 详情模式 - 在管理员路由下显示 -->
+    <HomeworkDetail
+      v-if="isDetailMode"
+      :key="$route.query.homeworkId"
+    />
+
+    <!-- 列表模式 - 默认显示 -->
+    <template v-else>
+      <div class="header">
+        <h3>{{ $t('m.Homework_Management') }}</h3>
+        <button class="classroom-btn classroom-btn-primary" @click="goToCreate">
+          <i class="el-icon-plus"></i>
+          <span>{{ $t('m.Create_Homework') }}</span>
+        </button>
+      </div>
 
     <div v-if="!loading">
       <div v-if="homeworks.length === 0" class="classroom-empty">
@@ -71,19 +79,31 @@
         <el-button type="danger" @click="confirmDelete" :loading="deleting" class="classroom-btn classroom-btn-danger">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
+    </template>
   </div>
+</template>
 </template>
 
 <script>
 import moment from 'moment'
 import realtimeSync from '@/mixins/realtimeSync'
+import HomeworkDetail from './HomeworkDetail.vue'
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'Homework',
   mixins: [realtimeSync, teacherAuth],
+  components: {
+    HomeworkDetail
+  },
   props: {
     classroomId: [String, Number]
+  },
+  computed: {
+    // 检测当前是否在管理员路由下，并且 URL 中有 homeworkId
+    isDetailMode() {
+      return this.$route.path.startsWith('/admin/classroom') && this.$route.query.homeworkId
+    }
   },
   data() {
     return {
@@ -163,13 +183,28 @@ export default {
       })
     },
     viewHomework(homework) {
-      this.$router.push({
-        name: 'TeacherHomeworkDetail',
-        params: {
-          classroomId: this.classroomId,
-          homeworkId: homework.id
-        }
-      })
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 在管理员路由下，使用 query 参数保持在 /admin/classroom
+        this.$router.push({
+          query: {
+            classroomId: this.classroomId,
+            homeworkId: homework.id,
+            activeTab: 'homework'
+          }
+        })
+      } else {
+        // 在教师端路由下，使用命名路由
+        this.$router.push({
+          name: 'TeacherHomeworkDetail',
+          query: {
+            classroomId: this.classroomId,
+            homeworkId: homework.id
+          }
+        })
+      }
     },
     deleteHomework(homework) {
       this.currentHomework = homework

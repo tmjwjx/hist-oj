@@ -243,7 +243,7 @@
                 <el-select
                   v-model="pdfScale"
                   size="mini"
-                  @change="renderPage"
+                  @change="() => renderPage(pdfPage)"
                   :disabled="pdfRendering"
                   style="width: 100px"
                 >
@@ -260,7 +260,7 @@
 
             <!-- Canvas 渲染区域 -->
             <div class="pdf-canvas-container">
-              <canvas id="pdf-render-canvas"></canvas>
+              <canvas ref="pdfCanvas" id="pdf-render-canvas"></canvas>
             </div>
           </div>
 
@@ -557,6 +557,22 @@ export default {
           this.loadFolderTree()
         }
       }
+    },
+    selectedMaterial: {
+      immediate: false,
+      handler(newVal) {
+        if (newVal && this.getFileType(newVal.fileName) === 'pdf') {
+          // 等待 DOM 更新后再加载 PDF，确保 canvas 元素已渲染
+          this.$nextTick(() => {
+            this.loadPDF(newVal.id)
+          })
+        } else {
+          // 清理 PDF 状态
+          this.pdfDocument = null
+          this.pdfPage = 1
+          this.pdfPages = 0
+        }
+      }
     }
   },
   mounted() {
@@ -630,8 +646,6 @@ export default {
           params.parentId = parentId
         }
 
-        console.log('fetchAllFoldersRecursive - parentId:', parentId, 'params:', params)
-
         const res = await this.$store.dispatch('classroom/getFolders', {
           classroomId: this.classroomId,
           params
@@ -639,7 +653,6 @@ export default {
 
         if (res.code === 200) {
           const currentFolders = res.data || []
-          console.log('fetchAllFoldersRecursive - parentId:', parentId, '返回:', currentFolders.map(f => ({ id: f.id, name: f.folderName, parentId: f.parentId })))
           let allFolders = [...currentFolders]
 
           // 并行获取所有子文件夹
@@ -652,7 +665,6 @@ export default {
             allFolders = allFolders.concat(childFolders)
           })
 
-          console.log('fetchAllFoldersRecursive - parentId:', parentId, '总共:', allFolders.length)
           return allFolders
         }
 
@@ -664,8 +676,6 @@ export default {
     },
 
     buildFolderTree(folders) {
-      console.log('buildFolderTree - 输入的文件夹列表:', folders.map(f => ({ id: f.id, name: f.folderName, parentId: f.parentId })))
-
       // 构建树形结构
       const map = {}
       const tree = []
@@ -688,26 +698,16 @@ export default {
         }
       })
 
-      console.log('buildFolderTree - map中的所有ID:', Object.keys(map))
-
       // 构建父子关系
       folders.forEach(folder => {
         const node = map[folder.id]
         const parentId = folder.parentId || 0
-        console.log(`buildFolderTree - 处理文件夹 ${folder.id} (${folder.folderName}), parentId: ${parentId}`)
 
         if (map[parentId]) {
           map[parentId].children.push(node)
-          console.log(`buildFolderTree - 将文件夹 ${folder.id} 添加到父节点 ${parentId}`)
-        } else {
-          // 如果找不到父节点，说明该文件夹的父文件夹没有被获取到（可能是权限问题或已删除）
-          // 不再将这种孤立文件夹添加到根节点下，而是跳过它们
-          console.warn(`buildFolderTree - 警告: 文件夹 ${folder.id} (${folder.folderName}) 的父节点 ${parentId} 不存在，跳过该文件夹`)
         }
+        // 如果找不到父节点，跳过该孤立文件夹
       })
-
-      console.log('buildFolderTree - 根节点下的子节点数量:', rootNode.children.length)
-      console.log('buildFolderTree - 根节点下的子节点IDs:', rootNode.children.map(n => n.id))
 
       tree.push(rootNode)
       return tree
@@ -1159,22 +1159,13 @@ export default {
     },
 
     // 选择文件进行预览
-    async selectMaterial(material) {
+    selectMaterial(material) {
       this.selectedMaterial = material
+      // PDF 加载由 watch selectedMaterial 触发
       const fileType = this.getFileType(material.fileName)
 
-      // 如果是 PDF 文件，使用 PDF.js 加载
-      if (fileType === 'pdf') {
-        this.previewLoading = true
-        try {
-          await this.loadPDF(material.id)
-        } catch (error) {
-          console.error('[PDF] 加载失败:', error)
-          this.$message.error('PDF 加载失败，请尝试下载后查看')
-        } finally {
-          this.previewLoading = false
-        }
-      } else {
+      // 非 PDF 文件直接关闭 loading
+      if (fileType !== 'pdf') {
         this.previewLoading = false
       }
     },
@@ -1337,19 +1328,16 @@ export default {
       try {
         // 检查是否已经加载
         if (this.pdfjsLib) {
-          console.log('[PDF] PDF.js 已初始化')
           return
         }
 
         // 检查是否在全局对象中
         if (window.pdfjsLib) {
           this.pdfjsLib = window.pdfjsLib
-          console.log('[PDF] 使用全局 PDF.js')
           return
         }
 
         // 动态加载 PDF.js（通过 CDN）
-        console.log('[PDF] 动态加载 PDF.js...')
         const script = document.createElement('script')
         script.src = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.min.js'
 
@@ -1372,8 +1360,6 @@ export default {
         // 设置 worker
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js'
         this.pdfjsLib = window.pdfjsLib
-
-        console.log('[PDF] PDF.js 初始化成功')
       } catch (error) {
         console.error('[PDF] PDF.js 初始化失败:', error)
         // 尝试备用 CDN
@@ -1381,7 +1367,6 @@ export default {
           if (window.pdfjsLib) {
             this.pdfjsLib = window.pdfjsLib
             this.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.staticfile.org/pdf.js/2.16.105/pdf.worker.min.js'
-            console.log('[PDF] 使用备用 CDN')
           }
         } catch (fallbackError) {
           console.error('[PDF] 备用 CDN 也失败:', fallbackError)
@@ -1392,21 +1377,43 @@ export default {
 
     // 加载 PDF 文件
     async loadPDF(materialId) {
+      // 确保 PDF.js 已加载（使用轮询方式，与学生端一致）
       if (!this.pdfjsLib) {
-        console.warn('[PDF] PDF.js 未初始化，尝试初始化...')
-        await this.initPDFJS()
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (this.pdfjsLib) {
+              clearInterval(checkInterval)
+              resolve()
+            }
+          }, 100)
+          // 超时保护
+          setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve()
+          }, 5000)
+        })
+
         if (!this.pdfjsLib) {
-          throw new Error('PDF.js 初始化失败')
+          this.$message.error('PDF.js 加载失败，请刷新页面重试')
+          return
         }
       }
 
-      const loadingMessage = { message: '正在加载 PDF...' }
-      this.previewLoading = true
+      this.pdfRendering = true
+      this.pdfDocument = null
+      this.pdfPage = 1
+      this.pdfPages = 0
+
+      // 显示加载提示
+      const loadingMessage = this.$message({
+        message: '正在加载 PDF...',
+        duration: 0,
+        type: 'info'
+      })
 
       try {
-        console.log('[PDF] 开始加载 PDF，materialId:', materialId)
-
         const apiUrl = `/rating-api/api/classroom/material/${materialId}/pdf/binary`
+        const startTime = Date.now()
         let lastLoggedPercent = 0
 
         const response = await this.$axios.get(apiUrl, {
@@ -1414,9 +1421,8 @@ export default {
           onDownloadProgress: (progressEvent) => {
             if (progressEvent.total > 0) {
               const percentComplete = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              // 每 10% 记录一次日志
+              // 每 10% 更新一次进度
               if (percentComplete % 10 === 0 && percentComplete !== lastLoggedPercent) {
-                console.log(`[PDF] 下载进度: ${percentComplete}%`)
                 lastLoggedPercent = percentComplete
                 loadingMessage.message = `正在加载 PDF... ${percentComplete}%`
               }
@@ -1424,54 +1430,61 @@ export default {
           }
         })
 
-        if (!response.data || response.data.byteLength === 0) {
-          throw new Error('PDF 数据为空')
+        // 直接使用 ArrayBuffer（不需要包装成对象）
+        const arrayBuffer = response.data
+
+        // 加载PDF文档
+        const parseStartTime = Date.now()
+        const loadingTask = this.pdfjsLib.getDocument(arrayBuffer)
+
+        // 监听解析进度
+        let lastParsedLoggedPercent = 0
+        loadingTask.onProgress = (progress) => {
+          if (progress.total > 0) {
+            const percentComplete = Math.round((progress.loaded / progress.total) * 100)
+            if (percentComplete % 25 === 0 && percentComplete !== lastParsedLoggedPercent) {
+              lastParsedLoggedPercent = percentComplete
+            }
+          }
         }
 
-        console.log('[PDF] PDF 下载完成，大小:', (response.data.byteLength / 1024 / 1024).toFixed(2), 'MB')
-
-        // 使用 PDF.js 加载文档
-        const loadingTask = this.pdfjsLib.getDocument({ data: response.data })
         this.pdfDocument = await loadingTask.promise
         this.pdfPages = this.pdfDocument.numPages
-        this.pdfPage = 1
 
-        console.log('[PDF] PDF 解析成功，总页数:', this.pdfPages)
+        const parseTime = Date.now() - parseStartTime
 
         // 渲染第一页
-        await this.renderPage()
+        await this.renderPage(1)
+
+        const totalTime = Date.now() - startTime
+        loadingMessage.close()
       } catch (error) {
         console.error('[PDF] 加载 PDF 失败:', error)
-        throw error
+        loadingMessage.close()
+        this.$message.error('PDF 加载失败，请尝试下载后查看')
       } finally {
-        this.previewLoading = false
+        this.pdfRendering = false
       }
     },
 
     // 渲染指定页面
-    async renderPage() {
+    async renderPage(pageNumber) {
       if (!this.pdfDocument) {
-        console.warn('[PDF] 没有可用的 PDF 文档')
         return
       }
 
       this.pdfRendering = true
+      const canvas = this.$refs.pdfCanvas
+      if (!canvas) {
+        return
+      }
 
       try {
-        const page = await this.pdfDocument.getPage(this.pdfPage)
+        const page = await this.pdfDocument.getPage(pageNumber)
         const viewport = page.getViewport({ scale: this.pdfScale })
 
         // 获取设备像素比，优化高DPI显示
         const devicePixelRatio = window.devicePixelRatio || 1
-
-        // 获取或创建 canvas
-        let canvas = document.getElementById('pdf-render-canvas')
-        if (!canvas) {
-          console.warn('[PDF] Canvas 元素不存在')
-          return
-        }
-
-        const context = canvas.getContext('2d')
 
         // 设置canvas的实际渲染尺寸（考虑设备像素比）
         canvas.height = viewport.height * devicePixelRatio
@@ -1481,19 +1494,24 @@ export default {
         canvas.style.height = viewport.height + 'px'
         canvas.style.width = viewport.width + 'px'
 
-        // 缩放context以适应高DPI显示
+        // 获取context并缩放
+        const context = canvas.getContext('2d')
         context.scale(devicePixelRatio, devicePixelRatio)
 
-        // 渲染 PDF 页面到 canvas
+        // 清空画布（重要：在渲染前清空，避免旧内容残留）
+        context.clearRect(0, 0, canvas.width, canvas.height)
+
+        // 渲染页面
         await page.render({
           canvasContext: context,
           viewport: viewport
         }).promise
 
-        console.log(`[PDF] 第 ${this.pdfPage} 页渲染成功 (devicePixelRatio: ${devicePixelRatio})`)
+        // 渲染成功后才更新页码
+        this.pdfPage = pageNumber
       } catch (error) {
         console.error('[PDF] 渲染页面失败:', error)
-        throw error
+        this.$message.error('PDF渲染失败')
       } finally {
         this.pdfRendering = false
       }
@@ -1502,23 +1520,21 @@ export default {
     // 上一页
     prevPage() {
       if (this.pdfPage > 1) {
-        this.pdfPage--
-        this.renderPage()
+        this.renderPage(this.pdfPage - 1)
       }
     },
 
     // 下一页
     nextPage() {
       if (this.pdfPage < this.pdfPages) {
-        this.pdfPage++
-        this.renderPage()
+        this.renderPage(this.pdfPage + 1)
       }
     },
 
     // 缩放
     setScale(scale) {
       this.pdfScale = scale
-      this.renderPage()
+      this.renderPage(this.pdfPage)
     }
   }
 }

@@ -207,11 +207,27 @@ export default {
       })
     },
     getTeacherName(classroom) {
+      const teachers = []
+
+      // 添加主教师
       if (classroom.teacher) {
-        // 优先显示用户名，如果没有则显示昵称
-        return classroom.teacher.username || classroom.teacher.nickname || '-'
+        teachers.push(classroom.teacher.realname || classroom.teacher.username || classroom.teacher.nickname || '-')
       }
-      return '-'
+
+      // 添加其他教师
+      if (classroom.teachers && classroom.teachers.length > 0) {
+        classroom.teachers.forEach(t => {
+          if (t.teacher) {
+            // 避免重复添加主教师
+            const isDuplicate = classroom.teacher && t.teacher.uuid === classroom.teacher.uuid
+            if (!isDuplicate) {
+              teachers.push(t.teacher.realname || t.teacher.username || t.teacher.nickname)
+            }
+          }
+        })
+      }
+
+      return teachers.length > 0 ? teachers.join('、') : '-'
     }
   }
 }

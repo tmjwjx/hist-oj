@@ -1,0 +1,20 @@
+--- a/ClassroomAdmin.vue	2025-02-12 09:30:00.000000000 +0800
++++ b/ClassroomAdmin.vue	2025-02-12 14:15:00.000000000 +0800
+@@ -53,11 +53,9 @@
+-    <!-- 调试信息 -->
+-      <div style="background: #f0f9eb; padding: 10px; margin: 10px 0; border-radius: 4px;">
+-        <strong>调试信息：</strong>
+-        <p>selectedClassroomId: {{ selectedClassroomId }}</p>
+-        <p>activeTab: {{ activeTab }}</p>
+-        <p>classroomInfo: {{ JSON.stringify(classroomInfo) }}</p>
+-      </div>
+       <el-alert
+         title="页面调试信息"
+         type="info"
+         :closable="false"
+-         style="margin-bottom: 20px;">
+-        <p><strong>selectedClassroomId:</strong> {{ selectedClassroomId }}</p>
+-        <p><strong>activeTab:</strong> {{ activeTab }}</p>
+-        <p><strong>classroomInfo:</strong> {{ classroomInfo ? JSON.stringify(classroomInfo) : 'null' }}</p>
+-        <p><strong>路由信息:</strong> {{ JSON.stringify($route) }}</p>
+       </el-alert>

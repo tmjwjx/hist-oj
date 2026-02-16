@@ -134,6 +134,15 @@ export default {
         this.$store.commit("changeWebLanguage", { language: "en-US" });
       }
     },
+    async loadUserInfo() {
+      // 预加载用户角色信息，避免权限检查时出现竞态问题
+      try {
+        await this.$store.dispatch('classroom/loadUserRoles')
+        console.log('[App] 用户角色预加载完成')
+      } catch (error) {
+        console.error('[App] 预加载用户角色失败:', error)
+      }
+    },
     autoRefreshUserInfo() {
       this.$store.dispatch("setUserInfo", storage.get("userInfo"));
       let strogeToken = localStorage.getItem("token");
@@ -195,6 +204,9 @@ export default {
   created: function () {
     // 提前加载网站配置,确保工具箱等依赖配置的组件能正常显示
     this.getWebsiteConfig();
+
+    // 预加载用户角色信息，避免权限检查时出现竞态问题
+    this.loadUserInfo();
 
     this.$nextTick(function () {
       try {
