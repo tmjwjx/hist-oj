@@ -139,6 +139,7 @@
 </template>
 
 <script>
+import Vue from 'vue'
 import moment from 'moment'
 import Students from '@/views/classroom/teacher/Students.vue'
 import Checkin from '@/views/classroom/teacher/Checkin.vue'
@@ -147,6 +148,57 @@ import Homework from '@/views/classroom/teacher/Homework.vue'
 import Materials from '@/views/classroom/teacher/Materials.vue'
 import Discussion from '@/views/classroom/teacher/Discussion.vue'
 import UserName from '@/components/oj/common/UserName.vue'
+
+// 创建一个教师选择器组件
+const TeacherSelectDialog = Vue.extend({
+  props: {
+    teachers: {
+      type: Array,
+      default: () => []
+    }
+  },
+  data() {
+    return {
+      selectedTeacher: ''
+    }
+  },
+  methods: {
+    getValue() {
+      return this.selectedTeacher
+    },
+    reset() {
+      this.selectedTeacher = ''
+    }
+  },
+  render(h) {
+    const self = this
+    return h('div', { style: 'padding: 10px 0;' }, [
+      h('p', { style: 'margin-bottom: 15px;' }, '请选择新的主教师：'),
+      h('el-select', {
+        props: {
+          value: this.selectedTeacher,
+          placeholder: '请选择教师',
+          style: 'width: 100%;',
+          clearable: true
+        },
+        on: {
+          input: (val) => {
+            self.selectedTeacher = val
+            // 向父组件发出事件
+            self.$emit('input', val)
+          }
+        }
+      }, this.teachers.map(teacher => {
+        return h('el-option', {
+          props: {
+            value: teacher.teacherId,
+            label: teacher.teacher ? teacher.teacher.username : teacher.teacherId
+          }
+        })
+      }))
+    ])
+  }
+})
 
 export default {
   name: 'ClassroomAdmin',
@@ -171,7 +223,15 @@ export default {
       currentClassroom: null,
       currentClassroomTeachers: [],
       teacherUsername: '',
-      addingTeacher: false
+      addingTeacher: false,
+      selectedNewTeacher: '', // 选中的新主教师ID
+      tempTeacherSelect: null // 临时用于对话框中的教师选择器
+    }
+  },
+  computed: {
+    // 获取班级列表中的当前班级对象，用于更新显示
+    currentClassroomInList() {
+      return this.classrooms.find(c => c.id === this.currentClassroom?.id)
     }
   },
   mounted() {
@@ -267,6 +327,8 @@ export default {
           this.$message.success('添加教师成功')
           this.teacherUsername = ''
           await this.loadClassroomTeachers()
+          // 同时更新列表中的班级信息
+          await this.loadClassrooms()
         } else {
           this.$message.error(res.msg || '添加教师失败')
         }
@@ -278,38 +340,67 @@ export default {
       }
     },
     async removeTeacher(teacherRelation) {
-      const isMainTeacher = !this.currentClassroom.teacher ||
-                               this.currentClassroom.teacher?.uuid !== teacherRelation.teacherId
+      // 判断要删除的教师是否是主教师
+      const isMainTeacher = this.currentClassroom.teacher?.uuid === teacherRelation.teacherId
 
       if (isMainTeacher) {
-        // 移除主教师，需要指定新的主教师
-        this.$prompt('移除主教师必须指定新的主教师', '请输入新主教师的用户名', {
+        // 移除主教师，需要从其他教师中选择新的主教师
+        // 过滤出除了当前要删除的主教师之外的其他教师
+        const otherTeachers = this.currentClassroomTeachers.filter(
+          t => t.teacherId !== teacherRelation.teacherId
+        )
+
+        if (otherTeachers.length === 0) {
+          this.$message.warning('没有其他教师可以担任主教师，请先添加其他教师')
+          return
+        }
+
+        // 重置临时选择
+        this.tempTeacherSelect = ''
+
+        const h = this.$createElement
+
+        // 使用 h 函数创建一个包含 el-select 的组件
+        this.$msgbox({
+          title: '移除主教师',
+          message: h('div', { style: 'padding: 10px 0;' }, [
+            h('p', { style: 'margin-bottom: 15px;' }, '请选择新的主教师：'),
+            h(TeacherSelectDialog, {
+              props: {
+                teachers: otherTeachers
+              },
+              ref: 'teacherSelectDialog',
+              on: {
+                input: (val) => {
+                  this.tempTeacherSelect = val
+                }
+              }
+            })
+          ]),
+          showCancelButton: true,
           confirmButtonText: '确认',
           cancelButtonText: '取消',
-          inputType: 'text',
-          inputPlaceholder: '请输入用户名',
-          inputErrorMessage: '用户名不能为空'
-        }).then(async ({ value }) => {
-          if (value) {
-            try {
-              const res = await this.$store.dispatch('classroom/removeClassroomTeacher', {
-                classroomId: this.currentClassroom.id,
-                teacherId: teacherRelation.teacherId,
-                newTeacherId: value // 新主教师的用户名
-              })
-
-              if (res.code === 200) {
-                this.$message.success('更换主教师成功')
-                await this.loadClassroomTeachers()
-              } else {
-                this.$message.error(res.msg || '更换主教师失败')
+          beforeClose: (action, instance, done) => {
+            if (action === 'confirm') {
+              // 通过 ref 获取组件实例
+              const dialog = this.$refs.teacherSelectDialog
+              const selectedValue = dialog ? dialog.getValue() : this.tempTeacherSelect
+              if (!selectedValue) {
+                this.$message.warning('请选择新的主教师')
+                return
               }
-            } catch (error) {
-              this.$message.error('更换主教师失败')
-              console.error('更换主教师失败:', error)
+              this.transferMainTeacher(teacherRelation.teacherId, selectedValue).then(() => {
+                this.tempTeacherSelect = null
+                done()
+              })
+            } else {
+              this.tempTeacherSelect = null
+              done()
             }
           }
-        }).catch(() => {})
+        }).catch(() => {
+          this.tempTeacherSelect = null
+        })
       } else {
         // 移除普通教师
         this.$confirm('确认移除该教师吗？', '警告', {
@@ -334,6 +425,25 @@ export default {
             console.error('移除教师失败:', error)
           }
         }).catch(() => {})
+      }
+    },
+    async transferMainTeacher(oldTeacherId, newTeacherId) {
+      try {
+        const res = await this.$store.dispatch('classroom/removeClassroomTeacher', {
+          classroomId: this.currentClassroom.id,
+          teacherId: oldTeacherId,
+          newTeacherId: newTeacherId
+        })
+
+        if (res.code === 200) {
+          this.$message.success('更换主教师成功')
+          await this.loadClassroomTeachers()
+        } else {
+          this.$message.error(res.msg || '更换主教师失败')
+        }
+      } catch (error) {
+        this.$message.error('更换主教师失败')
+        console.error('更换主教师失败:', error)
       }
     },
     resetTeacherDialog() {
