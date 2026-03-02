@@ -319,8 +319,8 @@ const actions = {
     const res = await api.uploadMaterial(formData)
     return res.data
   },
-  async getMaterials({ commit }, folderId) {
-    const res = await api.getMaterials(folderId)
+  async getMaterials({ commit }, { classroomId, folderId }) {
+    const res = await api.getMaterials(classroomId, folderId)
     if (res.data.code === 200) {
       commit('SET_MATERIALS', res.data.data)
     }

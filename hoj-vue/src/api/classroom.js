@@ -188,8 +188,8 @@ export default {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
-  getMaterials(folderId) {
-    return axios.get(`${BASE_URL}/folder/${folderId}/materials`)
+  getMaterials(classroomId, folderId) {
+    return axios.get(`${BASE_URL}/${classroomId}/folder/${folderId}/materials`)
   },
   deleteMaterial(materialId) {
     return axios.delete(`${BASE_URL}/material/${materialId}`)

@@ -178,7 +178,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.DELETE("/folder/:folderId", AuthMiddleware(), handler.DeleteFolder)
 			classroom.PUT("/folder", AuthMiddleware(), handler.UpdateFolder)
 			classroom.POST("/material/upload", AuthMiddleware(), handler.UploadMaterial)
-			classroom.GET("/folder/:folderId/materials", AuthMiddleware(), handler.GetMaterials)
+			classroom.GET("/:classroomId/folder/:folderId/materials", AuthMiddleware(), handler.GetMaterials)
 			classroom.DELETE("/material/:materialId", AuthMiddleware(), handler.DeleteMaterial)
 			classroom.POST("/material/copy", AuthMiddleware(), handler.CopyMaterialToClassroom)
 
@@ -189,6 +189,11 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/material/:materialId/download", AuthMiddleware(), handler.DownloadMaterial)            // 下载资料（带权限验证）
 			classroom.GET("/material/:materialId/pdf", AuthMiddleware(), handler.GetMaterialPDFBase64)             // 获取PDF base64（旧版，兼容）
 			classroom.GET("/material/:materialId/pdf/binary", AuthMiddleware(), handler.GetMaterialPDFBinary)       // 获取PDF二进制（新版，性能更好）
+
+			// Office文件预览（PPT/Word/Excel）- 需要认证
+			classroom.GET("/material/:materialId/preview-token", AuthMiddleware(), handler.GenerateMaterialPreviewToken) // 生成预览令牌
+			classroom.GET("/material/preview/:token", handler.PreviewMaterialWithToken) // 使用令牌预览文件（无需认证，令牌自带验证）
+			classroom.GET("/material/:materialId/cos-preview-url", AuthMiddleware(), handler.GetCOSPreviewUrl) // 腾讯云COS预览URL
 
 			// 随机选人（教师）- 需要认证
 			classroom.POST("/:classroomId/random-pick", AuthMiddleware(), handler.RandomPick)
@@ -216,7 +221,9 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		RegisterPlagiarismRoutes(api, cfg, db)
 	}
 
+	// 健康检查 - 支持GET和HEAD请求
 	router.GET("/health", handler.HealthCheck)
+	router.HEAD("/health", handler.HealthCheck)
 }
 
 

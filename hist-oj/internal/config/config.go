@@ -12,6 +12,7 @@ type Config struct {
 	HojAPI   HojAPIConfig   `mapstructure:"hoj_api"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Rating   RatingConfig   `mapstructure:"rating"`
+	COS      COSConfig      `mapstructure:"cos"`
 }
 
 type ServerConfig struct {
@@ -39,6 +40,14 @@ type RatingConfig struct {
 	InitialRating int `mapstructure:"initial_rating"`
 	KFactor       int `mapstructure:"k_factor"`
 	CheckInterval int `mapstructure:"check_interval"`
+}
+
+type COSConfig struct {
+	SecretID  string `mapstructure:"secret_id"`
+	SecretKey string `mapstructure:"secret_key"`
+	Bucket    string `mapstructure:"bucket"`
+	Region    string `mapstructure:"region"`
+	CdnDomain string `mapstructure:"cdn_domain"` // CDN加速域名（可选，开启后可节省约70%流量费用）
 }
 
 // LogConfig 日志配置（简化，使用默认值）

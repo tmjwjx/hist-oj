@@ -50,8 +50,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o hist-oj-service .
 # 运行阶段
 FROM alpine:3.18
 
-# 使用阿里云镜像源
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+# 使用多个镜像源（阿里云 + 官方源备份）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    echo "https://mirrors.aliyun.com/alpine/v3.18/main/" >> /etc/apk/repositories && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/v3.18/main/" >> /etc/apk/repositories
 
 # 安装必要的运行时依赖（重试机制）
 RUN apk add --no-cache ca-certificates tzdata wget python3 py3-pip || \

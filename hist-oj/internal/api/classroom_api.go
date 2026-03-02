@@ -274,6 +274,17 @@ func (h *Handler) CreateClassroom(c *gin.Context) {
 		return
 	}
 
+	// 创建班级教师关联记录，确保数据一致性
+	teacherRelation := &model.ClassroomTeacher{
+		ClassroomID: classroom.ID,
+		TeacherID:   teacherID.(string),
+		Status:      1,
+	}
+	if err := db.Create(teacherRelation).Error; err != nil {
+		logger.Error("创建班级教师关联失败", zap.Error(err))
+		// 不阻断请求，只记录错误
+	}
+
 	logger.Info("创建班级", zap.Uint64("id", classroom.ID), zap.String("name", classroom.ClassName))
 	c.JSON(http.StatusOK, successResponse(classroom))
 }
@@ -543,13 +554,25 @@ func (h *Handler) GetAllClassrooms(c *gin.Context) {
 
 	if err := db.Where("status = 1").
 		Preload("Teacher").
-		Preload("Teachers", "status = ?", 1).
 		Preload("Teachers.Teacher").
 		Order("create_time DESC").
 		Find(&classrooms).Error; err != nil {
 		logger.Error("查询所有班级列表失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	// 在应用层过滤掉 status=0 的教师记录
+	for i := range classrooms {
+		if len(classrooms[i].Teachers) > 0 {
+			filteredTeachers := make([]model.ClassroomTeacher, 0, len(classrooms[i].Teachers))
+			for _, teacher := range classrooms[i].Teachers {
+				if teacher.Status == 1 {
+					filteredTeachers = append(filteredTeachers, teacher)
+				}
+			}
+			classrooms[i].Teachers = filteredTeachers
+		}
 	}
 
 	c.JSON(http.StatusOK, successResponse(classrooms))
@@ -570,7 +593,6 @@ func (h *Handler) GetClassroomDetail(c *gin.Context) {
 
 	if err := db.Where("id = ? AND status = 1", classroomID).
 		Preload("Teacher").
-		Preload("Teachers", "status = ?", 1).
 		Preload("Teachers.Teacher").
 		First(&classroom).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {

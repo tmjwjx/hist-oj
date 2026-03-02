@@ -21,3 +21,14 @@ rating:
   initial_rating: 1200  # 新用户初始 Rating
   k_factor: 85         # K 值，控制波动幅度（已调大）
   check_interval: 5     # 定时检查间隔（分钟）
+
+# 腾讯云COS配置（用于文档预览）
+cos:
+  secret_id: "AKIDnDkARguzugIhw1xqaJ1gDoQqAiBVucFo"
+  secret_key: "gDj3A6P1UnxxkLl04hFsLbeXGoFUVN4m"
+  bucket: "histoj-ppt-preview-1380268413"
+  region: "ap-nanjing"
+  # CDN加速域名（开启CDN后自动分配，可节省约70%流量费用）
+  # 开通CDN后，自动分配域名如：histoj-ppt-preview-1380268413.cdncdn.me
+  # 或：histoj-ppt-preview-1380268413.file.myqcloud.com
+  cdn_domain: ""  # 开通CDN后填写自动分配的域名，留空则不使用CDN

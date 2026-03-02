@@ -2,6 +2,9 @@ package api
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/base64"
 	"fmt"
@@ -22,7 +25,9 @@ import (
 	"github.com/hoj/hist-oj/internal/client"
 	middlewarepkg "github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
+	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
+	"github.com/hoj/hist-oj/internal/config"
 )
 
 // compareArrays 比较两个字符串数组是否相同（不考虑顺序）
@@ -468,9 +473,6 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 	var homework model.ClassroomHomework
 
 	if err := db.Where("id = ?", homeworkID).
-		Preload("Questions", func(db *gorm.DB) *gorm.DB {
-			return db.Order("question_order ASC")
-		}).
 		Preload("Questions.Question").
 		First(&homework).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -480,6 +482,13 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		}
 		return
+	}
+
+	// 手动排序Questions
+	if len(homework.Questions) > 0 {
+		sort.Slice(homework.Questions, func(i, j int) bool {
+			return homework.Questions[i].QuestionOrder < homework.Questions[j].QuestionOrder
+		})
 	}
 
 	// 更新作业状态
@@ -1590,7 +1599,15 @@ func (h *Handler) UpdateFolder(c *gin.Context) {
 
 // UploadMaterial 上传资料（教师）
 func (h *Handler) UploadMaterial(c *gin.Context) {
+	classroomIDStr := c.PostForm("classroomId")
 	folderIDStr := c.PostForm("folderId")
+
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
 	folderID, err := strconv.ParseUint(folderIDStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusOK, errorResponse(400, "folderId参数格式错误"))
@@ -1629,6 +1646,19 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 
 	db := client.GetDB()
 
+	// 验证folder（如果folderID不为0）
+	if folderID != 0 {
+		var folder model.ClassroomFolder
+		if err := db.Where("id = ? AND classroom_id = ? AND status = 1", folderID, classroomID).First(&folder).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusOK, errorResponse(404, "文件夹不存在"))
+			} else {
+				c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			}
+			return
+		}
+	}
+
 	// 检查文件类型
 	allowedTypes := map[string]bool{
 		"pdf":  true,
@@ -1649,6 +1679,7 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 	}
 
 	material := &model.ClassroomMaterial{
+		ClassroomID:   classroomID,
 		FolderID:      folderID,
 		FileName:      file.Filename,
 		FileType:      fileType,
@@ -1670,10 +1701,28 @@ func (h *Handler) UploadMaterial(c *gin.Context) {
 
 // GetMaterials 获取资料列表（教师/学生）
 func (h *Handler) GetMaterials(c *gin.Context) {
+	classroomIDStr := c.Param("classroomId")
 	folderIDStr := c.Param("folderId")
 
-	var folderID uint64
+	// 调试日志
+	fmt.Printf("[DEBUG] GetMaterials called with classroomId=%s, folderId=%s, path=%s\n",
+		classroomIDStr, folderIDStr, c.Request.URL.Path)
+
+	var classroomID, folderID uint64
 	var err error
+
+	// 获取classroom_id（必须参数，防止跨班级数据泄露）
+	if classroomIDStr == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数缺失"))
+		return
+	}
+
+	classroomID, err = strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		fmt.Printf("[DEBUG] ParseUint error: %v, input=%s\n", err, classroomIDStr)
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
 
 	// 支持字符串 'root' 表示根目录(folderId=0)
 	if folderIDStr == "root" {
@@ -1687,15 +1736,52 @@ func (h *Handler) GetMaterials(c *gin.Context) {
 	}
 
 	db := client.GetDB()
+
+	// 安全检查：验证folder并确保它属于指定的classroom
+	var folder model.ClassroomFolder
+	if folderID != 0 {
+		// 非根目录：验证folder存在且属于该classroom
+		if err := db.Where("id = ? AND classroom_id = ? AND status = 1", folderID, classroomID).First(&folder).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusOK, errorResponse(404, "文件夹不存在"))
+			} else {
+				c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			}
+			return
+		}
+	} else {
+		// 根目录：验证classroom存在
+		var classroom model.Classroom
+		if err := db.Where("id = ? AND status = 1", classroomID).First(&classroom).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+			} else {
+				c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			}
+			return
+		}
+	}
+
 	var materials []model.ClassroomMaterial
 
-	if err := db.Where("folder_id = ? AND status = 1", folderID).
+	// 直接使用classroom_id过滤，确保数据隔离
+	query := db.Where("classroom_id = ? AND status = 1", classroomID)
+
+	// 如果指定了folderId，进一步过滤
+	if folderID != 0 {
+		query = query.Where("folder_id = ?", folderID)
+	}
+
+	if err := query.
 		Preload("Creator").
 		Order("create_time DESC").
 		Find(&materials).Error; err != nil {
+		fmt.Printf("[DEBUG] 查询资料失败: %v, classroomID=%d, folderID=%d\n", err, classroomID, folderID)
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
+
+	fmt.Printf("[DEBUG] 查询到 %d 个资料, classroomID=%d, folderID=%d\n", len(materials), classroomID, folderID)
 
 	// 获取当前用户ID，用于权限查询
 	uid, exists := c.Get("userId")
@@ -1746,6 +1832,7 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 	}
 
 	db := client.GetDB()
+	logger := utils.GetLogger()
 
 	// 查询资料信息以获取文件路径
 	var material model.ClassroomMaterial
@@ -1756,6 +1843,23 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		}
 		return
+	}
+
+	// 删除COS上的文件及其预览缓存
+	cosService, err := service.NewCOSService()
+	if err == nil {
+		// 构建COS文件路径
+		cosPath := fmt.Sprintf("classroom/materials/%d/%d_%s", material.FolderID, material.ID, material.FileName)
+
+		// 删除COS文件和预览缓存（避免持续计费）
+		if err := cosService.DeleteMaterialAndCache(cosPath); err != nil {
+			logger.Warn("删除COS文件失败", zap.String("cosPath", cosPath), zap.Error(err))
+			// 继续执行，不因为COS删除失败而阻止本地删除
+		} else {
+			logger.Info("COS文件及预览缓存已删除", zap.String("cosPath", cosPath), zap.Uint64("material_id", material.ID))
+		}
+	} else {
+		logger.Warn("COS服务初始化失败，跳过COS文件删除", zap.Error(err))
 	}
 
 	// 删除磁盘上的文件
@@ -3662,6 +3766,7 @@ func (h *Handler) GetMaterialPermissions(c *gin.Context) {
 	materialIDStr := c.Param("materialId")
 	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
 	if err != nil {
+		logger.Error("materialId参数格式错误", zap.String("materialId", materialIDStr), zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
 		return
 	}
@@ -3672,36 +3777,57 @@ func (h *Handler) GetMaterialPermissions(c *gin.Context) {
 	var material model.ClassroomMaterial
 	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
+			logger.Error("资料不存在", zap.Uint64("material_id", materialID))
 			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
 		} else {
-			logger.Error("查询资料失败", zap.Error(err))
+			logger.Error("查询资料失败", zap.Uint64("material_id", materialID), zap.Error(err))
 			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		}
 		return
 	}
 
+	logger.Info("开始获取资料权限", zap.Uint64("material_id", materialID), zap.String("file_name", material.FileName))
+
 	// 获取文件夹所在的班级
 	var folder model.ClassroomFolder
 	if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
-		logger.Error("查询文件夹失败", zap.Error(err))
+		logger.Error("查询文件夹失败", zap.Uint64("folder_id", material.FolderID), zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
+
+	logger.Info("获取班级学生列表",
+		zap.Uint64("material_id", materialID),
+		zap.Uint64("folder_id", material.FolderID),
+		zap.Uint64("classroom_id", folder.ClassroomID))
 
 	// 获取班级的所有学生
 	var students []model.ClassroomStudent
 	if err := db.Where("classroom_id = ? AND status = 1", folder.ClassroomID).
 		Preload("User").
 		Find(&students).Error; err != nil {
-		logger.Error("查询学生列表失败", zap.Error(err))
+		logger.Error("查询学生列表失败",
+			zap.Uint64("classroom_id", folder.ClassroomID),
+			zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
+	}
+
+	logger.Info("查询学生列表成功",
+		zap.Uint64("classroom_id", folder.ClassroomID),
+		zap.Int("student_count", len(students)))
+
+	// 如果没有学生，记录详细信息
+	if len(students) == 0 {
+		logger.Warn("班级中没有学生",
+			zap.Uint64("classroom_id", folder.ClassroomID),
+			zap.Uint64("material_id", materialID))
 	}
 
 	// 获取该资料的所有权限设置
 	var permissions []model.ClassroomMaterialPermission
 	if err := db.Where("material_id = ?", materialID).Find(&permissions).Error; err != nil {
-		logger.Error("查询权限设置失败", zap.Error(err))
+		logger.Error("查询权限设置失败", zap.Uint64("material_id", materialID), zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
 		return
 	}
@@ -3744,7 +3870,11 @@ func (h *Handler) GetMaterialPermissions(c *gin.Context) {
 		result = append(result, perm)
 	}
 
-	logger.Info("获取资料权限设置成功", zap.Uint64("material_id", materialID), zap.Int("student_count", len(result)))
+	logger.Info("获取资料权限设置成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("file_name", material.FileName),
+		zap.Int("student_count", len(result)),
+		zap.Int("permission_count", len(permissions)))
 	c.JSON(http.StatusOK, successResponse(result))
 }
 
@@ -4309,4 +4439,387 @@ func (h *Handler) GetMaterialPDFBinary(c *gin.Context) {
 		zap.Uint64("material_id", materialID),
 		zap.String("filename", material.FileName),
 		zap.String("uid", uid.(string)))
+}
+
+// ==================== PPT预览功能 - Office Online支持 ====================
+
+// 临时预览令牌结构
+type PreviewToken struct {
+	MaterialID uint64 `json:"materialId"`
+	UID        string `json:"uid"`
+	ExpireAt   int64  `json:"expireAt"`
+}
+
+// 生成预览令牌（使用HMAC-SHA256签名）
+func generatePreviewToken(materialID uint64, uid string, secret string) string {
+	expireAt := time.Now().Add(5 * time.Minute).Unix()
+
+	// 构建令牌数据
+	data := fmt.Sprintf("%d|%s|%d", materialID, uid, expireAt)
+
+	// 使用HMAC-SHA256签名
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(data))
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	// 组合数据和签名
+	tokenData := fmt.Sprintf("%s|%s", data, signature)
+
+	// Base64编码
+	return base64.URLEncoding.EncodeToString([]byte(tokenData))
+}
+
+// 验证预览令牌
+func verifyPreviewToken(token string, secret string) (*PreviewToken, error) {
+	// Base64解码
+	tokenBytes, err := base64.URLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token format")
+	}
+
+	tokenStr := string(tokenBytes)
+	parts := strings.Split(tokenStr, "|")
+	if len(parts) != 4 {
+		return nil, fmt.Errorf("invalid token structure")
+	}
+
+	// 解析数据
+	materialID, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid material ID")
+	}
+
+	uid := parts[1]
+	expireAt, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid expire time")
+	}
+
+	signature := parts[3]
+
+	// 检查过期时间
+	if time.Now().Unix() > expireAt {
+		return nil, fmt.Errorf("token expired")
+	}
+
+	// 重新计算签名验证
+	data := fmt.Sprintf("%d|%s|%d", materialID, uid, expireAt)
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(data))
+	expectedSignature := hex.EncodeToString(h.Sum(nil))
+
+	if signature != expectedSignature {
+		return nil, fmt.Errorf("invalid token signature")
+	}
+
+	return &PreviewToken{
+		MaterialID: materialID,
+		UID:        uid,
+		ExpireAt:   expireAt,
+	}, nil
+}
+
+// GenerateMaterialPreviewToken 生成资料预览临时令牌
+func (h *Handler) GenerateMaterialPreviewToken(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	// 获取当前用户ID
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 检查是否为Office文件
+	fileType := strings.ToLower(strings.TrimPrefix(filepath.Ext(material.FileName), "."))
+	if fileType != "ppt" && fileType != "pptx" && fileType != "doc" &&
+		fileType != "docx" && fileType != "xls" && fileType != "xlsx" {
+		c.JSON(http.StatusOK, errorResponse(400, "该文件类型不支持此预览方式"))
+		return
+	}
+
+	// 检查用户角色 - 班级教师和管理员自动拥有所有资料的预览权限
+	var classroomRoles []model.ClassroomUserRole
+	if err := db.Where("uid = ?", uid.(string)).Find(&classroomRoles).Error; err != nil {
+		logger.Error("查询用户角色失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询用户角色失败"))
+		return
+	}
+
+	// 提取角色列表
+	roleList := make([]string, len(classroomRoles))
+	for i, r := range classroomRoles {
+		roleList[i] = r.Role
+	}
+
+	// 检查是否为教师或管理员
+	isTeacherOrAdmin := false
+	for _, role := range roleList {
+		if role == "teacher" || role == "admin" {
+			isTeacherOrAdmin = true
+			break
+		}
+	}
+
+	// 同时检查 HOJ 系统管理员角色
+	hojRoles, err := middlewarepkg.GetUserRoles(db, uid.(string))
+	if err == nil {
+		if middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleRoot) ||
+			middlewarepkg.HasRole(hojRoles, middlewarepkg.RoleAdmin) {
+			isTeacherOrAdmin = true
+		}
+	}
+
+	if !isTeacherOrAdmin {
+		// 学生需要检查权限记录
+		var permission model.ClassroomMaterialPermission
+		err = db.Where("material_id = ? AND student_uid IS NULL", materialID).
+			First(&permission).Error
+
+		// 如果没有全局权限，检查用户特定权限
+		if err != nil {
+			err = db.Where("material_id = ? AND student_uid = ?", materialID, uid.(string)).
+				First(&permission).Error
+		}
+
+		if err != nil {
+			logger.Warn("学生没有权限记录",
+				zap.Uint64("material_id", materialID),
+				zap.String("uid", uid.(string)))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有权限查看该资料"))
+			return
+		}
+
+		if permission.CanPreview != 1 {
+			logger.Warn("学生没有预览权限",
+				zap.Uint64("material_id", materialID),
+				zap.String("uid", uid.(string)))
+			c.JSON(http.StatusOK, errorResponse(403, "您没有预览权限"))
+			return
+		}
+	}
+
+	// 生成临时预览令牌
+	secret := "histoj-preview-token-secret" // TODO: 从配置文件读取
+	token := generatePreviewToken(materialID, uid.(string), secret)
+
+	// 构建预览URL（使用相对路径，Office Online会完整访问）
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	host := c.Request.Host
+	previewURL := fmt.Sprintf("%s://%s/api/classroom/material/preview/%s", scheme, host, token)
+
+	logger.Info("生成预览令牌成功",
+		zap.Uint64("material_id", materialID),
+		zap.String("uid", uid.(string)))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"previewUrl": previewURL,
+		"token":      token,
+	}))
+}
+
+// PreviewMaterialWithToken 使用临时令牌预览资料（供Office Online等服务访问）
+func (h *Handler) PreviewMaterialWithToken(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	token := c.Param("token")
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+		return
+	}
+
+	// 验证令牌
+	secret := "histoj-preview-token-secret" // TODO: 从配置文件读取
+	previewToken, err := verifyPreviewToken(token, secret)
+	if err != nil {
+		logger.Warn("预览令牌验证失败", zap.String("token", token), zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", previewToken.MaterialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Material not found"})
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Query failed"})
+		}
+		return
+	}
+
+	// 构建文件路径
+	filePath := "." + material.FilePath
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Error("文件不存在", zap.String("path", filePath))
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// 获取文件扩展名并设置正确的Content-Type
+	ext := strings.ToLower(filepath.Ext(material.FileName))
+	var contentType string
+	switch ext {
+	case ".ppt", ".pptx":
+		contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+		if ext == ".ppt" {
+			contentType = "application/vnd.ms-powerpoint"
+		}
+	case ".doc", ".docx":
+		contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+		if ext == ".doc" {
+			contentType = "application/msword"
+		}
+	case ".xls", ".xlsx":
+		contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+		if ext == ".xls" {
+			contentType = "application/vnd.ms-excel"
+		}
+	default:
+		contentType = "application/octet-stream"
+	}
+
+	// 设置安全响应头
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", material.FileName))
+	c.Header("Cache-Control", "public, max-age=3600") // 增加缓存时间到1小时
+	c.Header("X-Content-Type-Options", "nosniff")
+	// 允许 Office Online 跨域访问
+	c.Header("X-Frame-Options", "ALLOW-FROM https://view.officeapps.live.com")
+	c.Header("Content-Security-Policy", "frame-ancestors 'self' https://view.officeapps.live.com")
+	// 支持断点续传，加快大文件传输
+	c.Header("Accept-Ranges", "bytes")
+
+	// 返回文件
+	c.File(filePath)
+
+	logger.Info("预览文件访问成功",
+		zap.Uint64("material_id", material.ID),
+		zap.String("filename", material.FileName),
+		zap.String("uid", previewToken.UID))
+}
+
+// ==================== 腾讯云COS文档预览 ====================
+
+// GetCOSPreviewUrl 获取腾讯云COS文档预览URL
+func (h *Handler) GetCOSPreviewUrl(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	materialIDStr := c.Param("materialId")
+	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询资料信息
+	var material model.ClassroomMaterial
+	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
+		} else {
+			logger.Error("查询资料失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 初始化COS服务
+	cosService, err := service.NewCOSService()
+	if err != nil {
+		logger.Error("初始化COS服务失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "COS服务初始化失败"))
+		return
+	}
+
+	logger.Info("COS配置信息",
+		zap.String("bucket", config.GlobalConfig.COS.Bucket),
+		zap.String("region", config.GlobalConfig.COS.Region))
+
+	// 构建COS文件路径（按文件夹ID组织）
+	cosPath := fmt.Sprintf("classroom/materials/%d/%d_%s", material.FolderID, material.ID, material.FileName)
+
+	logger.Info("准备处理COS文件",
+		zap.Uint64("material_id", material.ID),
+		zap.String("file_name", material.FileName),
+		zap.Uint64("folder_id", material.FolderID),
+		zap.String("cos_path", cosPath))
+
+	// 检查文件是否已在COS
+	exists, err := cosService.IsFileExists(cosPath)
+	var fileURL string
+
+	if !exists {
+		// 文件不在COS，需要上传
+		localPath := "." + material.FilePath
+		if _, err := os.Stat(localPath); os.IsNotExist(err) {
+			logger.Error("本地文件不存在", zap.String("path", localPath))
+			c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
+			return
+		}
+
+		fileURL, err := cosService.UploadFile(localPath, cosPath)
+		if err != nil {
+			logger.Error("上传到COS失败", zap.Error(err), zap.String("localPath", localPath))
+			c.JSON(http.StatusOK, errorResponse(500, "上传到COS失败"))
+			return
+		}
+
+		logger.Info("文件已上传到COS",
+			zap.Uint64("material_id", material.ID),
+			zap.String("cos_path", cosPath),
+			zap.String("cos_url", fileURL))
+	} else {
+		// 文件已在COS，直接使用公共URL
+		fileURL = fmt.Sprintf("https://%s.cos.%s.myqcloud.com/%s",
+			config.GlobalConfig.COS.Bucket,
+			config.GlobalConfig.COS.Region,
+			cosPath)
+		logger.Info("文件已在COS，直接使用",
+			zap.Uint64("material_id", material.ID),
+			zap.String("cos_path", cosPath))
+	}
+
+	// 生成数据万象文档预览URL
+	previewURL := cosService.GetDocPreviewURL(fileURL)
+
+	logger.Info("返回预览URL",
+		zap.String("preview_url", previewURL),
+		zap.String("cos_url", fileURL),
+		zap.Bool("uploaded", !exists))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"previewUrl": previewURL,
+		"cosUrl":     fileURL,
+		"uploaded":   !exists,
+	}))
 }

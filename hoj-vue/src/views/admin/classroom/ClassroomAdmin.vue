@@ -329,11 +329,10 @@ export default {
           await this.loadClassroomTeachers()
           // 同时更新列表中的班级信息
           await this.loadClassrooms()
-        } else {
-          this.$message.error(res.msg || '添加教师失败')
         }
+        // 注意：错误时的消息提示已由 axios 拦截器处理，无需重复显示
       } catch (error) {
-        this.$message.error('添加教师失败')
+        // axios 拦截器已处理错误提示，这里只记录日志
         console.error('添加教师失败:', error)
       } finally {
         this.addingTeacher = false
@@ -417,11 +416,10 @@ export default {
             if (res.code === 200) {
               this.$message.success('移除教师成功')
               await this.loadClassroomTeachers()
-            } else {
-              this.$message.error(res.msg || '移除教师失败')
             }
+            // 注意：错误时的消息提示已由 axios 拦截器处理，无需重复显示
           } catch (error) {
-            this.$message.error('移除教师失败')
+            // axios 拦截器已处理错误提示，这里只记录日志
             console.error('移除教师失败:', error)
           }
         }).catch(() => {})
@@ -438,11 +436,10 @@ export default {
         if (res.code === 200) {
           this.$message.success('更换主教师成功')
           await this.loadClassroomTeachers()
-        } else {
-          this.$message.error(res.msg || '更换主教师失败')
         }
+        // 注意：错误时的消息提示已由 axios 拦截器处理，无需重复显示
       } catch (error) {
-        this.$message.error('更换主教师失败')
+        // axios 拦截器已处理错误提示，这里只记录日志
         console.error('更换主教师失败:', error)
       }
     },

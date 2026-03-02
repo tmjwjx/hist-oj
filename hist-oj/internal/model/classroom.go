@@ -268,6 +268,7 @@ func (ClassroomFolder) TableName() string {
 // ClassroomMaterial 资料库文件表
 type ClassroomMaterial struct {
 	ID            uint64    `gorm:"primaryKey;autoIncrement;type:bigint unsigned" json:"id"`
+	ClassroomID   uint64    `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"` // 所属班级
 	FolderID      uint64    `gorm:"type:bigint unsigned;not null;index:idx_folder_id" json:"folderId"`
 	FileName      string    `gorm:"type:varchar(255);not null" json:"fileName"`
 	FileType      string    `gorm:"type:varchar(20);not null" json:"fileType"` // pdf, word, ppt, txt, mp4
