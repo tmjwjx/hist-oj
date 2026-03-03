@@ -316,12 +316,13 @@ export default {
       }
     },
     editHomework() {
-      // 不管是在管理员路由还是教师路由，都跳转到教师端的创建/编辑页面
-      // 因为 CreateHomework 组件会从路由参数获取 classroomId，不需要额外传递
+      // 跳转到创建/编辑页面，classroomId 作为路径参数传递
       this.$router.push({
         name: 'CreateHomework',
+        params: {
+          classroomId: this.classroomId
+        },
         query: {
-          classroomId: this.classroomId,
           editId: this.homework.id,
           isExamMode: this.homework.isExamMode || 0
         }

@@ -449,24 +449,169 @@
     </div>
 
     <!-- 添加 BingOJ 编程题对话框 -->
-    <el-dialog title="添加 BingOJ 编程题" :visible.sync="showAddProgrammingDialog" width="900px">
+    <el-dialog title="添加 BingOJ 编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
       <el-form :model="programmingForm" label-width="120px">
-        <el-form-item label="BingOJ 题目 ID" required>
-          <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
-          <el-button
-            type="primary"
-            icon="el-icon-search"
-            style="margin-left: 10px;"
-            @click="fetchProgrammingProblemInfo"
-            :loading="fetchingProblem"
-          >
-            获取题目信息
-          </el-button>
-          <div style="margin-top: 8px; color: #909399; font-size: 12px;">
-            <i class="el-icon-info"></i>
-            输入 BingOJ 题库中的题目 ID，点击"获取题目信息"预览题目内容
-          </div>
+        <el-form-item label="方式选择">
+          <el-radio-group v-model="programmingInputMode" @change="handleProgrammingInputModeChange">
+            <el-radio label="manual">手动输入题目ID</el-radio>
+            <el-radio label="tag">按标签选择题目</el-radio>
+          </el-radio-group>
         </el-form-item>
+
+        <!-- 手动输入模式 -->
+        <template v-if="programmingInputMode === 'manual'">
+          <el-form-item label="BingOJ 题目 ID" required>
+            <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
+            <el-button
+              type="primary"
+              icon="el-icon-search"
+              style="margin-left: 10px;"
+              @click="fetchProgrammingProblemInfo"
+              :loading="fetchingProblem"
+            >
+              获取题目信息
+            </el-button>
+            <div style="margin-top: 8px; color: #909399; font-size: 12px;">
+              <i class="el-icon-info"></i>
+              输入 BingOJ 题库中的题目 ID，点击"获取题目信息"预览题目内容
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 标签选择模式 -->
+        <template v-if="programmingInputMode === 'tag'">
+          <el-form-item label="选择标签">
+            <div v-if="problemTagsLoading" v-loading="true" style="min-height: 100px;"></div>
+            <div v-else>
+              <div v-for="(tagsAndClassification, index) in problemTagsAndClassificationList" :key="index" style="margin-bottom: 15px;">
+                <div style="margin-bottom: 8px; font-weight: bold; color: #606266;">
+                  {{ tagsAndClassification.classification ? tagsAndClassification.classification.name : '未分类' }}
+                </div>
+                <el-tag
+                  v-for="tag in tagsAndClassification.tagList"
+                  :key="tag.id"
+                  :type="isTagSelected(tag.id) ? 'primary' : 'info'"
+                  :color="isTagSelected(tag.id) ? (tag.color || '#409eff') : ''"
+                  effect="dark"
+                  @click="toggleProblemTag(tag)"
+                  style="margin-right: 10px; margin-bottom: 10px; cursor: pointer;"
+                  size="medium"
+                >
+                  {{ tag.name }}
+                </el-tag>
+              </div>
+            </div>
+          </el-form-item>
+
+          <!-- 已选标签显示 -->
+          <el-form-item v-if="selectedProblemTagIds.length > 0" label="已选标签">
+            <el-tag
+              v-for="tagId in selectedProblemTagIds"
+              :key="tagId"
+              closable
+              @close="removeSelectedTag(tagId)"
+              :type="getTagById(tagId)?.type || 'primary'"
+              :color="getTagById(tagId)?.color || '#409eff'"
+              effect="dark"
+              style="margin-right: 10px; margin-bottom: 10px;"
+              size="medium"
+            >
+              {{ getTagName(tagId) }}
+            </el-tag>
+            <el-button type="text" size="small" @click="clearAllTags" style="margin-left: 10px;">清空</el-button>
+          </el-form-item>
+
+          <!-- 标签筛选结果 -->
+          <el-form-item v-if="filteredProblemsByTag.length > 0" label="题目列表">
+            <el-alert
+              type="info"
+              :closable="false"
+              style="margin-bottom: 10px;"
+            >
+              <span slot="title">
+                已选标签下共有 <strong>{{ filteredProblemsTotal }}</strong> 道题目（当前显示前 {{ filteredProblemsByTag.length }} 道），点击题号可查看详情
+              </span>
+            </el-alert>
+            <el-table
+              :data="filteredProblemsByTag"
+              stripe
+              border
+              max-height="300"
+              style="width: 100%"
+            >
+              <el-table-column prop="problemId" label="题号" width="120">
+                <template slot-scope="{ row }">
+                  <el-link type="primary" @click="viewProblemDetail(row)">{{ row.problemId }}</el-link>
+                </template>
+              </el-table-column>
+              <el-table-column prop="title" label="题名" min-width="200" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="difficulty" label="难度" width="80" align="center">
+                <template slot-scope="{ row }">
+                  <el-tag :type="getDifficultyTagType(row.difficulty)" size="mini">
+                    {{ getDifficultyName(row.difficulty) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="120" align="center">
+                <template slot-scope="{ row }">
+                  <el-button type="primary" size="mini" @click="selectProblemByTag(row)">
+                    添加此题
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <!-- 分页 -->
+            <div style="margin-top: 15px; text-align: center;">
+              <el-pagination
+                v-if="filteredProblemsTotal > 0"
+                @current-change="handleFilteredProblemsPageChange"
+                :current-page="filteredProblemsCurrentPage"
+                :page-size="filteredProblemsPageSize"
+                :total="filteredProblemsTotal"
+                layout="prev, pager, next, total"
+                small
+              >
+              </el-pagination>
+            </div>
+          </el-form-item>
+        </template>
+
+        <!-- 题目详情查看弹窗 -->
+        <el-dialog
+          title="题目详情"
+          :visible.sync="showTagProblemDetailDialog"
+          width="900px"
+          append-to-body
+        >
+          <div v-if="tagProblemDetail" v-loading="loadingTagProblemDetail">
+            <div class="problem-detail-content">
+              <h3>{{ tagProblemDetail.title }}</h3>
+              <div class="problem-meta">
+                <el-tag size="small">题目ID: {{ tagProblemDetail.problemId }}</el-tag>
+                <el-tag size="small" type="info">时间限制: {{ tagProblemDetail.timeLimit }}ms</el-tag>
+                <el-tag size="small" type="warning">内存限制: {{ tagProblemDetail.memoryLimit }}MB</el-tag>
+                <el-tag size="small" type="success">难度: {{ getDifficultyName(tagProblemDetail.difficulty) }}</el-tag>
+              </div>
+              <div class="problem-body">
+                <div class="content-section">
+                  <h4>题目描述</h4>
+                  <div v-html="renderMarkdown(tagProblemDetail.description)"></div>
+                </div>
+                <div v-if="tagProblemDetail.input" class="content-section">
+                  <h4>输入格式</h4>
+                  <div v-html="renderMarkdown(tagProblemDetail.input)"></div>
+                </div>
+                <div v-if="tagProblemDetail.output" class="content-section">
+                  <h4>输出格式</h4>
+                  <div v-html="renderMarkdown(tagProblemDetail.output)"></div>
+                </div>
+              </div>
+              <div slot="footer" style="text-align: right;">
+                <el-button type="primary" @click="showTagProblemDetailDialog = false">关闭</el-button>
+              </div>
+            </div>
+          </div>
+        </el-dialog>
 
         <!-- 题目预览区域 -->
         <div v-if="programmingProblemPreview" class="problem-preview">
@@ -517,6 +662,7 @@
       <span slot="footer">
         <el-button @click="showAddProgrammingDialog = false">取消</el-button>
         <el-button
+          v-if="programmingInputMode === 'manual'"
           type="primary"
           @click="confirmAddProgrammingQuestion"
           :disabled="!programmingProblemPreview"
@@ -783,6 +929,7 @@
 import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
 import { getJudgeInfo } from '@/common/judgeTerminal'
+import api from '@/common/api'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 
@@ -826,6 +973,7 @@ export default {
       currentQuestion: null,
       // BingOJ 编程题相关
       showAddProgrammingDialog: false,
+      programmingInputMode: 'manual', // 'manual' 或 'tag'
       programmingForm: {
         problemId: '',
         score: 10
@@ -834,6 +982,19 @@ export default {
       programmingExamples: [],
       fetchingProblem: false,
       programmingProblemsCache: {}, // 缓存编程题信息，用于预览
+      // 标签筛选相关
+      problemTagsAndClassificationList: [],
+      selectedProblemTagIds: [], // 改为数组，支持多选
+      filteredProblemsByTag: [],
+      filteredProblemsTotal: 0, // 添加总数字段
+      problemTagsLoading: false,
+      // 标签题目分页
+      filteredProblemsCurrentPage: 1,
+      filteredProblemsPageSize: 30,
+      // 标签题目详情弹窗
+      showTagProblemDetailDialog: false,
+      tagProblemDetail: null,
+      loadingTagProblemDetail: false,
       // 导入试卷相关
       showImportPaperDialog: false,
       examPapers: [],
@@ -893,6 +1054,7 @@ export default {
   },
   mounted() {
     this.loadQuestionBank()
+    this.loadProblemTagsAndClassification()
     // 如果是编辑模式，加载作业数据
     if (this.isEditMode) {
       this.loadHomeworkData()
@@ -1367,6 +1529,258 @@ export default {
       this.programmingProblemPreview = null
       this.programmingExamples = []
     },
+    // ==================== 标签筛选相关方法 ====================
+    // 加载标签和分类
+    async loadProblemTagsAndClassification() {
+      this.problemTagsLoading = true
+      try {
+        const res = await api.getProblemTagsAndClassification('ME')
+        if (res && res.data && res.data.data) {
+          this.problemTagsAndClassificationList = res.data.data
+        }
+      } catch (error) {
+        console.error('加载标签失败:', error)
+      } finally {
+        this.problemTagsLoading = false
+      }
+    },
+    // 切换输入模式
+    handleProgrammingInputModeChange(mode) {
+      if (mode === 'tag') {
+        // 切换到标签模式时，清空手动输入的内容
+        this.programmingForm.problemId = ''
+        this.programmingProblemPreview = null
+        this.programmingExamples = []
+      } else {
+        // 切换到手动模式时，清空标签选择的内容
+        this.selectedProblemTagIds = []
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+      }
+    },
+    // 检查标签是否已选中
+    isTagSelected(tagId) {
+      return this.selectedProblemTagIds.includes(tagId)
+    },
+    // 切换标签选中状态
+    async toggleProblemTag(tag) {
+      const index = this.selectedProblemTagIds.indexOf(tag.id)
+      if (index > -1) {
+        // 已选中，取消选中
+        this.selectedProblemTagIds.splice(index, 1)
+      } else {
+        // 未选中，添加到已选列表
+        this.selectedProblemTagIds.push(tag.id)
+      }
+      // 重置到第一页并重新加载题目列表
+      this.filteredProblemsCurrentPage = 1
+      await this.loadProblemsByTags()
+    },
+    // 移除选中的标签
+    removeSelectedTag(tagId) {
+      const index = this.selectedProblemTagIds.indexOf(tagId)
+      if (index > -1) {
+        this.selectedProblemTagIds.splice(index, 1)
+        this.filteredProblemsCurrentPage = 1
+        this.loadProblemsByTags()
+      }
+    },
+    // 清空所有标签
+    clearAllTags() {
+      this.selectedProblemTagIds = []
+      this.filteredProblemsByTag = []
+      this.filteredProblemsTotal = 0
+      this.filteredProblemsCurrentPage = 1
+    },
+    // 根据已选标签加载题目
+    async loadProblemsByTags() {
+      if (this.selectedProblemTagIds.length === 0) {
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+        return
+      }
+
+      try {
+        const res = await api.getProblemList({
+          oj: 'ME',
+          tagId: this.selectedProblemTagIds.join(','),
+          limit: this.filteredProblemsPageSize,
+          currentPage: this.filteredProblemsCurrentPage
+        })
+
+        if (res && res.data && res.data.data) {
+          this.filteredProblemsByTag = res.data.data.records || []
+          this.filteredProblemsTotal = res.data.data.total || 0
+        } else {
+          this.filteredProblemsByTag = []
+          this.filteredProblemsTotal = 0
+        }
+      } catch (error) {
+        console.error('获取题目列表失败:', error)
+        this.$message.error('获取题目列表失败')
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+      }
+    },
+    // 标签题目分页改变
+    async handleFilteredProblemsPageChange(page) {
+      this.filteredProblemsCurrentPage = page
+      await this.loadProblemsByTags()
+    },
+    // 获取标签名称
+    getTagName(tagId) {
+      for (const group of this.problemTagsAndClassificationList) {
+        const tag = group.tagList.find(t => t.id === tagId)
+        if (tag) return tag.name
+      }
+      return ''
+    },
+    // 获取标签对象
+    getTagById(tagId) {
+      for (const group of this.problemTagsAndClassificationList) {
+        const tag = group.tagList.find(t => t.id === tagId)
+        if (tag) return tag
+      }
+      return null
+    },
+    // 查看标签下的题目详情
+    async viewProblemDetail(problem) {
+      this.loadingTagProblemDetail = true
+      this.showTagProblemDetailDialog = true
+      this.tagProblemDetail = null
+
+      try {
+        const userInfo = this.$store.getters.userInfo
+        const token = localStorage.getItem('token')
+
+        if (!userInfo || !token) {
+          this.$message.warning('请先登录')
+          this.showTagProblemDetailDialog = false
+          return
+        }
+
+        const res = await getJudgeInfo({
+          pid: problem.problemId,
+          cid: '0',
+          mode: 'normal',
+          username: userInfo.username,
+          token: token,
+          password: ''
+        })
+
+        if (res.code === 200 && res.data) {
+          this.tagProblemDetail = res.data.problem
+        } else {
+          this.$message.error('获取题目详情失败')
+        }
+      } catch (error) {
+        console.error('获取题目详情失败:', error)
+        this.$message.error('获取题目详情失败')
+      } finally {
+        this.loadingTagProblemDetail = false
+      }
+    },
+    // 使用查看的题目
+    useThisProblem() {
+      if (!this.tagProblemDetail) return
+
+      this.programmingForm.problemId = this.tagProblemDetail.problemId
+      this.programmingInputMode = 'manual' // 切换回手动模式
+
+      // 获取题目信息
+      this.fetchProgrammingProblemInfo()
+
+      // 关闭详情弹窗
+      this.showTagProblemDetailDialog = false
+      this.$message.success('已选择题目')
+    },
+    // 通过标签选择题目（直接添加）
+    async selectProblemByTag(problem) {
+      this.programmingForm.problemId = problem.problemId
+
+      // 获取完整题目信息
+      const userInfo = this.$store.getters.userInfo
+      const token = localStorage.getItem('token')
+
+      if (!userInfo || !userInfo.username || !token) {
+        this.$message.warning('请先登录')
+        return
+      }
+
+      this.fetchingProblem = true
+      try {
+        const requestData = {
+          pid: this.programmingForm.problemId,
+          cid: '0',
+          mode: 'normal',
+          username: userInfo.username,
+          token: token,
+          password: ''
+        }
+
+        const res = await getJudgeInfo(requestData)
+
+        if (res.code === 200 && res.data) {
+          const problemData = res.data
+
+          // 检查是否已经添加过该题目
+          const exists = this.selectedQuestions.some(q => q.problemId === this.programmingForm.problemId)
+          if (exists) {
+            this.$message.warning('该编程题已添加')
+            return
+          }
+
+          // 直接添加编程题
+          const tempQuestion = {
+            id: `hoj_${this.programmingForm.problemId}`,
+            problemId: this.programmingForm.problemId,
+            title: problemData.problem.title,
+            type: 'programming',
+            difficulty: 5,
+            score: this.programmingForm.score,
+            content: `BingOJ 题目 ID: ${this.programmingForm.problemId}`
+          }
+
+          this.selectedQuestions.push(tempQuestion)
+          this.$message.success(`已添加题目：${problem.problemId} - ${problem.title}`)
+          // 清空表单以便继续添加，但保持对话框打开
+          this.programmingForm.problemId = ''
+          this.programmingProblemPreview = null
+          this.programmingExamples = []
+        } else {
+          this.$message.error(res.message || '获取题目信息失败')
+        }
+      } catch (error) {
+        console.error('获取题目信息失败:', error)
+        this.$message.error('获取题目信息失败')
+      } finally {
+        this.fetchingProblem = false
+      }
+    },
+    // 获取难度标签类型
+    getDifficultyTagType(difficulty) {
+      const typeMap = {
+        0: 'info',     // 入门
+        1: 'success',  // 简单
+        2: '',         // 中等（默认灰色）
+        3: 'warning',  // 困难
+        4: 'danger',   // 大师
+        5: 'danger'    // 专家
+      }
+      return typeMap[difficulty] || ''
+    },
+    // 获取难度名称（6个梯度）
+    getDifficultyName(difficulty) {
+      const nameMap = {
+        0: '入门',
+        1: '简单',
+        2: '中等',
+        3: '困难',
+        4: '大师',
+        5: '专家'
+      }
+      return nameMap[difficulty] || '未知'
+    },
     // 渲染 Markdown
     renderMarkdown(text) {
       if (!text) return ''
@@ -1512,7 +1926,27 @@ export default {
     },
 
     goBack() {
-      this.$router.go(-1)
+      // 如果是编辑模式，返回到作业详情页
+      if (this.isEditMode && this.editId) {
+        this.$router.push({
+          name: 'TeacherHomeworkDetail',
+          params: {
+            classroomId: this.classroomId,
+            homeworkId: this.editId
+          }
+        })
+      } else {
+        // 如果是创建模式，返回到作业列表页
+        this.$router.push({
+          name: 'TeacherHomework',
+          params: {
+            classroomId: this.classroomId
+          },
+          query: {
+            tab: 'homework'
+          }
+        })
+      }
     },
 
     // ==================== 导入试卷相关方法 ====================

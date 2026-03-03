@@ -491,20 +491,125 @@
     </el-dialog>
 
     <!-- 添加编程题对话框 -->
-    <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="900px">
+    <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
       <el-form :model="programmingForm" label-width="120px">
-        <el-form-item label="题目ID" required>
-          <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
-          <el-button
-            type="primary"
-            icon="el-icon-search"
-            style="margin-left: 10px;"
-            @click="fetchProgrammingProblemInfo"
-            :loading="fetchingProblem"
-          >
-            获取题目信息
-          </el-button>
+        <el-form-item label="方式选择">
+          <el-radio-group v-model="programmingInputMode" @change="handleProgrammingInputModeChange">
+            <el-radio label="manual">手动输入题目ID</el-radio>
+            <el-radio label="tag">按标签选择题目</el-radio>
+          </el-radio-group>
         </el-form-item>
+
+        <!-- 手动输入模式 -->
+        <template v-if="programmingInputMode === 'manual'">
+          <el-form-item label="题目ID" required>
+            <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
+            <el-button
+              type="primary"
+              icon="el-icon-search"
+              style="margin-left: 10px;"
+              @click="fetchProgrammingProblemInfo"
+              :loading="fetchingProblem"
+            >
+              获取题目信息
+            </el-button>
+          </el-form-item>
+        </template>
+
+        <!-- 标签选择模式 -->
+        <template v-if="programmingInputMode === 'tag'">
+          <el-form-item label="选择标签">
+            <div v-if="problemTagsLoading" v-loading="true" style="min-height: 100px;"></div>
+            <div v-else>
+              <div v-for="(tagsAndClassification, index) in problemTagsAndClassificationList" :key="index" style="margin-bottom: 15px;">
+                <div style="margin-bottom: 8px; font-weight: bold; color: #606266;">
+                  {{ tagsAndClassification.classification ? tagsAndClassification.classification.name : '未分类' }}
+                </div>
+                <el-tag
+                  v-for="tag in tagsAndClassification.tagList"
+                  :key="tag.id"
+                  :type="isTagSelected(tag.id) ? 'primary' : 'info'"
+                  :color="isTagSelected(tag.id) ? (tag.color || '#409eff') : ''"
+                  effect="dark"
+                  @click="toggleProblemTag(tag)"
+                  style="margin-right: 10px; margin-bottom: 10px; cursor: pointer;"
+                  size="medium"
+                >
+                  {{ tag.name }}
+                </el-tag>
+              </div>
+            </div>
+          </el-form-item>
+
+          <!-- 已选标签显示 -->
+          <el-form-item v-if="selectedProblemTagIds.length > 0" label="已选标签">
+            <el-tag
+              v-for="tagId in selectedProblemTagIds"
+              :key="tagId"
+              closable
+              @close="removeSelectedTag(tagId)"
+              style="margin-right: 10px;"
+              type="primary"
+            >
+              {{ getTagName(tagId) }}
+            </el-tag>
+            <el-button type="text" size="small" @click="clearAllTags" style="margin-left: 10px;">清空</el-button>
+          </el-form-item>
+
+          <!-- 标签筛选结果 -->
+          <el-form-item v-if="filteredProblemsByTag.length > 0" label="题目列表">
+            <el-alert
+              type="info"
+              :closable="false"
+              style="margin-bottom: 10px;"
+            >
+              <span slot="title">
+                已选标签下共有 {{ filteredProblemsTotal }} 道题目（当前显示前 {{ filteredProblemsByTag.length }} 道），点击题号查看详情
+              </span>
+            </el-alert>
+            <el-table
+              :data="filteredProblemsByTag"
+              stripe
+              border
+              max-height="300"
+              style="width: 100%"
+            >
+              <el-table-column prop="problemId" label="题号" width="120">
+                <template slot-scope="{ row }">
+                  <el-link type="primary" @click="viewTagProblemDetail(row)">{{ row.problemId }}</el-link>
+                </template>
+              </el-table-column>
+              <el-table-column prop="title" label="题名" min-width="200" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="difficulty" label="难度" width="80" align="center">
+                <template slot-scope="{ row }">
+                  <el-tag :type="getDifficultyTagType(row.difficulty)" size="mini">
+                    {{ getDifficultyName(row.difficulty) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="120" align="center">
+                <template slot-scope="{ row }">
+                  <el-button type="primary" size="mini" @click="selectProblemByTag(row)">
+                    添加此题
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <!-- 分页 -->
+            <div style="margin-top: 15px; text-align: center;">
+              <el-pagination
+                v-if="filteredProblemsTotal > 0"
+                @current-change="handleFilteredProblemsPageChange"
+                :current-page="filteredProblemsCurrentPage"
+                :page-size="filteredProblemsPageSize"
+                :total="filteredProblemsTotal"
+                layout="prev, pager, next, total"
+                small
+              >
+              </el-pagination>
+            </div>
+          </el-form-item>
+        </template>
 
         <!-- 题目预览区域 -->
         <div v-if="programmingProblemPreview" class="problem-preview">
@@ -541,6 +646,7 @@
       <span slot="footer">
         <el-button @click="showAddProgrammingDialog = false">取消</el-button>
         <el-button
+          v-if="programmingInputMode === 'manual'"
           type="primary"
           @click="confirmAddProgrammingQuestion"
           :disabled="!programmingProblemPreview"
@@ -631,6 +737,80 @@
         <el-button @click="showProblemDetailDialog = false">关闭</el-button>
       </span>
     </el-dialog>
+
+    <!-- 标签题目详情对话框 -->
+    <el-dialog
+      title="题目详情"
+      :visible.sync="showTagProblemDetailDialog"
+      width="900px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <div v-if="loadingTagProblemDetail" v-loading="true" style="min-height: 200px;"></div>
+      <div v-else-if="tagProblemDetail">
+        <div class="problem-detail-view">
+          <h3 style="margin-top: 0;" v-html="renderMarkdown(tagProblemDetail.problem.title)"></h3>
+
+          <div class="problem-meta-info" style="margin: 15px 0;">
+            <el-tag size="small" type="info">
+              <span v-html="renderMarkdown('**时间限制:** ' + tagProblemDetail.problem.timeLimit + 'ms')"></span>
+            </el-tag>
+            <el-tag size="small" type="warning">
+              <span v-html="renderMarkdown('**内存限制:** ' + tagProblemDetail.problem.memoryLimit + 'MB')"></span>
+            </el-tag>
+            <el-tag size="small" type="primary">
+              <span v-html="renderMarkdown('**判题模式:** ' + getJudgeModeText(tagProblemDetail.problem.judgeMode))"></span>
+            </el-tag>
+            <el-tag size="small" type="success">
+              <span v-html="renderMarkdown('**难度:** ' + getDifficultyName(tagProblemDetail.problem.difficulty))"></span>
+            </el-tag>
+          </div>
+
+          <el-divider></el-divider>
+
+          <div class="problem-section">
+            <h4>题目描述</h4>
+            <div class="problem-description" v-html="renderMarkdown(tagProblemDetail.problem.description)"></div>
+          </div>
+
+          <div class="problem-section" v-if="tagProblemDetail.problem.input">
+            <h4>输入格式</h4>
+            <div class="problem-io" v-html="renderMarkdown(tagProblemDetail.problem.input)"></div>
+          </div>
+
+          <div class="problem-section" v-if="tagProblemDetail.problem.output">
+            <h4>输出格式</h4>
+            <div class="problem-io" v-html="renderMarkdown(tagProblemDetail.problem.output)"></div>
+          </div>
+
+          <div class="problem-section" v-if="tagProblemDetail.problem.hint">
+            <h4>提示</h4>
+            <div class="problem-hint" v-html="renderMarkdown(tagProblemDetail.problem.hint)"></div>
+          </div>
+
+          <div class="problem-section" v-if="parseExamples(tagProblemDetail.problem.examples).length > 0">
+            <h4>样例</h4>
+            <div v-for="(example, index) in parseExamples(tagProblemDetail.problem.examples)" :key="index" class="problem-example">
+              <div class="example-item">
+                <strong v-html="renderMarkdown('样例 ' + (index + 1))"></strong>
+                <div class="example-block">
+                  <div class="example-label" v-html="renderMarkdown('**输入：**')"></div>
+                  <div class="example-content" v-html="renderMarkdown(example.input)"></div>
+                </div>
+                <div class="example-block">
+                  <div class="example-label" v-html="renderMarkdown('**输出：**')"></div>
+                  <div class="example-content" v-html="renderMarkdown(example.output)"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <span slot="footer">
+        <el-button type="primary" @click="showTagProblemDetailDialog = false">关闭</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -681,12 +861,26 @@ export default {
       questionBankTotal: 0,
       // 编程题相关
       showAddProgrammingDialog: false,
+      programmingInputMode: 'manual', // 'manual' 或 'tag'
       programmingForm: {
         problemId: '',
         score: 10
       },
       programmingProblemPreview: null,
       fetchingProblem: false,
+      // 标签筛选相关
+      problemTagsAndClassificationList: [],
+      selectedProblemTagIds: [], // 改为数组，支持多选
+      filteredProblemsByTag: [],
+      filteredProblemsTotal: 0, // 添加总数字段
+      problemTagsLoading: false,
+      // 标签题目分页
+      filteredProblemsCurrentPage: 1,
+      filteredProblemsPageSize: 30,
+      // 标签题目详情弹窗
+      showTagProblemDetailDialog: false,
+      tagProblemDetail: null,
+      loadingTagProblemDetail: false,
       // 查看编程题详情
       showProblemDetailDialog: false,
       currentViewProblem: null,
@@ -698,6 +892,7 @@ export default {
   },
   mounted() {
     this.loadPapers()
+    this.loadProblemTagsAndClassification()
   },
   methods: {
     async loadPapers() {
@@ -1124,6 +1319,211 @@ export default {
         score: 10
       }
       this.programmingProblemPreview = null
+    },
+    // ==================== 标签筛选相关方法 ====================
+    // 加载标签和分类
+    async loadProblemTagsAndClassification() {
+      this.problemTagsLoading = true
+      try {
+        const res = await problemApi.getProblemTagsAndClassification('ME')
+        if (res && res.data && res.data.data) {
+          this.problemTagsAndClassificationList = res.data.data
+        }
+      } catch (error) {
+        console.error('加载标签失败:', error)
+      } finally {
+        this.problemTagsLoading = false
+      }
+    },
+    // 切换输入模式
+    handleProgrammingInputModeChange(mode) {
+      if (mode === 'tag') {
+        // 切换到标签模式时，清空手动输入的内容
+        this.programmingForm.problemId = ''
+        this.programmingProblemPreview = null
+      } else {
+        // 切换到手动模式时，清空标签选择的内容
+        this.selectedProblemTagIds = []
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+        this.filteredProblemsCurrentPage = 1
+      }
+    },
+    // 判断标签是否已选中
+    isTagSelected(tagId) {
+      return this.selectedProblemTagIds.includes(tagId)
+    },
+    // 切换标签选中状态（点击选择/取消）
+    async toggleProblemTag(tag) {
+      const index = this.selectedProblemTagIds.indexOf(tag.id)
+      if (index > -1) {
+        // 已选中，取消选择
+        this.selectedProblemTagIds.splice(index, 1)
+      } else {
+        // 未选中，添加到已选列表
+        this.selectedProblemTagIds.push(tag.id)
+      }
+      // 重置到第一页并重新加载题目列表
+      this.filteredProblemsCurrentPage = 1
+      await this.loadProblemsByTags()
+    },
+    // 移除已选标签
+    async removeSelectedTag(tagId) {
+      const index = this.selectedProblemTagIds.indexOf(tagId)
+      if (index > -1) {
+        this.selectedProblemTagIds.splice(index, 1)
+        this.filteredProblemsCurrentPage = 1
+        await this.loadProblemsByTags()
+      }
+    },
+    // 清空所有已选标签
+    clearAllTags() {
+      this.selectedProblemTagIds = []
+      this.filteredProblemsByTag = []
+      this.filteredProblemsTotal = 0
+      this.filteredProblemsCurrentPage = 1
+    },
+    // 根据已选标签加载题目列表
+    async loadProblemsByTags() {
+      if (this.selectedProblemTagIds.length === 0) {
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+        return
+      }
+
+      try {
+        const res = await problemApi.getProblemList({
+          oj: 'ME',
+          tagId: this.selectedProblemTagIds.join(','), // 传递逗号分隔的标签ID字符串
+          limit: this.filteredProblemsPageSize,
+          currentPage: this.filteredProblemsCurrentPage
+        })
+
+        if (res && res.data && res.data.data) {
+          this.filteredProblemsByTag = res.data.data.records || []
+          this.filteredProblemsTotal = res.data.data.total || 0
+        } else {
+          this.filteredProblemsByTag = []
+          this.filteredProblemsTotal = 0
+        }
+      } catch (error) {
+        console.error('获取题目列表失败:', error)
+        this.$message.error('获取题目列表失败')
+        this.filteredProblemsByTag = []
+        this.filteredProblemsTotal = 0
+      }
+    },
+    // 标签题目分页改变
+    async handleFilteredProblemsPageChange(page) {
+      this.filteredProblemsCurrentPage = page
+      await this.loadProblemsByTags()
+    },
+    // 获取标签名称
+    getTagName(tagId) {
+      const tag = this.getTagById(tagId)
+      return tag ? tag.name : ''
+    },
+    // 根据ID获取标签对象
+    getTagById(tagId) {
+      for (const group of this.problemTagsAndClassificationList) {
+        const tag = group.tagList.find(t => t.id === tagId)
+        if (tag) {
+          return tag
+        }
+      }
+      return null
+    },
+    // 查看标签题目的详情
+    async viewTagProblemDetail(problem) {
+      this.loadingTagProblemDetail = true
+      this.showTagProblemDetailDialog = true
+
+      try {
+        const res = await problemApi.getProblem(problem.problemId, '0', undefined)
+        if (res && res.status === 200 && res.data && res.data.data) {
+          this.tagProblemDetail = res.data.data
+        }
+      } catch (error) {
+        console.error('获取题目详情失败:', error)
+        this.$message.error('获取题目详情失败')
+      } finally {
+        this.loadingTagProblemDetail = false
+      }
+    },
+    // 使用标签查看的题目
+    useTagProblem() {
+      if (this.tagProblemDetail) {
+        this.programmingForm.problemId = this.tagProblemDetail.problem.problemId
+        this.programmingInputMode = 'manual'
+        this.fetchProgrammingProblemInfo()
+        this.showTagProblemDetailDialog = false
+      }
+    },
+    // 通过标签选择题目（直接添加）
+    async selectProblemByTag(problem) {
+      this.programmingForm.problemId = problem.problemId
+
+      // 获取完整题目信息
+      this.fetchingProblem = true
+      try {
+        const res = await problemApi.getProblem(this.programmingForm.problemId, '0', undefined)
+
+        if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
+          const problemData = res.data.data
+
+          // 检查是否已添加
+          if (this.editForm.questions.some(q => q.problemId === this.programmingForm.problemId)) {
+            this.$message.warning('该编程题已添加')
+            return
+          }
+
+          // 直接添加编程题
+          this.editForm.questions.push({
+            questionId: null,
+            problemId: this.programmingForm.problemId,
+            questionType: 'programming',
+            score: this.programmingForm.score,
+            title: problemData.problem.title,
+            problem: problemData.problem
+          })
+
+          this.$message.success(`已添加题目：${problem.problemId} - ${problem.title}`)
+          // 清空表单以便继续添加，但保持对话框打开
+          this.programmingForm.problemId = ''
+          this.programmingProblemPreview = null
+        } else {
+          this.$message.error('获取题目信息失败')
+        }
+      } catch (error) {
+        console.error('获取题目信息失败:', error)
+        this.$message.error('获取题目信息失败')
+      } finally {
+        this.fetchingProblem = false
+      }
+    },
+    // 获取难度标签类型
+    getDifficultyTagType(difficulty) {
+      const typeMap = {
+        0: 'info',     // 入门
+        1: 'success',  // 简单
+        2: '',         // 中等（默认灰色）
+        3: 'warning',  // 困难
+        4: 'danger',   // 大师
+        5: 'danger'    // 专家
+      }
+      return typeMap[difficulty] || ''
+    },
+    // 获取难度名称（6个梯度）
+    getDifficultyName(difficulty) {
+      const nameMap = {
+        0: '入门',
+        1: '简单',
+        2: '中等',
+        3: '困难',
+        4: '大师',
+        5: '专家'
+      }
+      return nameMap[difficulty] || '未知'
     },
     // 查看编程题详情
     viewProblemDetail(problem) {

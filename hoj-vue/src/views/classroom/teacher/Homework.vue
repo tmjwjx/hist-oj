@@ -196,10 +196,10 @@ export default {
           }
         })
       } else {
-        // 在教师端路由下，使用命名路由
+        // 在教师端路由下，使用命名路由，classroomId 和 homeworkId 作为路径参数
         this.$router.push({
           name: 'TeacherHomeworkDetail',
-          query: {
+          params: {
             classroomId: this.classroomId,
             homeworkId: homework.id
           }
