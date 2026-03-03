@@ -32,37 +32,25 @@ export default {
       const retryDelay = 200 // 每次重试间隔 200ms
 
       try {
-        // 获取当前用户的角色信息
-        const res = await api.getCurrentUserRoles()
+        // 使用store中的缓存角色数据，避免重复请求
+        await this.$store.dispatch('classroom/loadUserRoles')
 
-        if (res.data.code === 200) {
-          // res.data.data 是 ClassroomUserRole 对象数组，需要提取 role 字段
-          const roleObjects = res.data.data || []
-          const roles = roleObjects.map(r => r.role)
+        const roles = this.$store.state.classroom.userRoles || []
 
-          // 检查是否有教师或管理员角色
-          const hasPermission = roles.includes('teacher') || roles.includes('admin') || roles.includes('root') || roles.includes('problem_admin')
+        // 检查是否有教师或管理员角色
+        const hasPermission = roles.includes('teacher') || roles.includes('admin') || roles.includes('root') || roles.includes('problem_admin')
 
-          if (hasPermission) {
-            // 有权限，检查是否是重试调用
-            if (tryCount > 0) {
-              console.log(`[teacherAuth] 第 ${tryCount} 次重试，权限验证通过`)
-            } else {
-              // 第一次调用
-              console.log('[teacherAuth] 权限检查通过')
-            }
-            return true
-          }
+        if (hasPermission) {
+          // 有权限
+          return true
         } else {
           // 没有权限
           // 如果还有重试次数，尝试重试
-          if (tryCount < maxRetries) {
-            console.warn(`[teacherAuth] 权限验证失败，${retryDelay}ms 后第 ${tryCount + 1} 次重试`)
+          if (retryCount < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, retryDelay))
-            return this.checkTeacherPermission(tryCount + 1)
+            return this.checkTeacherPermission(retryCount + 1)
           } else {
             // 重试用尽，仍然失败
-            console.error('[teacherAuth] 权限验证失败，已重试 ' + maxRetries + ' 次')
             this.$message.error('您没有权限访问此页面')
             setTimeout(() => {
               // 跳转到教师 Dashboard 而不是根路径
@@ -73,13 +61,11 @@ export default {
         }
       } catch (error) {
         // 如果是网络错误或重试失败，也尝试重试
-        if (tryCount < maxRetries) {
-          console.error('[teacherAuth] 权限检查异常:', error)
-          console.warn(`[teacherAuth] ${retryDelay}ms 后第 ${tryCount + 1} 次重试`)
+        if (retryCount < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, retryDelay))
-          return this.checkTeacherPermission(tryCount + 1)
+          return this.checkTeacherPermission(retryCount + 1)
         } else {
-          console.error('[teacherAuth] 权限验证异常，已重试 ' + maxRetries + ' 次')
+          console.error('权限验证失败', error)
           this.$message.error('权限验证失败')
           setTimeout(() => {
             this.$router.push('/')

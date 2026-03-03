@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/client"
+	"github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/utils"
 )
@@ -1821,6 +1822,274 @@ func (h *Handler) GetQuestionDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(question))
 }
 
+// ==================== 管理员题库管理功能 ====================
+
+// AdminGetQuestionBank 管理员获取所有题库题目（包括公开和私有的）
+func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取查询参数
+	questionType := c.Query("type")
+	isSharedStr := c.Query("isShared")
+	searchField := c.Query("searchField") // 搜索字段：title, id, creator
+	keyword := c.Query("keyword")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	db := client.GetDB()
+
+	// 管理员可以看到所有题目（无论是否共享）
+	query := db.Model(&model.QuestionBank{}).Where("status = 1")
+
+	if questionType != "" {
+		query = query.Where("type = ?", questionType)
+	}
+
+	if isSharedStr != "" {
+		isShared, _ := strconv.Atoi(isSharedStr)
+		query = query.Where("is_shared = ?", isShared)
+	}
+
+	// 根据选择的字段进行搜索
+	if keyword != "" {
+		switch searchField {
+		case "id":
+			// 搜索题目ID
+			if questionID, err := strconv.ParseUint(keyword, 10, 64); err == nil {
+				query = query.Where("id = ?", questionID)
+			}
+		case "creator":
+			// 搜索创建者用户名
+			query = query.Where("creator_id IN (SELECT uuid FROM user_info WHERE username LIKE ?)", "%"+keyword+"%")
+		case "title":
+			// 搜索题目标题（默认）
+			fallthrough
+		default:
+			query = query.Where("title LIKE ?", "%"+keyword+"%")
+		}
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var questions []model.QuestionBank
+	if err := query.Preload("Creator").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Order("create_time DESC").
+		Find(&questions).Error; err != nil {
+		logger.Error("查询题库失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"total":     total,
+		"page":      page,
+		"limit":     limit,
+		"questions": questions,
+	}))
+}
+
+// AdminUpdateQuestion 管理员更新题目
+func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
+	logger := utils.GetLogger()
+	questionIDStr := c.Param("questionId")
+	questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "questionId参数格式错误"))
+		return
+	}
+
+	var req struct {
+		Title      *string `json:"title"`
+		Type       *string `json:"type"`
+		Content    *string `json:"content"`
+		Options    *string `json:"options"`
+		Answer     *string `json:"answer"`
+		Difficulty *int    `json:"difficulty"`
+		Score      *int    `json:"score"`
+		IsShared   *int    `json:"isShared"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查题目是否存在
+	var question model.QuestionBank
+	if err := db.Where("id = ? AND status = 1", questionID).First(&question).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		} else {
+			logger.Error("查询题目失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if req.Title != nil {
+		updates["title"] = *req.Title
+	}
+	if req.Type != nil {
+		updates["type"] = *req.Type
+	}
+	if req.Content != nil {
+		updates["content"] = *req.Content
+	}
+	if req.Options != nil {
+		updates["options"] = *req.Options
+	}
+	if req.Answer != nil {
+		updates["answer"] = *req.Answer
+	}
+	if req.Difficulty != nil {
+		updates["difficulty"] = *req.Difficulty
+	}
+	if req.Score != nil {
+		updates["score"] = *req.Score
+	}
+	if req.IsShared != nil {
+		updates["is_shared"] = *req.IsShared
+	}
+
+	if err := db.Model(&question).Updates(updates).Error; err != nil {
+		logger.Error("更新题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	logger.Info("管理员更新题目", zap.Uint64("id", questionID))
+	c.JSON(http.StatusOK, successResponse(question))
+}
+
+// AdminDeleteQuestion 管理员删除题目（软删除）
+func (h *Handler) AdminDeleteQuestion(c *gin.Context) {
+	logger := utils.GetLogger()
+	questionIDStr := c.Param("questionId")
+	questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "questionId参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查题目是否存在
+	var question model.QuestionBank
+	if err := db.Where("id = ? AND status = 1", questionID).First(&question).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		} else {
+			logger.Error("查询题目失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 软删除：更新status为0
+	if err := db.Model(&question).Update("status", 0).Error; err != nil {
+		logger.Error("删除题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	logger.Info("管理员删除题目", zap.Uint64("id", questionID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// AdminCreateQuestion 管理员创建题目
+func (h *Handler) AdminCreateQuestion(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	creatorID, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	var req struct {
+		Title      string `json:"title" binding:"required"`
+		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective"`
+		Content    string `json:"content" binding:"required"`
+		Options    string `json:"options"`
+		Answer     string `json:"answer"`
+		Difficulty int    `json:"difficulty"`
+		Score      int    `json:"score"`
+		IsShared   int    `json:"isShared"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 设置默认值
+	if req.Difficulty == 0 {
+		req.Difficulty = 1
+	}
+	if req.Score == 0 {
+		switch req.Type {
+		case "single_choice":
+			req.Score = 2
+		case "multiple_choice":
+			req.Score = 5
+		case "judge":
+			req.Score = 1
+		case "subjective":
+			req.Score = 5
+		default:
+			req.Score = 2
+		}
+	}
+	if req.IsShared == 0 {
+		req.IsShared = 0
+	}
+
+	db := client.GetDB()
+
+	question := &model.QuestionBank{
+		Title:      req.Title,
+		Type:       req.Type,
+		Content:    req.Content,
+		Difficulty: req.Difficulty,
+		Score:      req.Score,
+		CreatorID:  creatorID.(string),
+		IsShared:   req.IsShared,
+		Status:     1,
+	}
+
+	// 根据题型设置 Options 和 Answer
+	if req.Type == "single_choice" || req.Type == "multiple_choice" {
+		if req.Options != "" {
+			question.Options = &req.Options
+		}
+		question.Answer = req.Answer
+	} else if req.Type == "judge" {
+		question.Options = nil
+		question.Answer = req.Answer
+	} else if req.Type == "subjective" {
+		question.Options = nil
+		question.Answer = req.Answer
+	}
+
+	if err := db.Create(question).Error; err != nil {
+		logger.Error("创建题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "创建失败"))
+		return
+	}
+
+	logger.Info("管理员创建题目", zap.Uint64("id", question.ID), zap.String("type", req.Type))
+	c.JSON(http.StatusOK, successResponse(question))
+}
+
 // ==================== 辅助函数 ====================
 
 // generateClassCode 生成8位班级码
@@ -2381,3 +2650,578 @@ func (h *Handler) SearchTeachers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, successResponse(result))
 }
+
+// ==================== 试卷库功能 ====================
+
+// CreateExamPaper 创建试卷
+func (h *Handler) CreateExamPaper(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		Title         string                             `json:"title" binding:"required"`
+		Description   string                             `json:"description"`
+		IsShared      int                                `json:"isShared"`
+		Questions     []ExamPaperQuestionRequest         `json:"questions" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("创建试卷请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 计算总分和题目数量
+	totalScore := 0
+	for _, q := range req.Questions {
+		totalScore += q.Score
+	}
+
+	// 创建试卷
+	examPaper := &model.ExamPaper{
+		Title:         req.Title,
+		CreatorID:     uid.(string),
+		IsShared:      req.IsShared,
+		TotalScore:    totalScore,
+		QuestionCount: len(req.Questions),
+		Description:   req.Description,
+		Status:        1,
+	}
+
+	if err := db.Create(examPaper).Error; err != nil {
+		logger.Error("创建试卷失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "创建失败"))
+		return
+	}
+
+	// 创建试卷题目关联
+	for i, q := range req.Questions {
+		examPaperQuestion := &model.ExamPaperQuestion{
+			ExamPaperID:  examPaper.ID,
+			QuestionID:   q.QuestionID,
+			ProblemID:    q.ProblemID,
+			QuestionOrder: i + 1,
+			QuestionType: q.QuestionType,
+			Score:        q.Score,
+		}
+		if err := db.Create(examPaperQuestion).Error; err != nil {
+			logger.Error("创建试卷题目关联失败", zap.Error(err))
+		}
+	}
+
+	logger.Info("创建试卷成功", zap.Uint64("paper_id", examPaper.ID), zap.String("title", req.Title))
+	c.JSON(http.StatusOK, successResponse(examPaper))
+}
+
+// UpdateExamPaper 更新试卷 (已移除重复函数，使用下方的正确实现)
+
+// ExamPaperQuestionRequest 试卷题目请求结构
+type ExamPaperQuestionRequest struct {
+	QuestionID   *uint64 `json:"questionId"`   // 客观题ID
+	ProblemID    *string `json:"problemId"`    // 编程题ID
+	QuestionType string  `json:"questionType"` // single_choice, multiple_choice, judge, subjective, programming
+	Score        int     `json:"score"`
+}
+
+// GetExamPaperList 获取试卷列表
+func (h *Handler) GetExamPaperList(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	keyword := c.Query("keyword")
+	isSharedStr := c.Query("isShared")
+
+	db := client.GetDB()
+
+	// 查询试卷：自己创建的 + 共享的
+	query := db.Model(&model.ExamPaper{}).Where("status = 1 AND (creator_id = ? OR is_shared = 1)", uid)
+
+	if keyword != "" {
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	}
+
+	if isSharedStr != "" {
+		isShared, _ := strconv.Atoi(isSharedStr)
+		query = query.Where("is_shared = ?", isShared)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var papers []model.ExamPaper
+	if err := query.Preload("Creator").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Order("create_time DESC").
+		Find(&papers).Error; err != nil {
+		logger.Error("查询试卷列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"total":  total,
+		"page":   page,
+		"limit":  limit,
+		"papers": papers,
+	}))
+}
+
+// GetExamPaperDetail 获取试卷详情
+func (h *Handler) GetExamPaperDetail(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	var paper model.ExamPaper
+	if err := db.Preload("Creator").
+		Preload("Questions.Question").
+		Where("id = ? AND status = 1", paperID).
+		First(&paper).Error; err != nil {
+		logger.Error("查询试卷详情失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(paper))
+}
+
+// UpdateExamPaper 更新试卷
+func (h *Handler) UpdateExamPaper(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	var req struct {
+		Title       *string                     `json:"title"`
+		Description *string                     `json:"description"`
+		IsShared    *int                        `json:"isShared"`
+		Questions   []ExamPaperQuestionRequest  `json:"questions"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("更新试卷请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	logger.Info("更新试卷请求", zap.Uint64("paper_id", paperID),
+		zap.Bool("has_title", req.Title != nil),
+		zap.Bool("has_description", req.Description != nil),
+		zap.Bool("has_isShared", req.IsShared != nil),
+		zap.Int("questions_count", len(req.Questions)))
+	if req.IsShared != nil {
+		logger.Info("isShared值", zap.Int("isShared", *req.IsShared))
+	}
+
+	db := client.GetDB()
+
+	// 检查试卷是否存在以及权限
+	var paper model.ExamPaper
+	if err := db.Where("id = ? AND status = 1", paperID).First(&paper).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
+		return
+	}
+
+	// 只有创建者可以修改
+	if paper.CreatorID != uid.(string) {
+		c.JSON(http.StatusOK, errorResponse(403, "无权修改此试卷"))
+		return
+	}
+
+	// 更新基本信息
+	updates := map[string]interface{}{}
+	if req.Title != nil {
+		updates["title"] = *req.Title
+		paper.Title = *req.Title
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+		paper.Description = *req.Description
+	}
+	if req.IsShared != nil {
+		updates["is_shared"] = *req.IsShared
+		paper.IsShared = *req.IsShared
+	}
+
+	if len(updates) > 0 {
+		if err := db.Model(&paper).Updates(updates).Error; err != nil {
+			logger.Error("更新试卷失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+			return
+		}
+	}
+
+	// 如果提供了题目列表，更新题目
+	if req.Questions != nil && len(req.Questions) > 0 {
+		// 删除旧的题目关联
+		db.Where("exam_paper_id = ?", paperID).Delete(&model.ExamPaperQuestion{})
+
+		// 计算新的总分和题目数量
+		totalScore := 0
+		for i, q := range req.Questions {
+			totalScore += q.Score
+			examPaperQuestion := &model.ExamPaperQuestion{
+				ExamPaperID:   paperID,
+				QuestionID:    q.QuestionID,
+				ProblemID:     q.ProblemID,
+				QuestionOrder: i + 1,
+				QuestionType:  q.QuestionType,
+				Score:         q.Score,
+			}
+			if err := db.Create(examPaperQuestion).Error; err != nil {
+				logger.Error("创建试卷题目关联失败", zap.Error(err))
+			}
+		}
+
+		// 更新总分和题目数量
+		db.Model(&paper).Updates(map[string]interface{}{
+			"total_score":     totalScore,
+			"question_count":  len(req.Questions),
+		})
+	}
+
+	logger.Info("更新试卷成功", zap.Uint64("paper_id", paperID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// DeleteExamPaper 删除试卷（软删除）
+func (h *Handler) DeleteExamPaper(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查试卷是否存在
+	var paper model.ExamPaper
+	if err := db.Where("id = ? AND status = 1", paperID).First(&paper).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
+		return
+	}
+
+	// 只有创建者可以删除
+	if paper.CreatorID != uid.(string) {
+		c.JSON(http.StatusOK, errorResponse(403, "无权删除此试卷"))
+		return
+	}
+
+	// 软删除
+	if err := db.Model(&paper).Update("status", 0).Error; err != nil {
+		logger.Error("删除试卷失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	logger.Info("删除试卷成功", zap.Uint64("paper_id", paperID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// ImportExamPaperToHomework 导入试卷到作业
+func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		PaperID     uint64 `json:"paperId" binding:"required"`
+		ClassroomID uint64 `json:"classroomId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("导入试卷请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 获取当前用户
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询试卷（只能导入共享试卷或自己创建的试卷）
+	var paper model.ExamPaper
+	if err := db.Preload("Questions.Question").
+		Where("id = ? AND status = 1", req.PaperID).
+		First(&paper).Error; err != nil {
+		logger.Error("查询试卷失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
+		return
+	}
+
+	// 权限检查：
+	// 1. 管理员（root或admin）可以导入所有试卷
+	// 2. 普通教师只能导入共享试卷或自己创建的试卷
+ isAdmin := false
+	if roles, err := middleware.GetUserRoles(db, uid.(string)); err == nil {
+		isAdmin = middleware.HasAnyRole(roles, []string{middleware.RoleRoot, middleware.RoleAdmin})
+	}
+
+	if !isAdmin && paper.IsShared != 1 && paper.CreatorID != uid.(string) {
+		logger.Warn("用户尝试导入无权访问的试卷",
+			zap.String("uid", uid.(string)),
+			zap.Uint64("paper_id", paper.ID),
+			zap.String("creator_id", paper.CreatorID))
+		c.JSON(http.StatusOK, errorResponse(403, "无权导入此试卷"))
+		return
+	}
+
+	// 构建返回数据（包含客观题详情和编程题ID）
+	result := make([]map[string]interface{}, 0, len(paper.Questions))
+	for _, q := range paper.Questions {
+		item := map[string]interface{}{
+			"questionOrder": q.QuestionOrder,
+			"questionType":  q.QuestionType,
+			"score":         q.Score,
+		}
+
+		if q.QuestionType == "programming" {
+			// 编程题
+			if q.ProblemID != nil {
+				item["problemId"] = *q.ProblemID
+				item["title"] = "BingOJ 编程题 - " + *q.ProblemID
+				item["type"] = "programming"
+				item["difficulty"] = 5
+			}
+		} else {
+			// 客观题
+			if q.Question != nil {
+				item["questionId"] = q.Question.ID
+				item["id"] = q.Question.ID
+				item["type"] = q.Question.Type
+				item["title"] = q.Question.Title
+				item["difficulty"] = q.Question.Difficulty
+			}
+		}
+
+		result = append(result, item)
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"questions":    result,
+		"totalScore":   paper.TotalScore,
+		"questionCount": paper.QuestionCount,
+	}))
+}
+
+// ==================== 管理员专用API - 试卷管理 ====================
+
+// AdminGetExamPaperList 管理员获取所有试卷列表（包括私有和共享）
+func (h *Handler) AdminGetExamPaperList(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	keyword := c.Query("keyword")
+	isSharedStr := c.Query("isShared")
+
+	db := client.GetDB()
+
+	// 管理员可以看到所有试卷
+	query := db.Model(&model.ExamPaper{}).Where("status = 1")
+
+	if keyword != "" {
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	}
+
+	if isSharedStr != "" {
+		isShared, _ := strconv.Atoi(isSharedStr)
+		query = query.Where("is_shared = ?", isShared)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var papers []model.ExamPaper
+	if err := query.Preload("Creator").
+		Preload("Questions.Question").
+		Preload("Questions.ExamPaper").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Order("create_time DESC").
+		Find(&papers).Error; err != nil {
+		logger.Error("管理员查询试卷列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"total":  total,
+		"page":   page,
+		"limit":  limit,
+		"papers": papers,
+	}))
+}
+
+// AdminUpdateExamPaper 管理员更新试卷
+func (h *Handler) AdminUpdateExamPaper(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	var req struct {
+		Title       string                         `json:"title" binding:"required"`
+		Description string                         `json:"description"`
+		IsShared    int                            `json:"isShared"`
+		Questions   []ExamPaperQuestionRequest     `json:"questions"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("管理员更新试卷请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查试卷是否存在
+	var paper model.ExamPaper
+	if err := db.Where("id = ? AND status = 1", paperID).First(&paper).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
+		return
+	}
+
+	// 计算总分和题目数量
+	totalScore := 0
+	for _, q := range req.Questions {
+		totalScore += q.Score
+	}
+
+	// 开启事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新试卷基本信息
+	if err := tx.Model(&paper).Updates(map[string]interface{}{
+		"title":         req.Title,
+		"description":   req.Description,
+		"is_shared":     req.IsShared,
+		"total_score":   totalScore,
+		"question_count": len(req.Questions),
+	}).Error; err != nil {
+		tx.Rollback()
+		logger.Error("管理员更新试卷失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	// 删除旧的题目关联
+	if err := tx.Where("exam_paper_id = ?", paperID).Delete(&model.ExamPaperQuestion{}).Error; err != nil {
+		tx.Rollback()
+		logger.Error("管理员删除旧试卷题目关联失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	// 创建新的题目关联
+	for order, q := range req.Questions {
+		paperQuestion := model.ExamPaperQuestion{
+			ExamPaperID:   paperID,
+			QuestionOrder: order + 1,
+			QuestionType:  q.QuestionType,
+			Score:         q.Score,
+		}
+
+		if q.QuestionType == "programming" {
+			paperQuestion.ProblemID = q.ProblemID
+		} else {
+			paperQuestion.QuestionID = q.QuestionID
+		}
+
+		if err := tx.Create(&paperQuestion).Error; err != nil {
+			tx.Rollback()
+			logger.Error("管理员创建试卷题目关联失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+			return
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("管理员更新试卷事务提交失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
+		return
+	}
+
+	logger.Info("管理员更新试卷成功", zap.Uint64("paper_id", paperID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// AdminDeleteExamPaper 管理员删除试卷
+func (h *Handler) AdminDeleteExamPaper(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 软删除
+	if err := db.Model(&model.ExamPaper{}).Where("id = ?", paperID).Update("status", 0).Error; err != nil {
+		logger.Error("管理员删除试卷失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
+		return
+	}
+
+	logger.Info("管理员删除试卷成功", zap.Uint64("paper_id", paperID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+

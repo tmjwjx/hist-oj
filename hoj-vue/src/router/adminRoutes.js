@@ -30,6 +30,8 @@ const ClassroomAdmin = () => import('@/views/admin/classroom/ClassroomAdmin')
 const ClassroomHomeworkAnalysis = () => import('@/views/admin/classroom/HomeworkAnalysis')
 const ClassroomExamMonitoring = () => import('@/views/admin/classroom/ExamMonitoring')
 const ToolboxAdmin = () => import('@/views/admin/toolbox/ToolboxAdmin')
+const QuestionBankAdmin = () => import('@/views/admin/toolbox/QuestionBankAdmin')
+const ExamPaperAdmin = () => import('@/views/admin/toolbox/ExamPaperAdmin')
 
 const adminRoutes = [
   {
@@ -82,6 +84,18 @@ const adminRoutes = [
         name: 'admin-permission-docs',
         component: PermissionDocs,
         meta: { requireAdmin: true, title: '权限说明' }
+      },
+      {
+        path: 'question-bank',
+        name: 'admin-question-bank',
+        component: QuestionBankAdmin,
+        meta: { requireSuperAdmin: true, title: '客观题题库管理' }
+      },
+      {
+        path: 'exam-paper',
+        name: 'admin-exam-paper',
+        component: ExamPaperAdmin,
+        meta: { requireSuperAdmin: true, title: '试卷库管理' }
       },
       {
         path: 'announcement',

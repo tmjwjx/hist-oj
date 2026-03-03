@@ -239,6 +239,14 @@
           </div>
           <div class="header-actions">
             <el-button
+              type="warning"
+              size="small"
+              icon="el-icon-download"
+              @click="openImportPaperDialog"
+            >
+              导入试卷
+            </el-button>
+            <el-button
               type="success"
               size="small"
               icon="el-icon-plus"
@@ -518,6 +526,99 @@
       </span>
     </el-dialog>
 
+    <!-- 导入试卷对话框 -->
+    <el-dialog title="导入试卷" :visible.sync="showImportPaperDialog" width="800px">
+      <div v-loading="loadingPapers" element-loading-text="加载试卷列表中...">
+        <el-form label-width="80px">
+          <el-form-item label="试卷筛选">
+            <el-input
+              v-model="paperSearchKeyword"
+              placeholder="搜索试卷名称"
+              prefix-icon="el-icon-search"
+              clearable
+              @clear="loadExamPaperList"
+              @keyup.enter.native="loadExamPaperList"
+              style="width: 300px;"
+            >
+              <el-button
+                slot="append"
+                icon="el-icon-search"
+                @click="loadExamPaperList"
+              >
+                搜索
+              </el-button>
+            </el-input>
+          </el-form-item>
+        </el-form>
+
+        <el-divider content-position="left">试卷列表</el-divider>
+
+        <div v-if="examPapers.length === 0 && !loadingPapers" class="empty-papers">
+          <i class="el-icon-info"></i>
+          <p>暂无可用试卷</p>
+          <p class="hint">您只能导入自己创建的试卷或共享试卷</p>
+        </div>
+
+        <div v-else class="paper-list">
+          <el-radio-group v-model="selectedPaperId" class="paper-radio-group">
+            <div
+              v-for="paper in examPapers"
+              :key="paper.id"
+              class="paper-item"
+              :class="{ 'is-selected': selectedPaperId === paper.id }"
+            >
+              <el-radio :label="paper.id" class="paper-radio">
+                <div class="paper-content">
+                  <div class="paper-header">
+                    <span class="paper-title">{{ paper.title }}</span>
+                    <div class="paper-tags">
+                      <el-tag v-if="paper.isShared === 1" size="mini" type="success">共享</el-tag>
+                      <el-tag v-else size="mini" type="info">私有</el-tag>
+                      <el-tag size="mini" type="primary">{{ paper.questionCount }}题</el-tag>
+                      <el-tag size="mini" type="warning">{{ paper.totalScore }}分</el-tag>
+                    </div>
+                  </div>
+                  <div v-if="paper.description" class="paper-description">{{ paper.description }}</div>
+                  <div class="paper-meta">
+                    <span class="creator">
+                      <i class="el-icon-user"></i>
+                      {{ paper.creator ? paper.creator.username : '未知' }}
+                    </span>
+                    <span class="create-time">
+                      <i class="el-icon-time"></i>
+                      {{ formatPaperTime(paper.createdAt) }}
+                    </span>
+                  </div>
+                </div>
+              </el-radio>
+            </div>
+          </el-radio-group>
+        </div>
+
+        <el-pagination
+          v-if="paperTotal > 0"
+          @current-change="handlePaperPageChange"
+          :current-page="paperCurrentPage"
+          :page-size="paperPageSize"
+          :total="paperTotal"
+          layout="prev, pager, next, total"
+          style="margin-top: 20px; text-align: center;"
+        />
+      </div>
+
+      <span slot="footer">
+        <el-button @click="showImportPaperDialog = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="confirmImportPaper"
+          :disabled="!selectedPaperId"
+          :loading="importingPaper"
+        >
+          确定导入
+        </el-button>
+      </span>
+    </el-dialog>
+
     <!-- 全卷预览对话框 -->
     <el-dialog
       title="全卷预览（学生视角）"
@@ -733,6 +834,16 @@ export default {
       programmingExamples: [],
       fetchingProblem: false,
       programmingProblemsCache: {}, // 缓存编程题信息，用于预览
+      // 导入试卷相关
+      showImportPaperDialog: false,
+      examPapers: [],
+      loadingPapers: false,
+      paperSearchKeyword: '',
+      selectedPaperId: null,
+      paperCurrentPage: 1,
+      paperPageSize: 10,
+      paperTotal: 0,
+      importingPaper: false,
       form: {
         title: '',
         description: '',
@@ -1402,6 +1513,110 @@ export default {
 
     goBack() {
       this.$router.go(-1)
+    },
+
+    // ==================== 导入试卷相关方法 ====================
+    // 打开导入试卷对话框
+    openImportPaperDialog() {
+      this.showImportPaperDialog = true
+      this.paperSearchKeyword = ''
+      this.selectedPaperId = null
+      this.paperCurrentPage = 1
+      this.loadExamPaperList()
+    },
+
+    // 加载试卷列表
+    async loadExamPaperList() {
+      this.loadingPapers = true
+      try {
+        const params = {
+          page: this.paperCurrentPage,
+          limit: this.paperPageSize
+        }
+        if (this.paperSearchKeyword) {
+          params.keyword = this.paperSearchKeyword
+        }
+
+        const res = await this.$store.dispatch('classroom/getExamPaperList', params)
+        if (res.code === 200) {
+          this.examPapers = res.data.papers || res.data || []
+          this.paperTotal = res.data.total || 0
+        }
+      } catch (error) {
+        console.error('加载试卷列表失败:', error)
+        this.$message.error('加载试卷列表失败')
+      } finally {
+        this.loadingPapers = false
+      }
+    },
+
+    // 试卷列表分页
+    handlePaperPageChange(page) {
+      this.paperCurrentPage = page
+      this.loadExamPaperList()
+    },
+
+    // 确认导入试卷
+    async confirmImportPaper() {
+      if (!this.selectedPaperId) {
+        this.$message.warning('请选择要导入的试卷')
+        return
+      }
+
+      this.importingPaper = true
+      try {
+        const res = await this.$store.dispatch('classroom/importExamPaper', {
+          paperId: this.selectedPaperId,
+          classroomId: this.classroomId
+        })
+
+        if (res.code === 200) {
+          // 导入成功，将题目添加到已选题目列表
+          const questions = res.data.questions || []
+          if (questions.length > 0) {
+            // 清空当前已选题目（根据需求决定是否清空）
+            // this.selectedQuestions = []
+
+            questions.forEach(q => {
+              // 检查是否已存在
+              const exists = this.selectedQuestions.some(sq =>
+                (sq.id === q.questionId) ||
+                (sq.problemId && sq.problemId === q.problemId)
+              )
+
+              if (!exists) {
+                this.selectedQuestions.push({
+                  id: q.questionId || q.id,
+                  problemId: q.problemId,
+                  type: q.questionType || q.type,
+                  title: q.title,
+                  difficulty: q.difficulty || 2,
+                  score: q.score || 10,
+                  questionOrder: q.questionOrder
+                })
+              }
+            })
+
+            this.$message.success(`成功导入 ${questions.length} 道题目`)
+            this.showImportPaperDialog = false
+          } else {
+            this.$message.warning('该试卷中没有题目')
+          }
+        } else {
+          this.$message.error(res.message || '导入试卷失败')
+        }
+      } catch (error) {
+        console.error('导入试卷失败:', error)
+        this.$message.error('导入试卷失败')
+      } finally {
+        this.importingPaper = false
+      }
+    },
+
+    // 格式化试卷时间
+    formatPaperTime(time) {
+      if (!time) return '-'
+      return moment(time).format('YYYY-MM-DD HH:mm')
     }
   }
 }
@@ -2257,6 +2472,133 @@ export default {
   font-size: 16px;
   color: #606266;
   margin: 0;
+}
+
+/* ==================== 导入试卷对话框样式 ==================== */
+.empty-papers {
+  text-align: center;
+  padding: 60px 20px;
+  color: #909399;
+}
+
+.empty-papers i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.empty-papers p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.empty-papers .hint {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+
+.paper-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.paper-radio-group {
+  display: block;
+  width: 100%;
+}
+
+.paper-item {
+  margin-bottom: 16px;
+  border: 2px solid #e0e6ed;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafbfc;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.paper-item:hover {
+  border-color: #5b9bd5;
+  background: #f0f7ff;
+  box-shadow: 0 2px 8px rgba(91, 155, 213, 0.2);
+}
+
+.paper-item.is-selected {
+  border-color: #5b9bd5;
+  background: #e6f3ff;
+  box-shadow: 0 2px 12px rgba(91, 155, 213, 0.3);
+}
+
+.paper-radio {
+  display: block;
+  margin: 0;
+  width: 100%;
+}
+
+.paper-radio >>> .el-radio__label {
+  padding-left: 8px;
+  width: 100%;
+}
+
+.paper-radio >>> .el-radio__input {
+  vertical-align: top;
+  margin-top: 4px;
+}
+
+.paper-content {
+  display: inline-block;
+  width: calc(100% - 28px);
+  vertical-align: top;
+}
+
+.paper-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.paper-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-right: 12px;
+}
+
+.paper-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.paper-description {
+  font-size: 13px;
+  color: #606266;
+  margin: 8px 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.paper-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.paper-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paper-meta i {
+  font-size: 14px;
 }
 </style>
 

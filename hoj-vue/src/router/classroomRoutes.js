@@ -16,6 +16,13 @@ const ClassroomRoutes = {
       component: () => import('@/views/classroom/teacher/QuestionBank'),
       meta: { title: '题库', requiresRole: 'teacher' }
     },
+    // 试卷库（独立页面，不绑定到班级）
+    {
+      path: 'exam-paper',
+      name: 'ExamPaper',
+      component: () => import('@/views/classroom/teacher/ExamPaper'),
+      meta: { title: '试卷库', requiresRole: 'teacher' }
+    },
     // 教师端路由
     {
       path: 'teacher',

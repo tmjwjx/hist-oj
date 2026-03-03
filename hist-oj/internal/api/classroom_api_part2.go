@@ -3781,46 +3781,56 @@ func (h *Handler) GetMaterialPermissions(c *gin.Context) {
 			c.JSON(http.StatusOK, errorResponse(404, "资料不存在"))
 		} else {
 			logger.Error("查询资料失败", zap.Uint64("material_id", materialID), zap.Error(err))
-			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			c.JSON(http.StatusOK, errorResponse(500, "查询资料失败，请稍后重试"))
 		}
 		return
 	}
 
 	logger.Info("开始获取资料权限", zap.Uint64("material_id", materialID), zap.String("file_name", material.FileName))
 
-	// 获取文件夹所在的班级
-	var folder model.ClassroomFolder
-	if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
-		logger.Error("查询文件夹失败", zap.Uint64("folder_id", material.FolderID), zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
-		return
+	// 获取班级ID：支持根目录(folder_id=0)的情况
+	var classroomID uint64
+	if material.FolderID == 0 {
+		// 根目录资料，直接使用资料的班级ID
+		classroomID = material.ClassroomID
+		logger.Info("资料位于根目录",
+			zap.Uint64("material_id", materialID),
+			zap.Uint64("classroom_id", classroomID))
+	} else {
+		// 查询文件夹获取班级ID
+		var folder model.ClassroomFolder
+		if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
+			logger.Error("查询文件夹失败", zap.Uint64("folder_id", material.FolderID), zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询文件夹失败，请稍后重试"))
+			return
+		}
+		classroomID = folder.ClassroomID
+		logger.Info("通过文件夹获取班级ID",
+			zap.Uint64("material_id", materialID),
+			zap.Uint64("folder_id", material.FolderID),
+			zap.Uint64("classroom_id", classroomID))
 	}
-
-	logger.Info("获取班级学生列表",
-		zap.Uint64("material_id", materialID),
-		zap.Uint64("folder_id", material.FolderID),
-		zap.Uint64("classroom_id", folder.ClassroomID))
 
 	// 获取班级的所有学生
 	var students []model.ClassroomStudent
-	if err := db.Where("classroom_id = ? AND status = 1", folder.ClassroomID).
+	if err := db.Where("classroom_id = ? AND status = 1", classroomID).
 		Preload("User").
 		Find(&students).Error; err != nil {
 		logger.Error("查询学生列表失败",
-			zap.Uint64("classroom_id", folder.ClassroomID),
+			zap.Uint64("classroom_id", classroomID),
 			zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		c.JSON(http.StatusOK, errorResponse(500, "查询学生列表失败，请稍后重试"))
 		return
 	}
 
 	logger.Info("查询学生列表成功",
-		zap.Uint64("classroom_id", folder.ClassroomID),
+		zap.Uint64("classroom_id", classroomID),
 		zap.Int("student_count", len(students)))
 
 	// 如果没有学生，记录详细信息
 	if len(students) == 0 {
 		logger.Warn("班级中没有学生",
-			zap.Uint64("classroom_id", folder.ClassroomID),
+			zap.Uint64("classroom_id", classroomID),
 			zap.Uint64("material_id", materialID))
 	}
 
@@ -3828,7 +3838,14 @@ func (h *Handler) GetMaterialPermissions(c *gin.Context) {
 	var permissions []model.ClassroomMaterialPermission
 	if err := db.Where("material_id = ?", materialID).Find(&permissions).Error; err != nil {
 		logger.Error("查询权限设置失败", zap.Uint64("material_id", materialID), zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		// 检查是否是表不存在错误
+		if strings.Contains(err.Error(), "Table") && strings.Contains(err.Error(), "doesn't exist") {
+			logger.Error("权限表不存在，请先执行数据库迁移", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "权限表不存在，请联系管理员"))
+		} else {
+			logger.Error("查询权限记录失败", zap.Uint64("material_id", materialID), zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询权限设置失败，请稍后重试"))
+		}
 		return
 	}
 

@@ -4,6 +4,7 @@ const state = {
   currentClassroom: null,
   classroomList: [],
   myClassrooms: [],
+  teacherClassrooms: [], // 缓存教师班级列表
   students: [],
   checkins: [],
   questions: [],
@@ -12,7 +13,19 @@ const state = {
   materials: [],
   messages: [],
   pickedStudent: null,
-  userRoles: [] // 存储用户的班级角色
+  userRoles: [], // 存储用户的班级角色
+  // 请求状态追踪，避免重复请求
+  loadingStates: {
+    teacherClassrooms: false,
+    studentClassrooms: false,
+    userRoles: false
+  },
+  // 缓存时间戳
+  cacheTimestamps: {
+    teacherClassrooms: 0,
+    studentClassrooms: 0,
+    userRoles: 0
+  }
 }
 
 const getters = {
@@ -63,12 +76,43 @@ const mutations = {
   },
   SET_USER_ROLES(state, roles) {
     state.userRoles = roles || []
+  },
+  SET_TEACHER_CLASSROOMS(state, list) {
+    state.teacherClassrooms = list || []
+    state.cacheTimestamps.teacherClassrooms = Date.now()
+    state.loadingStates.teacherClassrooms = false
+  },
+  SET_LOADING_STATE(state, { key, value }) {
+    state.loadingStates[key] = value
+  },
+  CLEAR_CACHE(state, key) {
+    if (key) {
+      state.cacheTimestamps[key] = 0
+    } else {
+      // 清除所有缓存
+      state.cacheTimestamps.teacherClassrooms = 0
+      state.cacheTimestamps.studentClassrooms = 0
+      state.cacheTimestamps.userRoles = 0
+    }
   }
 }
 
 const actions = {
-  // 加载用户角色
-  async loadUserRoles({ commit }) {
+  // 加载用户角色（带缓存和请求去重）
+  async loadUserRoles({ commit, state }, forceRefresh = false) {
+    // 检查是否正在加载
+    if (state.loadingStates.userRoles) {
+      return // 如果正在加载，直接返回等待结果
+    }
+
+    // 检查缓存（5分钟有效期）
+    const cacheAge = Date.now() - state.cacheTimestamps.userRoles
+    if (!forceRefresh && state.userRoles.length > 0 && cacheAge < 5 * 60 * 1000) {
+      return // 使用缓存
+    }
+
+    commit('SET_LOADING_STATE', { key: 'userRoles', value: true })
+
     try {
       const res = await api.getCurrentUserRoles()
 
@@ -92,8 +136,12 @@ const actions = {
       }
 
       commit('SET_USER_ROLES', roleNames)
+      state.cacheTimestamps.userRoles = Date.now()
     } catch (error) {
+      console.error('加载用户角色失败', error)
       commit('SET_USER_ROLES', [])
+    } finally {
+      commit('SET_LOADING_STATE', { key: 'userRoles', value: false })
     }
   },
 
@@ -144,13 +192,71 @@ const actions = {
     }
     return res.data
   },
-  async getTeacherClassrooms({ commit }) {
-    const res = await api.getTeacherClassrooms()
-    return res.data
+  async getTeacherClassrooms({ commit, state }, forceRefresh = false) {
+    // 检查是否正在加载
+    if (state.loadingStates.teacherClassrooms) {
+      // 如果正在加载，返回缓存数据（如果有）
+      return { code: 200, data: state.teacherClassrooms }
+    }
+
+    // 检查缓存（2分钟有效期）
+    const cacheAge = Date.now() - state.cacheTimestamps.teacherClassrooms
+    if (!forceRefresh && state.teacherClassrooms.length > 0 && cacheAge < 2 * 60 * 1000) {
+      return { code: 200, data: state.teacherClassrooms }
+    }
+
+    commit('SET_LOADING_STATE', { key: 'teacherClassrooms', value: true })
+
+    try {
+      const res = await api.getTeacherClassrooms()
+      if (res && res.data && res.data.code === 200) {
+        commit('SET_TEACHER_CLASSROOMS', res.data.data)
+        return res.data
+      }
+      return res?.data || { code: 500, data: [] }
+    } catch (error) {
+      console.error('获取教师班级列表失败', error)
+      // 发生错误时，如果有缓存就返回缓存
+      if (state.teacherClassrooms.length > 0) {
+        return { code: 200, data: state.teacherClassrooms }
+      }
+      return { code: 500, data: [] }
+    } finally {
+      commit('SET_LOADING_STATE', { key: 'teacherClassrooms', value: false })
+    }
   },
-  async getStudentClassrooms({ commit }) {
-    const res = await api.getStudentClassrooms()
-    return res.data
+  async getStudentClassrooms({ commit, state }, forceRefresh = false) {
+    // 检查是否正在加载
+    if (state.loadingStates.studentClassrooms) {
+      return { code: 200, data: state.myClassrooms }
+    }
+
+    // 检查缓存（2分钟有效期）
+    const cacheAge = Date.now() - state.cacheTimestamps.studentClassrooms
+    if (!forceRefresh && state.myClassrooms.length > 0 && cacheAge < 2 * 60 * 1000) {
+      return { code: 200, data: state.myClassrooms }
+    }
+
+    commit('SET_LOADING_STATE', { key: 'studentClassrooms', value: true })
+
+    try {
+      const res = await api.getStudentClassrooms()
+      if (res && res.data && res.data.code === 200) {
+        commit('SET_MY_CLASSROOMS', res.data.data)
+        state.cacheTimestamps.studentClassrooms = Date.now()
+        return res.data
+      }
+      return res?.data || { code: 500, data: [] }
+    } catch (error) {
+      console.error('获取学生班级列表失败', error)
+      // 发生错误时，如果有缓存就返回缓存
+      if (state.myClassrooms.length > 0) {
+        return { code: 200, data: state.myClassrooms }
+      }
+      return { code: 500, data: [] }
+    } finally {
+      commit('SET_LOADING_STATE', { key: 'studentClassrooms', value: false })
+    }
   },
 
   // 学生管理
@@ -417,6 +523,18 @@ const actions = {
   // 移除班级教师
   async removeClassroomTeacher({ commit }, data) {
     const res = await api.removeClassroomTeacher(data)
+    return res.data
+  },
+
+  // ==================== 试卷库管理 ====================
+  // 获取试卷列表
+  async getExamPaperList({ commit }, params) {
+    const res = await api.getExamPaperList(params)
+    return res.data
+  },
+  // 导入试卷到作业
+  async importExamPaper({ commit }, data) {
+    const res = await api.importExamPaper(data)
     return res.data
   }
 }

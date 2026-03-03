@@ -30,10 +30,17 @@
               <el-option label="共享题库" value="1"></el-option>
             </el-select>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="3">
+            <el-select v-model="filters.searchField" placeholder="搜索字段" @change="handleFilterChange">
+              <el-option label="题目标题" value="title"></el-option>
+              <el-option label="题目ID" value="id"></el-option>
+              <el-option label="创建者" value="creator"></el-option>
+            </el-select>
+          </el-col>
+          <el-col :span="5">
             <el-input
               v-model="filters.keyword"
-              placeholder="搜索题目标题"
+              :placeholder="getSearchPlaceholder()"
               clearable
               @clear="handleFilterChange"
               @keyup.enter.native="handleFilterChange"
@@ -335,6 +342,7 @@ export default {
       filters: {
         type: '',
         isShared: '',
+        searchField: 'title', // 默认搜索题目标题
         keyword: ''
       },
       pagination: {
@@ -371,6 +379,7 @@ export default {
             limit: this.pagination.pageSize,
             type: this.filters.type || undefined,
             isShared: this.filters.isShared,
+            searchField: this.filters.searchField,
             keyword: this.filters.keyword || undefined
           }
         })
@@ -385,6 +394,14 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    getSearchPlaceholder() {
+      const placeholders = {
+        title: '搜索题目标题',
+        id: '输入题目ID',
+        creator: '输入创建者用户名'
+      }
+      return placeholders[this.filters.searchField] || '请输入搜索关键词'
     },
     handleFilterChange() {
       this.pagination.currentPage = 1

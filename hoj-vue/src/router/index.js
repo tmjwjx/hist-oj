@@ -51,13 +51,11 @@ router.beforeEach(async (to, from, next) => {
       return
     }
 
-    // 等待角色加载完成
-    if (!store.state.classroom.userRoles || store.state.classroom.userRoles.length === 0) {
-      try {
-        await store.dispatch('classroom/loadUserRoles')
-      } catch (error) {
-        console.error('加载用户角色失败', error)
-      }
+    // 等待角色加载完成（使用缓存，避免重复请求）
+    try {
+      await store.dispatch('classroom/loadUserRoles')
+    } catch (error) {
+      console.error('加载用户角色失败', error)
     }
 
     const userRoles = store.state.classroom.userRoles || []
@@ -95,12 +93,14 @@ router.beforeEach(async (to, from, next) => {
             next({ path: '/classroom' })
             return
           }
+        } else {
+          // API调用失败，但为了用户体验，允许继续（组件内部会再次检查）
+          console.warn('获取学生班级列表失败，但允许继续导航')
         }
       } catch (error) {
         console.error('检查班级成员身份失败', error)
-        mMessage.error('权限验证失败')
-        next({ path: '/classroom' })
-        return
+        // 发生错误时允许继续导航，避免用户卡住
+        // 组件内部会进行更详细的权限检查
       }
     }
 
@@ -118,12 +118,14 @@ router.beforeEach(async (to, from, next) => {
             next({ path: '/classroom/teacher' })
             return
           }
+        } else {
+          // API调用失败，但为了用户体验，允许继续（组件内部会再次检查）
+          console.warn('获取教师班级列表失败，但允许继续导航')
         }
       } catch (error) {
         console.error('检查教师班级成员身份失败', error)
-        mMessage.error('权限验证失败')
-        next({ path: '/classroom/teacher' })
-        return
+        // 发生错误时允许继续导航，避免用户卡住
+        // 组件内部会进行更详细的权限检查
       }
     }
   }

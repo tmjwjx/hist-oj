@@ -619,14 +619,71 @@ func ValidateToken(tokenString string) (*UserAuthInfo, error) {
 
 		logger.Debug("JWT验证成功", zap.String("uid", uid), zap.String("username", username))
 
+		// 从数据库查询用户的真实角色
+		roles, err := getUserRolesFromDB(uid)
+		if err != nil {
+			logger.Warn("从数据库查询用户角色失败", zap.String("uid", uid), zap.Error(err))
+			// 如果查询失败，使用默认角色
+			roles = []string{"user"}
+		}
+
 		return &UserAuthInfo{
 			UID:      uid,
 			Username: username,
-			Roles:    []string{"user"}, // 默认角色，后续可以从数据库查询具体角色
+			Roles:    roles,
 		}, nil
 	}
 
 	logger.Warn("JWT无效")
 	return nil, fmt.Errorf("invalid token")
+}
+
+// getUserRolesFromDB 从数据库获取用户的所有角色
+func getUserRolesFromDB(uid string) ([]string, error) {
+	db := GetDB()
+
+	// 定义用户角色和角色结构（与 middleware/role.go 保持一致）
+	type UserRole struct {
+		ID     uint64 `gorm:"primaryKey;autoIncrement"`
+		UID    string `gorm:"type:varchar(32);not null"`
+		RoleID uint64 `gorm:"type:bigint unsigned;not null"`
+	}
+
+	type Role struct {
+		ID          uint64 `gorm:"primaryKey;type:bigint unsigned"`
+		Role        string `gorm:"type:varchar(50);not null"`
+		Description string `gorm:"type:varchar(100)"`
+		Status      int    `gorm:"type:int;default:0"` // 0可用，1不可用
+	}
+
+	// 查询用户的角色关联
+	var userRoles []UserRole
+	if err := db.Table("user_role").Where("uid = ?", uid).Find(&userRoles).Error; err != nil {
+		return nil, fmt.Errorf("查询用户角色关联失败: %w", err)
+	}
+
+	if len(userRoles) == 0 {
+		return []string{}, nil
+	}
+
+	// 获取角色ID列表
+	roleIDs := make([]uint64, 0, len(userRoles))
+	for _, ur := range userRoles {
+		roleIDs = append(roleIDs, ur.RoleID)
+	}
+
+	// 查询角色信息
+	var roles []Role
+	if err := db.Table("role").Where("id IN ? AND status = 0", roleIDs).Find(&roles).Error; err != nil {
+		return nil, fmt.Errorf("查询角色信息失败: %w", err)
+	}
+
+	// 提取角色名称
+	roleNames := make([]string, 0, len(roles))
+	for _, r := range roles {
+		roleNames = append(roleNames, r.Role)
+	}
+
+	return roleNames, nil
 }
 

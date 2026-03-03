@@ -8,7 +8,11 @@
       <div class="header-actions">
         <button class="classroom-btn classroom-btn-success" @click="goToQuestionBank">
           <i class="el-icon-document"></i>
-          <span>浏览题库</span>
+          <span>题库管理</span>
+        </button>
+        <button class="classroom-btn classroom-btn-info" @click="goToExamPaper">
+          <i class="el-icon-document-copy"></i>
+          <span>试卷库</span>
         </button>
         <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
           <i class="el-icon-plus"></i>
@@ -269,6 +273,9 @@ export default {
     },
     goToQuestionBank() {
       this.$router.push({ name: 'QuestionBank' })
+    },
+    goToExamPaper() {
+      this.$router.push({ name: 'ExamPaper' })
     },
     getTeacherNames(classroom) {
       const teachers = []

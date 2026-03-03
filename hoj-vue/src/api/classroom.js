@@ -255,5 +255,53 @@ export default {
   // 移除班级教师
   removeClassroomTeacher(data) {
     return axios.delete(`${BASE_URL}/admin/teacher/remove`, { data })
+  },
+
+  // ==================== 试卷库功能 ====================
+  // 创建试卷
+  createExamPaper(data) {
+    return axios.post(`${BASE_URL}/exam-paper`, data)
+  },
+  // 获取试卷列表
+  getExamPaperList(params) {
+    return axios.get(`${BASE_URL}/exam-papers`, { params })
+  },
+  // 获取试卷详情
+  getExamPaperDetail(paperId) {
+    return axios.get(`${BASE_URL}/exam-paper/${paperId}`)
+  },
+  // 更新试卷
+  updateExamPaper(paperId, data) {
+    return axios.put(`${BASE_URL}/exam-paper/${paperId}`, data)
+  },
+  // 删除试卷
+  deleteExamPaper(paperId) {
+    return axios.delete(`${BASE_URL}/exam-paper/${paperId}`)
+  },
+  // 导入试卷到作业
+  importExamPaper(data) {
+    return axios.post(`${BASE_URL}/exam-paper/import`, data)
+  },
+
+  // ==================== 管理员专用API ====================
+  // 管理员获取所有试卷列表
+  adminGetExamPaperList(params) {
+    return axios.get(`${BASE_URL}/admin/exam-papers`, { params })
+  },
+  // 管理员更新试卷
+  adminUpdateExamPaper(paperId, data) {
+    return axios.put(`${BASE_URL}/admin/exam-paper/${paperId}`, data)
+  },
+  // 管理员删除试卷
+  adminDeleteExamPaper(paperId) {
+    return axios.delete(`${BASE_URL}/admin/exam-paper/${paperId}`)
+  },
+  // 管理员获取试卷详情
+  adminGetExamPaperDetail(paperId) {
+    return axios.get(`${BASE_URL}/exam-paper/${paperId}`)
+  },
+  // 管理员获取题库（所有题目，包括私有）
+  adminGetQuestionBank(params) {
+    return axios.get(`${BASE_URL}/admin/question-bank`, { params })
   }
 }

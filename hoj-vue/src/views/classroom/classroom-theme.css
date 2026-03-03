@@ -92,6 +92,17 @@
   transform: translateY(-1px);
 }
 
+.classroom-btn-info {
+  background: #42A5F5;
+  color: white;
+  box-shadow: 0 2px 8px rgba(66, 165, 245, 0.3);
+}
+
+.classroom-btn-info:hover {
+  box-shadow: 0 4px 12px rgba(66, 165, 245, 0.4);
+  transform: translateY(-1px);
+}
+
 .classroom-btn-danger {
   background: #EF5350;
   color: white;

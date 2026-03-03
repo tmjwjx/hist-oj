@@ -103,6 +103,22 @@ export default {
           iconColor: '#909399',
           action: 'openPermissionDocs',
           requireAuth: 'admin' // 所有管理员可查看
+        },
+        {
+          title: '客观题题库管理',
+          description: '查看和管理所有教师的客观题题库',
+          icon: 'fa fa-database',
+          iconColor: '#E6A23C',
+          action: 'openQuestionBankAdmin',
+          requireAuth: 'superAdmin' // 仅超级管理员
+        },
+        {
+          title: '试卷库管理',
+          description: '查看和管理所有教师创建的试卷',
+          icon: 'fa fa-file-text-o',
+          iconColor: '#F56C6C',
+          action: 'openExamPaperAdmin',
+          requireAuth: 'superAdmin' // 仅超级管理员
         }
       ]
     };
@@ -151,6 +167,12 @@ export default {
         } else if (tool.action === 'openPermissionDocs') {
           // 跳转到权限说明页面
           this.$router.push({ name: 'admin-permission-docs' });
+        } else if (tool.action === 'openQuestionBankAdmin') {
+          // 跳转到客观题题库管理页面
+          this.$router.push({ name: 'admin-question-bank' });
+        } else if (tool.action === 'openExamPaperAdmin') {
+          // 跳转到试卷库管理页面
+          this.$router.push({ name: 'admin-exam-paper' });
         }
       } else if (tool.url) {
         if (tool.url.startsWith('http')) {

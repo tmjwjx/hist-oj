@@ -378,6 +378,49 @@ func (ExamViolationLog) TableName() string {
 	return "exam_violation_log"
 }
 
+// ExamPaper 试卷表
+type ExamPaper struct {
+	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title         string    `gorm:"type:varchar(255);not null" json:"title"`
+	CreatorID     string    `gorm:"type:varchar(32);not null;index:idx_creator_id" json:"creatorId"`
+	IsShared      int       `gorm:"type:tinyint(1);default:0;index:idx_is_shared" json:"isShared"` // 0=私有，1=共享
+	TotalScore    int       `gorm:"type:int;default:0" json:"totalScore"`
+	QuestionCount int       `gorm:"type:int;default:0" json:"questionCount"`
+	Description   string    `gorm:"type:text" json:"description"`
+	Status        int       `gorm:"type:tinyint(1);default:1;index:idx_status" json:"status"` // 1=正常，0=删除
+	CreatedAt     time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt     time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+
+	// 关联字段
+	Creator   *UserInfo              `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
+	Questions []ExamPaperQuestion    `gorm:"foreignKey:ExamPaperID" json:"questions,omitempty"`
+}
+
+// TableName 指定表名
+func (ExamPaper) TableName() string {
+	return "classroom_exam_paper"
+}
+
+// ExamPaperQuestion 试卷题目关联表
+type ExamPaperQuestion struct {
+	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	ExamPaperID  uint64 `gorm:"type:bigint unsigned;not null;uniqueIndex:uk_exam_paper_order" json:"examPaperId"`
+	QuestionID   *uint64 `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId"`   // 客观题ID
+	ProblemID    *string `gorm:"type:varchar(64);index:idx_problem_id" json:"problemId"`         // 编程题ID
+	QuestionOrder int    `gorm:"type:int;not null;uniqueIndex:uk_exam_paper_order" json:"questionOrder"`
+	QuestionType string `gorm:"type:varchar(50);not null" json:"questionType"` // single_choice, multiple_choice, judge, subjective, programming
+	Score        int    `gorm:"type:int;not null;default:0" json:"score"`
+
+	// 关联字段
+	ExamPaper *ExamPaper    `gorm:"foreignKey:ExamPaperID" json:"examPaper,omitempty"`
+	Question  *QuestionBank `gorm:"foreignKey:QuestionID" json:"question,omitempty"`
+}
+
+// TableName 指定表名
+func (ExamPaperQuestion) TableName() string {
+	return "classroom_exam_paper_question"
+}
+
 // InitClassroomTables 初始化班级相关数据库表
 func InitClassroomTables(db *gorm.DB) error {
 	return db.AutoMigrate(
@@ -398,5 +441,7 @@ func InitClassroomTables(db *gorm.DB) error {
 		&ClassroomMessage{},
 		&StudentQuestionOrder{},
 		&ExamViolationLog{},
+		&ExamPaper{},
+		&ExamPaperQuestion{},
 	)
 }

@@ -95,6 +95,16 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 				admin.POST("/teacher/add", handler.AddClassroomTeacher) // 添加班级教师
 				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher) // 移除班级教师
 				admin.GET("/teachers/search", handler.SearchTeachers) // 搜索教师
+
+				// 管理员题库管理
+				admin.GET("/question-bank", handler.AdminGetQuestionBank) // 获取所有题目
+				admin.PUT("/question-bank/:questionId", handler.AdminUpdateQuestion) // 更新题目
+				admin.DELETE("/question-bank/:questionId", handler.AdminDeleteQuestion) // 删除题目
+
+				// 管理员试卷库管理
+				admin.GET("/exam-papers", handler.AdminGetExamPaperList) // 获取所有试卷
+				admin.PUT("/exam-paper/:paperId", handler.AdminUpdateExamPaper) // 更新试卷
+				admin.DELETE("/exam-paper/:paperId", handler.AdminDeleteExamPaper) // 删除试卷
 			}
 
 			// 班级管理（教师）- 需要认证
@@ -141,6 +151,20 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.PUT("/question/:questionId", AuthMiddleware(), handler.UpdateQuestion)
 			classroom.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteQuestion)
 			classroom.GET("/question/:questionId", handler.GetQuestionDetail)
+
+			// 题库功能（管理员专用）- 需要超级管理员权限
+			classroom.GET("/admin/questions", SuperAdminAuthMiddleware(), handler.AdminGetQuestionBank)
+			classroom.POST("/admin/question", SuperAdminAuthMiddleware(), handler.AdminCreateQuestion)
+			classroom.PUT("/admin/question/:questionId", SuperAdminAuthMiddleware(), handler.AdminUpdateQuestion)
+			classroom.DELETE("/admin/question/:questionId", SuperAdminAuthMiddleware(), handler.AdminDeleteQuestion)
+
+			// 试卷库功能 - 需要认证
+			classroom.POST("/exam-paper", AuthMiddleware(), handler.CreateExamPaper)
+			classroom.GET("/exam-papers", AuthMiddleware(), handler.GetExamPaperList)
+			classroom.GET("/exam-paper/:paperId", AuthMiddleware(), handler.GetExamPaperDetail)
+			classroom.PUT("/exam-paper/:paperId", AuthMiddleware(), handler.UpdateExamPaper)
+			classroom.DELETE("/exam-paper/:paperId", AuthMiddleware(), handler.DeleteExamPaper)
+			classroom.POST("/exam-paper/import", AuthMiddleware(), handler.ImportExamPaperToHomework)
 
 			// 作业功能 - 需要认证
 			classroom.POST("/homework", AuthMiddleware(), handler.CreateHomework)
