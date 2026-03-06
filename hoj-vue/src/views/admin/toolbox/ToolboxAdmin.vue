@@ -70,7 +70,7 @@ export default {
           icon: 'fa fa-user-plus',
           iconColor: '#409EFF',
           action: 'openUserRoleManagement',
-          requireAuth: 'superAdmin' // 仅超级管理员
+          requireAuth: 'superAdminOrProblemAdmin' // 只有超级管理员和题目管理员可访问
         },
         {
           title: 'Rating 管理',
@@ -94,7 +94,7 @@ export default {
           icon: 'fa fa-gamepad',
           iconColor: '#E6A23C',
           action: 'openBattleRecords',
-          requireAuth: 'admin' // 需要管理员权限（所有管理员）
+          requireAuth: 'superAdmin' // 仅超级管理员
         },
         {
           title: '权限说明',

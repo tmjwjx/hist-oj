@@ -183,6 +183,7 @@
 
 <script>
 import { getJudgeInfo } from '@/common/judgeTerminal'
+import api from '@/common/api'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
@@ -254,38 +255,31 @@ export default {
     async loadProblemInfo() {
       this.loading = true
       try {
-        // 获取当前登录用户信息
-        const userInfo = this.$store.getters.userInfo
-        if (!userInfo || !userInfo.username) {
-          this.$message.error('请先登录')
-          return
-        }
+        // 使用和教师端相同的API
+        const res = await api.getProblem(this.problemId, '0', undefined)
 
-        // 从 localStorage 获取 token
-        const token = localStorage.getItem('token')
-        if (!token) {
-          this.$message.error('未找到登录凭证，请重新登录')
-          return
-        }
-
-        const res = await getJudgeInfo({
-          pid: this.problemId,
-          cid: '0',
-          mode: 'normal',
-          username: userInfo.username,
-          token: token, // 使用 token 而不是密码
-          password: ''
-        })
-
-        if (res.code === 200 && res.data) {
-          this.problemInfo = res.data
+        if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
+          this.problemInfo = res.data.data
           this.extractExamples()
         } else {
-          this.$message.error(res.message || '获取题目失败')
+          console.error('学生端题目加载失败, 响应状态:', res?.status, '数据:', res?.data)
+          this.$message.error('获取题目失败')
         }
       } catch (error) {
-        console.error('加载题目失败:', error)
-        this.$message.error('加载题目失败')
+        // 只保留关键错误日志
+        if (error.response && error.response.status !== 502) {
+          console.error('学生端加载题目异常:', error.message)
+        }
+        // 检查是否是502错误（网关错误）
+        if (error.response && error.response.status === 502) {
+          this.$message.error('加载题目失败：BingOJ服务繁忙，请稍后重试')
+        } else if (error.response && error.response.status === 404) {
+          this.$message.error(`加载题目失败：题目ID ${this.problemId} 不存在`)
+        } else if (error.response && error.response.status === 403) {
+          this.$message.error('加载题目失败：您没有权限查看此题目')
+        } else {
+          this.$message.error('加载题目失败：' + (error.message || '请检查网络连接'))
+        }
       } finally {
         this.loading = false
       }

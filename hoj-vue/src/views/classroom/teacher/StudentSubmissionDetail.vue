@@ -19,8 +19,124 @@
 
         <!-- 题目列表 -->
         <div v-for="(submit, index) in studentSubmission.questions" :key="submit.id" class="question-item">
+          <!-- 未提交的题目 -->
+          <div v-if="submit._unsubmitted" class="unsubmitted-item">
+            <!-- 编程题未提交 -->
+            <div v-if="submit.problemId">
+              <div class="question-header">
+                <span class="question-number">{{ index + 1 }}.</span>
+                <el-tag type="warning" size="small">
+                  {{ $t('m.Programming') }}
+                </el-tag>
+                <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
+                  <i class="el-icon-warning-outline"></i> 未提交
+                </el-tag>
+                <span class="question-score">{{ submit.question?.score || 0 }}分</span>
+              </div>
+              <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
+
+              <!-- 未提交提示 -->
+              <div class="programming-unsubmitted">
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  show-icon>
+                  <template slot="title">
+                    <span style="font-size: 14px;">该学生在作业发布后未提交此题目</span>
+                  </template>
+                </el-alert>
+              </div>
+
+              <!-- 评分区域 - 显示0分状态 -->
+              <div class="grading-area">
+                <el-tag type="warning" size="small">
+                  {{ $t('m.Not_Graded') }}
+                </el-tag>
+                <span class="current-score">
+                  {{ $t('m.Current_Score') }}: 0
+                </span>
+                <span style="margin-left: 10px; color: #909399; font-size: 12px;">
+                  <i class="el-icon-warning-outline"></i> 学生未提交，无法评分
+                </span>
+              </div>
+            </div>
+
+            <!-- 普通题目未提交 -->
+            <div v-else-if="submit.question">
+              <div class="question-header">
+                <span class="question-number">{{ index + 1 }}.</span>
+                <el-tag :type="getQuestionTypeTag(submit.question.type)" size="small">
+                  {{ getQuestionTypeText(submit.question.type) }}
+                </el-tag>
+                <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
+                  <i class="el-icon-warning-outline"></i> 未提交
+                </el-tag>
+                <span class="question-score">{{ submit.question.score || 0 }}分</span>
+              </div>
+
+              <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)"></div>
+              <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)"></div>
+
+              <!-- 显示题目选项（单选、多选） -->
+              <div v-if="submit.question.type === 'single_choice' || submit.question.type === 'multiple_choice'" class="question-options">
+                <div v-for="option in parseOptions(submit.question.options)" :key="option.letter" class="option-item">
+                  <div class="option-display">
+                    <el-tag type="info" size="small" effect="plain">
+                      <span class="option-letter">{{ option.letter }}</span>
+                    </el-tag>
+                    <span v-html="renderMarkdown(option.text)" class="markdown-body option-text"></span>
+                    <!-- 正确答案标识 -->
+                    <el-tag v-if="isCorrectAnswer(submit.question.answer, option.letter, submit.question.type)"
+                      type="success"
+                      size="mini"
+                      style="margin-left: 8px;">
+                      ✓ {{ $t('m.Correct_Answer') }}
+                    </el-tag>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 填空题显示答案 -->
+              <div v-else-if="submit.question.type === 'fill_blank'" class="answer-display">
+                <p><strong>{{ $t('m.Correct_Answer') }}:</strong></p>
+                <div v-html="renderMarkdown(submit.question.answer || '')" class="markdown-body"></div>
+              </div>
+
+              <!-- 简答题显示答案 -->
+              <div v-else-if="submit.question.type === 'essay'" class="answer-display">
+                <p><strong>{{ $t('m.Correct_Answer') }}:</strong></p>
+                <div v-html="renderMarkdown(submit.question.answer || '')" class="markdown-body"></div>
+              </div>
+
+              <!-- 未提交提示 -->
+              <div class="unsubmitted-notice">
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  show-icon>
+                  <template slot="title">
+                    <span style="font-size: 14px;">该学生在作业发布后未提交此题目</span>
+                  </template>
+                </el-alert>
+              </div>
+
+              <!-- 评分区域 - 显示0分状态 -->
+              <div class="grading-area">
+                <el-tag type="warning" size="small">
+                  {{ $t('m.Not_Graded') }}
+                </el-tag>
+                <span class="current-score">
+                  {{ $t('m.Current_Score') }}: 0
+                </span>
+                <span style="margin-left: 10px; color: #909399; font-size: 12px;">
+                  <i class="el-icon-warning-outline"></i> 学生未提交，无法评分
+                </span>
+              </div>
+            </div>
+          </div>
+
           <!-- 编程题 -->
-          <div v-if="submit.problemId" class="programming-question-item">
+          <div v-else-if="submit.problemId" class="programming-question-item">
             <div class="question-header">
               <span class="question-number">{{ index + 1 }}.</span>
               <el-tag type="warning" size="small">
@@ -360,6 +476,13 @@ export default {
           if (currentHomeworkString !== newHomeworkString) {
             // 数据真的变化了，才更新
             this.homework = homeworkRes.data
+
+            // 重要：作业详情更新后（如添加了新题目），需要重新构建学生提交数据
+            // 否则新题目不会显示在学生提交详情中
+            if (this.submission) {
+              const studentUid = this.$route.query.uid
+              this.buildStudentSubmission(studentUid)
+            }
           }
         }
 
@@ -390,29 +513,79 @@ export default {
       // 筛选该学生的所有提交记录
       const studentSubmits = this.submissions.filter(s => s.uid === studentUid)
 
-
-      if (studentSubmits.length === 0) {
-        this.$message.warning(this.$t('m.No_Submission_Found'))
+      if (!this.homework || !this.homework.questions || this.homework.questions.length === 0) {
+        this.$message.warning('作业信息不完整')
         return
       }
 
-      // 构建学生提交数据
+      // 遍历作业的所有题目，确保显示所有题目（包括后来新增的）
       let totalScore = 0
-      const questions = studentSubmits.map(submit => {
-        totalScore += submit.score || 0
-        return submit
+      let latestSubmitTime = 0
+      const questions = this.homework.questions.map(homeworkQuestion => {
+        let submit = null
+
+        // 根据题目类型查找提交记录
+        if (homeworkQuestion.problemId) {
+          // 编程题：通过 problemId 匹配
+          submit = studentSubmits.find(s => s.problemId && s.problemId === homeworkQuestion.problemId)
+        } else if (homeworkQuestion.question) {
+          // 普通题目：通过 questionId 匹配
+          submit = studentSubmits.find(s => s.questionId && s.questionId === homeworkQuestion.question.id)
+        }
+
+        if (submit) {
+          // 有提交记录
+          totalScore += submit.score || 0
+          const submitTime = new Date(submit.createdAt).getTime()
+          if (submitTime > latestSubmitTime) {
+            latestSubmitTime = submitTime
+          }
+          // 返回提交记录，包含题目信息
+          return {
+            ...submit,
+            // 确保题目信息存在（用于显示题目内容）
+            question: submit.question || homeworkQuestion.question,
+            problemId: submit.problemId || homeworkQuestion.problemId
+          }
+        } else {
+          // 没有提交记录，创建一个空记录
+          return {
+            id: `unsubmitted-${homeworkQuestion.id}`,
+            questionId: homeworkQuestion.question ? homeworkQuestion.question.id : null,
+            homeworkId: this.homework.id,
+            uid: studentUid,
+            answer: null,
+            score: 0,
+            judgeResult: '未提交',
+            isScored: 0,
+            createdAt: null,
+            updatedAt: null,
+            // 包含题目信息以便显示
+            question: homeworkQuestion.question,
+            problemId: homeworkQuestion.problemId,
+            _unsubmitted: true // 标记为未提交
+          }
+        }
       })
+
+      // 获取学生姓名
+      let studentName = studentUid
+      if (studentSubmits.length > 0) {
+        studentName = studentSubmits[0].student?.username || studentSubmits[0].student?.realName || studentUid
+      }
 
       this.studentSubmission = {
         uid: studentUid,
-        studentName: studentSubmits[0].student?.username || studentSubmits[0].student?.realName || studentUid,
-        submitTime: Math.max(...studentSubmits.map(s => new Date(s.createdAt).getTime())),
+        studentName: studentName,
+        submitTime: latestSubmitTime,
         totalScore: totalScore,
         questions: questions
       }
 
       // 应用代码高亮
-      this.highlightAllCodeBlocks()
+      this.$nextTick(() => {
+        this.highlightAllCodeBlocks()
+      })
     },
     parseOptions(optionsStr) {
       if (!optionsStr) return []
@@ -808,6 +981,17 @@ export default {
   border-radius: 4px;
 }
 
+/* 未提交题目的样式 */
+.unsubmitted-item {
+  background-color: #fafafa;
+  border-left: 4px solid #E6A23C;
+  opacity: 0.9;
+}
+
+.unsubmitted-item:hover {
+  opacity: 1;
+}
+
 .question-header {
   display: flex;
   align-items: center;
@@ -930,6 +1114,35 @@ export default {
   border-radius: 4px;
 }
 
+/* 编程题未提交样式 */
+.programming-unsubmitted {
+  margin-top: 15px;
+  margin-bottom: 15px;
+}
+
+.programming-unsubmitted .el-alert {
+  border-radius: 4px;
+}
+
+.programming-unsubmitted .el-alert__title {
+  line-height: 1.6;
+}
+
+/* 普通题目未提交提示 */
+.unsubmitted-notice {
+  margin-top: 20px;
+  margin-bottom: 15px;
+}
+
+.unsubmitted-notice .el-alert {
+  border-radius: 4px;
+}
+
+.unsubmitted-notice .el-alert__title {
+  line-height: 1.6;
+}
+
+
 /* 选项样式优化 */
 .option-item {
   margin-bottom: 12px;
@@ -961,6 +1174,25 @@ export default {
   font-weight: bold;
   font-size: 14px;
   min-width: 24px;
+}
+
+/* 答案显示区域 */
+.answer-display {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 4px;
+}
+
+.answer-display p {
+  margin: 0 0 10px 0;
+  font-weight: 600;
+  color: #409EFF;
+}
+
+.answer-display div {
+  margin-top: 8px;
 }
 </style>
 

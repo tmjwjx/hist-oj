@@ -47,13 +47,15 @@ const rootGetters = {
   'webLanguage'(state){
     return state.language
   },
-  // 暴露 classroom 模块的 getters
+  // 暴露 classroom 模块的 getters（classroom 是 namespaced）
   'isTeacher'(state, getters) {
     return getters['classroom/isTeacher']
   },
   'isStudent'(state, getters) {
     return getters['classroom/isStudent']
   }
+  // 注意：user 模块的 getters (isAdminRole, isSuperAdmin, isProblemAdmin)
+  // 已经自动暴露到全局，因为 user store 没有 namespaced: true
 }
 
 const rootMutations = {

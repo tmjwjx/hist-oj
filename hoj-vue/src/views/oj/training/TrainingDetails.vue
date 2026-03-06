@@ -138,7 +138,10 @@
                       <span>训练状态</span>
                     </span>
                     <span>
-                      <template v-if="!hasJoined">
+                      <template v-if="trainingPasswordFormVisible">
+                        <el-tag type="warning">需要密码验证</el-tag>
+                      </template>
+                      <template v-else-if="!hasJoined">
                         <el-button
                           type="primary"
                           size="small"
@@ -256,21 +259,45 @@ export default {
   methods: {
     ...mapActions(['changeDomTitle']),
     // 检查是否已参加训练
+    // 检查是否已参加训练
     checkJoinStatus() {
+      // 如果需要密码验证，不检查参加状态
+      if (this.trainingPasswordFormVisible) {
+        this.hasJoined = false;
+        return;
+      }
+
+      // 调用 API 查询 training_participant 表，检查用户是否已报名
       const trainingId = this.$route.params.trainingID;
       getMyTrainingRecord(trainingId).then(
         (res) => {
-          if (res.data.code === 200 && res.data.data) {
+          // 成功响应（code=200），用户在 training_participant 表中
+          if (res.data && res.data.code === 200) {
             this.hasJoined = true;
+          } else {
+            this.hasJoined = false;
           }
         },
-        () => {
+        (err) => {
+          // 404 错误，用户不在 training_participant 表中（未报名）
           this.hasJoined = false;
         }
       );
     },
-    // 参加训练
     handleJoinTraining() {
+      // 如果需要密码验证，提示用户
+      if (this.trainingPasswordFormVisible) {
+        myMessage.warning('请先输入训练密码');
+        // 滚动到密码输入框
+        this.$nextTick(() => {
+          const passwordCard = document.querySelector('.password-form-card');
+          if (passwordCard) {
+            passwordCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+        return;
+      }
+      
       this.joinLoading = true;
       const trainingId = this.$route.params.trainingID;
       joinTraining(trainingId).then(
@@ -303,14 +330,43 @@ export default {
         return;
       }
       this.btnLoading = true;
+      const trainingId = this.$route.params.trainingID;
+      
+      // 先验证密码
       api.registerTraining(this.training.id + '', this.trainingPassword).then(
         (res) => {
-          myMessage.success(this.$i18n.t('m.Register_training_successfully'));
+          // 密码验证成功，直接完成报名
+          myMessage.success('密码验证成功，正在加入训练...');
           this.$store.commit('trainingIntoAccess', { intoAccess: true });
-          this.btnLoading = false;
+          
+          // 自动调用 joinTraining 完成报名
+          return joinTraining(trainingId).then(
+            (joinRes) => {
+              this.btnLoading = false;
+              if (joinRes.data.code === 200) {
+                myMessage.success('加入训练成功！');
+                this.hasJoined = true;
+                this.trainingPassword = ''; // 清空密码
+                // 刷新训练信息以更新进度
+                this.$store.dispatch('getTraining');
+              } else {
+                myMessage.error(joinRes.data.message || '加入训练失败');
+              }
+            },
+            (joinErr) => {
+              this.btnLoading = false;
+              myMessage.error(joinErr.response?.data?.message || '加入训练失败');
+            }
+          );
         },
-        (res) => {
+        (err) => {
           this.btnLoading = false;
+          // 密码验证失败
+          if (err.response?.data?.message) {
+            myMessage.error(err.response.data.message);
+          } else {
+            myMessage.error('密码验证失败');
+          }
         }
       );
     },

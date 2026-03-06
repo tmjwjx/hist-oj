@@ -228,6 +228,12 @@ export default {
           if (currentHomeworkString !== newHomeworkString) {
             // 数据真的变化了，才更新
             this.homework = homeworkRes.data
+
+            // 重要：作业详情更新后（如添加了新题目），需要重新聚合学生提交数据
+            // 这样 totalCount 会基于新的题目数量更新
+            if (this.submissions && this.submissions.length > 0) {
+              this.aggregateStudentSubmissions()
+            }
           }
         }
 
@@ -259,6 +265,9 @@ export default {
       // 将按题目分组的提交数据聚合为学生维度
       const studentMap = new Map()
 
+      // 获取作业的总题目数（用于计算完成进度）
+      const totalQuestionsCount = this.homework.questions?.length || 0
+
       this.submissions.forEach(submit => {
         const uid = submit.uid
         if (!studentMap.has(uid)) {
@@ -269,13 +278,13 @@ export default {
             submitTime: submit.createdAt,
             totalScore: 0,
             completedCount: 0,
-            totalCount: 0,
+            totalCount: totalQuestionsCount,  // 使用作业的题目总数
             questions: []
           })
         }
 
         const student = studentMap.get(uid)
-        student.totalCount++
+        // 不再 totalCount++，因为已经在初始化时设置了正确的值
         student.questions.push(submit)
 
         // 只统计已正式提交的题目

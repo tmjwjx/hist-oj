@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/client"
+	"github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/utils"
 )
@@ -46,18 +47,46 @@ func (s *TrainingService) GetTrainingAccess(trainingID uint64, uid string) (bool
 		return false, nil
 	}
 
-	// 如果是私有训练，检查用户是否已注册（在 training_participant 表中有记录）
+	// 获取用户信息，检查是否是训练创建者或超级管理员
+	var userInfo model.UserInfo
+	err = db.Where("uuid = ?", uid).First(&userInfo).Error
+	if err != nil {
+		logger.Error("查询用户信息失败", zap.Error(err))
+		// 即使查询失败也继续，因为后面还有其他检查
+	} else {
+		// 检查是否是训练创建者或超级管理员
+		isRoot := false
+		roles, err := middleware.GetUserRoles(db, uid)
+		if err == nil {
+			isRoot = middleware.HasRole(roles, middleware.RoleRoot)
+		}
+
+		if userInfo.Username == training.Author || isRoot {
+			logger.Info("用户是训练创建者或超级管理员，直接有访问权限",
+				zap.Uint64("training_id", trainingID),
+				zap.String("uid", uid),
+				zap.String("username", userInfo.Username),
+				zap.Bool("is_root", isRoot))
+			return true, nil
+		}
+	}
+
+	// 如果是私有训练，检查用户是否已注册（在 training_register 表中有记录）
 	if training.Auth == "Private" {
-		var participant model.TrainingParticipant
-		err := db.Where("training_id = ? AND uid = ?", trainingID, uid).First(&participant).Error
+		var register model.TrainingRegister
+		err := db.Where("tid = ? AND uid = ?", trainingID, uid).First(&register).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				// 未找到注册记录，无访问权限
 				logger.Info("用户未注册私有训练，无访问权限", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
 				return false, nil
 			}
-			logger.Error("查询训练参与记录失败", zap.Error(err))
+			logger.Error("查询训练注册记录失败", zap.Error(err))
 			return false, err
+		}
+		if !register.Status {
+			logger.Info("用户注册状态不可用", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+			return false, nil
 		}
 	}
 
@@ -82,24 +111,45 @@ func (s *TrainingService) JoinTraining(trainingID uint64, uid string) (*model.Tr
 		return nil, err
 	}
 
-	// 如果是私有训练，检查用户是否已注册（通过密码验证）
-	if training.Auth == "Private" {
-		var register model.TrainingRegister
-		err := db.Where("tid = ? AND uid = ?", trainingID, uid).First(&register).Error
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				logger.Warn("私有训练：用户未注册", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
-				return nil, fmt.Errorf("私有训练需要先通过密码验证")
+	// 获取用户信息，检查是否是训练创建者或超级管理员
+	var userInfo model.UserInfo
+	err = db.Where("uuid = ?", uid).First(&userInfo).Error
+	if err != nil {
+		logger.Error("查询用户信息失败", zap.Error(err))
+	} else {
+		// 检查是否是训练创建者或超级管理员
+		isRoot := false
+		roles, err := middleware.GetUserRoles(db, uid)
+		if err == nil {
+			isRoot = middleware.HasRole(roles, middleware.RoleRoot)
+		}
+
+		// 如果是训练创建者或超级管理员，跳过密码验证，直接创建参与记录
+		if userInfo.Username == training.Author || isRoot {
+			logger.Info("用户是训练创建者或超级管理员，跳过密码验证",
+				zap.Uint64("training_id", trainingID),
+				zap.String("uid", uid),
+				zap.String("username", userInfo.Username),
+				zap.Bool("is_root", isRoot))
+		} else if training.Auth == "Private" {
+			// 如果是私有训练且不是创建者/超级管理员，检查是否已注册（通过密码验证）
+			var register model.TrainingRegister
+			err := db.Where("tid = ? AND uid = ?", trainingID, uid).First(&register).Error
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					logger.Warn("私有训练：用户未注册", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+					return nil, fmt.Errorf("私有训练需要先通过密码验证")
+				}
+				logger.Error("查询训练注册记录失败", zap.Error(err))
+				return nil, err
 			}
-			logger.Error("查询训练注册记录失败", zap.Error(err))
-			return nil, err
+			if !register.Status {
+				logger.Warn("私有训练：用户注册状态不可用", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
+				return nil, fmt.Errorf("训练注册状态异常")
+			}
+			// 用户已通过密码验证，继续创建参与记录
+			logger.Info("私有训练：用户已通过密码验证", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
 		}
-		if !register.Status {
-			logger.Warn("私有训练：用户注册状态不可用", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
-			return nil, fmt.Errorf("训练注册状态异常")
-		}
-		// 用户已通过密码验证，继续创建参与记录
-		logger.Info("私有训练：用户已通过密码验证", zap.Uint64("training_id", trainingID), zap.String("uid", uid))
 	}
 
 	// 检查是否已参加

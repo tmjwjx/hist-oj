@@ -443,5 +443,29 @@ func InitClassroomTables(db *gorm.DB) error {
 		&ExamViolationLog{},
 		&ExamPaper{},
 		&ExamPaperQuestion{},
+		&ClassroomRoleRequest{},
 	)
+}
+
+// ClassroomRoleRequest 班级角色申请表
+type ClassroomRoleRequest struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	UID         string    `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	Role        string    `gorm:"type:varchar(20);not null;index:idx_role" json:"role"` // teacher, student
+	Reason      string    `gorm:"type:text" json:"reason"` // 申请理由
+	Status      int       `gorm:"type:int;default:0;index:idx_status" json:"status"` // 0: 待审批, 1: 已批准, 2: 已拒绝
+	ReviewerUID string    `gorm:"type:varchar(32)" json:"reviewerUid"` // 审批人UID
+	ReviewTime  *time.Time `gorm:"type:datetime" json:"reviewTime"` // 审批时间
+	ReviewNote  string    `gorm:"type:text" json:"reviewNote"` // 审批备注
+	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+
+	// 关联字段
+	Applicant  *UserInfo `gorm:"foreignKey:UID;references:UUID" json:"applicant,omitempty"`
+	Reviewer   *UserInfo `gorm:"foreignKey:ReviewerUID;references:UUID" json:"reviewer,omitempty"`
+}
+
+// TableName 指定表名
+func (ClassroomRoleRequest) TableName() string {
+	return "classroom_role_request"
 }

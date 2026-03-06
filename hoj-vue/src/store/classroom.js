@@ -18,14 +18,26 @@ const state = {
   loadingStates: {
     teacherClassrooms: false,
     studentClassrooms: false,
-    userRoles: false
+    userRoles: false,
+    roleApplications: false
   },
   // 缓存时间戳
   cacheTimestamps: {
     teacherClassrooms: 0,
     studentClassrooms: 0,
     userRoles: 0
-  }
+  },
+  // 编程题提交记录缓存（减少频繁轮询对服务器的压力）
+  programmingSubmissionsCache: {},
+  homeworkDetailCache: {}, // 作业详情缓存
+  // 缓存TTL配置（毫秒）
+  cacheTTL: {
+    programmingSubmissions: 15000, // 编程题提交记录缓存15秒（增加以减少API调用）
+    homeworkDetail: 10000 // 作业详情缓存10秒
+  },
+  // 权限申请相关状态
+  roleApplications: [],
+  error: null
 }
 
 const getters = {
@@ -94,6 +106,21 @@ const mutations = {
       state.cacheTimestamps.studentClassrooms = 0
       state.cacheTimestamps.userRoles = 0
     }
+  },
+  SET_PROGRAMMING_SUBMISSIONS_CACHE(state, { cacheKey, data, timestamp }) {
+    state.programmingSubmissionsCache[cacheKey] = {
+      data,
+      timestamp
+    }
+  },
+  SET_HOMEWORK_DETAIL_CACHE(state, { homeworkId, data, timestamp }) {
+    state.homeworkDetailCache[homeworkId] = {
+      data,
+      timestamp
+    }
+  },
+  SET_ROLE_APPLICATIONS(state, applications) {
+    state.roleApplications = applications || []
   }
 }
 
@@ -138,7 +165,7 @@ const actions = {
       commit('SET_USER_ROLES', roleNames)
       state.cacheTimestamps.userRoles = Date.now()
     } catch (error) {
-      console.error('加载用户角色失败', error)
+      console.error('[classroom/loadUserRoles] 加载用户角色失败', error)
       commit('SET_USER_ROLES', [])
     } finally {
       commit('SET_LOADING_STATE', { key: 'userRoles', value: false })
@@ -267,6 +294,14 @@ const actions = {
     }
     return res.data
   },
+  async addClassroomStudent({ commit }, { classroomId, data }) {
+    const res = await api.addClassroomStudent(classroomId, data)
+    return res.data
+  },
+  async searchStudentsToAdd({ commit }, { classroomId, keyword }) {
+    const res = await api.searchStudentsToAdd(classroomId, keyword)
+    return res.data
+  },
   async removeStudent({ commit }, data) {
     const res = await api.removeStudent(data)
     return res.data
@@ -364,20 +399,67 @@ const actions = {
     }
     return res.data
   },
-  async getHomeworkDetail({ commit }, homeworkId) {
+  async getHomeworkDetail({ commit, state }, homeworkId, forceRefresh = false) {
+    // 如果强制刷新，跳过缓存
+    if (!forceRefresh) {
+      // 检查缓存
+      const cached = state.homeworkDetailCache[homeworkId]
+      const now = Date.now()
+
+      if (cached && (now - cached.timestamp < state.cacheTTL.homeworkDetail)) {
+        return cached.data
+      }
+    }
+
+    // 调用API
     const res = await api.getHomeworkDetail(homeworkId)
+
+    // 更新缓存
+    const now = Date.now()
+    commit('SET_HOMEWORK_DETAIL_CACHE', {
+      homeworkId,
+      data: res.data,
+      timestamp: now
+    })
+
     return res.data
   },
-  async getStudentHomeworkDetail({ commit }, homeworkId) {
+  async getStudentHomeworkDetail({ commit, state }, homeworkId) {
+    // 检查缓存
+    const cached = state.homeworkDetailCache[`student-${homeworkId}`]
+    const now = Date.now()
+
+    if (cached && (now - cached.timestamp < state.cacheTTL.homeworkDetail)) {
+      return cached.data
+    }
+
+    // 调用API
     const res = await api.getStudentHomeworkDetail(homeworkId)
+
+    // 更新缓存
+    commit('SET_HOMEWORK_DETAIL_CACHE', {
+      homeworkId: `student-${homeworkId}`,
+      data: res.data,
+      timestamp: now
+    })
+
     return res.data
   },
   async saveHomeworkDraft({ commit }, data) {
     const res = await api.saveHomeworkDraft(data)
     return res.data
   },
-  async submitHomework({ commit }, data) {
+  async submitHomework({ commit, state }, data) {
     const res = await api.submitHomework(data)
+
+    // 提交成功后，清除相关缓存，确保能立即获取最新数据
+    if (res.data && res.data.code === 200) {
+      const homeworkId = data.homeworkId
+      // 清除作业详情缓存
+      delete state.homeworkDetailCache[homeworkId]
+      delete state.homeworkDetailCache[`student-${homeworkId}`]
+    }
+
     return res.data
   },
   async getHomeworkSubmissions({ commit }, homeworkId) {
@@ -468,12 +550,38 @@ const actions = {
   },
 
   // 编程题提交记录
-  async saveProgrammingSubmission({ commit }, data) {
+  async saveProgrammingSubmission({ commit, state }, data) {
     const res = await api.saveProgrammingSubmission(data)
+
+    // 清除相关缓存，以便下次获取最新数据
+    if (res.data && res.data.code === 200) {
+      const cacheKey = `${data.homeworkId}-${data.questionId}`
+      delete state.programmingSubmissionsCache[cacheKey]
+    }
+
     return res.data
   },
-  async getProgrammingSubmissions({ commit }, params) {
+  async getProgrammingSubmissions({ commit, state }, params) {
+    // 生成缓存键
+    const cacheKey = `${params.homeworkId}-${params.questionId}`
+    const cached = state.programmingSubmissionsCache[cacheKey]
+    const now = Date.now()
+
+    // 如果有缓存且未过期，直接返回缓存数据
+    if (cached && (now - cached.timestamp < state.cacheTTL.programmingSubmissions)) {
+      return cached.data
+    }
+
+    // 没有缓存或缓存已过期，调用API
     const res = await api.getProgrammingSubmissions(params)
+
+    // 更新缓存
+    commit('SET_PROGRAMMING_SUBMISSIONS_CACHE', {
+      cacheKey,
+      data: res.data,
+      timestamp: now
+    })
+
     return res.data
   },
 
@@ -536,6 +644,72 @@ const actions = {
   async importExamPaper({ commit }, data) {
     const res = await api.importExamPaper(data)
     return res.data
+  },
+
+  // ==================== 权限申请管理 ====================
+  // 申请班级角色
+  async createRoleApplication({ commit }, data) {
+    try {
+      const res = await api.createRoleApplication(data)
+      commit('SET_ERROR', null)
+      return res.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || '申请权限失败')
+      throw error
+    }
+  },
+
+  // 获取当前用户的角色申请列表
+  async getMyRoleApplications({ commit }, status = '0') {
+    try {
+      const res = await api.getMyRoleApplications(status)
+      // 后端返回格式：{ code: 200, data: { applications: [...], count: 1 } }
+      const applications = res.data?.data?.applications || []
+      commit('SET_ROLE_APPLICATIONS', applications)
+      commit('SET_ERROR', null)
+      return res.data
+    } catch (error) {
+      // API调用失败时也要设置为空数组，确保用户能看到申请按钮
+      commit('SET_ROLE_APPLICATIONS', [])
+      commit('SET_ERROR', error.message || '获取申请列表失败')
+      throw error
+    }
+  },
+
+  // 取消角色申请（用户）
+  async cancelRoleApplication({ commit }, applicationId) {
+    try {
+      const res = await api.cancelRoleApplication(applicationId)
+      commit('SET_ERROR', null)
+      return res.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || '取消申请失败')
+      throw error
+    }
+  },
+
+  // 获取角色申请列表（管理员）
+  async getRoleApplications({ commit }, params) {
+    try {
+      const res = await api.getRoleApplications(params)
+      commit('SET_ERROR', null)
+      return res.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || '获取申请列表失败')
+      throw error
+    }
+  },
+
+  // 审批角色申请（管理员）
+  async reviewRoleApplication({ commit }, data) {
+    try {
+      const res = await api.reviewRoleApplication(data)
+      commit('SET_ERROR', null)
+      return res.data
+    } catch (error) {
+      commit('SET_ERROR', error.message || '审批申请失败')
+      throw error
+    }
   }
 }
 

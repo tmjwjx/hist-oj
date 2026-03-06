@@ -426,26 +426,15 @@ func (h *Handler) GetHomeworkList(c *gin.Context) {
 
 		// 如果是学生请求，检查是否已提交
 		if hasUser {
-			// 统计已作答的题目数（使用 DISTINCT 去重，统计 question_id 或 problem_id）
-			var submittedQuestionCount int64
-			db.Raw(`
-				SELECT COUNT(DISTINCT CASE
-					WHEN question_id IS NOT NULL THEN question_id
-					WHEN problem_id IS NOT NULL THEN problem_id
-					ELSE NULL
-				END) as count
-				FROM homework_submit
-				WHERE homework_id = ? AND uid = ? AND is_officially_submitted = 1
-			`, homeworks[i].ID, uid.(string)).Scan(&submittedQuestionCount)
+			// 检查是否有正式提交记录（is_officially_submitted = 1）
+			// 只要有一条正式提交记录，就认为已完成
+			var submitCount int64
+			db.Model(&model.HomeworkSubmit{}).
+				Where("homework_id = ? AND uid = ? AND is_officially_submitted = 1", homeworks[i].ID, uid.(string)).
+				Count(&submitCount)
 
-			// 获取该作业的总题目数
-			var questionCount int64
-			db.Model(&model.HomeworkQuestion{}).
-				Where("homework_id = ?", homeworks[i].ID).
-				Count(&questionCount)
-
-			// 判断是否已完成（已作答的题目数等于总题目数）
-			homeworks[i].IsCompleted = submittedQuestionCount > 0 && int(submittedQuestionCount) >= int(questionCount)
+			// 判断是否已完成（有正式提交记录）
+			homeworks[i].IsCompleted = submitCount > 0
 		}
 	}
 

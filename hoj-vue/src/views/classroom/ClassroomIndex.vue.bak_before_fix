@@ -1,0 +1,347 @@
+<template>
+  <div class="classroom-index">
+    <div class="header">
+      <h1>{{ $t('m.Classroom') }}</h1>
+    </div>
+
+    <!-- 有角色的情况 -->
+    <div class="content" v-if="hasRole">
+      <el-card v-if="isTeacher" shadow="hover" @click.native="goToTeacherDashboard" class="card">
+        <i class="el-icon-s-custom"></i>
+        <h2>{{ $t('m.Teacher_Workspace') }}</h2>
+        <p>{{ $t('m.Manage_your_classrooms') }}</p>
+      </el-card>
+      <el-card v-if="isStudent" shadow="hover" @click.native="goToStudentDashboard" class="card">
+        <i class="el-icon-reading"></i>
+        <h2>{{ $t('m.My_Classrooms') }}</h2>
+        <p>{{ $t('m.View_joined_classrooms') }}</p>
+      </el-card>
+    </div>
+
+    <!-- 无角色的情况 -->
+    <el-empty v-else class="empty-state" :description="$t('m.No_Classroom_Role_Description')">
+      <template #image>
+        <i class="el-icon-info" style="font-size: 100px; color: #909399;"></i>
+      </template>
+      <div class="role-info">
+        <p>{{ $t('m.Classroom_Not_Enabled') }}</p>
+
+        <!-- 管理员提示 -->
+        <el-alert
+          v-if="isAdminRole"
+          :title="$t('m.Admin_Enable_Classroom')"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-top: 20px; max-width: 600px;"
+        >
+          <template>
+            <div>{{ $t('m.Admin_Enable_Classroom_Tip1') }}</div>
+            <div>{{ $t('m.Admin_Enable_Classroom_Tip2') }}</div>
+          </template>
+        </el-alert>
+
+        <!-- 申请权限按钮 -->
+        <div v-else class="apply-buttons">
+          <el-alert
+            :title="$t('m.Contact_Admin_For_Classroom')"
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-bottom: 20px; max-width: 600px;"
+          />
+
+          <!-- 显示待审批的申请 -->
+          <div v-if="pendingApplications.length > 0" class="pending-applications">
+            <h4>{{ $t('m.Pending_Applications') }}</h4>
+            <el-card v-for="app in pendingApplications" :key="app.id" class="application-card" shadow="hover">
+              <div class="application-info">
+                <el-tag :type="app.role === 'teacher' ? 'primary' : 'success'" size="small">
+                  {{ app.role === 'teacher' ? $t('m.Teacher') : $t('m.Student') }}
+                </el-tag>
+                <span class="application-time">{{ formatTime(app.createdAt) }}</span>
+              </div>
+              <div class="application-reason">
+                <p>{{ $t('m.Apply_Reason') }}: {{ app.reason }}</p>
+              </div>
+              <div class="application-actions">
+                <el-button
+                  type="danger"
+                  size="mini"
+                  @click="cancelApplication(app.id)"
+                  :loading="cancelling === app.id"
+                >
+                  {{ $t('m.Cancel_Application') }}
+                </el-button>
+              </div>
+            </el-card>
+          </div>
+
+          <div class="button-group">
+            <el-button type="primary" size="medium" @click="showApplyDialog('teacher')">
+              <i class="el-icon-s-custom"></i>
+              <span>{{ $t('m.Apply_Teacher_Role') }}</span>
+            </el-button>
+            <el-button type="success" size="medium" @click="showApplyDialog('student')">
+              <i class="el-icon-reading"></i>
+              <span>{{ $t('m.Apply_Student_Role') }}</span>
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-empty>
+
+    <!-- 申请权限对话框 -->
+    <el-dialog
+      :title="applyDialogTitle"
+      :visible.sync="applyDialogVisible"
+      width="500px"
+      :before-close="handleCloseApplyDialog"
+    >
+      <el-form :model="applyForm" :rules="applyRules" ref="applyForm" label-width="100px">
+        <el-form-item :label="$t('m.Apply_Role')" prop="role">
+          <el-tag v-if="applyForm.role === 'teacher'" type="primary" size="medium">
+            {{ $t('m.Teacher') }}
+          </el-tag>
+          <el-tag v-else-if="applyForm.role === 'student'" type="success" size="medium">
+            {{ $t('m.Student') }}
+          </el-tag>
+        </el-form-item>
+        <el-form-item :label="$t('m.Apply_Reason')" prop="reason">
+          <el-input
+            v-model="applyForm.reason"
+            type="textarea"
+            :rows="4"
+            :placeholder="$t('m.Apply_Reason_Placeholder')"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="applyDialogVisible = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="submitApplication" :loading="submitting">
+          {{ $t('m.Submit_Application') }}
+        </el-button>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+import { mapGetters } from 'vuex'
+
+export default {
+  name: 'ClassroomIndex',
+  data() {
+    return {
+      debug: false,
+      pollingTimer: null,
+      applyDialogVisible: false,
+      submitting: false,
+      applyForm: {
+        role: '',
+        reason: ''
+      },
+      applyRules: {
+        reason: [
+          { required: true, message: this.$t('m.Apply_Reason_Required'), trigger: 'blur' },
+          { min: 10, message: this.$t('m.Apply_Reason_Min_Length'), trigger: 'blur' }
+        ]
+      },
+      pendingApplications: [],
+      cancelling: null
+    }
+  },
+  computed: {
+    ...mapGetters(['isTeacher', 'isStudent', 'isAdminRole']),
+    userRoles() {
+      return this.$store.state.classroom.userRoles
+    },
+    hasRole() {
+      return this.isTeacher || this.isStudent
+    },
+    applyDialogTitle() {
+      if (this.applyForm.role === 'teacher') {
+        return this.$t('m.Apply_Teacher_Role')
+      } else if (this.applyForm.role === 'student') {
+        return this.$t('m.Apply_Student_Role')
+      }
+      return this.$t('m.Apply_Role')
+    }
+  },
+  mounted() {
+    // 每次进入页面都重新加载角色
+    this.$store.dispatch('classroom/loadUserRoles')
+
+    // 加载待审批的申请
+    this.loadPendingApplications()
+
+    // 启动轮询检测用户角色
+    this.startPolling()
+  },
+  beforeDestroy() {
+    // 组件销毁前清除定时器
+    this.stopPolling()
+  },
+  methods: {
+    goToTeacherDashboard() {
+      this.$router.push({ name: 'TeacherDashboard' })
+    },
+    goToStudentDashboard() {
+      this.$router.push({ name: 'StudentDashboard' })
+    },
+    // 显示申请对话框
+    showApplyDialog(role) {
+      this.applyForm.role = role
+      this.applyForm.reason = ''
+      this.applyDialogVisible = true
+      // 重置表单验证
+      this.$nextTick(() => {
+        if (this.$refs.applyForm) {
+          this.$refs.applyForm.clearValidate()
+        }
+      })
+    },
+    // 关闭申请对话框
+    handleCloseApplyDialog() {
+      this.applyDialogVisible = false
+      this.applyForm = {
+        role: '',
+        reason: ''
+      }
+    },
+    // 提交申请
+    submitApplication() {
+      this.$refs.applyForm.validate(async (valid) => {
+        if (valid) {
+          this.submitting = true
+          try {
+            const res = await this.$store.dispatch('classroom/createRoleApplication', {
+              role: this.applyForm.role,
+              reason: this.applyForm.reason
+            })
+
+            if (res.code === 200) {
+              this.$message.success(this.$t('m.Application_Submitted_Success'))
+              this.applyDialogVisible = false
+              // 重新加载角色状态
+              await this.$store.dispatch('classroom/loadUserRoles', true)
+            } else {
+              this.$message.error(res.message || this.$t('m.Application_Submitted_Failed'))
+            }
+          } catch (error) {
+            console.error('提交申请失败:', error)
+            this.$message.error(this.$t('m.Application_Submitted_Failed'))
+          } finally {
+            this.submitting = false
+          }
+        }
+      })
+    },
+    // 启动轮询
+    startPolling() {
+      this.pollingTimer = setInterval(() => {
+        this.$store.dispatch('classroom/loadUserRoles')
+      }, 500)
+    },
+    // 停止轮询
+    stopPolling() {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer)
+        this.pollingTimer = null
+      }
+    }
+  }
+}
+</script>
+
+<style scoped>
+.classroom-index {
+  padding: 20px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.header h1 {
+  font-size: 36px;
+  color: #409EFF;
+}
+
+.content {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.card {
+  width: 300px;
+  height: 200px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.card:hover {
+  box-shadow: 0 4px 20px rgba(64, 158, 255, 0.3);
+}
+
+.card i {
+  font-size: 60px;
+  color: #409EFF;
+  margin-bottom: 15px;
+}
+
+.card h2 {
+  font-size: 24px;
+  margin: 10px 0;
+}
+
+.card p {
+  color: #909399;
+}
+
+.empty-state {
+  margin-top: 60px;
+}
+
+.role-info {
+  text-align: center;
+}
+
+.role-info p {
+  font-size: 16px;
+  color: #606266;
+  margin-bottom: 20px;
+}
+
+.apply-buttons {
+  margin-top: 20px;
+}
+
+.button-group {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.button-group .el-button {
+  min-width: 150px;
+}
+
+.button-group .el-button i {
+  margin-right: 5px;
+}
+
+.dialog-footer {
+  text-align: right;
+}
+</style>

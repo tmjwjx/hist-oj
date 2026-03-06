@@ -74,6 +74,11 @@ services:
       - "443:443"
     environment:
       - TZ=Asia/Shanghai
+    volumes:
+      # Logo 映射（前端logo、后台logo、网站图标）
+      - ./logo.png:/usr/share/nginx/html/assets/img/logo.a0feb5a8.png
+      - ./backstage.png:/usr/share/nginx/html/assets/img/backstage.a0feb5a8.png
+      - ./favicon.ico:/usr/share/nginx/html/favicon.ico
     depends_on:
       - hist-oj
       - registration-backend

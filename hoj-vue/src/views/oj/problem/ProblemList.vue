@@ -161,6 +161,7 @@
             :title="$t('m.Problem_ID')"
             width="150"
             show-overflow
+            :tooltip-config="{ enabled: true }"
           ></vxe-table-column>
 
           <vxe-table-column
@@ -168,6 +169,7 @@
             :title="$t('m.Problem')"
             min-width="150"
             show-overflow
+            :tooltip-config="{ enabled: true }"
           >
             <template v-slot="{ row }">
               <a @click="getProblemUri(row.problemId)" class="title-a">{{

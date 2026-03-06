@@ -77,7 +77,7 @@ const adminRoutes = [
         path: 'battle-records',
         name: 'admin-battle-records',
         component: BattleRecordsAdmin,
-        meta: { requireAdmin: true, title: '对战记录管理' }
+        meta: { requireSuperAdmin: true, title: '对战记录管理' }
       },
       {
         path: 'permission-docs',
@@ -245,7 +245,7 @@ const adminRoutes = [
         path: 'user-role-management',
         name: 'admin-user-role-management',
         component: UserRoleManagement,
-        meta: { requireSuperAdmin: true, title: '用户角色管理' }
+        meta: { requireAdmin: true, title: '用户角色管理' }
       },
       {
         path: 'classroom',

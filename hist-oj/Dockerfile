@@ -26,22 +26,29 @@ RUN if [ -d third_party/sim/sim_src ]; then \
     echo "正在编译 sim 工具..." && \
     cd third_party/sim/sim_src && \
     # 清理预编译的二进制文件（可能是其他架构的）\
-    make clean || true && \
     rm -f sim_c sim_java sim_text sim_cc *.o 2>/dev/null || true && \
-    # 修复 Makefile: 替换路径和添加编译标志 \
-    sed -i 's|/home/dick|/usr/local|g' Makefile && \
-    sed -i 's|^CC[[:space:]]*=[[:space:]]*gcc|CC = gcc -std=gnu89|' Makefile && \
+    # 修复 Makefile: 替换路径和添加编译标志 (Alpine Linux 需要 .bak 后缀)\
+    sed -i.bak 's|/home/dick|/usr/local|g' Makefile && \
+    sed -i.bak 's|^CC[[:space:]]*=[[:space:]]*gcc|CC = gcc -std=gnu89|' Makefile && \
     echo "开始编译..." && \
-    # 编译 sim_c 和 sim_java \
-    make sim_c sim_java && \
-    # 验证编译结果 \
-    echo "编译产物:" && \
-    ls -la sim_c sim_java && \
-    mkdir -p /tmp/sim-bin && \
-    cp sim_c sim_java /tmp/sim-bin/ && \
-    echo "✓ sim 工具编译成功（sim_c, sim_java）"; \
+    # 编译 sim_c 和 sim_java（允许失败）\
+    if make sim_c sim_java 2>&1; then \
+        echo "编译产物:" && \
+        ls -la sim_c sim_java && \
+        mkdir -p /tmp/sim-bin && \
+        cp sim_c sim_java /tmp/sim-bin/ && \
+        echo "✓ sim 工具编译成功（sim_c, sim_java）"; \
+    else \
+        echo "⚠️  sim 工具编译失败，将跳过查重功能（不影响主程序）"; \
+        echo "注意：Docker构建将成功继续，但代码查重功能可能不可用"; \
+        echo "创建空的 sim-tools 目录以避免后续 COPY 失败"; \
+        mkdir -p /tmp/sim-bin; \
+    fi && \
+    # 清理 .bak 文件\
+    rm -f *.bak 2>/dev/null || true; \
     else \
     echo "警告: third_party/sim/sim_src 不存在，跳过 sim 工具编译"; \
+    mkdir -p /tmp/sim-bin; \
     fi
 
 # 构建应用
@@ -67,25 +74,24 @@ WORKDIR /app
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/hist-oj-service .
 
-# 复制 sim 工具二进制文件（如果存在）
-RUN mkdir -p /usr/local/bin
-COPY --from=builder /tmp/sim-bin /usr/local/bin/sim-tools
-RUN echo "检查 sim-tools 目录..." && \
-    ls -la /usr/local/bin/ && \
-    if [ -d /usr/local/bin/sim-tools ]; then \
-    echo "sim-tools 存在，内容:" && \
-    ls -la /usr/local/bin/sim-tools/ && \
-    cp /usr/local/bin/sim-tools/* /usr/local/bin/ && \
-    chmod +x /usr/local/bin/sim_* && \
-    rm -rf /usr/local/bin/sim-tools && \
-    echo "✓ sim工具已安装：" && \
-    ls -la /usr/local/bin/sim_*; \
+# 从构建阶段复制 sim 工具二进制文件
+COPY --from=builder /tmp/sim-bin /tmp/sim-bin
+
+# 安装 sim 工具（如果存在）
+RUN mkdir -p /usr/local/bin && \
+    if [ -d /tmp/sim-bin ] && [ "$(ls -A /tmp/sim-bin)" ]; then \
+        echo "检查 sim-tools 目录..." && \
+        ls -la /tmp/sim-bin/ && \
+        cp /tmp/sim-bin/* /usr/local/bin/ && \
+        chmod +x /usr/local/bin/sim_* 2>/dev/null || true && \
+        echo "✓ sim工具已安装：" && \
+        ls -la /usr/local/bin/sim_* 2>/dev/null || echo "  (未找到 sim_* 二进制文件)"; \
     else \
-    echo "⚠️  警告: sim工具不存在，查重功能将无法使用"; \
-    echo "可能原因:" && \
-    echo "  1. third_party/sim/sim_src 目录不存在"; \
-    echo "  2. sim 编译失败"; \
-    echo "  3. 构建架构不匹配"; \
+        echo "⚠️  警告: sim工具不存在，查重功能将无法使用"; \
+        echo "可能原因:"; \
+        echo "  1. third_party/sim/sim_src 目录不存在"; \
+        echo "  2. sim 编译失败"; \
+        echo "  3. 构建架构不匹配"; \
     fi
 
 # 复制配置文件目录（运行时通过环境变量覆盖）

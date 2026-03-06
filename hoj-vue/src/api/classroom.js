@@ -22,6 +22,12 @@ export default {
   getAllClassroomsForAdmin() {
     return axios.get(`${BASE_URL}/admin/classrooms`)
   },
+  // 搜索用户（用于角色管理）- 允许所有管理员调用
+  searchUsersForRoleManagement(keyword, currentPage = 1, limit = 20) {
+    return axios.get(`${BASE_URL}/admin/users/search`, {
+      params: { keyword, currentPage, limit }
+    })
+  },
 
   // ==================== 班级管理 ====================
   createClassroom(data) {
@@ -49,6 +55,14 @@ export default {
   // ==================== 学生管理 ====================
   getClassroomStudents(classroomId) {
     return axios.get(`${BASE_URL}/${classroomId}/students`)
+  },
+  addClassroomStudent(classroomId, data) {
+    return axios.post(`${BASE_URL}/${classroomId}/students`, data)
+  },
+  searchStudentsToAdd(classroomId, keyword) {
+    return axios.get(`${BASE_URL}/${classroomId}/students/search`, {
+      params: { keyword }
+    })
   },
   removeStudent(data) {
     return axios.delete(`${BASE_URL}/student`, { data })
@@ -167,7 +181,12 @@ export default {
     return axios.post(`${BASE_URL}/programming/submission`, data)
   },
   getProgrammingSubmissions(params) {
-    return axios.get(`${BASE_URL}/programming/submissions`, { params })
+    // 为编程题提交记录查询设置更长的超时时间（30秒）
+    // 因为这个查询可能涉及判题系统，需要更长时间
+    return axios.get(`${BASE_URL}/programming/submissions`, {
+      params,
+      timeout: 30000 // 30秒超时
+    })
   },
 
   // ==================== 资料库功能 ====================
@@ -303,5 +322,27 @@ export default {
   // 管理员获取题库（所有题目，包括私有）
   adminGetQuestionBank(params) {
     return axios.get(`${BASE_URL}/admin/question-bank`, { params })
+  },
+
+  // ==================== 权限申请管理 ====================
+  // 申请班级角色（用户）
+  createRoleApplication(data) {
+    return axios.post(`${BASE_URL}/role/apply`, data)
+  },
+  // 取消角色申请（用户）
+  cancelRoleApplication(applicationId) {
+    return axios.delete(`${BASE_URL}/role/application/${applicationId}`)
+  },
+  // 获取当前用户的角色申请列表（用户）
+  getMyRoleApplications(status = '0') {
+    return axios.get(`${BASE_URL}/role/my_applications`, { params: { status } })
+  },
+  // 获取角色申请列表（管理员）
+  getRoleApplications(params) {
+    return axios.get(`${BASE_URL}/admin/role/applications`, { params })
+  },
+  // 审批角色申请（管理员）
+  reviewRoleApplication(data) {
+    return axios.post(`${BASE_URL}/admin/role/review`, data)
   }
 }

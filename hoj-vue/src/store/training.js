@@ -73,15 +73,27 @@ const actions = {
   getTraining ({commit, rootState, dispatch}) {
     return new Promise((resolve, reject) => {
       api.getTraining(rootState.route.params.trainingID).then((res) => {
-        resolve(res)
         let training = res.data.data
         commit('changeTraining', {training: training})
+        
+        // 等待所有异步操作完成后再 resolve
+        const promises = []
+        
         if (training.gid) {
-          dispatch('getGroupTrainingAuth', {gid: training.gid})
+          promises.push(dispatch('getGroupTrainingAuth', {gid: training.gid}))
         }
-        if (training.auth ==  TRAINING_TYPE.Private.name) {
-          dispatch('getTrainingAccess',{auth:TRAINING_TYPE.Private.name})
+        
+        if (training.auth == TRAINING_TYPE.Private.name) {
+          promises.push(dispatch('getTrainingAccess',{auth:TRAINING_TYPE.Private.name}))
         }
+        
+        // 等待所有异步操作完成
+        Promise.all(promises).then(() => {
+          resolve(res)
+        }).catch(() => {
+          // 即使 getTrainingAccess 失败，也要 resolve，让页面能正常显示
+          resolve(res)
+        })
       }, err => {
         reject(err)
       })

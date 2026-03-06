@@ -83,6 +83,10 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		{
 			// 用户角色查询（需要认证）
 			classroom.GET("/user/roles", AuthMiddleware(), handler.GetCurrentUserRoles)
+			// 用户权限申请（需要认证）
+			classroom.POST("/role/apply", AuthMiddleware(), handler.CreateRoleApplication)
+			classroom.GET("/role/my_applications", AuthMiddleware(), handler.GetMyRoleApplications) // 获取我的申请列表
+			classroom.DELETE("/role/application/:applicationId", AuthMiddleware(), handler.CancelRoleApplication)
 
 			// 权限管理（管理员）
 			admin := classroom.Group("/admin")
@@ -95,11 +99,14 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 				admin.POST("/teacher/add", handler.AddClassroomTeacher) // 添加班级教师
 				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher) // 移除班级教师
 				admin.GET("/teachers/search", handler.SearchTeachers) // 搜索教师
+				admin.GET("/users/search", AuthMiddleware(), handler.SearchUsersForRoleManagement) // 搜索用户（用于角色管理）
+
+				// 权限申请管理（管理员）
+				admin.GET("/role/applications", AuthMiddleware(), handler.GetRoleApplications) // 获取申请列表
+				admin.POST("/role/review", AuthMiddleware(), handler.ReviewRoleApplication) // 审批申请
 
 				// 管理员题库管理
 				admin.GET("/question-bank", handler.AdminGetQuestionBank) // 获取所有题目
-				admin.PUT("/question-bank/:questionId", handler.AdminUpdateQuestion) // 更新题目
-				admin.DELETE("/question-bank/:questionId", handler.AdminDeleteQuestion) // 删除题目
 
 				// 管理员试卷库管理
 				admin.GET("/exam-papers", handler.AdminGetExamPaperList) // 获取所有试卷
@@ -121,6 +128,8 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 			// 学生管理（教师）- 需要认证
 			classroom.GET("/:classroomId/students", AuthMiddleware(), handler.GetClassroomStudents)
+			classroom.POST("/:classroomId/students", AuthMiddleware(), handler.AddClassroomStudent)
+			classroom.GET("/:classroomId/students/search", AuthMiddleware(), handler.SearchStudentsToAdd)
 			classroom.DELETE("/student", AuthMiddleware(), handler.RemoveStudent)
 			classroom.PUT("/student", AuthMiddleware(), handler.UpdateStudentInfo)
 

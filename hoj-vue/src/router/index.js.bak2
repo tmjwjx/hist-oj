@@ -1,0 +1,255 @@
+import Vue from 'vue'
+import VueRouter from 'vue-router'
+import { sync } from 'vuex-router-sync'
+import adminRoutes from '@/router/adminRoutes'
+import ojRoutes from '@/router/ojRoutes'
+import classroomRoutes from '@/router/classroomRoutes'
+import mMessage from '@/common/message'
+import store from '@/store'
+import NProgress from 'nprogress' // nprogress插件
+import 'nprogress/nprogress.css' // nprogress样式
+import i18n from '@/i18n'
+
+// 配置NProgress进度条选项  —— 动画效果
+NProgress.configure({ ease: 'ease', speed: 1000,showSpinner: false })
+
+Vue.use(VueRouter)
+
+//获取原型对象上的push函数
+const originalPush = VueRouter.prototype.push
+//修改原型对象中的push方法
+VueRouter.prototype.push = function push(location) {
+   return originalPush.call(this, location).catch(err => err)
+}
+
+let routes = [...ojRoutes, ...adminRoutes, classroomRoutes];
+const router = new VueRouter({
+  mode: 'history',
+  base: process.env.BASE_URL,
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { x: 0, y: 0 }
+    }
+  },
+})
+
+
+// 路由判断登录 根据路由配置文件的参数(全局身份验证token)
+router.beforeEach(async (to, from, next) => {
+  NProgress.start()
+
+  // 检查班级权限（在原逻辑之前）
+  if (to.matched.some(record => record.meta.requiresRole)) {
+    const token = localStorage.getItem('token') || ''
+    if (!token) {
+      next({ path: '/home' })
+      store.commit('changeModalStatus', { mode: 'Login', visible: true })
+      mMessage.error('请先登录')
+      return
+    }
+
+    // 等待角色加载完成（使用缓存，避免重复请求）
+    try {
+      await store.dispatch('classroom/loadUserRoles')
+    } catch (error) {
+      console.error('加载用户角色失败', error)
+    }
+
+    const userRoles = store.state.classroom.userRoles || []
+    const requiredRole = to.meta.requiresRole
+
+    // 检查用户是否具有所需角色
+    const hasPermission = userRoles.some(role => {
+      if (requiredRole === 'teacher') {
+        return role === 'teacher' || role === 'admin' || role === 'root'
+      }
+      return role === requiredRole
+    })
+
+    if (!hasPermission) {
+      if (requiredRole === 'teacher') {
+        mMessage.error('您没有权限访问教师端页面')
+      } else if (requiredRole === 'student') {
+        mMessage.error('您没有权限访问学生端页面')
+      }
+      next({ path: '/classroom' })
+      return
+    }
+
+    // 对于学生端的页面，还需要检查班级成员身份
+    if (requiredRole === 'student' && to.params.classroomId) {
+      try {
+        const res = await store.dispatch('classroom/getStudentClassrooms')
+        if (res && res.code === 200) {
+          const classrooms = res.data || []
+          const classroomIds = classrooms.map(c => c.id.toString())
+          const isMember = classroomIds.includes(to.params.classroomId.toString())
+
+          if (!isMember) {
+            mMessage.error('您不是该班级的学生')
+            next({ path: '/classroom' })
+            return
+          }
+        } else {
+          // API调用失败，但为了用户体验，允许继续（组件内部会再次检查）
+          console.warn('获取学生班级列表失败，但允许继续导航')
+        }
+      } catch (error) {
+        console.error('检查班级成员身份失败', error)
+        // 发生错误时允许继续导航，避免用户卡住
+        // 组件内部会进行更详细的权限检查
+      }
+    }
+
+    // 对于教师端的页面，还需要检查是否是该班级的教师
+    if (requiredRole === 'teacher' && to.params.classroomId) {
+      try {
+        const res = await store.dispatch('classroom/getTeacherClassrooms')
+        if (res && res.code === 200) {
+          const classrooms = res.data || []
+          const classroomIds = classrooms.map(c => c.id.toString())
+          const isMember = classroomIds.includes(to.params.classroomId.toString())
+
+          if (!isMember) {
+            mMessage.error('您不是该班级的教师')
+            next({ path: '/classroom/teacher' })
+            return
+          }
+        } else {
+          // API调用失败，但为了用户体验，允许继续（组件内部会再次检查）
+          console.warn('获取教师班级列表失败，但允许继续导航')
+        }
+      } catch (error) {
+        console.error('检查教师班级成员身份失败', error)
+        // 发生错误时允许继续导航，避免用户卡住
+        // 组件内部会进行更详细的权限检查
+      }
+    }
+  }
+
+  if (to.matched.some(record => record.meta.requireAuth)) { // 判断该路由是否需要登录权限
+    const token = localStorage.getItem('token') || ''
+    const isSuperAdmin = store.getters.isSuperAdmin
+    const isAdmin = store.getters.isAdminRole
+    const isProblemAdmin = store.getters.isProblemAdmin
+    if (token) { // 判断当前的token是否存在 ； 登录存入的token
+
+      if(to.matched.some(record => record.meta.requireSuperAdmin)){ // 判断是否需要超级管理权限
+
+        if(isSuperAdmin){ // 拥有权限就进入
+          next()
+        }else{ // 没有超级管理员权限 全部返回登录页，并且清除缓存
+          if(to.path.split('/')[1]==='admin'){ //管理端
+            next({
+              path: '/admin/login'
+            })
+            mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
+          }else{ // oj端
+            next({
+              path: '/home'
+            })
+            store.commit('changeModalStatus',{mode: 'Login', visible: true})
+            mMessage.error(i18n.t('m.Please_login_first'))
+            store.commit("clearUserInfoAndToken");
+          }
+        }
+      }else if(to.matched.some(record => record.meta.requireAdminOrProblemAdmin)){ // 判断是否需要管理员或题目管理员权限
+        if(isSuperAdmin || isProblemAdmin){ // 超级管理员或题目管理员可以访问
+          next()
+        }else{ // 没有权限，全部返回登录页，并且清除缓存
+          if(to.path.split('/')[1]==='admin'){ // 管理端
+            next({
+              path: '/admin/login'
+            })
+            mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
+          }else{
+            next({
+              path: '/home'
+            })
+            store.commit('changeModalStatus',{mode: 'Login', visible: true})
+            mMessage.error(i18n.t('m.Please_login_first'))
+            store.commit("clearUserInfoAndToken");
+          }
+        }
+      }else if(to.matched.some(record => record.meta.requireAdmin)){ //判断是否需要管理员权限
+        if(isAmdin){
+          next()
+        }else{ // 没有管理员权限 全部返回登录页，并且清除缓存
+          if(to.path.split('/')[1]==='admin'){ // 管理端
+            next({
+              path: '/admin/login'
+            })
+            mMessage.error(i18n.t('m.Please_login_first_by_admin_account'))
+          }else{
+            next({
+              path: '/home'
+            })
+            store.commit('changeModalStatus',{mode: 'Login', visible: true})
+            mMessage.error(i18n.t('m.Please_login_first'))
+            store.commit("clearUserInfoAndToken");
+          }
+        }
+      }else{
+        next()
+      }
+
+    } else { // 如果没有token
+
+      if(to.path.split('/')[1]==='admin'){
+        next({
+          path: '/admin/login'  // 管理端无token认证返回登录页
+        })
+      }else{
+        next({
+          path: '/home'  // 无token认证的一致返回到主页
+        })
+        store.commit('changeModalStatus',{mode: 'Login', visible: true})
+      }
+      store.commit("clearUserInfoAndToken");
+      mMessage.error(i18n.t('m.Please_login_first'))
+    }
+  } else { // 不需要登录认证的页面
+    if(to.meta.access){ // 单级路由有access控制
+      const webConfig = store.getters.websiteConfig;
+      switch(to.meta.access){
+        case 'discussion':
+          if(!webConfig.openPublicDiscussion){
+            next({
+              path: '/home' 
+            })
+            mMessage.error(i18n.t('m.No_Access_There_is_no_open_discussion_area_on_the_website'))
+          }
+          break;
+        case 'groupDiscussion':
+          if(!webConfig.openGroupDiscussion){
+            next({
+              path: '/home' 
+            })
+            mMessage.error(i18n.t('m.No_Access_There_is_no_open_group_discussion_area_on_the_website'))
+          }
+          break;
+        case 'contestComment':
+          if(!webConfig.openContestComment){
+            next({
+              path: '/home' 
+            })
+            mMessage.error(i18n.t('m.No_Access_There_is_no_open_contest_comment_area_on_the_website'))
+          }
+          break;
+      }
+    }
+    next()
+  }
+  
+})
+
+router.afterEach((to, from, next) => {
+  NProgress.done()
+})
+
+sync(store, router)
+
+export default router

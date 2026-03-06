@@ -119,8 +119,13 @@
                 <span class="question-number">{{ index + 1 }}.</span>
                 <span class="question-type">(编程题)</span>
                 <span class="question-score">{{ item.score }}分</span>
+                <!-- 未提交标签（学生提交后老师新增的题目） -->
+                <el-tag v-if="isQuestionUnsubmitted(item)" type="warning" size="small" style="margin-left: 10px">
+                  未提交
+                </el-tag>
                 <!-- 编程题作答状态 -->
                 <el-tag
+                  v-else
                   :type="programmingStatus[item.problemId] === 'submitted' ? 'success' : 'info'"
                   size="small"
                   style="margin-left: 10px"
@@ -151,6 +156,10 @@
                 <span class="question-number">{{ index + 1 }}.</span>
                 <span class="question-type">({{ getQuestionTypeText(item.question.type) }})</span>
                 <span class="question-score">{{ item.score }}分</span>
+                <!-- 未提交标签（学生提交后老师新增的题目） -->
+                <el-tag v-if="isQuestionUnsubmitted(item)" type="warning" size="small" style="margin-left: 10px">
+                  未提交
+                </el-tag>
                 <!-- 已提交后显示得分 -->
                 <span v-if="canViewScore && questionScores[item.question.id] !== undefined" class="question-score-earned">
                   得分: <span :style="{ color: questionScores[item.question.id] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.question.id] }}</span>
@@ -459,8 +468,24 @@ export default {
       programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
       programmingStatusText: {}, // 编程题状态文本 { problemId: '未作答' | '检测中...' | '已作答' }
       pollingTimer: null, // 轮询定时器
+      isPolling: false, // 是否正在进行轮询请求（防止重复请求）
+      isPageVisible: true, // 页面是否可见
+      pollingConfig: {
+        enabled: true, // 是否启用轮询
+        interval: 10000, // 轮询间隔（毫秒）- 增加到10秒
+        fastInterval: 10000, // 检测到提交前的快速轮询间隔（从5秒改为10秒）
+        slowInterval: 30000, // 所有题目都提交后的慢速轮询间隔（从15秒改为30秒）
+        consecutiveErrors: 0, // 连续错误次数
+        maxErrors: 3, // 最大连续错误次数（从1改为3，给服务器更多恢复机会）
+        pauseDuration: 60000, // 暂停时长（毫秒）
+        lastErrorTime: 0, // 上次错误时间
+        retryCount: 0, // 重试计数器
+        isAllSubmitted: false, // 是否所有编程题都已提交
+        requestDelay: 300 // 每个编程题请求之间的延迟（毫秒，从200改为300）
+      },
       attachments: {}, // 每题的图片URL列表 { questionId: [url1, url2, ...] }
       uploadedImages: {}, // 已上传的图片文件列表 { questionId: [{name, url, uid}, ...] }
+      submittedQuestionIds: new Set(), // 已提交的题目ID集合（用于识别后添加的题目）
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -568,8 +593,14 @@ export default {
   },
   mounted() {
     this.loadHomeworkDetail()
+
+    // 添加页面可见性监听
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
   },
   beforeDestroy() {
+    // 移除页面可见性监听
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+
     // 清除自动保存定时器
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer)
@@ -577,6 +608,7 @@ export default {
     // 清除轮询定时器
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer)
+      this.pollingTimer = null
     }
     // 清除考试计时器
     if (this.examTimerInterval) {
@@ -601,7 +633,12 @@ export default {
 
       try {
         const homeworkId = this.$route.params.homeworkId
-        const res = await this.$store.dispatch('classroom/getHomeworkDetail', homeworkId)
+
+        // 如果作业已提交，强制刷新数据，不使用缓存
+        // 这样可以立即显示最新的答案和分数
+        const forceRefresh = this.isSubmitted
+        const res = await this.$store.dispatch('classroom/getHomeworkDetail', homeworkId, forceRefresh)
+
         if (res.code === 200) {
           // 安全措施：清空所有题目的答案和难度字段（防止前端泄露）
           // 注意：学生始终看不到难度，只有在已提交且教师允许时才能看到答案
@@ -664,7 +701,7 @@ export default {
             }
 
             // 每次加载都检查考试状态（不仅仅是首次）
-            const homeworkId = this.$route.params.homeworkId
+            const homeworkId = this.homework.id || this.$route.params.homeworkId
             const examStatusRes = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
 
             if (examStatusRes.code === 200 && examStatusRes.data && examStatusRes.data.hasStarted) {
@@ -672,7 +709,6 @@ export default {
               if (examStatusRes.data.questions && Array.isArray(examStatusRes.data.questions) && examStatusRes.data.questions.length > 0) {
                 needUpdateQuestions = true
                 examQuestions = examStatusRes.data.questions
-                console.log('将恢复题目顺序为乱序:', examQuestions)
               }
 
               // 恢复考试状态
@@ -684,10 +720,11 @@ export default {
               // 检查是否已经被强制收卷
               if (examStatusRes.data.isSubmitted) {
                 this.isSubmitted = true
+
                 // 只有在作业进行中才显示强制收卷提示
                 // 作业结束后查看不显示提示
                 if (examStatusRes.data.isForcedSubmit &&
-                    !this.hasShownForceSubmitMessage &&
+                    !this.hasShownForceMessage &&
                     this.homework.status === 2) {
                   // 判断是否是超时收卷（remainingSeconds <= 0）
                   if (this.remainingSeconds <= 0) {
@@ -732,19 +769,18 @@ export default {
             this.homework.questions = examQuestions
           }
 
-          // 加载已提交的答案（在题目列表更新后加载）
-          await this.loadSubmission(isFirstLoad)
-
-          // 只在首次加载时初始化答案
+          // 只在首次加载时加载提交记录和初始化答案
+          // realtimeSync 时不需要重新加载，避免延迟
           if (isFirstLoad) {
+            // 加载已提交的答案（在题目列表更新后加载）
+            await this.loadSubmission(true)
+
             // 初始化答案（确保所有题目都有记录）
             await this.initializeAnswers()
           }
 
-          // 初始化编程题状态检测
+          // 初始化编程题状态检测（内部会自动启动轮询）
           this.initializeProgrammingStatus()
-          // 启动轮询检测编程题提交状态
-          this.startPollingProgrammingStatus()
         }
       } catch (error) {
         if (isFirstLoad) {
@@ -759,7 +795,7 @@ export default {
     },
     async loadSubmission(shouldRestoreAnswers = true) {
       try {
-        const homeworkId = this.$route.params.homeworkId
+        const homeworkId = this.homework.id || this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getStudentHomeworkDetail', homeworkId)
 
         if (res.code === 200 && res.data) {
@@ -769,6 +805,27 @@ export default {
           // 只要有正式提交（包括编程题提交），就设置为已提交
           if (res.data.isOfficiallySubmitted) {
             this.isSubmitted = true
+
+            // 记录已提交的题目ID（用于识别后添加的题目）
+            this.submittedQuestionIds.clear()
+
+            // 记录普通题目的ID
+            if (res.data.answers) {
+              const answersData = JSON.parse(res.data.answers || '{}')
+              Object.keys(answersData).forEach(qid => {
+                this.submittedQuestionIds.add(qid)
+              })
+            }
+
+            // 记录编程题的problemId
+            if (this.homework.questions) {
+              this.homework.questions.forEach(item => {
+                if (item.problemId) {
+                  // 编程题通过轮询检查状态，如果有提交记录也算已提交
+                  this.submittedQuestionIds.add(`programming_${item.problemId}`)
+                }
+              })
+            }
           }
 
           // 只在首次加载或明确要求时恢复答案
@@ -836,6 +893,21 @@ export default {
             })
           }
         }
+
+        // 重要：加载提交记录后，异步检查编程题状态
+        // 不使用 await 阻塞，让学生答案能立即显示
+        // 编程题状态会在后台异步更新
+        if (this.homework && this.homework.questions && this.homework.questions.some(q => q.problemId)) {
+          // 如果作业已提交，只需要检查一次状态，不需要持续轮询
+          // 使用一个标志位确保只检查一次
+          if (!this._hasCheckedProgrammingStatus) {
+            // 不使用 await，让状态检查异步执行
+            // 这样答案可以立即显示，不会阻塞
+            this.checkProgrammingStatus(true).then(() => {
+              this._hasCheckedProgrammingStatus = true
+            })
+          }
+        }
       } catch (error) {
         // 忽略错误，可能还没有提交
       }
@@ -848,7 +920,7 @@ export default {
     // 页面初始化后立即保存一次（确保所有题目都有记录）
     async initializeAnswers() {
       try {
-        const homeworkId = parseInt(this.$route.params.homeworkId)
+        const homeworkId = this.homework.id || parseInt(this.$route.params.homeworkId)
 
         // 初始化所有题目的答案（即使是空答案）
         const answersData = {}
@@ -905,11 +977,10 @@ export default {
     async saveDraft() {
       this.autoSaving = true
       try {
-        const homeworkId = parseInt(this.$route.params.homeworkId)
+        const homeworkId = this.homework.id || parseInt(this.$route.params.homeworkId)
 
         // 检查题目数据是否存在
         if (!this.homework.questions || this.homework.questions.length === 0) {
-          console.warn('保存草稿失败：题目数据不存在')
           this.$message.warning('题目数据加载中，请稍后再试')
           return
         }
@@ -938,15 +1009,11 @@ export default {
           }
         })
 
-        console.log('保存草稿 - homeworkId:', homeworkId, 'answers count:', Object.keys(answersData).length)
-
         // 调用草稿保存 API（不判分，不标记为已提交）
         const res = await this.$store.dispatch('classroom/saveHomeworkDraft', {
           homeworkId: homeworkId,
           answers: answersData
         })
-
-        console.log('保存草稿 - 响应:', res)
 
         if (res.code === 200) {
           this.hasUnsavedChanges = false
@@ -954,11 +1021,11 @@ export default {
           this.$message.success('草稿保存成功')
           // 草稿保存后不需要重新加载提交状态（因为不会改变 isSubmitted）
         } else {
-          console.error('保存草稿失败:', res)
+          console.error('保存草稿失败:', res.message)
           this.$message.error(res.message || '保存失败')
         }
       } catch (error) {
-        console.error('保存草稿异常:', error)
+        console.error('保存草稿异常:', error.message)
         this.$message.error('保存失败：' + (error.message || '未知错误'))
       } finally {
         this.autoSaving = false
@@ -967,7 +1034,7 @@ export default {
     // 同步保存草稿（用于页面退出时，不显示提示）
     saveDraftSync() {
       try {
-        const homeworkId = parseInt(this.$route.params.homeworkId)
+        const homeworkId = this.homework.id || parseInt(this.$route.params.homeworkId)
 
         // 合并所有答案
         const answersData = {}
@@ -1077,7 +1144,7 @@ export default {
     async confirmSubmit() {
       this.submitting = true
       try {
-        const homeworkId = parseInt(this.$route.params.homeworkId)
+        const homeworkId = this.homework.id || parseInt(this.$route.params.homeworkId)
 
         // 合并所有答案
         const answersData = {}
@@ -1133,7 +1200,16 @@ export default {
           this.showConfirmDialog = false
           this.hasUnsavedChanges = false
           this.isSubmitted = true // 标记为已正式提交
+
+          // 重要：提交成功后立即停止轮询
+          this.stopPollingProgrammingStatus()
+
+          // 重新加载提交记录和作业详情
           await this.loadSubmission()
+          // 清除 loading 状态，允许重新加载作业详情
+          this.loading = false
+          // 重新加载作业详情以获取最新数据（包括可能允许查看的答案）
+          await this.loadHomeworkDetail()
         } else {
           this.$message.error(res.message || this.$t('m.Submit_Failed'))
         }
@@ -1182,8 +1258,41 @@ export default {
       }
       return map[type] || type
     },
+    // 检查是否需要轮询（有编程题正在评测中）
+    needsPolling() {
+      // 如果作业已提交，不需要轮询
+      if (this.isSubmitted) {
+        return false
+      }
+
+      // 如果没有编程题，不需要轮询
+      const programmingQuestions = this.homework.questions?.filter(q => q.problemId) || []
+      if (programmingQuestions.length === 0) {
+        return false
+      }
+
+      // 检查是否至少有一个编程题还没有评测结果
+      // 条件：状态不是 'completed'（即还没有评测结果）
+      const hasJudgingQuestions = programmingQuestions.some(q => {
+        const status = this.programmingStatus[q.problemId]
+        return status !== 'completed'  // 不是完成状态，说明还在评测中或未提交
+      })
+
+      return hasJudgingQuestions
+    },
     // 初始化编程题状态
     async initializeProgrammingStatus() {
+      // 重要：如果作业已提交，不需要启动轮询
+      if (this.isSubmitted) {
+        return
+      }
+
+      // 重置轮询配置
+      this.pollingConfig.enabled = true
+      this.pollingConfig.consecutiveErrors = 0
+      this.pollingConfig.isAllSubmitted = false
+      this.isPageVisible = !document.hidden // 初始化页面可见性
+
       // 为所有编程题初始化状态
       this.homework.questions.forEach(item => {
         if (item.problemId) {
@@ -1192,25 +1301,96 @@ export default {
         }
       })
 
-      // 2秒后开始第一次检测
-      setTimeout(() => {
-        this.checkProgrammingStatus()
+      // 2秒后开始第一次检测并启动轮询（仅在页面可见且未提交时）
+      setTimeout(async () => {
+        // 再次检查是否已提交（防止竞态条件）
+        if (this.isPageVisible && !this.isSubmitted) {
+          // 先执行一次检测，更新状态
+          await this.checkProgrammingStatus()
+
+          // 检查是否需要继续轮询
+          if (this.needsPolling()) {
+            this.startPollingProgrammingStatus()
+          }
+        }
       }, 2000)
     },
     // 启动轮询检测编程题提交状态
     startPollingProgrammingStatus() {
+      // 检查页面可见性
+      if (!this.isPageVisible) {
+        return
+      }
+
+      // 重要：检查是否需要轮询
+      if (!this.needsPolling()) {
+        return
+      }
+
+      // 清除之前的定时器（如果存在）
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer)
+        this.pollingTimer = null
+      }
+
+      // 根据状态动态调整轮询间隔
+      const interval = this.pollingConfig.isAllSubmitted
+        ? this.pollingConfig.slowInterval // 所有题已提交，使用慢速轮询（30秒）
+        : this.pollingConfig.fastInterval // 还有题目未提交，使用快速轮询（10秒）
+
       this.pollingTimer = setInterval(() => {
-        this.checkProgrammingStatus()
-      }, 500)
+        // 重要：每次轮询时再次检查是否需要轮询
+        if (!this.needsPolling()) {
+          // 如果不需要轮询了，立即停止
+          this.stopPollingProgrammingStatus()
+        } else if (this.pollingConfig.enabled && this.isPageVisible && !this.isPolling) {
+          this.checkProgrammingStatus()
+        }
+      }, interval)
     },
     // 检测编程题提交状态
-    async checkProgrammingStatus() {
+    async checkProgrammingStatus(forceCheck = false) {
+      // 如果轮询被禁用或页面不可见，直接返回（除非强制检查）
+      if (!forceCheck && (!this.pollingConfig.enabled || !this.isPageVisible)) {
+        return
+      }
+
+      // 重要：如果作业已提交且非强制检查，停止轮询
+      if (!forceCheck && this.isSubmitted) {
+        this.stopPollingProgrammingStatus()
+        return
+      }
+
+      // 防止重复请求：如果已经在轮询中，直接返回
+      if (this.isPolling) {
+        return
+      }
+
       try {
-        const homeworkId = this.$route.params.homeworkId
+        this.isPolling = true // 标记开始轮询
+
+        // 使用 this.homework.id 而不是路由参数，因为路由参数可能为 undefined
+        const homeworkId = this.homework.id
+
+        // 如果 homeworkId 不存在，跳过检测
+        if (!homeworkId) {
+          return
+        }
 
         // 获取所有编程题
         const programmingQuestions = this.homework.questions.filter(q => q.problemId)
 
+        if (programmingQuestions.length === 0) {
+          // 没有编程题，停止轮询
+          this.stopPollingProgrammingStatus()
+          return
+        }
+
+        let statusChanged = false
+        let allCompleted = true  // 改名：所有编程题都已完成评测
+        let hasError = false
+
+        // 逐个查询编程题提交状态
         for (const question of programmingQuestions) {
           try {
             // 调用后端API查询该题目的提交记录
@@ -1222,22 +1402,160 @@ export default {
             const hasSubmission = res.code === 200 && res.data && res.data.length > 0
             const currentStatus = this.programmingStatus[question.problemId]
 
-            if (hasSubmission && currentStatus !== 'submitted') {
-              // 有提交记录且状态改变
-              this.$set(this.programmingStatus, question.problemId, 'submitted')
-              this.$set(this.programmingStatusText, question.problemId, '已作答')
-            } else if (!hasSubmission && currentStatus !== 'not_started') {
-              // 没有提交记录且状态改变
-              this.$set(this.programmingStatus, question.problemId, 'not_started')
-              this.$set(this.programmingStatusText, question.problemId, '未作答')
+            if (hasSubmission) {
+              // 有提交记录
+              const latestSubmission = res.data[0]  // 获取最新的提交记录
+
+              // 后端API返回的字段名是 "result" 而不是 "judgeResult"
+              const judgeResult = latestSubmission.result
+
+              // 检查是否有评测结果
+              const hasCompleted = judgeResult &&
+                                   judgeResult !== '' &&
+                                   judgeResult !== 'Pending' &&
+                                   judgeResult !== 'Judging' &&
+                                   judgeResult !== 'Submitting'
+
+              if (hasCompleted) {
+                // 评测完成，更新状态
+                if (currentStatus !== 'completed') {
+                  this.$set(this.programmingStatus, question.problemId, 'completed')
+                  statusChanged = true
+                }
+                // 状态文本显示"已完成"而不是具体的评测结果
+                // 具体的评测结果在下面的"提交历史"中显示
+                this.$set(this.programmingStatusText, question.problemId, '已完成')
+              } else {
+                // 评测中，继续等待
+                // 始终更新为"评测中"状态，避免状态回退
+                if (currentStatus !== 'judging' && currentStatus !== 'completed') {
+                  this.$set(this.programmingStatus, question.problemId, 'judging')
+                  this.$set(this.programmingStatusText, question.problemId, '评测中...')
+                  statusChanged = true
+                }
+                allCompleted = false
+              }
+            } else {
+              // 没有提交记录
+              // 重要：如果当前状态已经是"评测中"或"已完成"，不要回退到"未作答"
+              // 这可能是后端数据延迟导致的，保持当前状态不变
+              const currentStatus = this.programmingStatus[question.problemId]
+              if (currentStatus === 'judging' || currentStatus === 'completed') {
+                // 保持当前状态，不回退
+                allCompleted = (currentStatus === 'completed') ? allCompleted : false
+              } else {
+                // 只有当前不是"评测中"或"已完成"时，才设置为"未作答"
+                this.$set(this.programmingStatus, question.problemId, 'not_started')
+                this.$set(this.programmingStatusText, question.problemId, '未作答')
+                allCompleted = false
+              }
             }
-            // 如果状态没有改变，不更新，避免闪烁
+
+            // 添加小延迟，避免瞬间发送多个请求
+            if (programmingQuestions.length > 1) {
+              await new Promise(resolve => setTimeout(resolve, this.pollingConfig.requestDelay))
+            }
           } catch (error) {
-            console.error('检测编程题状态失败:', error)
+            // 单个题目查询失败，继续查询其他题目
+            const statusCode = error.response ? error.response.status : 'unknown'
+
+            // 502/503/504错误也要计入错误计数器
+            if (statusCode === 502 || statusCode === 503 || statusCode === 504) {
+              hasError = true
+            } else if (statusCode !== 'unknown') {
+              hasError = true
+            }
           }
         }
+
+        // 如果有错误发生，增加错误计数
+        if (hasError) {
+          this.pollingConfig.consecutiveErrors++
+          this.pollingConfig.lastErrorTime = Date.now()
+        } else {
+          // 请求成功，重置错误计数器
+          if (this.pollingConfig.consecutiveErrors > 0) {
+            this.pollingConfig.consecutiveErrors = 0
+            this.pollingConfig.retryCount = 0
+          }
+        }
+
+        // 如果连续错误超过阈值，暂停轮询并使用指数退避
+        if (this.pollingConfig.consecutiveErrors >= this.pollingConfig.maxErrors) {
+          this.pollingConfig.enabled = false
+          this.pollingConfig.retryCount++
+
+          // 指数退避：60秒、120秒、240秒...
+          const backoffDuration = Math.min(
+            this.pollingConfig.pauseDuration * Math.pow(2, this.pollingConfig.retryCount - 1),
+            300000 // 最大5分钟
+          )
+
+          // 指定时间后重新启用轮询
+          setTimeout(() => {
+            if (this.isPageVisible) {
+              this.pollingConfig.enabled = true
+              this.pollingConfig.consecutiveErrors = 0
+              this.startPollingProgrammingStatus()
+            }
+          }, backoffDuration)
+
+          return
+        }
+
+        // 检查是否所有题目都已完成评测
+        if (allCompleted) {
+          // 所有编程题都已完成评测，停止轮询
+          this.stopPollingProgrammingStatus()
+        }
+
       } catch (error) {
-        console.error('检测编程题状态失败:', error)
+        // 整体请求失败（例如homeworkId不存在等）
+        const statusCode = error.response ? error.response.status : 'unknown'
+
+        // 增加连续错误计数（包括502错误）
+        this.pollingConfig.consecutiveErrors++
+
+        // 如果连续错误超过阈值，暂停轮询
+        if (this.pollingConfig.consecutiveErrors >= this.pollingConfig.maxErrors) {
+          this.pollingConfig.enabled = false
+
+          // 60秒后重新启用轮询
+          setTimeout(() => {
+            if (this.isPageVisible) {
+              this.pollingConfig.enabled = true
+              this.pollingConfig.consecutiveErrors = 0
+              this.startPollingProgrammingStatus()
+            }
+          }, 60000)
+        }
+      } finally {
+        this.isPolling = false // 标记轮询完成
+      }
+    },
+    // 停止轮询
+    stopPollingProgrammingStatus() {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer)
+        this.pollingTimer = null
+      }
+      this.isPolling = false
+    },
+    // 处理页面可见性变化
+    handleVisibilityChange() {
+      if (document.hidden) {
+        // 页面隐藏，暂停轮询
+        this.isPageVisible = false
+        this.stopPollingProgrammingStatus()
+      } else {
+        // 页面显示，恢复轮询（但仅在需要时）
+        this.isPageVisible = true
+        if (this.pollingConfig.enabled && this.homework && this.homework.questions) {
+          // 使用 needsPolling() 检查是否真的需要轮询
+          if (this.needsPolling()) {
+            this.startPollingProgrammingStatus()
+          }
+        }
       }
     },
     // 图片上传成功回调
@@ -1321,7 +1639,7 @@ export default {
     // 检查考试是否已开始
     async checkExamStarted() {
       try {
-        const homeworkId = this.$route.params.homeworkId
+        const homeworkId = this.homework.id || this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
         if (res.code === 200 && res.data) {
           return res.data.hasStarted
@@ -1335,7 +1653,7 @@ export default {
     // 开始考试
     async startExam() {
       try {
-        const homeworkId = this.$route.params.homeworkId
+        const homeworkId = this.homework.id || this.$route.params.homeworkId
         const deviceInfo = this.getDeviceInfo()
         const browserInfo = this.getBrowserInfo()
 
@@ -1355,7 +1673,6 @@ export default {
 
           // 如果返回了乱序的题目，更新homework.questions
           if (res.data.questions && Array.isArray(res.data.questions)) {
-            console.log('更新题目顺序为乱序:', res.data.questions)
             // 保留原有的答案，只更新题目顺序
             const oldQuestions = this.homework.questions || []
             const newQuestions = res.data.questions
@@ -1453,7 +1770,7 @@ export default {
     // 轮询考试状态
     async pollExamStatus() {
       try {
-        const homeworkId = this.$route.params.homeworkId
+        const homeworkId = this.homework.id || this.$route.params.homeworkId
         const res = await this.$store.dispatch('classroom/getExamStatus', homeworkId)
         if (res.code === 200 && res.data) {
           this.remainingSeconds = res.data.remainingSeconds
@@ -1626,9 +1943,8 @@ export default {
           await document.documentElement.webkitRequestFullscreen()
         }
       } catch (error) {
-        // 全屏请求被拒绝或失败，提示用户
-        console.warn('进入全屏失败:', error)
-        // 不显示错误消息，因为checkFullscreenStatus会检查并提示
+        // 全屏请求被拒绝或失败，静默处理
+        // checkFullscreenStatus会检查并提示用户
       }
     },
     // 检查全屏状态
@@ -1692,7 +2008,6 @@ export default {
       } else if (currentFullscreenState) {
         // 从非全屏变为全屏：重置警告标志
         this.fullscreenWarned = false
-        console.log('进入全屏，重置警告标志')
       }
 
       // 更新上一次的全屏状态
@@ -1701,7 +2016,6 @@ export default {
       // 2秒后重置标志，允许正常的blur和visibilitychange检测
       setTimeout(() => {
         this.isFullscreenChanging = false
-        console.log('全屏变化过滤窗口结束，恢复正常检测')
       }, 2000)
     },
     // 标签页切换监听
@@ -1717,12 +2031,10 @@ export default {
       // 如果当前在全屏状态，但页面隐藏了（可能是用户切换到了其他标签页）
       if (document.hidden) {
         if (isFullscreen && this.examConfig.disallowTabSwitch) {
-          console.log('检测到全屏状态下切换标签页')
           this.$message.warning('检测到切换标签页，请专注于考试！')
           this.logViolation('tab_switch', '切换标签页')
         } else if (!isFullscreen && this.examConfig.requireFullscreen) {
           // 如果不在全屏状态且页面隐藏了，说明用户可能退出了全屏并切换到了其他应用
-          console.log('检测到退出全屏并切换到其他应用')
           this.$message.warning('检测到退出全屏，请立即返回考试界面！')
           this.logViolation('fullscreen_exit', '退出全屏')
         }
@@ -1744,7 +2056,6 @@ export default {
       // 窗口失焦：点击了浏览器窗口以外的界面
       // 如果页面还是可见的，但窗口失焦了，说明是点击了其他软件
       if (!document.hidden && isFullscreen) {
-        console.log('检测到全屏状态下窗口失焦（点击了浏览器以外的界面）')
         this.$notify({
           title: '警告',
           message: '检测到切换到其他窗口，请专注于考试！',
@@ -1816,7 +2127,7 @@ export default {
     },
     // 记录违规（带重试机制）
     async logViolation(type, description) {
-      const homeworkId = parseInt(this.$route.params.homeworkId)
+      const homeworkId = this.homework.id || parseInt(this.$route.params.homeworkId)
       const maxRetries = 3
       let lastError = null
 
@@ -1828,11 +2139,9 @@ export default {
             description
           })
           // 上报成功，不再重试
-          console.log('违规记录上报成功:', type, description)
           return
         } catch (error) {
           lastError = error
-          console.warn(`违规记录上报失败 (第${i + 1}次尝试):`, error)
           // 等待一小段时间后重试（指数退避）
           if (i < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000))
@@ -1841,7 +2150,7 @@ export default {
       }
 
       // 所有重试都失败，记录错误
-      console.error('违规记录上报最终失败:', type, description, lastError)
+      console.error('违规记录上报最终失败:', type, description, lastError.message)
     },
     // 获取设备信息
     getDeviceInfo() {
@@ -1901,6 +2210,23 @@ export default {
       classes.push(isAnswered ? 'answered' : 'unanswered')
 
       return classes.join(' ')
+    },
+    // 判断题目是否是提交后新增的（未提交）
+    isQuestionUnsubmitted(question) {
+      if (!this.isSubmitted) {
+        return false
+      }
+
+      if (question.problemId) {
+        // 编程题：检查是否在已提交的编程题列表中
+        return !this.submittedQuestionIds.has(`programming_${question.problemId}`)
+      } else if (question.question) {
+        // 普通题目：检查是否在已提交的题目列表中
+        const qid = question.question.id.toString()
+        return !this.submittedQuestionIds.has(qid)
+      }
+
+      return false
     },
     // 滚动到指定题目
     scrollToQuestion(index) {

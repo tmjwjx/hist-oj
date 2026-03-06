@@ -222,6 +222,29 @@ func (h *Handler) UpdateUserRoles(c *gin.Context) {
 		return
 	}
 
+	// 自动更新相关申请的状态
+	// 如果用户手动被授予了角色，将相关的待审批申请标记为已批准
+	for _, role := range req.Roles {
+		now := time.Now()
+		result := db.Model(&model.ClassroomRoleRequest{}).
+			Where("uid = ? AND role = ? AND status = 0", uid, role).
+			Updates(map[string]interface{}{
+				"status":       1,
+				"reviewer_uid": "system",
+				"review_time":  now,
+				"review_note":  "管理员手动添加角色",
+			})
+		
+		if result.Error != nil {
+			logger.Warn("更新申请状态失败", zap.Error(result.Error))
+		} else if result.RowsAffected > 0 {
+			logger.Info("自动更新申请状态为已批准",
+				zap.String("uid", uid),
+				zap.String("role", role),
+				zap.Int64("affected", result.RowsAffected))
+		}
+	}
+
 	logger.Info("更新用户角色成功",
 		zap.String("uid", uid),
 		zap.Any("roles", req.Roles))
@@ -231,11 +254,6 @@ func (h *Handler) UpdateUserRoles(c *gin.Context) {
 		"roles": req.Roles,
 	}))
 }
-
-
-// ==================== 班级管理 ====================
-
-// CreateClassroom 创建班级（教师）
 func (h *Handler) CreateClassroom(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -712,14 +730,42 @@ func (h *Handler) GetClassroomStudents(c *gin.Context) {
 func (h *Handler) RemoveStudent(c *gin.Context) {
 	logger := utils.GetLogger()
 
+	// 尝试多种方式获取参数
 	var req struct {
-		ClassroomID uint64 `json:"classroomId" binding:"required"`
-		UID         string `json:"uid" binding:"required"`
+		ClassroomID uint64 `json:"classroomId"`
+		UID         string `json:"uid"`
+		ClassroomIDStr string `form:"classroomId"`
+		UIDStr         string `form:"uid"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("请求参数错误", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+	// 先尝试从查询参数获取
+	if c.Query("classroomId") != "" || c.Query("uid") != "" {
+		req.ClassroomIDStr = c.Query("classroomId")
+		req.UIDStr = c.Query("uid")
+		classroomID, err := strconv.ParseUint(req.ClassroomIDStr, 10, 64)
+		if err != nil {
+			logger.Warn("classroomId 参数格式错误", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(400, "classroomId 参数格式错误"))
+			return
+		}
+		req.ClassroomID = classroomID
+		req.UID = req.UIDStr
+	} else {
+		// 从 JSON 请求体获取
+		if err := c.ShouldBindJSON(&req); err != nil {
+			logger.Warn("请求参数错误", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+			return
+		}
+	}
+
+	if req.ClassroomID == 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId 不能为空"))
+		return
+	}
+
+	if req.UID == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "uid 不能为空"))
 		return
 	}
 
@@ -830,6 +876,233 @@ func (h *Handler) UpdateStudentInfo(c *gin.Context) {
 
 	logger.Info("更新学生信息", zap.Uint64("classroom_id", req.ClassroomID), zap.String("uid", req.UID))
 	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// AddClassroomStudent 添加学生到班级（教师）
+func (h *Handler) AddClassroomStudent(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	currentUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	var req struct {
+		UID          string `json:"uid" binding:"required"`
+		RealName     string `json:"realName" binding:"required"`
+		Gender       string `json:"gender"`
+		StudentClass string `json:"studentClass"`
+		StudentNo    string `json:"studentNo"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 验证当前用户是否为班级教师
+	var classroom model.Classroom
+	if err := db.Where("id = ?", classroomID).First(&classroom).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		return
+	}
+
+	// 检查是否为教师（主教师或协教教师）
+	isTeacher := false
+	if classroom.TeacherID == currentUID.(string) {
+		isTeacher = true
+	} else {
+		// 检查是否为协教教师
+		var teacherCount int64
+		db.Model(&model.ClassroomTeacher{}).
+			Where("classroom_id = ? AND teacher_id = ? AND status = 1", classroomID, currentUID.(string)).
+			Count(&teacherCount)
+		if teacherCount > 0 {
+			isTeacher = true
+		}
+	}
+
+	if !isTeacher {
+		c.JSON(http.StatusOK, errorResponse(403, "只有教师可以添加学生"))
+		return
+	}
+
+	// 检查学生是否已经在班级中（包括已移除的）
+	var existingStudent model.ClassroomStudent
+	err = db.Where("classroom_id = ? AND uid = ?", classroomID, req.UID).First(&existingStudent).Error
+	if err == nil {
+		// 学生记录存在
+		if existingStudent.Status == 1 {
+			c.JSON(http.StatusOK, errorResponse(400, "学生已在班级中"))
+			return
+		} else {
+			// 学生已被移除，重新激活
+			updates := map[string]interface{}{
+				"status":        1,
+				"real_name":     req.RealName,
+				"gender":        req.Gender,
+				"student_class": req.StudentClass,
+				"student_no":    req.StudentNo,
+			}
+			if err := db.Model(&existingStudent).Updates(updates).Error; err != nil {
+				logger.Error("重新激活学生失败", zap.Error(err))
+				c.JSON(http.StatusOK, errorResponse(500, "操作失败"))
+				return
+			}
+			logger.Info("重新激活学生", zap.Uint64("classroom_id", classroomID), zap.String("uid", req.UID))
+			c.JSON(http.StatusOK, successResponse(nil))
+			return
+		}
+	} else if err != gorm.ErrRecordNotFound {
+		logger.Error("查询学生记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 创建新的班级学生记录
+	student := &model.ClassroomStudent{
+		ClassroomID:  classroomID,
+		UID:          req.UID,
+		RealName:     req.RealName,
+		Gender:       req.Gender,
+		StudentClass: req.StudentClass,
+		StudentNo:    req.StudentNo,
+		Status:       1, // 正常状态
+	}
+
+	if err := db.Create(student).Error; err != nil {
+		logger.Error("添加学生失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "操作失败"))
+		return
+	}
+
+	logger.Info("添加学生到班级", zap.Uint64("classroom_id", classroomID), zap.String("uid", req.UID))
+	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+// SearchStudentsToAdd 搜索可添加到班级的学生（教师）
+func (h *Handler) SearchStudentsToAdd(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	currentUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	classroomIDStr := c.Param("classroomId")
+	classroomID, err := strconv.ParseUint(classroomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId参数格式错误"))
+		return
+	}
+
+	// 获取搜索关键词
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "keyword参数不能为空"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 验证当前用户是否为班级教师
+	var classroom model.Classroom
+	if err := db.Where("id = ?", classroomID).First(&classroom).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		return
+	}
+
+	// 检查是否为教师
+	isTeacher := false
+	if classroom.TeacherID == currentUID.(string) {
+		isTeacher = true
+	} else {
+		var teacherCount int64
+		db.Model(&model.ClassroomTeacher{}).
+			Where("classroom_id = ? AND teacher_id = ? AND status = 1", classroomID, currentUID.(string)).
+			Count(&teacherCount)
+		if teacherCount > 0 {
+			isTeacher = true
+		}
+	}
+
+	if !isTeacher {
+		c.JSON(http.StatusOK, errorResponse(403, "只有教师可以搜索学生"))
+		return
+	}
+
+	// 搜索用户（排除已在班级中的学生）
+	type UserInfoDB struct {
+		UUID     string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+		Email    string `gorm:"column:email"`
+		Status   int    `gorm:"column:status"`
+	}
+
+	var usersDB []UserInfoDB
+	
+	// 构建搜索条件：优先精确匹配，然后模糊匹配
+	// 使用原生 SQL 实现相关性排序
+	searchOrder := fmt.Sprintf(
+		"CASE "+
+			"WHEN username = '%s' THEN 1 "+
+			"WHEN realname = '%s' THEN 2 "+
+			"WHEN username LIKE '%s%%' THEN 3 "+
+			"WHEN realname LIKE '%s%%' THEN 4 "+
+			"ELSE 5 END, username ASC",
+		keyword, keyword, keyword, keyword,
+	)
+	
+	query := db.Table("user_info").
+		Select("uuid, username, nickname, realname, email, status").
+		Where("(username LIKE ? OR realname LIKE ? OR nickname LIKE ?) AND status = 0",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
+		Where("uuid NOT IN (SELECT uid FROM classroom_student WHERE classroom_id = ? AND status = 1)", classroomID).
+		Order(searchOrder).
+		Limit(20)
+	if err := query.Find(&usersDB).Error; err != nil {
+		logger.Error("查询用户列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建返回结果
+	type UserRecord struct {
+		UID      string `json:"uid"`
+		Username string `json:"username"`
+		Nickname string `json:"nickname"`
+		Realname string `json:"realname"`
+		Email    string `json:"email"`
+	}
+
+	records := make([]UserRecord, len(usersDB))
+	for i, u := range usersDB {
+		records[i] = UserRecord{
+			UID:      u.UUID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Realname: u.Realname,
+			Email:    u.Email,
+		}
+	}
+
+	c.JSON(http.StatusOK, successResponse(records))
 }
 
 // GetStudentClassrooms 获取学生加入的班级列表
@@ -2964,16 +3237,38 @@ func (h *Handler) DeleteExamPaper(c *gin.Context) {
 func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
 	logger := utils.GetLogger()
 
+	// 使用浮点数类型接收参数（兼容前端发送的数字类型）
 	var req struct {
-		PaperID     uint64 `json:"paperId" binding:"required"`
-		ClassroomID uint64 `json:"classroomId" binding:"required"`
+		PaperID     float64 `json:"paperId" binding:"required"`
+		ClassroomID float64 `json:"classroomId" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("导入试卷请求参数错误", zap.Error(err))
+		logger.Warn("导入试卷请求参数绑定失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
 	}
+
+	logger.Info("导入试卷请求参数",
+		zap.Float64("paper_id", req.PaperID),
+		zap.Float64("classroom_id", req.ClassroomID))
+
+	// 验证参数必须是正整数（不能是小数或负数）
+	if req.PaperID <= 0 || req.PaperID != float64(uint64(req.PaperID)) {
+		logger.Warn("paperId 参数格式错误", zap.Float64("paperId", req.PaperID))
+		c.JSON(http.StatusOK, errorResponse(400, "paperId 参数格式错误"))
+		return
+	}
+
+	if req.ClassroomID <= 0 || req.ClassroomID != float64(uint64(req.ClassroomID)) {
+		logger.Warn("classroomId 参数格式错误", zap.Float64("classroomId", req.ClassroomID))
+		c.JSON(http.StatusOK, errorResponse(400, "classroomId 参数格式错误"))
+		return
+	}
+
+	// 转换为 uint64
+	paperID := uint64(req.PaperID)
+	classroomID := uint64(req.ClassroomID)
 
 	// 获取当前用户
 	uid, exists := c.Get("uid")
@@ -2982,12 +3277,14 @@ func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
 		return
 	}
 
+	logger.Info("导入试卷请求", zap.Uint64("paper_id", paperID), zap.Uint64("classroom_id", classroomID), zap.String("uid", uid.(string)))
+
 	db := client.GetDB()
 
 	// 查询试卷（只能导入共享试卷或自己创建的试卷）
 	var paper model.ExamPaper
 	if err := db.Preload("Questions.Question").
-		Where("id = ? AND status = 1", req.PaperID).
+		Where("id = ? AND status = 1", paperID).
 		First(&paper).Error; err != nil {
 		logger.Error("查询试卷失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在"))
@@ -3225,3 +3522,666 @@ func (h *Handler) AdminDeleteExamPaper(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
+
+// SearchUsersForRoleManagement 搜索用户（用于角色管理）
+// 允许所有管理员调用，用于查找用户并设置角色
+func (h *Handler) SearchUsersForRoleManagement(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取搜索参数
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.JSON(http.StatusOK, errorResponse(400, "关键词不能为空"))
+		return
+	}
+
+	currentPageStr := c.DefaultQuery("currentPage", "1")
+	limitStr := c.DefaultQuery("limit", "20")
+
+	currentPage, _ := strconv.Atoi(currentPageStr)
+	limit, _ := strconv.Atoi(limitStr)
+
+	if currentPage < 1 {
+		currentPage = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	offset := (currentPage - 1) * limit
+
+	logger.Info("管理员搜索用户",
+		zap.String("keyword", keyword),
+		zap.Int("page", currentPage),
+		zap.Int("limit", limit))
+
+	db := client.GetDB()
+
+	// 查询用户总数
+	var total int64
+	countQuery := db.Table("user_info").
+		Where("username LIKE ? OR realname LIKE ? OR nickname LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	if err := countQuery.Count(&total).Error; err != nil {
+		logger.Error("查询用户总数失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 查询用户列表
+	type UserInfoDB struct {
+		UUID     string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+		Email    string `gorm:"column:email"`
+		Status   int    `gorm:"column:status"`
+	}
+
+	var usersDB []UserInfoDB
+	query := db.Table("user_info").
+		Select("uuid, username, nickname, realname, email, status").
+		Where("username LIKE ? OR realname LIKE ? OR nickname LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
+		Order("uuid ASC").
+		Limit(limit).
+		Offset(offset)
+
+	if err := query.Find(&usersDB).Error; err != nil {
+		logger.Error("查询用户列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 构建返回结果
+	type UserRecord struct {
+		UUID     string `json:"uid"`
+		Username string `json:"username"`
+		Nickname string `json:"nickname"`
+		Realname string `json:"realname"`
+		Email    string `json:"email"`
+		Status   int    `json:"status"`
+	}
+
+	records := make([]UserRecord, len(usersDB))
+	for i, u := range usersDB {
+		records[i] = UserRecord{
+			UUID:     u.UUID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Realname: u.Realname,
+			Email:    u.Email,
+			Status:   u.Status,
+		}
+	}
+
+	type PagedResult struct {
+		Records []UserRecord `json:"records"`
+		Total   int64        `json:"total"`
+	}
+
+	c.JSON(http.StatusOK, successResponse(PagedResult{
+		Records: records,
+		Total:   total,
+	}))
+}
+
+// ==================== 班级角色申请相关接口 ====================
+
+// RoleApplicationRequest 申请角色请求
+type RoleApplicationRequest struct {
+	Role   string `json:"role" binding:"required"` // teacher, student
+	Reason string `json:"reason"`
+}
+
+// CreateRoleApplication 申请班级角色（用户）
+func (h *Handler) CreateRoleApplication(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	var req RoleApplicationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 验证角色类型
+	if req.Role != "teacher" && req.Role != "student" {
+		c.JSON(http.StatusOK, errorResponse(400, "角色类型必须是 teacher 或 student"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 检查用户是否已经拥有该角色
+	var existingRole model.ClassroomUserRole
+	err := db.Where("uid = ? AND role = ?", uid.(string), req.Role).First(&existingRole).Error
+	if err == nil {
+		c.JSON(http.StatusOK, errorResponse(400, "您已经拥有该角色，无需申请"))
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		logger.Error("查询用户角色失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 检查是否有待审批的申请
+	var pendingApplication model.ClassroomRoleRequest
+	err = db.Where("uid = ? AND role = ? AND status = 0", uid.(string), req.Role).First(&pendingApplication).Error
+	if err == nil {
+		c.JSON(http.StatusOK, errorResponse(400, "您已有待审批的"+getRoleName(req.Role)+"申请，请耐心等待"))
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		logger.Error("查询申请记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 创建申请记录
+	application := &model.ClassroomRoleRequest{
+		UID:    uid.(string),
+		Role:   req.Role,
+		Reason: req.Reason,
+		Status: 0, // 待审批
+	}
+
+	if err := db.Create(application).Error; err != nil {
+		logger.Error("创建申请失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "申请失败"))
+		return
+	}
+
+	logger.Info("用户申请班级角色", 
+		zap.String("uid", uid.(string)),
+		zap.String("role", req.Role),
+		zap.Uint64("applicationId", application.ID))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"applicationId": application.ID,
+		"message": "申请已提交，请等待管理员审批",
+	}))
+}
+
+// GetMyRoleApplications 获取当前用户的角色申请列表
+func (h *Handler) GetMyRoleApplications(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	// 获取查询参数
+	status := c.Query("status") // 0: 待审批, 1: 已批准, 2: 已拒绝, all（默认只返回待审批）
+
+	db := client.GetDB()
+
+	// 构建查询：只查询当前用户的申请
+	query := db.Model(&model.ClassroomRoleRequest{}).Where("uid = ?", uid.(string))
+
+	// 状态过滤
+	if status != "" && status != "all" {
+		statusInt, _ := strconv.Atoi(status)
+		query = query.Where("status = ?", statusInt)
+	} else {
+		// 默认只返回待审批的申请
+		query = query.Where("status = 0")
+	}
+
+	// 按创建时间倒序查询
+	var applications []model.ClassroomRoleRequest
+	if err := query.Order("create_time DESC").Find(&applications).Error; err != nil {
+		logger.Error("查询申请列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	// 转换为返回格式
+	type ApplicationResponse struct {
+		ID        uint64 `json:"id"`
+		Role      string `json:"role"`
+		Reason    string `json:"reason"`
+		Status    int    `json:"status"`
+		CreatedAt string `json:"createdAt"`
+	}
+
+	result := make([]ApplicationResponse, 0, len(applications))
+	for _, app := range applications {
+		result = append(result, ApplicationResponse{
+			ID:        app.ID,
+			Role:      app.Role,
+			Reason:    app.Reason,
+			Status:    app.Status,
+			CreatedAt: app.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"applications": result,
+		"count":        len(result),
+	}))
+}
+
+// GetRoleApplications 获取角色申请列表（管理员）
+func (h *Handler) GetRoleApplications(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取查询参数
+	role := c.Query("role")       // teacher, student, all
+	status := c.Query("status")   // 0: 待审批, 1: 已批准, 2: 已拒绝, all
+	currentPage, _ := strconv.Atoi(c.DefaultQuery("currentPage", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	db := client.GetDB()
+
+	// 验证管理员权限（从token中获取角色）
+	roles, exists := c.Get("roles")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	roleList, ok := roles.([]string)
+	if !ok {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	// 判断用户权限等级
+	isSuperAdmin := false
+	isProblemAdmin := false
+
+	for _, role := range roleList {
+		switch role {
+		case "root", "admin":
+			isSuperAdmin = true
+		case "problem_admin":
+			isProblemAdmin = true
+		}
+	}
+
+	// 超级管理员拥有所有权限
+	if isSuperAdmin {
+		isProblemAdmin = true
+	}
+
+	if !isSuperAdmin && !isProblemAdmin {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	// 构建查询
+	query := db.Model(&model.ClassroomRoleRequest{}).
+		Preload("Applicant")
+
+	// 角色过滤
+	if role != "" && role != "all" {
+		query = query.Where("role = ?", role)
+	}
+
+	// 状态过滤
+	if status != "" && status != "all" {
+		statusInt, _ := strconv.Atoi(status)
+		query = query.Where("status = ?", statusInt)
+	}
+
+	// 权限过滤：问题管理员和普通管理员只能看到学生申请
+	if !isSuperAdmin && isProblemAdmin {
+		query = query.Where("role = ?", "student")
+	}
+
+	// 获取总数
+	var total int64
+	query.Count(&total)
+
+	// 分页查询
+	var applications []model.ClassroomRoleRequest
+	offset := (currentPage - 1) * limit
+	if err := query.Preload("Applicant").Preload("Reviewer").Order("create_time DESC").Offset(offset).Limit(limit).Find(&applications).Error; err != nil {
+		logger.Error("查询申请列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	type ApplicationRecord struct {
+		ID         uint64     `json:"id"`
+		UID        string     `json:"uid"`
+		Username   string     `json:"username"`
+		Realname   string     `json:"realname"`
+		Email      string     `json:"email"`
+		Role       string     `json:"role"`
+		RoleName   string     `json:"roleName"`
+		Reason     string     `json:"reason"`
+		Status     int        `json:"status"`
+		StatusName string     `json:"statusName"`
+		ReviewerUID string    `json:"reviewerUid,omitempty"`
+		ReviewerName string   `json:"reviewerName,omitempty"`
+		ReviewTime *time.Time `json:"reviewTime,omitempty"`
+		ReviewNote string     `json:"reviewNote,omitempty"`
+		CreatedAt  time.Time  `json:"createdAt"`
+	}
+
+	records := make([]ApplicationRecord, len(applications))
+	for i, app := range applications {
+		statusName := getStatusName(app.Status)
+		roleName := getRoleName(app.Role)
+
+		record := ApplicationRecord{
+			ID:         app.ID,
+			UID:        app.UID,
+			Role:       app.Role,
+			RoleName:   roleName,
+			Reason:     app.Reason,
+			Status:     app.Status,
+			StatusName: statusName,
+			ReviewTime: app.ReviewTime,
+			ReviewNote: app.ReviewNote,
+			CreatedAt:  app.CreatedAt,
+		}
+
+		if app.Applicant != nil {
+			record.Username = app.Applicant.Username
+			record.Realname = app.Applicant.Realname
+			record.Email = app.Applicant.Nickname
+		}
+
+		if app.Reviewer != nil {
+			record.ReviewerUID = app.ReviewerUID
+			record.ReviewerName = app.Reviewer.Username
+		}
+
+		records[i] = record
+	}
+
+	type PagedResult struct {
+		Records []ApplicationRecord `json:"records"`
+		Total   int64               `json:"total"`
+	}
+
+	c.JSON(http.StatusOK, successResponse(PagedResult{
+		Records: records,
+		Total:   total,
+	}))
+}
+
+// ReviewRoleApplicationRequest 审批申请请求
+type ReviewRoleApplicationRequest struct {
+	ApplicationIDs []uint64 `json:"applicationIds" binding:"required"`
+	Action         string   `json:"action" binding:"required"` // approve, reject
+	ReviewNote     string   `json:"reviewNote"`
+}
+
+// ReviewRoleApplication 批量审批角色申请（管理员）
+func (h *Handler) ReviewRoleApplication(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	reviewerUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	var req ReviewRoleApplicationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	// 验证操作类型
+	if req.Action != "approve" && req.Action != "reject" {
+		c.JSON(http.StatusOK, errorResponse(400, "操作类型必须是 approve 或 reject"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 验证管理员权限（从token中获取角色）
+	roles, exists := c.Get("roles")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	roleList, ok := roles.([]string)
+	if !ok {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	// 判断用户权限等级
+	isSuperAdmin := false
+	isProblemAdmin := false
+
+	for _, role := range roleList {
+		switch role {
+		case "root", "admin":
+			isSuperAdmin = true
+		case "problem_admin":
+			isProblemAdmin = true
+		}
+	}
+
+	// 超级管理员拥有所有权限
+	if isSuperAdmin {
+		isProblemAdmin = true
+	}
+
+	if !isSuperAdmin && !isProblemAdmin {
+		c.JSON(http.StatusOK, errorResponse(403, "无权限访问"))
+		return
+	}
+
+	// 查询申请记录
+	var applications []model.ClassroomRoleRequest
+	if err := db.Where("id IN ?", req.ApplicationIDs).Find(&applications).Error; err != nil {
+		logger.Error("查询申请记录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	if len(applications) == 0 {
+		c.JSON(http.StatusOK, errorResponse(404, "申请不存在"))
+		return
+	}
+
+	now := time.Now()
+	successCount := 0
+	failedCount := 0
+
+	for _, app := range applications {
+		// 只能审批待审批的申请
+		if app.Status != 0 {
+			failedCount++
+			continue
+		}
+
+		// 权限检查
+		if app.Role == "teacher" && !isSuperAdmin {
+			logger.Warn("非超级管理员尝试审批教师申请",
+				zap.String("reviewer", reviewerUID.(string)),
+				zap.Uint64("applicationId", app.ID))
+			failedCount++
+			continue
+		}
+
+		// 如果是批准操作，添加角色
+		if req.Action == "approve" {
+			// 检查是否已有该角色
+			var existingRole model.ClassroomUserRole
+			err := db.Where("uid = ? AND role = ?", app.UID, app.Role).First(&existingRole).Error
+			
+			if err == nil {
+				// 已有角色，直接标记申请为已批准
+				app.Status = 1
+				app.ReviewerUID = reviewerUID.(string)
+				app.ReviewTime = &now
+				app.ReviewNote = req.ReviewNote
+				if err := db.Save(&app).Error; err != nil {
+					logger.Error("更新申请状态失败", zap.Error(err))
+					failedCount++
+				} else {
+					successCount++
+				}
+			} else if err == gorm.ErrRecordNotFound {
+				// 没有角色，需要添加
+				newRole := &model.ClassroomUserRole{
+					UID:  app.UID,
+					Role: app.Role,
+				}
+				
+				// 使用事务
+				tx := db.Begin()
+				if err := tx.Create(newRole).Error; err != nil {
+					tx.Rollback()
+					logger.Error("创建用户角色失败", zap.Error(err))
+					failedCount++
+					continue
+				}
+
+				// 更新申请状态
+				app.Status = 1
+				app.ReviewerUID = reviewerUID.(string)
+				app.ReviewTime = &now
+				app.ReviewNote = req.ReviewNote
+				if err := tx.Save(&app).Error; err != nil {
+					tx.Rollback()
+					logger.Error("更新申请状态失败", zap.Error(err))
+					failedCount++
+					continue
+				}
+
+				tx.Commit()
+				successCount++
+			} else {
+				logger.Error("查询用户角色失败", zap.Error(err))
+				failedCount++
+			}
+		} else {
+			// 拒绝操作
+			app.Status = 2
+			app.ReviewerUID = reviewerUID.(string)
+			app.ReviewTime = &now
+			app.ReviewNote = req.ReviewNote
+			if err := db.Save(&app).Error; err != nil {
+				logger.Error("更新申请状态失败", zap.Error(err))
+				failedCount++
+			} else {
+				successCount++
+			}
+		}
+
+		logger.Info("审批角色申请",
+			zap.String("reviewer", reviewerUID.(string)),
+			zap.String("action", req.Action),
+			zap.String("applicant", app.UID),
+			zap.String("role", app.Role),
+			zap.Uint64("applicationId", app.ID))
+	}
+
+	result := gin.H{
+		"successCount": successCount,
+		"failedCount":  failedCount,
+		"total":        len(applications),
+	}
+
+	if successCount > 0 {
+		result["message"] = fmt.Sprintf("成功审批 %d 个申请", successCount)
+		c.JSON(http.StatusOK, successResponse(result))
+	} else {
+		c.JSON(http.StatusOK, errorResponse(400, "审批失败，没有申请被处理"))
+	}
+}
+
+// getRoleName 获取角色名称
+func getRoleName(role string) string {
+	switch role {
+	case "teacher":
+		return "教师"
+	case "student":
+		return "学生"
+	default:
+		return role
+	}
+}
+
+// getStatusName 获取状态名称
+func getStatusName(status int) string {
+	switch status {
+	case 0:
+		return "待审批"
+	case 1:
+		return "已批准"
+	case 2:
+		return "已拒绝"
+	default:
+		return "未知"
+	}
+}
+
+// CancelRoleApplication 取消角色申请（用户）
+func (h *Handler) CancelRoleApplication(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// 获取当前用户ID
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	// 获取申请ID
+	applicationIDStr := c.Param("applicationId")
+	applicationID, err := strconv.ParseUint(applicationIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "申请ID格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 查询申请记录
+	var application model.ClassroomRoleRequest
+	if err := db.Where("id = ? AND uid = ?", applicationID, uid.(string)).First(&application).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "申请不存在"))
+		} else {
+			logger.Error("查询申请失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	// 只能取消待审批的申请
+	if application.Status != 0 {
+		statusName := getStatusName(application.Status)
+		c.JSON(http.StatusOK, errorResponse(400, "只能取消待审批的申请，当前状态："+statusName))
+		return
+	}
+
+	// 删除申请记录
+	if err := db.Delete(&application).Error; err != nil {
+		logger.Error("取消申请失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "取消失败"))
+		return
+	}
+
+	logger.Info("用户取消角色申请",
+		zap.String("uid", uid.(string)),
+		zap.Uint64("applicationId", applicationID),
+		zap.String("role", application.Role))
+
+	c.JSON(http.StatusOK, successResponse(gin.H{
+		"message": "申请已取消",
+	}))
+}

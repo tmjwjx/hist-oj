@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"gorm.io/gorm"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -146,7 +147,19 @@ func (h *Handler) GetMyTrainingParticipant(c *gin.Context) {
 	trainingService := service.NewTrainingService()
 	record, err := trainingService.GetTrainingParticipantByUser(trainingID, uid.(string))
 	if err != nil {
-		logger.Error("获取训练记录失败", zap.Error(err))
+		// 区分"记录不存在"和"真正的错误"
+		if err == gorm.ErrRecordNotFound {
+			// 用户未报名是正常情况，记录为Info而不是Error
+			logger.Info("用户未参加训练", 
+				zap.Uint64("training_id", trainingID), 
+				zap.String("uid", uid.(string)))
+		} else {
+			// 其他错误（数据库连接失败等）才记录为Error
+			logger.Error("获取训练记录失败", 
+				zap.Uint64("training_id", trainingID), 
+				zap.String("uid", uid.(string)),
+				zap.Error(err))
+		}
 		c.JSON(http.StatusOK, errorResponse(404, "未找到训练记录"))
 		return
 	}

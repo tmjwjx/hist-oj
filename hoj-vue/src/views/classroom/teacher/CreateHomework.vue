@@ -1207,13 +1207,9 @@ export default {
     async loadHomeworkData() {
       this.loadingData = true
       try {
-        console.log('开始加载作业数据, editId:', this.editId)
         const res = await this.$store.dispatch('classroom/getHomeworkDetail', this.editId)
-        console.log('getHomeworkDetail 响应:', res)
         if (res.code === 200 && res.data) {
           const homework = res.data
-          console.log('作业数据:', homework)
-          console.log('题目列表:', homework.questions)
 
           // 先填充表单数据（包括 isExamMode），立即更新界面
           this.form = {
@@ -1236,16 +1232,12 @@ export default {
           // 填充已选题目
           if (homework.questions && homework.questions.length > 0) {
             this.selectedQuestions = homework.questions.map((item, index) => {
-              console.log(`处理题目 ${index + 1}:`, item)
               // 编程题：使用 problemId
               if (item.problemId) {
-                console.log('  -> 这是编程题')
                 // 从缓存获取编程题详情
                 const cached = this.programmingProblemsCache[item.problemId]
-                console.log('  -> 缓存数据:', cached)
                 const score = item.score || item.question?.score || 20
                 if (cached && cached.problem) {
-                  console.log('  -> 使用缓存数据')
                   return {
                     id: item.id,
                     problemId: item.problemId,
@@ -1264,7 +1256,6 @@ export default {
                   }
                 }
                 // 如果缓存中没有，返回基本信息（不影响编辑）
-                console.log('  -> 使用基本信息（无缓存）')
                 return {
                   id: item.id,
                   problemId: item.problemId,
@@ -1276,7 +1267,6 @@ export default {
               }
               // 普通题目：使用 question
               if (item.question && item.question.id) {
-                console.log('  -> 这是普通题目')
                 return {
                   id: item.question.id,
                   title: item.question.title,
@@ -1292,7 +1282,6 @@ export default {
               console.warn('  -> 跳过无效题目:', item)
               return null
             }).filter(q => q !== null)
-            console.log('最终 selectedQuestions:', this.selectedQuestions)
           }
 
           // 关键数据填充完成，隐藏 loading
@@ -1304,7 +1293,6 @@ export default {
             .map(q => q.problemId)
 
           if (programmingProblemIds.length > 0) {
-            console.log('预加载编程题数据:', programmingProblemIds)
             // 不使用 await，让加载在后台进行，完成后会自动更新界面
             this.loadProgrammingProblemByIds(programmingProblemIds)
           }
@@ -1367,14 +1355,6 @@ export default {
           })
         }
 
-        // 调试：打印提交的数据
-        console.log('=== 提交作业数据 ===')
-        console.log('完整数据:', JSON.stringify(data, null, 2))
-        console.log('questions 数量:', data.questions.length)
-        data.questions.forEach((q, idx) => {
-          console.log(`题目${idx + 1}:`, JSON.stringify(q, null, 2))
-        })
-
         try {
           let res
           if (this.isEditMode) {
@@ -1386,9 +1366,6 @@ export default {
             res = await this.$store.dispatch('classroom/createHomework', data)
           }
 
-          console.log('=== 后端响应 ===')
-          console.log('完整响应:', res)
-
           if (res.code === 200) {
             this.$message.success(this.isEditMode ? this.$t('m.Update_Success') : this.$t('m.Create_Success'))
             this.goBack()
@@ -1396,8 +1373,7 @@ export default {
             this.$message.error(res.message || (this.isEditMode ? '保存失败' : '创建失败'))
           }
         } catch (error) {
-          console.error('=== 请求异常 ===')
-          console.error('错误详情:', error)
+          console.error('保存作业失败:', error)
           this.$message.error(this.isEditMode ? '保存失败' : '创建失败')
         } finally {
           this.submitting = false
@@ -1785,11 +1761,9 @@ export default {
     renderMarkdown(text) {
       if (!text) return ''
       try {
-        const rendered = md.render(text)
-        console.log('渲染 Markdown，输入长度:', text.length, '输出长度:', rendered.length)
-        return rendered
+        return md.render(text)
       } catch (e) {
-        console.error('Markdown 渲染失败:', e)
+        console.error('Markdown渲染失败:', e)
         return text
       }
     },
@@ -1832,7 +1806,6 @@ export default {
     },
     handlePreviewOpened() {
       // 对话框打开后，确保 KaTeX 样式已加载
-      console.log('预览对话框已打开，编程题缓存:', this.programmingProblemsCache)
       // 不需要强制刷新，Vue 的响应式系统会自动处理
     },
     async loadProgrammingProblemsForPreview() {
@@ -1850,19 +1823,14 @@ export default {
       const token = localStorage.getItem('token')
 
       if (!userInfo || !token) {
-        console.warn('未登录，无法加载编程题数据')
         return
       }
 
-      console.log('开始批量加载编程题:', problemIds)
-
       // 过滤掉已缓存的
       const uncachedIds = problemIds.filter(id => !this.programmingProblemsCache[id])
-      console.log('需要加载的编程题:', uncachedIds)
 
       for (const problemId of uncachedIds) {
         try {
-          console.log('加载编程题:', problemId)
           const res = await getJudgeInfo({
             pid: problemId,
             cid: '0',
@@ -1873,12 +1841,10 @@ export default {
           })
 
           if (res.code === 200 && res.data) {
-            console.log('编程题加载成功:', problemId)
-            console.log('题目描述包含数学公式:', res.data.problem.description.includes('$'))
             this.$set(this.programmingProblemsCache, problemId, res.data)
           }
         } catch (error) {
-          console.error('加载编程题信息失败:', problemId, error)
+          console.error('加载编程题信息失败:', problemId, error.message)
         }
       }
     },
@@ -1999,18 +1965,44 @@ export default {
 
       this.importingPaper = true
       try {
-        const res = await this.$store.dispatch('classroom/importExamPaper', {
-          paperId: this.selectedPaperId,
-          classroomId: this.classroomId
-        })
+        // 确保参数是数字类型，并验证有效性
+        const paperId = parseInt(this.selectedPaperId)
+        const classroomId = parseInt(this.classroomId)
+
+        // 验证转换结果
+        if (isNaN(paperId) || paperId <= 0) {
+          this.$message.error('请选择有效的试卷')
+          return
+        }
+        if (isNaN(classroomId) || classroomId <= 0) {
+          this.$message.error('班级ID无效')
+          return
+        }
+
+        const requestData = {
+          paperId: paperId,
+          classroomId: classroomId
+        }
+
+        const res = await this.$store.dispatch('classroom/importExamPaper', requestData)
+
+        // 检查响应数据结构
+        if (!res) {
+          this.$message.error('导入试卷失败：服务器未返回数据')
+          return
+        }
 
         if (res.code === 200) {
           // 导入成功，将题目添加到已选题目列表
-          const questions = res.data.questions || []
-          if (questions.length > 0) {
-            // 清空当前已选题目（根据需求决定是否清空）
-            // this.selectedQuestions = []
+          // 注意：res.data 可能是题目数组，也可能包含 {questions: [...]}
+          let questions = []
+          if (Array.isArray(res.data)) {
+            questions = res.data
+          } else if (res.data && Array.isArray(res.data.questions)) {
+            questions = res.data.questions
+          }
 
+          if (questions.length > 0) {
             questions.forEach(q => {
               // 检查是否已存在
               const exists = this.selectedQuestions.some(sq =>
@@ -2041,7 +2033,16 @@ export default {
         }
       } catch (error) {
         console.error('导入试卷失败:', error)
-        this.$message.error('导入试卷失败')
+        // 检查是否是502错误（网关错误）
+        if (error.response && error.response.status === 502) {
+          this.$message.error('导入试卷失败：服务器繁忙，请稍后重试')
+        } else if (error.response && error.response.status === 404) {
+          this.$message.error('导入试卷失败：试卷不存在或已被删除')
+        } else if (error.response && error.response.status === 403) {
+          this.$message.error('导入试卷失败：您没有权限导入此试卷')
+        } else {
+          this.$message.error('导入试卷失败：' + (error.message || '参数错误，请检查试卷数据'))
+        }
       } finally {
         this.importingPaper = false
       }
