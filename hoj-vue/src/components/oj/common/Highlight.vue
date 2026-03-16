@@ -1,9 +1,9 @@
 <template>
-  <div class="markdown-body submission-detail">
+  <div class="markdown-body" :class="classroomMode ? 'classroom-code-display' : ''">
     <pre
       v-highlight="code"
-      :style="styleObject"
-    ><code :class="language"></code></pre>
+      :style="preStyle"
+    ><code :class="language" :style="codeStyle"></code></pre>
   </div>
 </template>
 
@@ -29,6 +29,21 @@ export default {
       type: String,
       default: '#19be6b',
     },
+    classroomMode: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  computed: {
+    preStyle() {
+      const base = {
+        'border-left': '3px solid ' + this.borderColor,
+      };
+      return base;
+    },
+    codeStyle() {
+      return {};
+    },
   },
   watch: {
     borderColor(newval, oldval) {
@@ -40,11 +55,5 @@ export default {
 };
 </script>
 
-<style scoped>
-.hljs {
-  padding: 0 !important;
-}
-.submission-detail pre {
-  padding-left: 50px !important;
-}
+<style>
 </style>

@@ -138,7 +138,6 @@ export default {
       // 预加载用户角色信息，避免权限检查时出现竞态问题
       try {
         await this.$store.dispatch('classroom/loadUserRoles')
-        console.log('[App] 用户角色预加载完成')
       } catch (error) {
         console.error('[App] 预加载用户角色失败:', error)
       }

@@ -243,9 +243,19 @@
       </el-row>
 
       <!-- 代码预览对话框 -->
-      <el-dialog title="提交代码预览" :visible.sync="codeDialogVisible" width="60%" append-to-body @opened="highlightCode">
-        <div class="code-preview-wrapper">
-          <pre class="code-preview"><code :key="codeDialogVisible" ref="previewCodeBlock" :class="`language-${mapLanguage(currentLanguage)}`">{{ currentCode }}</code></pre>
+      <el-dialog
+        title="提交代码"
+        :visible.sync="codeDialogVisible"
+        width="60%"
+        @opened="addCodeLineNumbers"
+      >
+        <div class="code-display-wrapper">
+          <Highlight
+            :key="codeDialogVisible"
+            :code="currentCode"
+            :language="mapLanguage(currentLanguage)"
+            :classroom-mode="true"
+          ></Highlight>
         </div>
       </el-dialog>
     </el-row>
@@ -256,8 +266,8 @@
 import { getJudgeInfo, getJudgeHistory, runCombinedJudge } from '@/common/judgeTerminal'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
-import hljs from 'highlight.js'
-import 'highlight.js/styles/atom-one-dark.css'
+const Highlight = () => import('@/components/oj/common/Highlight')
+import { addCodeBtn } from '@/common/codeblock'
 
 // 配置 markdown-it 和 KaTeX
 const md = new MarkdownIt()
@@ -265,6 +275,9 @@ md.use(MarkdownItKatex)
 
 export default {
   name: 'JudgeTerminalPage',
+  components: {
+    Highlight
+  },
   data() {
     return {
       form: {
@@ -655,12 +668,12 @@ export default {
       return modeMap[mode] || mode || '默认模式'
     },
 
-    // 代码高亮
-    highlightCode() {
+    // 添加代码行号
+    addCodeLineNumbers() {
       this.$nextTick(() => {
-        if (this.$refs.previewCodeBlock) {
-          hljs.highlightElement(this.$refs.previewCodeBlock)
-        }
+        setTimeout(() => {
+          addCodeBtn()
+        }, 100)
       })
     },
 
@@ -990,140 +1003,61 @@ export default {
   line-height: 1.5;
 }
 
-/* 代码预览 */
-.code-preview-wrapper {
+/* 代码显示容器 - 与学生端一致 */
+.code-display-wrapper {
   max-height: 600px;
   overflow: auto;
-  background: #282c34;
-  border-radius: 4px;
+  margin-top: 10px;
 }
 
-.code-preview {
-  margin: 0;
-  padding: 20px;
-  background: #282c34;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #abb2bf;
+/* 判题终端专用样式：代码显示 - 与学生端一致 */
+.judge-terminal-page .code-display-wrapper .markdown-body pre {
+  padding: 0 16px 0 40px !important;  /* 左侧40px给行号留空间 */
+  position: relative !important;
 }
 
-.code-preview code {
-  background: transparent !important;
+.judge-terminal-page .code-display-wrapper .markdown-body pre code {
+  padding: 0px 16px 0px 0px !important;  /* code不添加额外缩进，总缩进保持40px */
+  line-height: 26px !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering {
+  line-height: 26px !important;
+  font-size: 1rem !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering li {
+  line-height: 26px !important;
+  margin: 0 !important;
   padding: 0 !important;
-  display: block;
-  white-space: pre;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering li:before {
+  font-size: 1rem !important;
+  line-height: 26px !important;
+  vertical-align: top !important;
 }
 
 /* 滚动条样式 */
-.log-area::-webkit-scrollbar,
-.code-preview::-webkit-scrollbar {
+.log-area::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-.log-area::-webkit-scrollbar-thumb,
-.code-preview::-webkit-scrollbar-thumb {
+.log-area::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
 
-.log-area::-webkit-scrollbar-thumb:hover,
-.code-preview::-webkit-scrollbar-thumb:hover {
+.log-area::-webkit-scrollbar-thumb:hover {
   background: #777;
 }
 
-.log-area::-webkit-scrollbar-track,
-.code-preview::-webkit-scrollbar-track {
+.log-area::-webkit-scrollbar-track {
   background: #2d2d2d;
 }
 </style>
 
 <style>
-/* Highlight.js 代码高亮全局样式 - 与查重代码一致 */
-.code-preview .hljs {
-  display: block;
-  overflow-x: auto;
-  padding: 0;
-  background: #282c34;
-  color: #abb2bf;
-}
-
-.code-preview .hljs-comment,
-.code-preview .hljs-quote {
-  color: #5c6370;
-  font-style: italic;
-}
-
-.code-preview .hljs-keyword,
-.code-preview .hljs-selector-tag,
-.code-preview .hljs-subst {
-  color: #c678dd;
-}
-
-.code-preview .hljs-number,
-.code-preview .hljs-literal,
-.code-preview .hljs-variable,
-.code-preview .hljs-template-variable,
-.code-preview .hljs-tag .hljs-attr {
-  color: #d19a66;
-}
-
-.code-preview .hljs-string,
-.code-preview .hljs-doctag {
-  color: #98c379;
-}
-
-.code-preview .hljs-title,
-.code-preview .hljs-section,
-.code-preview .hljs-selector-id {
-  color: #61afef;
-}
-
-.code-preview .hljs-type,
-.code-preview .hljs-class .hljs-title {
-  color: #e5c07b;
-}
-
-.code-preview .hljs-tag,
-.code-preview .hljs-name,
-.code-preview .hljs-attribute {
-  color: #e06c75;
-  font-weight: normal;
-}
-
-.code-preview .hljs-regexp,
-.code-preview .hljs-link {
-  color: #56b6c2;
-}
-
-.code-preview .hljs-symbol,
-.code-preview .hljs-bullet {
-  color: #61afef;
-}
-
-.code-preview .hljs-built_in,
-.code-preview .hljs-builtin-name {
-  color: #e6c07b;
-}
-
-.code-preview .hljs-meta {
-  color: #61afef;
-}
-
-.code-preview .hljs-deletion {
-  background: #f8756f;
-}
-
-.code-preview .hljs-addition {
-  background: #98c379;
-}
-
-.code-preview .hljs-emphasis {
-  font-style: italic;
-}
-
-.code-preview .hljs-strong {
-  font-weight: bold;
-}
+/* Highlight 组件的样式会自动应用，无需额外定义 */
 </style>

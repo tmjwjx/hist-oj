@@ -11,6 +11,7 @@ const state = {
   homeworks: [],
   folders: [],
   materials: [],
+  selectedQuestions: [], // 临时保存从题库选中的题目
   messages: [],
   pickedStudent: null,
   userRoles: [], // 存储用户的班级角色
@@ -121,6 +122,9 @@ const mutations = {
   },
   SET_ROLE_APPLICATIONS(state, applications) {
     state.roleApplications = applications || []
+  },
+  SET_SELECTED_QUESTIONS(state, questions) {
+    state.selectedQuestions = questions || []
   }
 }
 

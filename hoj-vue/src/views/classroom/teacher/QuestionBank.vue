@@ -10,6 +10,62 @@
       </el-button>
     </div>
 
+    <!-- 筛选条件 -->
+    <div class="filter-bar" style="margin-bottom: 20px;">
+      <el-row :gutter="15">
+        <el-col :span="5">
+          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="loadQuestions">
+            <el-option label="全部题型" value=""></el-option>
+            <el-option label="单选题" value="single_choice"></el-option>
+            <el-option label="多选题" value="multiple_choice"></el-option>
+            <el-option label="判断题" value="judge"></el-option>
+            <el-option label="主观题" value="subjective"></el-option>
+          </el-select>
+        </el-col>
+        <el-col :span="5">
+          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="loadQuestions">
+            <el-option label="全部课程" value=""></el-option>
+            <el-option
+              v-for="course in commonCourses"
+              :key="course"
+              :label="course"
+              :value="course"
+            />
+          </el-select>
+        </el-col>
+        <el-col :span="6">
+          <el-input
+            v-model="filters.tag"
+            placeholder="标签筛选"
+            clearable
+            size="small"
+            @keyup.enter.native="loadQuestions"
+          >
+            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+          </el-input>
+        </el-col>
+        <el-col :span="4">
+          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="loadQuestions">
+            <el-option label="全部难度" value=""></el-option>
+            <el-option label="简单" value="1"></el-option>
+            <el-option label="中等" value="2"></el-option>
+            <el-option label="困难" value="3"></el-option>
+          </el-select>
+        </el-col>
+        <el-col :span="4">
+          <el-input
+            v-model="filters.keyword"
+            placeholder="搜索标题"
+            clearable
+            size="small"
+            @keyup.enter.native="loadQuestions"
+          >
+            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+          </el-input>
+        </el-col>
+      </el-row>
+    </div>
+
     <!-- 移除 v-loading 避免轮询时闪烁 -->
     <el-table :data="questions" stripe>
       <el-table-column prop="title" :label="$t('m.Question_Title')">
@@ -26,7 +82,27 @@
       </el-table-column>
       <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100">
         <template slot-scope="{ row }">
-          <el-rate :value="getDifficultyStars(row.difficulty)" disabled />
+          <el-rate :value="getDifficultyStars(row.difficulty)" :max="3" disabled />
+        </template>
+      </el-table-column>
+      <el-table-column prop="course" label="所属课程" width="120">
+        <template slot-scope="{ row }">
+          <el-tag v-if="row.course" type="warning" size="small">{{ row.course }}</el-tag>
+          <span v-else style="color: #909399;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="tags" label="标签" width="180">
+        <template slot-scope="{ row }">
+          <el-tag
+            v-for="(tag, idx) in parseQuestionTags(row.tags)"
+            :key="idx"
+            size="mini"
+            type="info"
+            style="margin-right: 3px;"
+          >
+            {{ tag }}
+          </el-tag>
+          <span v-if="!row.tags || row.tags === '[]'" style="color: #909399;">-</span>
         </template>
       </el-table-column>
       <el-table-column prop="isShared" :label="$t('m.Shared')" width="80">
@@ -36,8 +112,11 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('m.Operation')" width="200">
+      <el-table-column :label="$t('m.Operation')" width="280">
         <template slot-scope="{ row }">
+          <el-button size="small" type="info" @click="handleViewDetail(row)">
+            {{ $t('m.View_Detail') || '查看详情' }}
+          </el-button>
           <el-button size="small" @click="handleEdit(row)">{{ $t('m.Edit') }}</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">
             {{ $t('m.Delete') }}
@@ -118,6 +197,50 @@
           </el-form-item>
         </template>
 
+        <!-- 题目解析 -->
+        <el-form-item label="题目解析">
+          <el-input type="textarea" v-model="createForm.analysis" :rows="3" placeholder="请输入题目解析（可选）" />
+        </el-form-item>
+
+        <!-- 题目标签 -->
+        <el-form-item label="题目标签">
+          <div class="tags-input-container">
+            <div class="tags-list">
+              <el-tag
+                v-for="(tag, index) in createForm.tags"
+                :key="index"
+                closable
+                @close="removeCreateTag(index)"
+                style="margin-right: 5px; margin-bottom: 5px;"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <el-input
+              v-model="createTagInput"
+              placeholder="输入标签名称，按回车添加"
+              @keyup.enter.native="addCreateTag"
+              style="width: 100%;"
+            />
+          </div>
+          <div class="form-tip">
+            <i class="el-icon-info"></i>
+            输入标签名称后按回车添加，可添加多个标签
+          </div>
+        </el-form-item>
+
+        <!-- 题目所属课程 -->
+        <el-form-item label="所属课程">
+          <el-select
+            v-model="createForm.course"
+            placeholder="请选择课程"
+            style="width: 100%"
+          >
+            <el-option label="数据结构" value="数据结构"></el-option>
+            <el-option label="算法设计与分析" value="算法设计与分析"></el-option>
+          </el-select>
+        </el-form-item>
+
         <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
           <el-rate v-model="createForm.difficulty" :max="3" />
         </el-form-item>
@@ -186,6 +309,16 @@
                   <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
                 </el-alert>
               </div>
+
+              <!-- 题目解析预览 -->
+              <div v-if="createForm.analysis" class="preview-analysis">
+                <el-divider content-position="left">
+                  <i class="el-icon-document" style="color: #E6A23C;"></i>
+                  <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+                </el-divider>
+                <div v-html="renderMarkdown(createForm.analysis)" class="markdown-body preview-analysis-content"></div>
+              </div>
+              <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
             </div>
           </el-card>
         </el-col>
@@ -261,6 +394,50 @@
           </el-form-item>
         </template>
 
+        <!-- 题目解析 -->
+        <el-form-item label="题目解析">
+          <el-input type="textarea" v-model="editForm.analysis" :rows="3" placeholder="请输入题目解析（可选）" />
+        </el-form-item>
+
+        <!-- 题目标签 -->
+        <el-form-item label="题目标签">
+          <div class="tags-input-container">
+            <div class="tags-list">
+              <el-tag
+                v-for="(tag, index) in editForm.tags"
+                :key="index"
+                closable
+                @close="removeEditTag(index)"
+                style="margin-right: 5px; margin-bottom: 5px;"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <el-input
+              v-model="editTagInput"
+              placeholder="输入标签名称，按回车添加"
+              @keyup.enter.native="addEditTag"
+              style="width: 100%;"
+            />
+          </div>
+          <div class="form-tip">
+            <i class="el-icon-info"></i>
+            输入标签名称后按回车添加，可添加多个标签
+          </div>
+        </el-form-item>
+
+        <!-- 题目所属课程 -->
+        <el-form-item label="所属课程">
+          <el-select
+            v-model="editForm.course"
+            placeholder="请选择课程"
+            style="width: 100%"
+          >
+            <el-option label="数据结构" value="数据结构"></el-option>
+            <el-option label="算法设计与分析" value="算法设计与分析"></el-option>
+          </el-select>
+        </el-form-item>
+
         <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
           <el-rate v-model="editForm.difficulty" :max="3" />
         </el-form-item>
@@ -328,6 +505,16 @@
                   <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
                 </el-alert>
               </div>
+
+              <!-- 题目解析预览 -->
+              <div v-if="editForm.analysis" class="preview-analysis">
+                <el-divider content-position="left">
+                  <i class="el-icon-document" style="color: #E6A23C;"></i>
+                  <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+                </el-divider>
+                <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content"></div>
+              </div>
+              <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
             </div>
           </el-card>
         </el-col>
@@ -335,6 +522,121 @@
       <span slot="footer">
         <el-button @click="showEditDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" @click="updateQuestion">{{ $t('m.Confirm') }}</el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 查看题目详情对话框 -->
+    <el-dialog :title="$t('m.Question_Detail') || '题目详情'" :visible.sync="showViewDialog" width="900px">
+      <div v-if="viewQuestion" class="question-detail-content">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item :label="$t('m.Question_Type')">
+            <el-tag :type="getQuestionTypeColor(viewQuestion.type)">
+              {{ getQuestionTypeName(viewQuestion.type) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('m.Difficulty')">
+            <el-rate :value="getDifficultyStars(viewQuestion.difficulty)" :max="3" disabled />
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('m.Score')">
+            {{ viewQuestion.score }} 分
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('m.Shared')">
+            <el-tag :type="viewQuestion.isShared ? 'success' : 'info'">
+              {{ viewQuestion.isShared ? $t('m.Yes') : $t('m.No') }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="所属课程" :span="2">
+            <el-tag v-if="viewQuestion.course" type="warning" size="small">{{ viewQuestion.course }}</el-tag>
+            <span v-else style="color: #909399;">-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="标签" :span="2">
+            <el-tag
+              v-for="(tag, idx) in parseQuestionTags(viewQuestion.tags)"
+              :key="idx"
+              size="small"
+              type="info"
+              style="margin-right: 5px;"
+            >
+              {{ tag }}
+            </el-tag>
+            <span v-if="!viewQuestion.tags || viewQuestion.tags === '[]'" style="color: #909399;">-</span>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider content-position="left">
+          <i class="el-icon-document"></i>
+          <span>题目内容</span>
+        </el-divider>
+
+        <!-- 题目标题 -->
+        <div class="detail-section">
+          <h4 class="detail-label">题目标题：</h4>
+          <div v-html="renderMarkdown(viewQuestion.title)" class="markdown-body detail-content"></div>
+        </div>
+
+        <!-- 题目描述 -->
+        <div v-if="viewQuestion.content" class="detail-section">
+          <h4 class="detail-label">题目描述：</h4>
+          <div v-html="renderMarkdown(viewQuestion.content)" class="markdown-body detail-content"></div>
+        </div>
+
+        <!-- 选择题选项 -->
+        <div v-if="viewQuestion.type === 'single_choice' || viewQuestion.type === 'multiple_choice'" class="detail-section">
+          <h4 class="detail-label">选项：</h4>
+          <div class="detail-content">
+            <div v-if="parseQuestionOptions(viewQuestion.options).length > 0">
+              <div v-for="(option, index) in parseQuestionOptions(viewQuestion.options)" :key="index" class="option-item-detail">
+                <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
+                <span v-html="renderMarkdown(option)" class="option-text"></span>
+              </div>
+            </div>
+            <div v-else class="no-options">
+              <el-alert type="info" :closable="false">暂无选项数据</el-alert>
+            </div>
+          </div>
+        </div>
+
+        <!-- 正确答案 -->
+        <div class="detail-section">
+          <h4 class="detail-label">正确答案：</h4>
+          <div class="detail-content">
+            <el-tag v-if="viewQuestion.type === 'single_choice'" type="success">
+              {{ parseSingleChoiceAnswer(viewQuestion) }}
+            </el-tag>
+            <el-tag v-else-if="viewQuestion.type === 'multiple_choice'" type="success">
+              {{ parseMultipleChoiceAnswer(viewQuestion) }}
+            </el-tag>
+            <el-tag v-else-if="viewQuestion.type === 'judge'" :type="viewQuestion.answer === 'true' ? 'success' : 'danger'">
+              {{ viewQuestion.answer === 'true' ? $t('m.True') || '正确' : $t('m.False') || '错误' }}
+            </el-tag>
+            <div v-else-if="viewQuestion.type === 'subjective'" class="subjective-answer">
+              <div v-if="viewQuestion.answer" v-html="renderMarkdown(viewQuestion.answer)" class="markdown-body"></div>
+              <span v-else style="color: #909399;">暂无参考答案</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 题目解析 -->
+        <div v-if="viewQuestion.analysis" class="detail-section">
+          <el-divider content-position="left">
+            <i class="el-icon-document" style="color: #E6A23C;"></i>
+            <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+          </el-divider>
+          <div v-html="renderMarkdown(viewQuestion.analysis)" class="markdown-body detail-content"></div>
+        </div>
+
+        <!-- 创建和更新时间 -->
+        <div class="detail-meta">
+          <el-tag size="mini" type="info">
+            创建时间：{{ formatTime(viewQuestion.createdAt) }}
+          </el-tag>
+          <el-tag size="mini" type="info" style="margin-left: 10px;">
+            更新时间：{{ formatTime(viewQuestion.updatedAt) }}
+          </el-tag>
+        </div>
+      </div>
+      <span slot="footer">
+        <el-button @click="showViewDialog = false">{{ $t('m.Close') || '关闭' }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -352,7 +654,13 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true
 })
-md.use(katex)
+md.use(katex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
@@ -371,6 +679,15 @@ export default {
       showCreateDialog: false,
       showEditDialog: false,
       currentEditId: null,
+      createTagInput: '', // 创建题目时的标签输入
+      editTagInput: '', // 编辑题目时的标签输入
+      filters: {
+        type: '',
+        course: '',
+        tag: '',
+        difficulty: '',
+        keyword: ''
+      },
       createForm: {
         type: 'single_choice',
         title: '',
@@ -379,6 +696,9 @@ export default {
         correctAnswer: 0, // 单选题正确答案（0-3）
         correctAnswers: [false, false, false, false], // 多选题正确答案（数组）
         referenceAnswer: '', // 主观题参考答案
+        analysis: '', // 题目解析
+        tags: [], // 题目标签（数组）
+        course: '', // 题目所属课程
         difficulty: 1,
         score: 2, // 单选题默认2分
         isShared: false
@@ -391,6 +711,9 @@ export default {
         correctAnswer: 0,
         correctAnswers: [false, false, false, false],
         referenceAnswer: '',
+        analysis: '', // 题目解析
+        tags: [], // 题目标签
+        course: '', // 题目所属课程
         difficulty: 1,
         score: 2, // 单选题默认2分
         isShared: false
@@ -401,7 +724,26 @@ export default {
         interval: 3000,
         syncFunction: 'loadQuestions',
         immediate: true
-      }
+      },
+      // 常用标签
+      commonTags: [
+        '基础概念',
+        '逻辑推理',
+        '计算题',
+        '应用题',
+        '综合分析',
+        '易错题',
+        '重点',
+        '难点'
+      ],
+      // 常用课程
+      commonCourses: [
+        '数据结构',
+        '算法设计与分析'
+      ],
+      // 查看详情
+      showViewDialog: false,
+      viewQuestion: null
     }
   },
   mounted() {
@@ -455,7 +797,35 @@ export default {
           limit: 50
         })
         if (res.code === 200) {
-          const newQuestions = res.data.questions || res.data || []
+          let newQuestions = res.data.questions || res.data || []
+
+          // 前端筛选
+          if (this.filters.type) {
+            newQuestions = newQuestions.filter(q => q.type === this.filters.type)
+          }
+          if (this.filters.course) {
+            newQuestions = newQuestions.filter(q => q.course === this.filters.course)
+          }
+          if (this.filters.tag) {
+            newQuestions = newQuestions.filter(q => {
+              if (!q.tags) return false
+              try {
+                const tags = JSON.parse(q.tags)
+                return tags.includes(this.filters.tag)
+              } catch (e) {
+                return false
+              }
+            })
+          }
+          if (this.filters.difficulty) {
+            newQuestions = newQuestions.filter(q => q.difficulty === parseInt(this.filters.difficulty))
+          }
+          if (this.filters.keyword) {
+            const keyword = this.filters.keyword.toLowerCase()
+            newQuestions = newQuestions.filter(q => {
+              return q.title && q.title.toLowerCase().includes(keyword)
+            })
+          }
 
           // 深度对比：使用 JSON.stringify 检查数据是否真的变化
           const currentDataString = JSON.stringify(this.questions)
@@ -493,6 +863,9 @@ export default {
         type: this.createForm.type,
         title: this.createForm.title,
         content: this.createForm.content,
+        analysis: this.createForm.analysis || '', // 题目解析
+        tags: JSON.stringify(this.createForm.tags || []), // 题目标签（JSON格式）
+        course: this.createForm.course || '', // 题目所属课程
         difficulty: this.createForm.difficulty || 1,
         score: this.createForm.score || 2,
         isShared: this.createForm.isShared ? 1 : 0
@@ -551,10 +924,43 @@ export default {
         correctAnswer: 0,
         correctAnswers: [false, false, false, false],
         referenceAnswer: '',
+        analysis: '', // 题目解析
+        tags: [], // 题目标签
+        course: '', // 题目所属课程
         difficulty: 1,
         score: 10,
         isShared: false
       }
+      this.createTagInput = '' // 清空标签输入
+    },
+    // 添加创建题目的标签
+    addCreateTag() {
+      const tag = this.createTagInput.trim()
+      if (tag && !this.createForm.tags.includes(tag)) {
+        this.createForm.tags.push(tag)
+      }
+      this.createTagInput = '' // 清空输入
+    },
+    // 删除创建题目的标签
+    removeCreateTag(index) {
+      this.createForm.tags.splice(index, 1)
+    },
+    // 添加编辑题目的标签
+    addEditTag() {
+      const tag = this.editTagInput.trim()
+      if (tag && !this.editForm.tags.includes(tag)) {
+        this.editForm.tags.push(tag)
+      }
+      this.editTagInput = '' // 清空输入
+    },
+    // 删除编辑题目的标签
+    removeEditTag(index) {
+      this.editForm.tags.splice(index, 1)
+    },
+    // 查看题目详情
+    handleViewDetail(question) {
+      this.viewQuestion = question
+      this.showViewDialog = true
     },
     handleEdit(question) {
       this.currentEditId = question.id
@@ -569,7 +975,19 @@ export default {
         choiceOptions: ['', '', '', ''],
         correctAnswer: 0,
         correctAnswers: [false, false, false, false],
-        referenceAnswer: ''
+        referenceAnswer: '',
+        analysis: question.analysis || '', // 题目解析
+        tags: [], // 题目标签
+        course: question.course || '' // 题目所属课程
+      }
+
+      // 解析标签（从JSON字符串转为数组）
+      if (question.tags) {
+        try {
+          this.editForm.tags = JSON.parse(question.tags)
+        } catch (e) {
+          this.editForm.tags = []
+        }
       }
 
       // 解析选项和答案
@@ -641,6 +1059,9 @@ export default {
         type: this.editForm.type,
         title: this.editForm.title,
         content: this.editForm.content,
+        analysis: this.editForm.analysis || '', // 题目解析
+        tags: JSON.stringify(this.editForm.tags || []), // 题目标签（JSON格式）
+        course: this.editForm.course || '', // 题目所属课程
         difficulty: this.editForm.difficulty || 1,
         score: this.editForm.score || 2,
         isShared: this.editForm.isShared ? 1 : 0
@@ -717,16 +1138,18 @@ export default {
       }
       return map[type] || type
     },
-    // 将数据库中的难度值（1-3）转换为 el-rate 的星星数（1-5）
     getDifficultyStars(difficulty) {
-      // 数据库: 1=简单, 2=中等, 3=困难
-      // 显示: 映射为 1星, 3星, 5星
-      const difficultyMap = {
-        1: 1, // 简单 -> 1星
-        2: 3, // 中等 -> 3星
-        3: 5  // 困难 -> 5星
+      return parseInt(difficulty) || 1
+    },
+    // 解析题目标签
+    parseQuestionTags(tags) {
+      if (!tags) return []
+      try {
+        const parsed = JSON.parse(tags)
+        return Array.isArray(parsed) ? parsed : []
+      } catch (e) {
+        return []
       }
-      return difficultyMap[difficulty] || 3 // 默认3星
     },
     getQuestionTypeColor(type) {
       const map = {
@@ -747,6 +1170,55 @@ export default {
       } catch (e) {
         console.error('Markdown渲染失败:', e)
         return content
+      }
+    },
+    // 解析选择题选项
+    parseQuestionOptions(options) {
+      if (!options) return []
+      try {
+        // options 字段存储的是 JSON 字符串数组，格式如 ["A. 选项1", "B. 选项2", ...]
+        const optionsArray = typeof options === 'string' ? JSON.parse(options) : options
+        // 去掉 "A. "、"B. " 这样的前缀，只保留选项内容
+        return optionsArray.map(opt => {
+          if (typeof opt === 'string') {
+            return opt.replace(/^[A-D]\.\s*/, '').trim()
+          }
+          return opt
+        })
+      } catch (e) {
+        console.error('解析选项失败:', e, options)
+        return []
+      }
+    },
+    // 解析单选题答案
+    parseSingleChoiceAnswer(question) {
+      if (question.answer) {
+        return `答案：${question.answer}`
+      }
+      return '暂无答案'
+    },
+    // 解析多选题答案
+    parseMultipleChoiceAnswer(question) {
+      if (question.answer) {
+        try {
+          const answers = typeof question.answer === 'string'
+            ? JSON.parse(question.answer)
+            : question.answer
+          return `答案：${answers.join('、')}`
+        } catch (e) {
+          return `答案：${question.answer}`
+        }
+      }
+      return '暂无答案'
+    },
+    // 格式化时间
+    formatTime(time) {
+      if (!time) return '--'
+      try {
+        const date = new Date(time)
+        return date.toLocaleString('zh-CN')
+      } catch (e) {
+        return '--'
       }
     }
   }
@@ -901,6 +1373,97 @@ export default {
 
 .preview-subjective {
   margin-top: 15px;
+}
+
+/* 标签输入容器样式 */
+.tags-input-container {
+  border: 1px solid #DCDFE6;
+  border-radius: 4px;
+  padding: 5px;
+  min-height: 80px;
+}
+
+.tags-list {
+  margin-bottom: 8px;
+}
+
+/* 题目解析预览样式 */
+.preview-analysis {
+  margin-top: 15px;
+  padding: 10px;
+  background: #fff9e6;
+  border-left: 3px solid #E6A23C;
+  border-radius: 4px;
+}
+
+.preview-analysis-content {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+/* 题目详情样式 */
+.question-detail-content {
+  padding: 10px;
+}
+
+.detail-section {
+  margin-bottom: 20px;
+}
+
+.detail-label {
+  color: #409EFF;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.detail-content {
+  padding: 10px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+.option-item-detail {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.option-item-detail:last-child {
+  border-bottom: none;
+}
+
+.option-label {
+  font-weight: bold;
+  color: #409EFF;
+  margin-right: 10px;
+  min-width: 30px;
+}
+
+.option-text {
+  flex: 1;
+  word-wrap: break-word;
+}
+
+.no-options {
+  padding: 10px;
+}
+
+.subjective-answer {
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+}
+
+.detail-meta {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
 }
 </style>
 

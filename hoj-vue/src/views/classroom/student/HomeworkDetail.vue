@@ -1,5 +1,5 @@
 <template>
-  <div class="homework-detail">
+  <div class="homework-detail student-homework-page">
     <div class="header">
       <h3>{{ homework.title || '作业详情' }}</h3>
       <div class="header-actions">
@@ -189,6 +189,13 @@
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
                   <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
                 </div>
+                <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
+                </div>
               </div>
 
               <!-- 多选题选项 -->
@@ -210,6 +217,13 @@
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
                   <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
+                </div>
+                <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
                 </div>
               </div>
 
@@ -234,6 +248,13 @@
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
                   <el-tag type="success">正确答案: {{ item.question.answer === 'true' || item.question.answer === '正确' ? '正确' : '错误' }}</el-tag>
+                </div>
+                <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
                 </div>
               </div>
 
@@ -295,6 +316,13 @@
                   </div>
                   <div v-if="item.question.answer" class="reference-answer-content markdown-body" v-html="formatContent(item.question.answer)"></div>
                   <div v-else class="reference-answer-empty">教师未设置答案</div>
+                </div>
+                <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
                 </div>
               </div>
             </div>
@@ -438,7 +466,13 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true
 })
-md.use(katex)
+md.use(katex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 import studentAuth from '@/mixins/studentAuth'
 export default {
@@ -2458,6 +2492,29 @@ export default {
   line-height: 1.8;
 }
 
+.question-analysis {
+  margin-top: 15px;
+  padding: 15px;
+  background: #fff9e6;
+  border-left: 3px solid #E6A23C;
+  border-radius: 4px;
+}
+
+.analysis-title {
+  font-weight: bold;
+  color: #E6A23C;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.analysis-content {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
 .reference-answer-empty {
   margin-top: 10px;
   padding: 10px;
@@ -2822,5 +2879,33 @@ export default {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* 学生端专用样式：代码显示 - 只影响学生端 */
+.student-homework-page .code-display-wrapper .markdown-body pre {
+  padding: 0 16px 0 40px !important;  /* 左侧40px给行号留空间 */
+  position: relative !important;
+}
+
+.student-homework-page .code-display-wrapper .markdown-body pre code {
+  padding: 0px 16px 0px 0px !important;  /* code不添加额外缩进，总缩进保持40px */
+  line-height: 26px !important;
+}
+
+.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering {
+  line-height: 26px !important;
+  font-size: 1rem !important;
+}
+
+.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering li {
+  line-height: 26px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering li:before {
+  font-size: 1rem !important;
+  line-height: 26px !important;
+  vertical-align: top !important;
 }
 </style>

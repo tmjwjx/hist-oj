@@ -64,7 +64,7 @@ export default {
           description: '查看和管理赛事报名信息',
           icon: 'fa fa-trophy',
           iconColor: '#FFD700',
-          url: '/registration/registration.html'
+          url: '/registration/list'
         }
         // 未来可以在这里添加更多工具
         // {

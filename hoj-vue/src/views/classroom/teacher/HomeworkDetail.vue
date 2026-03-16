@@ -306,13 +306,12 @@ export default {
       const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
 
       if (isAdminRoute) {
-        // 在管理员路由下，使用 query 参数
+        // 在管理员路由下，使用命名路由
         this.$router.push({
-          query: {
-            classroomId: this.classroomId,
+          name: 'admin-student-submission-detail',
+          params: {
             homeworkId: this.homeworkId,
-            uid: submission.uid,
-            activeTab: 'homework'
+            uid: submission.uid
           }
         })
       } else {
@@ -325,17 +324,34 @@ export default {
       }
     },
     editHomework() {
-      // 跳转到创建/编辑页面，classroomId 作为路径参数传递
-      this.$router.push({
-        name: 'CreateHomework',
-        params: {
-          classroomId: this.classroomId
-        },
-        query: {
-          editId: this.homework.id,
-          isExamMode: this.homework.isExamMode || 0
-        }
-      })
+      // 检查当前是否在管理员路由下
+      const isAdminRoute = this.$route.path.startsWith('/admin/classroom')
+
+      if (isAdminRoute) {
+        // 管理员路由：跳转到管理员端的编辑页面
+        this.$router.push({
+          name: 'admin-edit-homework',
+          params: {
+            classroomId: this.classroomId,
+            homeworkId: this.homework.id
+          },
+          query: {
+            isExamMode: this.homework.isExamMode || 0
+          }
+        })
+      } else {
+        // 教师路由：跳转到教师端的编辑页面
+        this.$router.push({
+          name: 'CreateHomework',
+          params: {
+            classroomId: this.classroomId
+          },
+          query: {
+            editId: this.homework.id,
+            isExamMode: this.homework.isExamMode || 0
+          }
+        })
+      }
     },
     goBack() {
       // 检查当前是否在管理员路由下

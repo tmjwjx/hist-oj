@@ -6,9 +6,44 @@
       <span>{{ isFullscreen ? '退出全屏' : '全屏' }}</span>
     </div>
 
+    <!-- 视频预览 - 使用TCPlayer -->
+    <div v-if="fileType === 'video' && !error" class="video-container">
+      <video
+        id="tcplayer-container"
+        preload="auto"
+        playsinline
+        webkit-playsinline
+        class="preview-video"
+      ></video>
+    </div>
+
+    <!-- 音频预览 -->
+    <div v-else-if="fileType === 'audio' && !error" class="audio-container">
+      <audio
+        :src="previewUrl"
+        controls
+        preload="metadata"
+        class="preview-audio"
+        @loadedmetadata="onMediaLoad"
+        @error="onMediaError"
+      >
+        您的浏览器不支持音频播放
+      </audio>
+    </div>
+
+    <!-- 图片预览 -->
+    <div v-else-if="fileType === 'image' && !error" class="image-container">
+      <img
+        :src="previewUrl"
+        class="preview-image"
+        @load="onMediaLoad"
+        @error="onMediaError"
+      />
+    </div>
+
     <!-- 腾讯云COS文档预览iframe -->
     <iframe
-      v-if="previewUrl && !error"
+      v-else-if="fileType === 'document' && previewUrl && !error"
       :src="previewUrl"
       class="cos-preview-iframe"
       frameborder="0"
@@ -19,7 +54,7 @@
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
       <p>正在加载预览...</p>
-      <p class="hint-text">文件较大时可能需要10-30秒</p>
+      <p class="hint-text">大文件可能需要几秒钟</p>
       <el-progress
         v-if="loadStartTime"
         :percentage="getLoadProgress()"
@@ -70,8 +105,10 @@ export default {
       loading: true,
       error: null,
       previewUrl: null,
+      fileType: null,
       loadStartTime: null,
-      isFullscreen: false
+      isFullscreen: false,
+      tcplayer: null
     }
   },
   mounted() {
@@ -81,18 +118,50 @@ export default {
     document.addEventListener('webkitfullscreenchange', this.onFullscreenChange)
     document.addEventListener('mozfullscreenchange', this.onFullscreenChange)
     document.addEventListener('MSFullscreenChange', this.onFullscreenChange)
+
+    // 动态加载TCPlayer脚本
+    this.loadTCPlayerScript()
   },
   beforeDestroy() {
     document.removeEventListener('fullscreenchange', this.onFullscreenChange)
     document.removeEventListener('webkitfullscreenchange', this.onFullscreenChange)
     document.removeEventListener('mozfullscreenchange', this.onFullscreenChange)
     document.removeEventListener('MSFullscreenChange', this.onFullscreenChange)
+
+    // 销毁TCPlayer实例
+    if (this.tcplayer) {
+      this.tcplayer.dispose()
+      this.tcplayer = null
+    }
+
     // 退出全屏
     if (this.isFullscreen) {
       this.exitFullscreen()
     }
   },
   methods: {
+    // 动态加载TCPlayer脚本
+    loadTCPlayerScript() {
+      // 检查是否已加载
+      if (window.TCPlayer) {
+        return
+      }
+
+      // 加载CSS
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.2.1/tcplayer.min.css'
+      document.head.appendChild(link)
+
+      // 加载JS
+      const script = document.createElement('script')
+      script.src = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.5.0/tcplayer.v4.5.0.min.js'
+      script.onload = () => {
+        console.log('[COS Viewer] TCPlayer加载完成')
+      }
+      document.head.appendChild(script)
+    },
+
     async init() {
       try {
         this.loadStartTime = Date.now()
@@ -102,18 +171,15 @@ export default {
         const cacheKey = `cos_preview_${this.materialId}`
         const cachedData = localStorage.getItem(cacheKey)
 
-        let previewUrl
-        let uploaded = false
+        let previewUrl, fileType, uploaded
 
         if (cachedData) {
-          // 验证缓存数据是否有效
           const data = JSON.parse(cachedData)
-          // 如果缓存的URL无效（旧版本bug），清除缓存并重新请求
           if (data.previewUrl && data.previewUrl.startsWith('http')) {
             previewUrl = data.previewUrl
+            fileType = data.fileType
             uploaded = data.uploaded
           } else {
-            // 清除无效的缓存
             localStorage.removeItem(cacheKey)
           }
         }
@@ -126,12 +192,14 @@ export default {
 
           if (response.data.code === 200) {
             previewUrl = response.data.data.previewUrl
+            fileType = response.data.data.fileType || this.detectFileType(this.fileName)
             uploaded = response.data.data.uploaded
 
-            // 只缓存有效的URL
+            // 缓存有效的URL
             if (previewUrl && previewUrl.startsWith('http')) {
               localStorage.setItem(cacheKey, JSON.stringify({
                 previewUrl,
+                fileType,
                 uploaded,
                 timestamp: Date.now()
               }))
@@ -142,13 +210,17 @@ export default {
         }
 
         this.previewUrl = previewUrl
+        this.fileType = fileType || this.detectFileType(this.fileName)
 
-        // 验证previewUrl是否有效
-        if (!previewUrl || typeof previewUrl !== 'string' || !previewUrl.startsWith('http')) {
-          console.error('[COS Viewer] 预览URL无效:', previewUrl)
-          // 清除无效的缓存
-          localStorage.removeItem(cacheKey)
-          throw new Error('预览URL格式错误，请刷新页面重试')
+        // 根据文件类型处理
+        if (this.fileType === 'video') {
+          // 视频需要等待TCPlayer加载
+          this.initVideoPlayer()
+        } else if (this.fileType === 'audio' || this.fileType === 'image') {
+          // 音频和图片不需要等待加载完成
+          // loading会在 onMediaLoad 中设置为false
+        } else {
+          // 文档预览会在 iframe load 事件中处理
         }
 
         if (uploaded) {
@@ -163,9 +235,65 @@ export default {
       }
     },
 
+    // 初始化视频播放器
+    initVideoPlayer() {
+      const checkTCPlayer = () => {
+        if (window.TCPlayer) {
+          this.loading = false
+          // 创建TCPlayer实例
+          this.tcplayer = TCPlayer('tcplayer-container', {
+            reportable: false,
+            autoplay: false,
+            preload: 'auto',
+            plugins: {
+              ContinuePlay: { // 开启续播功能
+                auto: true,
+                text: '上次播放至 {time}，继续播放？'
+              }
+            }
+          })
+          this.tcplayer.src(this.previewUrl)
+
+          this.$message.success('视频加载完成')
+          this.$emit('viewer-loaded')
+        } else {
+          // TCPlayer还未加载，等待
+          setTimeout(checkTCPlayer, 100)
+        }
+      }
+
+      checkTCPlayer()
+    },
+
+    // 检测文件类型
+    detectFileType(fileName) {
+      const ext = fileName.split('.').pop().toLowerCase()
+      const videoTypes = ['mp4', 'webm', 'ogv', 'mov', 'avi', 'mkv', 'flv', 'm4v']
+      const audioTypes = ['mp3', 'wav', 'aac', 'ogg', 'm4a', 'flac']
+      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp']
+      const documentTypes = ['pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+
+      if (videoTypes.includes(ext)) return 'video'
+      if (audioTypes.includes(ext)) return 'audio'
+      if (imageTypes.includes(ext)) return 'image'
+      if (documentTypes.includes(ext)) return 'document'
+      return 'unknown'
+    },
+
     onIframeLoad() {
       this.loading = false
       this.$emit('viewer-loaded')
+    },
+
+    onMediaLoad() {
+      this.loading = false
+      this.$emit('viewer-loaded')
+    },
+
+    onMediaError(event) {
+      console.error('[COS Viewer] 媒体加载失败:', event)
+      this.error = '媒体文件加载失败，请稍后重试'
+      this.loading = false
     },
 
     getLoadProgress() {
@@ -179,6 +307,11 @@ export default {
       this.error = null
       this.loading = true
       this.loadStartTime = Date.now()
+
+      // 清除缓存
+      const cacheKey = `cos_preview_${this.materialId}`
+      localStorage.removeItem(cacheKey)
+
       this.init()
     },
 
@@ -263,6 +396,56 @@ export default {
   border: none;
   display: block;
   min-height: 600px;
+}
+
+/* 视频容器 */
+.video-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.preview-video {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* 音频容器 */
+.audio-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.preview-audio {
+  width: 80%;
+  max-width: 600px;
+  display: block;
+}
+
+/* 图片容器 */
+.image-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .fullscreen-btn {

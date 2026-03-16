@@ -10,6 +10,7 @@ import (
 
 	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
+	"github.com/hoj/hist-oj/internal/websocket"
 )
 
 type Handler struct {
@@ -17,6 +18,7 @@ type Handler struct {
 	queryService  *service.QueryService
 	scheduler     Scheduler
 	judgeService  *service.JudgeService
+	wsHub         *websocket.Hub
 }
 
 // Scheduler 定时任务接口
@@ -24,10 +26,11 @@ type Scheduler interface {
 	TriggerCheck()
 }
 
-func NewHandler(ratingService *service.RatingService, queryService *service.QueryService) *Handler {
+func NewHandler(ratingService *service.RatingService, queryService *service.QueryService, wsHub *websocket.Hub) *Handler {
 	return &Handler{
 		ratingService: ratingService,
 		queryService:  queryService,
+		wsHub:         wsHub,
 	}
 }
 

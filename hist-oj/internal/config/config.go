@@ -99,7 +99,7 @@ func setDefaults() {
 }
 
 func (c *DatabaseConfig) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Asia%%2FShanghai&timeout=10s&readTimeout=30s&writeTimeout=30s&interpolateParams=true",
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=UTC&timeout=10s&readTimeout=30s&writeTimeout=30s&interpolateParams=true",
 		c.User, c.Password, c.Host, c.Port, c.DBName)
 }
 

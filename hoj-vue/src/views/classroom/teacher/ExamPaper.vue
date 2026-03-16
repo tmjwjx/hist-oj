@@ -348,6 +348,34 @@
               <el-option label="判断题" value="judge"></el-option>
               <el-option label="主观题" value="subjective"></el-option>
             </el-select>
+
+            <el-select
+              v-model="questionFilters.course"
+              placeholder="课程"
+              clearable
+              @change="loadQuestionBank"
+              size="small"
+              class="filter-select"
+            >
+              <el-option label="全部" value=""></el-option>
+              <el-option
+                v-for="course in commonCourses"
+                :key="course"
+                :label="course"
+                :value="course"
+              />
+            </el-select>
+
+            <el-input
+              v-model="questionFilters.tag"
+              placeholder="标签筛选"
+              prefix-icon="el-icon-price-tag"
+              clearable
+              @clear="loadQuestionBank"
+              @keyup.enter.native="loadQuestionBank"
+              size="small"
+              class="filter-select"
+            ></el-input>
           </div>
 
           <div class="question-list" v-loading="questionsLoading">
@@ -510,6 +538,21 @@
                         <span class="option-label">{{ option.label }}.</span>
                         <span class="option-text" v-html="renderMarkdown(option.text)"></span>
                       </div>
+                    </div>
+                    <!-- 显示课程和标签 -->
+                    <div class="item-meta-tags" style="margin-top: 8px;">
+                      <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
+                        <i class="el-icon-collection"></i> {{ q.question.course }}
+                      </el-tag>
+                      <el-tag
+                        v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
+                        :key="idx"
+                        size="mini"
+                        type="info"
+                        style="margin-right: 3px;"
+                      >
+                        {{ tag }}
+                      </el-tag>
                     </div>
                     <div class="item-answer">
                       <span class="meta-label">答案：</span>
@@ -772,6 +815,21 @@
                     <span class="option-text" v-html="renderMarkdown(option.text)"></span>
                   </div>
                 </div>
+                <!-- 显示课程和标签 -->
+                <div v-if="q.question.course || q.question.tags" class="question-tags-course" style="margin-top: 8px;">
+                  <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
+                    <i class="el-icon-collection"></i> {{ q.question.course }}
+                  </el-tag>
+                  <el-tag
+                    v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
+                    :key="idx"
+                    size="mini"
+                    type="info"
+                    style="margin-right: 3px;"
+                  >
+                    {{ tag }}
+                  </el-tag>
+                </div>
                 <div v-if="q.question.type !== 'subjective'" class="question-meta">
                   <span class="meta-label">正确答案：</span>
                   <span class="meta-value">{{ formatAnswer(q.question) }}</span>
@@ -838,8 +896,18 @@ import api from '@/common/api'
 import MarkdownIt from 'markdown-it'
 import katex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
-const md = new MarkdownIt()
-md.use(katex)
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+})
+md.use(katex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 export default {
   name: 'ExamPaper',
@@ -877,11 +945,18 @@ export default {
       questionsLoading: false,
       questionFilters: {
         keyword: '',
-        type: ''
+        type: '',
+        course: '',
+        tag: ''
       },
       questionCurrentPage: 1,
       questionPageSize: 10,
       questionBankTotal: 0,
+      // 常用课程列表
+      commonCourses: [
+        '数据结构',
+        '算法设计与分析'
+      ],
       // 编程题相关
       programmingInputMode: 'manual', // 'manual' 或 'tag'
       programmingForm: {
@@ -1057,7 +1132,9 @@ export default {
           page: this.questionCurrentPage,
           limit: this.questionPageSize,
           keyword: this.questionFilters.keyword || undefined,
-          type: this.questionFilters.type || undefined
+          type: this.questionFilters.type || undefined,
+          course: this.questionFilters.course || undefined,
+          tag: this.questionFilters.tag || undefined
         })
         // Vuex action 返回的是 res.data，结构为 { code, message, data }
         if (res && res.code === 200) {
@@ -1716,6 +1793,15 @@ export default {
         // 解析失败
       }
       return []
+    },
+    // 解析题目标签
+    parseQuestionTags(tags) {
+      if (!tags) return []
+      try {
+        return JSON.parse(tags)
+      } catch (e) {
+        return []
+      }
     },
     // 查看编程题详情
     viewProblemDetail(problem) {

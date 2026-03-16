@@ -173,9 +173,14 @@
     </el-card>
 
     <!-- 代码查看对话框 -->
-    <el-dialog title="提交代码" :visible.sync="showCodeDialog" width="60%" @opened="highlightCode">
-      <div class="code-preview-wrapper">
-        <pre class="code-preview"><code :key="showCodeDialog" ref="previewCodeBlock" :class="`language-${mapLanguage(currentLanguage)}`">{{ currentCode }}</code></pre>
+    <el-dialog title="提交代码" :visible.sync="showCodeDialog" width="60%" @opened="addCodeLineNumbers">
+      <div class="code-display-wrapper">
+        <Highlight
+          :key="showCodeDialog"
+          :code="currentCode"
+          :language="mapLanguage(currentLanguage)"
+          :classroom-mode="true"
+        ></Highlight>
       </div>
     </el-dialog>
   </div>
@@ -190,6 +195,8 @@ import 'katex/dist/katex.min.css'
 import axios from 'axios'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+const Highlight = () => import('@/components/oj/common/Highlight')
+import { addCodeBtn } from '@/common/codeblock'
 
 // 配置 markdown-it 和 KaTeX
 const md = new MarkdownIt({
@@ -197,10 +204,19 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true
 })
-md.use(MarkdownItKatex)
+md.use(MarkdownItKatex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 export default {
   name: 'ProgrammingQuestion',
+  components: {
+    Highlight
+  },
   props: {
     problemId: {
       type: String,
@@ -250,6 +266,17 @@ export default {
   mounted() {
     this.loadProblemInfo()
     this.loadSubmitHistory()
+  },
+  watch: {
+    showCodeDialog(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          setTimeout(() => {
+            addCodeBtn()
+          }, 100)
+        })
+      }
+    }
   },
   methods: {
     async loadProblemInfo() {
@@ -428,12 +455,12 @@ export default {
       if (['等待中', '判题中', '提交中'].includes(result)) return 'warning'
       return 'info'
     },
-    // 代码高亮
-    highlightCode() {
+    // 添加代码行号
+    addCodeLineNumbers() {
       this.$nextTick(() => {
-        if (this.$refs.previewCodeBlock) {
-          hljs.highlightElement(this.$refs.previewCodeBlock)
-        }
+        setTimeout(() => {
+          addCodeBtn()
+        }, 100)
       })
     },
     // 映射编程语言到 highlight.js 支持的语言标识
@@ -596,118 +623,13 @@ export default {
   word-wrap: break-word;
 }
 
-.code-preview-wrapper {
+.code-display-wrapper {
   max-height: 600px;
   overflow: auto;
-  background: #282c34;
-  border-radius: 4px;
-}
-
-.code-preview {
-  margin: 0;
-  padding: 20px;
-  background: #282c34;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #abb2bf;
-}
-
-.code-preview code {
-  background: transparent !important;
-  padding: 0 !important;
-  display: block;
-  white-space: pre;
+  margin-top: 10px;
 }
 </style>
 
 <style>
 @import '~katex/dist/katex.min.css';
-
-/* Highlight.js 代码高亮全局样式 - 与查重代码一致 */
-.code-preview .hljs {
-  display: block;
-  overflow-x: auto;
-  padding: 0;
-  background: #282c34;
-  color: #abb2bf;
-}
-
-.code-preview .hljs-comment,
-.code-preview .hljs-quote {
-  color: #5c6370;
-  font-style: italic;
-}
-
-.code-preview .hljs-keyword,
-.code-preview .hljs-selector-tag,
-.code-preview .hljs-subst {
-  color: #c678dd;
-}
-
-.code-preview .hljs-number,
-.code-preview .hljs-literal,
-.code-preview .hljs-variable,
-.code-preview .hljs-template-variable,
-.code-preview .hljs-tag .hljs-attr {
-  color: #d19a66;
-}
-
-.code-preview .hljs-string,
-.code-preview .hljs-doctag {
-  color: #98c379;
-}
-
-.code-preview .hljs-title,
-.code-preview .hljs-section,
-.code-preview .hljs-selector-id {
-  color: #61afef;
-}
-
-.code-preview .hljs-type,
-.code-preview .hljs-class .hljs-title {
-  color: #e5c07b;
-}
-
-.code-preview .hljs-tag,
-.code-preview .hljs-name,
-.code-preview .hljs-attribute {
-  color: #e06c75;
-  font-weight: normal;
-}
-
-.code-preview .hljs-regexp,
-.code-preview .hljs-link {
-  color: #56b6c2;
-}
-
-.code-preview .hljs-symbol,
-.code-preview .hljs-bullet {
-  color: #61afef;
-}
-
-.code-preview .hljs-built_in,
-.code-preview .hljs-builtin-name {
-  color: #e6c07b;
-}
-
-.code-preview .hljs-meta {
-  color: #61afef;
-}
-
-.code-preview .hljs-deletion {
-  background: #f8756f;
-}
-
-.code-preview .hljs-addition {
-  background: #98c379;
-}
-
-.code-preview .hljs-emphasis {
-  font-style: italic;
-}
-
-.code-preview .hljs-strong {
-  font-weight: bold;
-}
 </style>

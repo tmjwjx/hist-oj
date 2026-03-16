@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -216,4 +217,128 @@ func (s *COSService) getContentType(ext string) string {
 		return ct
 	}
 	return "application/octet-stream"
+}
+
+// ==================== 腾讯云视频转码 ====================
+
+// StartVideoTranscode 启动视频转码任务（异步）
+// 返回任务ID，可用于查询转码状态
+func (s *COSService) StartVideoTranscode(remotePath string) (string, error) {
+	// 构建转码后的文件路径（HLS格式）
+	transcodedPath := strings.TrimSuffix(remotePath, filepath.Ext(remotePath)) + ".m3u8"
+
+	// 构建数据万象转码操作参数
+	// 使用模板转码：转码为HLS格式，生成多码率
+	operations := fmt.Sprintf(`{
+		"transcode": {
+			"format": "hls",
+			"template_name": "TcPuterHLS",
+			"output": {
+				"region": "%s",
+				"bucket": "%s",
+				"object": "%s"
+			}
+		}
+	}`, s.region, s.bucket, transcodedPath)
+
+	// 构建URL和请求
+	ciURL := fmt.Sprintf("https://%s.cos.%s.myqcloud.com/%s", s.bucket, s.region, remotePath)
+
+	req, err := http.NewRequest("POST", ciURL, strings.NewReader(operations))
+	if err != nil {
+		return "", fmt.Errorf("构建转码请求失败: %w", err)
+	}
+
+	// 添加数据万象处理参数
+	req.URL.RawQuery = url.Values{}.Encode()
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-ci-process", "transcode")
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("发送转码请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 解析响应获取任务ID
+	type Response struct {
+		JobsId string `json:"jobsId"`
+	}
+
+	var result Response
+	body := make([]byte, 1024)
+	n, _ := resp.Body.Read(body)
+	if err := json.Unmarshal(body[:n], &result); err != nil {
+		return "", fmt.Errorf("解析转码响应失败: %w", err)
+	}
+
+	return result.JobsId, nil
+}
+
+// GetTranscodeStatus 查询转码任务状态
+func (s *COSService) GetTranscodeStatus(jobId string) (string, bool, error) {
+	// 构建查询URL
+	queryURL := fmt.Sprintf("https://%s.cos.%s.myqcloud.com/?ci-process=GetJobInfo&jobsId=%s",
+		s.bucket, s.region, jobId)
+
+	req, err := http.NewRequest("GET", queryURL, nil)
+	if err != nil {
+		return "", false, fmt.Errorf("构建查询请求失败: %w", err)
+	}
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false, fmt.Errorf("发送查询请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 解析响应
+	type Response struct {
+		JobsDetail struct {
+			State string `json:"state"`
+		} `json:"jobsDetail"`
+	}
+
+	var result Response
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", false, fmt.Errorf("解析查询响应失败: %w", err)
+	}
+
+	// 状态：Running=进行中, Success=成功, Failed=失败
+	isCompleted := result.JobsDetail.State == "Success"
+	return result.JobsDetail.State, isCompleted, nil
+}
+
+// GetVideoPreviewURL 获取视频预览URL
+// 优先返回转码后的HLS URL，如果转码未完成则返回原始URL
+func (s *COSService) GetVideoPreviewURL(remotePath string, originalURL string) string {
+	// 检查转码后的HLS文件是否存在
+	transcodedPath := strings.TrimSuffix(remotePath, filepath.Ext(remotePath)) + ".m3u8"
+
+	exists, _ := s.IsFileExists(transcodedPath)
+	if exists {
+		// 返回转码后的HLS URL
+		var hlsURL string
+		cdnDomain := config.GlobalConfig.COS.CdnDomain
+		if cdnDomain != "" {
+			hlsURL = fmt.Sprintf("https://%s/%s", cdnDomain, transcodedPath)
+		} else {
+			hlsURL = fmt.Sprintf("https://%s.cos.%s.myqcloud.com/%s", s.bucket, s.region, transcodedPath)
+		}
+		return hlsURL
+	}
+
+	// 转码文件不存在，返回原始URL
+	return originalURL
+}
+
+// IsVideoTranscoded 检查视频是否已转码
+func (s *COSService) IsVideoTranscoded(remotePath string) bool {
+	transcodedPath := strings.TrimSuffix(remotePath, filepath.Ext(remotePath)) + ".m3u8"
+	exists, _ := s.IsFileExists(transcodedPath)
+	return exists
 }

@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # hist-oj 服务（已集成报名系统）
+  hist-oj:
+    image: hist-oj:latest  # 使用预构建的镜像，而不是build
+    container_name: hist-oj
+    restart: unless-stopped
+    ports:
+      - "9527:9527"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./hist-oj/configs:/app/configs:ro
+      - ./hist-oj/uploads:/app/uploads  # 持久化上传文件(班级作业图片、消息图片、报名Logo等)
+    networks:
+      - hoj-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9527/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 前端服务（已集成报名系统）
+  hoj-frontend:
+    image: hoj-frontend:latest  # 使用预构建的镜像，而不是build
+    container_name: hoj-frontend
+    restart: unless-stopped
+    ports:
+      - "8081:80"  # 使用8081端口，避免与宿主机Nginx的80/443端口冲突
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      # Logo 映射（前端logo、后台logo、网站图标）
+      - ./logo.png:/usr/share/nginx/html/assets/img/logo.a0feb5a8.png
+      - ./backstage.png:/usr/share/nginx/html/assets/img/backstage.a0feb5a8.png
+      - ./favicon.ico:/usr/share/nginx/html/favicon.ico
+    depends_on:
+      - hist-oj
+    networks:
+      - hoj-network
+      - main_hoj-network  # 连接到hoj-backend所在网络，以便API调用
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  hoj-network:
+    external: true
+    name: hoj_hoj-network
+  main_hoj-network:
+    external: true
+    name: main_hoj-network  # hoj-backend所在的网络
+
+# 部署说明：
+# 1. 本地开发：docker-compose up -d（使用 docker-compose.yml）
+# 2. 生产部署：docker-compose -f docker-compose.prod.yml up -d（使用此文件）
+#
+# 注意事项：
+# - 确保 hoj_hoj-network 和 main_hoj-network 网络已存在
+# - 生产环境使用预构建的镜像（image），而不是本地构建（build）
+# - hist-oj 配置文件：./hist-oj/configs/config.yaml
+# - 前端 Nginx 配置：./hoj-vue/nginx.conf
+# - 前端使用8081端口，宿主机Nginx处理80/443端口并代理到8081
+#
+# 验证部署：
+# - curl http://localhost:9527/health
+# - curl http://localhost:8081/api/rating/contest/info/1002
+# - curl http://localhost:8081/api/registration/competitions
+# - curl -I https://bingoj.cn (验证HTTPS)

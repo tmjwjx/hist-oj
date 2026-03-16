@@ -250,6 +250,39 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			contestQuestion.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteContestQuestion)
 		}
 
+		// 报名系统相关接口
+		registration := api.Group("/registration")
+		{
+			// 用户端（需要认证）
+			registration.GET("/competitions", handler.GetCompetitions)
+			registration.GET("/competitions/:competitionId", handler.GetCompetition)
+			registration.POST("/registrations", AuthMiddleware(), handler.CreateRegistration)
+			registration.GET("/competitions/:competitionId/my-registration", AuthMiddleware(), handler.GetMyRegistration)
+			registration.PUT("/registrations/:id", AuthMiddleware(), handler.UpdateRegistration)
+
+			// WebSocket实时更新（管理员专用）
+			// 注意：不使用AdminAuthMiddleware，因为WebSocket需要从URL参数读取token
+			// 认证逻辑在HandleWebSocket函数内部处理（支持Header和URL参数两种方式）
+			registration.GET("/ws/:competitionId", handler.wsHub.HandleWebSocket)
+
+			// 管理端（需要管理员权限）
+			admin := registration.Group("/admin")
+			admin.Use(AdminAuthMiddleware())
+			{
+				admin.GET("/competitions", handler.AdminGetCompetitions)
+				admin.POST("/competitions", handler.CreateCompetition)
+				admin.PUT("/competitions/:competitionId", handler.UpdateCompetition)
+				admin.DELETE("/competitions/:competitionId", handler.DeleteCompetition)
+				admin.PUT("/competitions/:competitionId/visibility", handler.UpdateVisibility)
+				admin.GET("/competitions/:competitionId/registrations", handler.GetRegistrations)
+				admin.PUT("/registrations/:id/status", handler.UpdateRegistrationStatus)
+				admin.POST("/upload/logo", handler.UploadLogo)
+			}
+
+			// HOJ自动登录（兼容，无需认证）
+			registration.GET("/user/hoj-auto-login", handler.HojAutoLogin)
+		}
+
 		// 代码查重功能 - 管理员
 		RegisterPlagiarismRoutes(api, cfg, db)
 	}

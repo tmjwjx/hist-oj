@@ -10,13 +10,16 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache git gcc make flex musl-dev || \
     apk add --no-cache git gcc make flex musl-dev
 
-# 设置 Go 代理（加速依赖下载）
-ENV GOPROXY=https://goproxy.cn,direct
+# 设置 Go 代理（多个备选加速依赖下载）
+ENV GOPROXY=https://goproxy.cn,https://goproxy.io,https://mirrors.aliyun.com/goproxy/,direct
 ENV GO111MODULE=on
+ENV GOSUMDB=off
 
-# 复制 go mod 文件并下载依赖
+# 复制 go mod 文件并下载依赖（带重试机制）
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download || \
+    (echo "第一次下载失败，重试中..." && sleep 5 && go mod download) || \
+    (echo "第二次下载失败，使用 vendor 模式..." && go mod vendor)
 
 # 复制源代码
 COPY . .

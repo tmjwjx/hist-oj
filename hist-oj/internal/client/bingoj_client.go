@@ -25,22 +25,28 @@ const (
 	APIProblemAdminList  = BaseURL + "/api/admin/problem/get-problem-list"
 )
 
-// StatusMap 状态映射表
+// StatusMap 状态映射表（与 HOJ 官方标准一致）
+// 参考：hoj-vue/src/common/constants.js - JUDGE_STATUS
 var StatusMap = map[int]string{
-	0:  "答案正确",
-	-1: "答案错误",
-	-2: "编译错误",
-	-3: "格式错误",
-	1:  "时间超限",
-	2:  "内存超限",
-	3:  "运行错误",
-	4:  "NO",
-	5:  "系统错误",
-	6:  "等待中",
-	7:  "判题中",
-	8:  "部分正确",
-	9:  "提交中",
-	10: "提交失败",
+	// HOJ 标准状态码
+	-10: "未提交",           // NS - Not Submitted
+	-5:  "结果未知",         // SNR - Submitted Unknown Result
+	-4:  "已取消",           // CA - Cancelled
+	-3:  "格式错误",         // PE - Presentation Error
+	-2:  "编译错误",         // CE - Compile Error
+	-1:  "答案错误",         // WA - Wrong Answer
+	0:   "答案正确",         // AC - Accepted
+	1:   "时间超限",         // TLE - Time Limit Exceeded
+	2:   "内存超限",         // MLE - Memory Limit Exceeded
+	3:   "运行错误",         // RE - Runtime Error
+	4:   "系统错误",         // SE - System Error（修正：原来是 "NO"）
+	8:   "部分正确",         // PAC - Partial Accepted
+	10:  "提交失败",         // SF - Submitted Failed
+
+	// BingOJ 特有状态码（判题中状态）
+	6:   "等待中",           // Pending
+	7:   "判题中",           // Judging
+	9:   "提交中",           // Submitting
 }
 
 // BingoJClient BingoJ OJ 客户端

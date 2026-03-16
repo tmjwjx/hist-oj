@@ -136,6 +136,9 @@ type QuestionBank struct {
 	Content    string    `gorm:"type:text;not null" json:"content"`
 	Options    *string   `gorm:"type:json" json:"options"` // JSON格式的选项（可为NULL）
 	Answer     string    `gorm:"type:text" json:"answer"`
+	Analysis   string    `gorm:"type:text" json:"analysis"` // 题目解析
+	Tags       string    `gorm:"type:json" json:"tags"` // 题目标签（JSON数组格式）
+	Course     string    `gorm:"type:varchar(100)" json:"course"` // 题目所属课程
 	Difficulty int       `gorm:"type:int;default:1" json:"difficulty"` // 1: 简单, 2: 中等, 3: 困难
 	Score      int       `gorm:"type:int;default:2" json:"score"`
 	CreatorID  string    `gorm:"type:varchar(32);not null;index:idx_creator_id" json:"creatorId"`

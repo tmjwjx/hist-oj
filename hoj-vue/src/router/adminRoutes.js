@@ -25,10 +25,14 @@ const TrainingParticipants = () => import('@/views/admin/training/TrainingPartic
 const TrainingCategory = () => import('@/views/admin/training/Category')
 const DiscussionList = () => import('@/views/admin/discussion/Discussion')
 const RegistrationAdmin = () => import('@/views/admin/registration/RegistrationAdmin')
+const CompetitionEditor = () => import('@/views/admin/registration/CompetitionEditor')
+const RegistrationList = () => import('@/views/admin/registration/RegistrationList')
 const UserRoleManagement = () => import('@/views/admin/classroom/UserRoleManagement')
 const ClassroomAdmin = () => import('@/views/admin/classroom/ClassroomAdmin')
 const ClassroomHomeworkAnalysis = () => import('@/views/admin/classroom/HomeworkAnalysis')
 const ClassroomExamMonitoring = () => import('@/views/admin/classroom/ExamMonitoring')
+const AdminCreateHomework = () => import('@/views/classroom/teacher/CreateHomework')
+const AdminStudentSubmissionDetail = () => import('@/views/classroom/teacher/StudentSubmissionDetail')
 const ToolboxAdmin = () => import('@/views/admin/toolbox/ToolboxAdmin')
 const QuestionBankAdmin = () => import('@/views/admin/toolbox/QuestionBankAdmin')
 const ExamPaperAdmin = () => import('@/views/admin/toolbox/ExamPaperAdmin')
@@ -254,6 +258,24 @@ const adminRoutes = [
         meta: { requireSuperAdmin: true, title: '班级管理' }
       },
       {
+        path: 'classroom/homework/create/:classroomId',
+        name: 'admin-create-homework',
+        component: AdminCreateHomework,
+        meta: { requireSuperAdmin: true, title: '创建作业' }
+      },
+      {
+        path: 'classroom/homework/edit/:classroomId/:homeworkId',
+        name: 'admin-edit-homework',
+        component: AdminCreateHomework,
+        meta: { requireSuperAdmin: true, title: '编辑作业' }
+      },
+      {
+        path: 'classroom/homework/:homeworkId/submission/:uid',
+        name: 'admin-student-submission-detail',
+        component: AdminStudentSubmissionDetail,
+        meta: { requireSuperAdmin: true, title: '学生提交详情' }
+      },
+      {
         path: 'classroom/homework/analysis',
         name: 'admin-classroom-homework-analysis',
         component: ClassroomHomeworkAnalysis,
@@ -276,6 +298,24 @@ const adminRoutes = [
         name: 'admin-registration',
         component: RegistrationAdmin,
         meta: { title: '报名管理' }
+      },
+      {
+        path: 'registration/create',
+        name: 'admin-registration-create',
+        component: CompetitionEditor,
+        meta: { title: '创建比赛' }
+      },
+      {
+        path: 'registration/edit/:id',
+        name: 'admin-registration-edit',
+        component: CompetitionEditor,
+        meta: { title: '编辑比赛' }
+      },
+      {
+        path: 'registration/list/:id',
+        name: 'admin-registration-list',
+        component: RegistrationList,
+        meta: { title: '报名列表' }
       }
     ]
   },

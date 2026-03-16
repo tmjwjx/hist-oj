@@ -19,6 +19,7 @@ import (
 	"github.com/hoj/hist-oj/internal/schedule"
 	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
+	"github.com/hoj/hist-oj/internal/websocket"
 
 	"github.com/gin-contrib/gzip"
 )
@@ -62,8 +63,12 @@ func main() {
 	ratingService := service.NewRatingService(db, &cfg.Rating)
 	queryService := service.NewQueryService(db)
 
+	// 创建WebSocket Hub
+	wsHub := websocket.NewHub(logger)
+	go wsHub.Run()
+
 	// 创建处理器
-	handler := api.NewHandler(ratingService, queryService)
+	handler := api.NewHandler(ratingService, queryService, wsHub)
 
 	// 启动定时任务
 	scheduler := schedule.NewScheduler(ratingService, &cfg.Rating)

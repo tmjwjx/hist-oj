@@ -1813,6 +1813,9 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"` // JSON string
 		Answer     string `json:"answer"`
+		Analysis   string `json:"analysis"` // 题目解析
+		Tags       string `json:"tags"` // 题目标签（JSON数组）
+		Course     string `json:"course"` // 题目所属课程
 		Difficulty int    `json:"difficulty"`
 		Score      int    `json:"score"`
 		IsShared   int    `json:"isShared"`
@@ -1854,6 +1857,9 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 		Title:      req.Title,
 		Type:       req.Type,
 		Content:    req.Content,
+		Analysis:   req.Analysis, // 题目解析
+		Tags:       req.Tags, // 题目标签
+		Course:     req.Course, // 题目所属课程
 		Difficulty: req.Difficulty,
 		Score:      req.Score,
 		CreatorID:  creatorID.(string),
@@ -1911,6 +1917,9 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	questionType := c.Query("type")
 	isSharedStr := c.Query("isShared")
 	keyword := c.Query("keyword")
+	course := c.Query("course") // 课程筛选
+	tag := c.Query("tag") // 标签筛选
+	difficulty := c.Query("difficulty") // 难度筛选
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
@@ -1928,6 +1937,27 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	if isSharedStr != "" {
 		isShared, _ := strconv.Atoi(isSharedStr)
 		query = query.Where("is_shared = ?", isShared)
+	}
+
+	// 课程筛选
+	if course != "" {
+		query = query.Where("course = ?", course)
+	}
+
+	// 标签筛选（使用JSON_CONTAINS）
+	if tag != "" {
+		// 转义标签中的特殊字符，确保 JSON 格式正确
+		escapedTag := strings.ReplaceAll(tag, `\`, `\\`)
+		escapedTag = strings.ReplaceAll(escapedTag, `"`, `\"`)
+		query = query.Where("JSON_CONTAINS(tags, ?)", fmt.Sprintf(`"%s"`, escapedTag))
+	}
+
+	// 难度筛选
+	if difficulty != "" {
+		difficultyInt, err := strconv.Atoi(difficulty)
+		if err == nil {
+			query = query.Where("difficulty = ?", difficultyInt)
+		}
 	}
 
 	if keyword != "" {
@@ -1972,6 +2002,9 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 		Content    *string `json:"content"`
 		Options    *string `json:"options"`
 		Answer     *string `json:"answer"`
+		Analysis   *string `json:"analysis"` // 题目解析
+		Tags       *string `json:"tags"` // 题目标签
+		Course     *string `json:"course"` // 题目所属课程
 		Difficulty *int    `json:"difficulty"`
 		Score      *int    `json:"score"`
 		IsShared   *int    `json:"isShared"`
@@ -2000,6 +2033,15 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 	}
 	if req.Answer != nil {
 		updates["answer"] = *req.Answer
+	}
+	if req.Analysis != nil {
+		updates["analysis"] = *req.Analysis
+	}
+	if req.Tags != nil {
+		updates["tags"] = *req.Tags
+	}
+	if req.Course != nil {
+		updates["course"] = *req.Course
 	}
 	if req.Difficulty != nil {
 		updates["difficulty"] = *req.Difficulty
@@ -2106,6 +2148,9 @@ func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
 	isSharedStr := c.Query("isShared")
 	searchField := c.Query("searchField") // 搜索字段：title, id, creator
 	keyword := c.Query("keyword")
+	course := c.Query("course") // 课程筛选
+	tag := c.Query("tag") // 标签筛选
+	difficulty := c.Query("difficulty") // 难度筛选
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
@@ -2121,6 +2166,27 @@ func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
 	if isSharedStr != "" {
 		isShared, _ := strconv.Atoi(isSharedStr)
 		query = query.Where("is_shared = ?", isShared)
+	}
+
+	// 课程筛选
+	if course != "" {
+		query = query.Where("course = ?", course)
+	}
+
+	// 标签筛选（使用JSON_CONTAINS）
+	if tag != "" {
+		// 转义标签中的特殊字符，确保 JSON 格式正确
+		escapedTag := strings.ReplaceAll(tag, `\`, `\\`)
+		escapedTag = strings.ReplaceAll(escapedTag, `"`, `\"`)
+		query = query.Where("JSON_CONTAINS(tags, ?)", fmt.Sprintf(`"%s"`, escapedTag))
+	}
+
+	// 难度筛选
+	if difficulty != "" {
+		difficultyInt, err := strconv.Atoi(difficulty)
+		if err == nil {
+			query = query.Where("difficulty = ?", difficultyInt)
+		}
 	}
 
 	// 根据选择的字段进行搜索
@@ -2180,6 +2246,9 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		Content    *string `json:"content"`
 		Options    *string `json:"options"`
 		Answer     *string `json:"answer"`
+		Analysis   *string `json:"analysis"` // 题目解析
+		Tags       *string `json:"tags"` // 题目标签
+		Course     *string `json:"course"` // 题目所属课程
 		Difficulty *int    `json:"difficulty"`
 		Score      *int    `json:"score"`
 		IsShared   *int    `json:"isShared"`
@@ -2220,6 +2289,15 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 	}
 	if req.Answer != nil {
 		updates["answer"] = *req.Answer
+	}
+	if req.Analysis != nil {
+		updates["analysis"] = *req.Analysis
+	}
+	if req.Tags != nil {
+		updates["tags"] = *req.Tags
+	}
+	if req.Course != nil {
+		updates["course"] = *req.Course
 	}
 	if req.Difficulty != nil {
 		updates["difficulty"] = *req.Difficulty
@@ -2293,6 +2371,9 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"`
 		Answer     string `json:"answer"`
+		Analysis   string `json:"analysis"` // 题目解析
+		Tags       string `json:"tags"` // 题目标签
+		Course     string `json:"course"` // 题目所属课程
 		Difficulty int    `json:"difficulty"`
 		Score      int    `json:"score"`
 		IsShared   int    `json:"isShared"`
@@ -2332,6 +2413,9 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 		Title:      req.Title,
 		Type:       req.Type,
 		Content:    req.Content,
+		Analysis:   req.Analysis, // 题目解析
+		Tags:       req.Tags, // 题目标签
+		Course:     req.Course, // 题目所属课程
 		Difficulty: req.Difficulty,
 		Score:      req.Score,
 		CreatorID:  creatorID.(string),

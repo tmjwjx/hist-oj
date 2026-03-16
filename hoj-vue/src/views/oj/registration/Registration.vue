@@ -1,13 +1,15 @@
 <template>
-  <div class="registration-container"></div>
+  <div class="registration-container">
+    <!-- 重定向到报名列表 -->
+  </div>
 </template>
 
 <script>
 export default {
   name: 'Registration',
   mounted() {
-    // 直接跳转到报名系统页面
-    window.location.href = '/registration/registration.html';
+    // 重定向到新的报名系统列表页面
+    this.$router.replace({ name: 'RegistrationList' })
   }
 };
 </script>

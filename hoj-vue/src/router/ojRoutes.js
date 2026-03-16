@@ -32,6 +32,8 @@ import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
 import Registration from "@/views/oj/registration/Registration.vue"
+import RegistrationList from "@/views/oj/registration/RegistrationList.vue"
+import CompetitionDetail from "@/views/oj/registration/CompetitionDetail.vue"
 import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
 import BattleHome from "@/views/oj/battle/BattleHome.vue"
 import BattleRoom from "@/views/oj/battle/BattleRoom.vue"
@@ -459,6 +461,24 @@ const ojRoutes = [
     name: 'Toolbox',
     component: Toolbox,
     meta: { title: 'Toolbox' }
+  },
+  {
+    path: '/registration',
+    name: 'Registration',
+    component: Registration,
+    meta: { title: 'Registration' }
+  },
+  {
+    path: '/registration/list',
+    name: 'RegistrationList',
+    component: RegistrationList,
+    meta: { title: 'Registration List' }
+  },
+  {
+    path: '/registration/competition/:id',
+    name: 'CompetitionDetail',
+    component: CompetitionDetail,
+    meta: { title: 'Competition Detail', requireAuth: true }
   },
   {
     path: '/battle',

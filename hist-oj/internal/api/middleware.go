@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/hoj/hist-oj/internal/client"
+	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/utils"
 )
 
@@ -18,10 +19,16 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 从 Header 中获取 token
 		token := c.GetHeader("Authorization")
-		logger.Debug("收到请求", zap.String("path", c.Request.URL.Path), zap.String("token_prefix", token[:min(20, len(token))]))
+		urlType := c.GetHeader("Url-Type")
+
+		logger.Info("AuthMiddleware收到请求",
+			zap.String("path", c.Request.URL.Path),
+			zap.String("urlType", urlType),
+			zap.Bool("token_exists", token != ""),
+			zap.Int("token_length", len(token)))
 
 		if token == "" {
-			logger.Warn("未提供认证token")
+			logger.Warn("未提供认证token", zap.String("path", c.Request.URL.Path))
 			c.JSON(http.StatusOK, errorResponse(401, "用户未登录"))
 			c.Abort()
 			return
@@ -30,13 +37,23 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 调用 HOJ API 验证 token
 		userAuth, err := client.ValidateToken(token)
 		if err != nil {
-			logger.Warn("token验证失败", zap.Error(err), zap.String("token", token[:min(50, len(token))]))
+			logger.Warn("token验证失败",
+				zap.Error(err),
+				zap.String("token", token[:min(50, len(token))]),
+				zap.String("path", c.Request.URL.Path))
 			c.JSON(http.StatusOK, errorResponse(401, "用户认证失败"))
 			c.Abort()
 			return
 		}
 
+		// 创建 UserInfo 对象供需要完整用户信息的 handler 使用
+		userInfo := &model.UserInfo{
+			UUID:     userAuth.UID,
+			Username: userAuth.Username,
+		}
+
 		// 将用户信息存入context，供后续handler使用
+		c.Set("user", userInfo)        // 完整用户对象（GetMyRegistration 等需要）
 		c.Set("userId", userAuth.UID)  // 兼容旧代码
 		c.Set("uid", userAuth.UID)     // 新代码使用 uid
 		c.Set("username", userAuth.Username)

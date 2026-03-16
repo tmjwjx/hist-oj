@@ -31,7 +31,7 @@
                 <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
                   <i class="el-icon-warning-outline"></i> 未提交
                 </el-tag>
-                <span class="question-score">{{ submit.question?.score || 0 }}分</span>
+                <span class="question-score">{{ submit.maxScore || 0 }}分</span>
               </div>
               <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
 
@@ -142,7 +142,7 @@
               <el-tag type="warning" size="small">
                 {{ $t('m.Programming') }}
               </el-tag>
-              <span class="question-score">{{ submit.score || 0 }}分</span>
+              <span class="question-score">{{ submit.maxScore || 0 }}分</span>
             </div>
             <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
 
@@ -152,9 +152,10 @@
                 <p><strong>编程语言:</strong> {{ parseProgrammingAnswer(submit.answer).language }}</p>
                 <el-divider></el-divider>
                 <p><strong>学生代码:</strong></p>
-                <div class="code-preview-wrapper">
-                  <pre class="code-preview"><code :ref="`codeBlock_${index}`" :class="`language-${mapLanguage(parseProgrammingAnswer(submit.answer).language)}`">{{ parseProgrammingAnswer(submit.answer).code }}</code></pre>
-                </div>
+                <Highlight
+                  :code="parseProgrammingAnswer(submit.answer).code"
+                  :language="mapLanguage(parseProgrammingAnswer(submit.answer).language)"
+                ></Highlight>
               </div>
             </div>
 
@@ -407,6 +408,8 @@ import realtimeSync from '@/mixins/realtimeSync'
 import UserName from '@/components/oj/common/UserName.vue'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+const Highlight = () => import('@/components/oj/common/Highlight')
+import { addCodeBtn } from '@/common/codeblock'
 
 // 配置 markdown-it 支持 KaTeX
 const md = new MarkdownIt({
@@ -414,13 +417,20 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true
 })
-md.use(katex)
+md.use(katex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 import teacherAuth from '@/mixins/teacherAuth'
 export default {
   name: 'StudentSubmissionDetail',
   components: {
-    UserName
+    UserName,
+    Highlight
   },
   mixins: [realtimeSync, teacherAuth],
   data() {
@@ -446,6 +456,31 @@ export default {
   },
   mounted() {
     // 由 realtimeSync mixin 自动启动同步
+    setTimeout(() => {
+      this.$nextTick(() => {
+        addCodeBtn()
+      })
+    }, 200)
+  },
+  watch: {
+    homework(newVal, oldVal) {
+      if (newVal !== oldVal) {
+        this.$nextTick(() => {
+          setTimeout(() => {
+            addCodeBtn()
+          }, 100)
+        })
+      }
+    },
+    questions(newVal, oldVal) {
+      if (newVal !== oldVal) {
+        this.$nextTick(() => {
+          setTimeout(() => {
+            addCodeBtn()
+          }, 100)
+        })
+      }
+    }
   },
   methods: {
     async loadData() {
@@ -460,7 +495,8 @@ export default {
 
       try {
         const homeworkId = this.$route.params.homeworkId
-        const studentUid = this.$route.query.uid
+        // 兼容教师端（query）和管理员端（params）的路由参数
+        const studentUid = this.$route.params.uid || this.$route.query.uid
 
         // 并行加载作业详情和提交记录
         const [homeworkRes, submissionsRes] = await Promise.all([
@@ -480,7 +516,7 @@ export default {
             // 重要：作业详情更新后（如添加了新题目），需要重新构建学生提交数据
             // 否则新题目不会显示在学生提交详情中
             if (this.submission) {
-              const studentUid = this.$route.query.uid
+              const studentUid = this.$route.params.uid || this.$route.query.uid
               this.buildStudentSubmission(studentUid)
             }
           }
@@ -545,7 +581,9 @@ export default {
             ...submit,
             // 确保题目信息存在（用于显示题目内容）
             question: submit.question || homeworkQuestion.question,
-            problemId: submit.problemId || homeworkQuestion.problemId
+            problemId: submit.problemId || homeworkQuestion.problemId,
+            // 添加题目满分（用于编程题显示）
+            maxScore: homeworkQuestion.score || (submit.question?.score) || 0
           }
         } else {
           // 没有提交记录，创建一个空记录
@@ -563,6 +601,8 @@ export default {
             // 包含题目信息以便显示
             question: homeworkQuestion.question,
             problemId: homeworkQuestion.problemId,
+            // 添加题目满分
+            maxScore: homeworkQuestion.score || (homeworkQuestion.question?.score) || 0,
             _unsubmitted: true // 标记为未提交
           }
         }
@@ -658,25 +698,53 @@ export default {
         return null
       }
     },
-    // 获取评测结果的标签类型
+    // 获取评测结果的标签类型（与 HOJ 官方状态码保持一致）
     getJudgeResultType(result) {
       if (!result) return 'info'
+
+      // HOJ 官方状态码映射（参考 constants.js 中的 JUDGE_STATUS）
       const resultMap = {
-        'Accepted': 'success',
+        // 通过状态
         'AC': 'success',
-        'Presentation Error': 'warning',
-        'PE': 'warning',
-        'Wrong Answer': 'danger',
+        'Accepted': 'success',
+
+        // 错误状态（红色）
         'WA': 'danger',
-        'Time Limit Exceeded': 'warning',
-        'TLE': 'warning',
-        'Memory Limit Exceeded': 'warning',
-        'MLE': 'warning',
-        'Runtime Error': 'danger',
+        'Wrong Answer': 'danger',
         'RE': 'danger',
+        'Runtime Error': 'danger',
+        'CE': 'danger',
         'Compilation Error': 'danger',
-        'CE': 'danger'
+
+        // 警告状态（黄色）
+        'TLE': 'warning',
+        'Time Limit Exceeded': 'warning',
+        'MLE': 'warning',
+        'Memory Limit Exceeded': 'warning',
+        'PE': 'warning',
+        'Presentation Error': 'warning',
+
+        // 系统状态（灰色/蓝色）
+        'SE': 'info',
+        'System Error': 'info',
+        'SF': 'info',
+        'Submitted Failed': 'info',
+
+        // 蓝色状态
+        'PAC': 'primary',
+        'Partial Accepted': 'primary',
+
+        // 其他状态
+        'CA': 'info',
+        'Cancelled': 'info',
+        'SNR': 'info',
+        'Submitted Unknown Result': 'info',
+
+        // 兼容旧格式（如果存在）
+        'NO': 'danger',  // BingOJ 的旧状态码 4
+        'PC': 'primary'  // BingOJ 的旧状态码 8
       }
+
       return resultMap[result] || 'info'
     },
     isOptionSelected(answer, optionLetter, questionType) {
@@ -1083,23 +1151,6 @@ export default {
   border-radius: 4px;
 }
 
-.code-preview-wrapper {
-  max-height: 500px;
-  overflow: auto;
-  background: #282c34;
-  border-radius: 4px;
-}
-
-.code-preview {
-  margin: 0;
-  padding: 20px;
-  background: #282c34;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #abb2bf;
-}
-
 .code-preview code {
   background: transparent !important;
   padding: 0 !important;
@@ -1267,7 +1318,7 @@ export default {
 }
 
 .submission-detail .markdown-body pre {
-  padding: 5px 10px !important;
+  padding: 0 10px 0 40px !important;  /* 上下0，左侧40px给行号留空间 */
   white-space: pre-wrap !important;
   margin-top: 15px !important;
   margin-bottom: 15px !important;
@@ -1296,92 +1347,5 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-}
-
-/* Highlight.js 代码高亮全局样式 - 与查重代码一致 */
-.code-preview .hljs {
-  display: block;
-  overflow-x: auto;
-  padding: 0;
-  background: #282c34;
-  color: #abb2bf;
-}
-
-.code-preview .hljs-comment,
-.code-preview .hljs-quote {
-  color: #5c6370;
-  font-style: italic;
-}
-
-.code-preview .hljs-keyword,
-.code-preview .hljs-selector-tag,
-.code-preview .hljs-subst {
-  color: #c678dd;
-}
-
-.code-preview .hljs-number,
-.code-preview .hljs-literal,
-.code-preview .hljs-variable,
-.code-preview .hljs-template-variable,
-.code-preview .hljs-tag .hljs-attr {
-  color: #d19a66;
-}
-
-.code-preview .hljs-string,
-.code-preview .hljs-doctag {
-  color: #98c379;
-}
-
-.code-preview .hljs-title,
-.code-preview .hljs-section,
-.code-preview .hljs-selector-id {
-  color: #61afef;
-}
-
-.code-preview .hljs-type,
-.code-preview .hljs-class .hljs-title {
-  color: #e5c07b;
-}
-
-.code-preview .hljs-tag,
-.code-preview .hljs-name,
-.code-preview .hljs-attribute {
-  color: #e06c75;
-  font-weight: normal;
-}
-
-.code-preview .hljs-regexp,
-.code-preview .hljs-link {
-  color: #56b6c2;
-}
-
-.code-preview .hljs-symbol,
-.code-preview .hljs-bullet {
-  color: #61afef;
-}
-
-.code-preview .hljs-built_in,
-.code-preview .hljs-builtin-name {
-  color: #e6c07b;
-}
-
-.code-preview .hljs-meta {
-  color: #61afef;
-}
-
-.code-preview .hljs-deletion {
-  background: #f8756f;
-}
-
-.code-preview .hljs-addition {
-  background: #98c379;
-}
-
-.code-preview .hljs-emphasis {
-  font-style: italic;
-}
-
-.code-preview .hljs-strong {
-  font-weight: bold;
 }
 </style>

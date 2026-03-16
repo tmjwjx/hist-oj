@@ -239,22 +239,6 @@
           </div>
           <div class="header-actions">
             <el-button
-              type="warning"
-              size="small"
-              icon="el-icon-download"
-              @click="openImportPaperDialog"
-            >
-              导入试卷
-            </el-button>
-            <el-button
-              type="success"
-              size="small"
-              icon="el-icon-plus"
-              @click="showAddProgrammingDialog = true"
-            >
-              添加编程题
-            </el-button>
-            <el-button
               type="primary"
               size="small"
               icon="el-icon-view"
@@ -268,107 +252,30 @@
         </div>
 
         <div class="questions-container-layout">
-          <!-- 左侧：题库 -->
-          <div class="question-bank-panel">
-            <div class="panel-header">
-              <span class="panel-title">题库</span>
-              <el-tag size="mini" type="info">共 {{ total }} 题</el-tag>
-            </div>
-
-            <div class="filter-section">
-              <el-input
-                v-model="searchKeyword"
-                :placeholder="$t('m.Search_Questions')"
-                prefix-icon="el-icon-search"
-                clearable
-                @clear="loadQuestionBank"
-                @keyup.enter.native="loadQuestionBank"
-                size="small"
-                class="search-input"
-              >
-                <el-button
-                  slot="append"
-                  icon="el-icon-search"
-                  @click="loadQuestionBank"
-                >
-                  搜索
-                </el-button>
-              </el-input>
-
-              <el-select
-                v-model="filterType"
-                :placeholder="$t('m.Question_Type')"
-                clearable
-                @change="loadQuestionBank"
-                size="small"
-                class="filter-select"
-              >
-                <el-option :label="$t('m.All')" value="" />
-                <el-option :label="$t('m.Single_Choice')" value="single_choice" />
-                <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice" />
-                <el-option :label="$t('m.Judge')" value="judge" />
-                <el-option :label="$t('m.Subjective')" value="subjective" />
-                <el-option :label="$t('m.Programming')" value="programming" />
-              </el-select>
-            </div>
-
-            <div class="question-list" v-loading="questionsLoading">
-              <el-table
-                :data="questionBank"
-                stripe
-                class="question-table"
-                height="500"
-              >
-                <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="180" show-overflow-tooltip />
-                <el-table-column prop="type" :label="$t('m.Question_Type')" width="100" align="center">
-                  <template slot-scope="{ row }">
-                    <el-tag :type="getQuestionTypeColor(row.type)" size="mini">
-                      {{ getQuestionTypeText(row.type) }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100" align="center">
-                  <template slot-scope="{ row }">
-                    <el-rate :value="getDifficultyStars(row.difficulty)" disabled show-score text-color="#ff9900" />
-                  </template>
-                </el-table-column>
-                <el-table-column :label="$t('m.Operation')" width="140" align="center" fixed="right">
-                  <template slot-scope="{ row }">
-                    <el-button
-                      :type="isQuestionSelected(row) ? 'info' : 'primary'"
-                      size="mini"
-                      icon="el-icon-plus"
-                      @click="addQuestion(row)"
-                      :disabled="isQuestionSelected(row)"
-                      plain
-                    >
-                      {{ isQuestionSelected(row) ? '已添加' : '添加' }}
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-
-              <div class="pagination-wrapper">
-                <el-pagination
-                  v-if="total > 0"
-                  :current-page="currentPage"
-                  :page-size="pageSize"
-                  :total="total"
-                  layout="prev, pager, next"
-                  @current-change="handlePageChange"
-                  small
-                />
+          <!-- 题目区域 -->
+          <div class="selected-questions-panel-full">
+            <!-- 顶部工具栏：添加题目按钮 -->
+            <div class="questions-toolbar">
+              <div class="toolbar-left">
+                <span class="panel-title">已选题目</span>
+                <el-tag size="mini" type="success">{{ selectedQuestions.length }} 题</el-tag>
+              </div>
+              <div class="toolbar-right">
+                <el-button-group>
+                  <el-button type="primary" icon="el-icon-collection" @click="goToQuestionBank">
+                    客观题题库
+                  </el-button>
+                  <el-button type="success" icon="el-icon-document" @click="showAddProgrammingDialog = true">
+                    编程题题库
+                  </el-button>
+                  <el-button type="warning" icon="el-icon-download" @click="openImportPaperDialog">
+                    导入试卷
+                  </el-button>
+                </el-button-group>
               </div>
             </div>
-          </div>
 
-          <!-- 右侧：已选题目 -->
-          <div class="selected-questions-panel">
-            <div class="panel-header">
-              <span class="panel-title">已选题目</span>
-              <el-tag size="mini" type="success">{{ selectedQuestions.length }} 题</el-tag>
-            </div>
-
+            <!-- 题目列表 -->
             <div class="selected-questions-list" v-if="selectedQuestions.length > 0">
               <transition-group name="list" tag="div" class="questions-container">
                 <div
@@ -400,11 +307,34 @@
                         />
                         <span class="score-unit">分</span>
                       </div>
+
+                      <!-- 显示课程和标签 -->
+                      <div class="question-tags-course" style="margin-top: 5px;">
+                        <el-tag v-if="question.course" type="warning" size="mini" style="margin-right: 5px;">
+                          <i class="el-icon-collection"></i> {{ question.course }}
+                        </el-tag>
+                        <el-tag
+                          v-for="(tag, idx) in parseQuestionTags(question.tags)"
+                          :key="idx"
+                          size="mini"
+                          type="info"
+                          style="margin-right: 3px;"
+                        >
+                          {{ tag }}
+                        </el-tag>
+                      </div>
                     </div>
                   </div>
 
                   <div class="question-actions">
                     <el-button-group>
+                      <el-tooltip content="查看详情" placement="top">
+                        <el-button
+                          size="mini"
+                          icon="el-icon-view"
+                          @click="viewQuestionDetail(question)"
+                        />
+                      </el-tooltip>
                       <el-tooltip content="上移" placement="top">
                         <el-button
                           size="mini"
@@ -438,7 +368,7 @@
             <div v-else class="empty-selected">
               <i class="el-icon-document"></i>
               <p>暂未选择题目</p>
-              <p class="hint">从左侧题库中添加题目</p>
+              <p class="hint">从上方工具栏中添加题目</p>
             </div>
           </div>
         </div>
@@ -895,16 +825,57 @@
     </el-dialog>
 
     <!-- 题目详情对话框 -->
-    <el-dialog :title="$t('m.Question_Detail')" :visible.sync="showDetailDialog" width="800px">
+    <el-dialog :title="currentQuestion?.type === 'programming' ? '编程题详情' : $t('m.Question_Detail')" :visible.sync="showDetailDialog" width="900px">
       <div v-if="currentQuestion" class="question-detail">
-        <el-descriptions :column="1" border>
+        <!-- 编程题详情 -->
+        <div v-if="currentQuestion.type === 'programming' && currentQuestion.problem">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="题目 ID">
+              {{ currentQuestion.problem.problemId }}
+            </el-descriptions-item>
+            <el-descriptions-item label="题目类型">
+              <el-tag type="danger" size="small">编程题</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="题目标题" :span="2">
+              <strong>{{ currentQuestion.problem.title }}</strong>
+            </el-descriptions-item>
+            <el-descriptions-item label="时间限制">
+              {{ currentQuestion.problem.timeLimit }} ms
+            </el-descriptions-item>
+            <el-descriptions-item label="内存限制">
+              {{ currentQuestion.problem.memoryLimit }} MB
+            </el-descriptions-item>
+            <el-descriptions-item label="题目描述" :span="2">
+              <div v-html="renderMarkdown(currentQuestion.problem.description)" class="markdown-body detail-content"></div>
+            </el-descriptions-item>
+            <el-descriptions-item label="输入格式" v-if="currentQuestion.problem.input">
+              <div v-html="renderMarkdown(currentQuestion.problem.input)" class="markdown-body detail-content"></div>
+            </el-descriptions-item>
+            <el-descriptions-item label="输出格式" v-if="currentQuestion.problem.output">
+              <div v-html="renderMarkdown(currentQuestion.problem.output)" class="markdown-body detail-content"></div>
+            </el-descriptions-item>
+            <el-descriptions-item label="样例" :span="2" v-if="currentQuestion.problem.examples">
+              <div v-for="(example, idx) in parseExamples(currentQuestion.problem.examples)" :key="idx" class="example-box">
+                <div class="example-title">样例 {{ idx + 1 }}</div>
+                <div><strong>输入：</strong><pre>{{ example.input }}</pre></div>
+                <div><strong>输出：</strong><pre>{{ example.output }}</pre></div>
+              </div>
+            </el-descriptions-item>
+            <el-descriptions-item label="提示" v-if="currentQuestion.problem.hint">
+              <div v-html="renderMarkdown(currentQuestion.problem.hint)" class="markdown-body detail-content"></div>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+
+        <!-- 客观题详情 -->
+        <el-descriptions v-else :column="1" border>
           <el-descriptions-item :label="$t('m.Question_Type')">
             {{ getQuestionTypeText(currentQuestion.type) }}
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Question_Title')">
             <div v-html="renderMarkdown(currentQuestion.title)" class="markdown-body"></div>
           </el-descriptions-item>
-          <el-descriptions-item :label="$t('m.Content')">
+          <el-descriptions-item :label="$t('m.Content')" v-if="currentQuestion.content">
             <div v-html="renderMarkdown(currentQuestion.content)" class="markdown-body"></div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Options')" v-if="currentQuestion.options">
@@ -914,10 +885,18 @@
             {{ currentQuestion.answer }}
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Difficulty')">
-            <el-rate :value="currentQuestion.difficulty" :max="3" disabled />
+            <el-rate :value="getDifficultyStars(currentQuestion.difficulty)" :max="3" disabled />
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Score')">
-            {{ currentQuestion.score }}
+            {{ currentQuestion.score }} 分
+          </el-descriptions-item>
+          <el-descriptions-item label="课程" v-if="currentQuestion.course">
+            {{ currentQuestion.course }}
+          </el-descriptions-item>
+          <el-descriptions-item label="标签" v-if="currentQuestion.tags">
+            <el-tag v-for="(tag, idx) in parseQuestionTags(currentQuestion.tags)" :key="idx" size="mini" type="info" style="margin-right: 5px;">
+              {{ tag }}
+            </el-tag>
           </el-descriptions-item>
         </el-descriptions>
       </div>
@@ -963,11 +942,18 @@ export default {
       questionsLoading: false,
       searchKeyword: '',
       filterType: '',
+      filterCourse: '', // 课程筛选
+      filterTag: '', // 标签筛选
       currentPage: 1,
       pageSize: 10,
       total: 0,
       questionBank: [],
       selectedQuestions: [],
+      // 常用课程列表
+      commonCourses: [
+        '数据结构',
+        '算法设计与分析'
+      ],
       showDetailDialog: false,
       showFullPreviewDialog: false, // 全卷预览对话框
       currentQuestion: null,
@@ -1032,11 +1018,17 @@ export default {
     classroomId() {
       return this.$route.params.classroomId
     },
+    // 判断是否是编辑模式（支持教师端和管理员端两种路由）
     isEditMode() {
-      return !!this.$route.query.editId
+      return !!(this.$route.query.editId || this.$route.params.homeworkId)
     },
+    // 获取作业ID（支持教师端 query 参数和管理员端 params 参数）
     editId() {
-      return this.$route.query.editId
+      return this.$route.query.editId || this.$route.params.homeworkId
+    },
+    // 判断是否在管理员路由下
+    isAdminRoute() {
+      return this.$route.path.startsWith('/admin/')
     },
     // 计算作业时间区间（分钟）
     timeRangeMinutes() {
@@ -1053,14 +1045,39 @@ export default {
     }
   },
   mounted() {
-    this.loadQuestionBank()
     this.loadProblemTagsAndClassification()
     // 如果是编辑模式，加载作业数据
     if (this.isEditMode) {
       this.loadHomeworkData()
     }
+    // 检查是否有从题库浏览器返回的题目
+    this.loadSelectedQuestionsFromStore()
   },
   methods: {
+    goToQuestionBank() {
+      this.$router.push({
+        name: 'QuestionBankBrowser',
+        params: { classroomId: this.classroomId }
+      })
+    },
+    loadSelectedQuestionsFromStore() {
+      const storedQuestions = this.$store.state.classroom.selectedQuestions || []
+      if (storedQuestions.length > 0) {
+        // 将题库浏览器选中的题目添加到已选题目列表
+        storedQuestions.forEach(question => {
+          if (!this.selectedQuestions.find(q => q.id === question.id)) {
+            this.selectedQuestions.push({
+              ...question,
+              questionOrder: this.selectedQuestions.length + 1,
+              question: question // 保存完整的题目信息
+            })
+          }
+        })
+        // 清空 store 中的临时题目
+        this.$store.commit('classroom/SET_SELECTED_QUESTIONS', [])
+        this.$message.success(`已从题库添加 ${storedQuestions.length} 道题目`)
+      }
+    },
     async loadQuestionBank() {
       this.questionsLoading = true
       try {
@@ -1074,6 +1091,12 @@ export default {
         }
         if (this.filterType) {
           params.type = this.filterType
+        }
+        if (this.filterCourse) {
+          params.course = this.filterCourse
+        }
+        if (this.filterTag) {
+          params.tag = this.filterTag
         }
 
         const res = await this.$store.dispatch('classroom/getQuestionBank', params)
@@ -1097,10 +1120,21 @@ export default {
     },
     isQuestionSelected(question) {
       // 检查题目是否已添加（通过id或problemId）
-      return this.selectedQuestions.some(sq =>
-        (sq.id === question.id) ||
-        (sq.problemId && sq.problemId === question.problemId)
-      )
+      return this.selectedQuestions.some(sq => {
+        // 客观题：使用 id 判断
+        if (question.id && sq.id === question.id) {
+          return true
+        }
+        // 编程题：使用 problemId 判断
+        if (question.problemId && sq.problemId === question.problemId) {
+          return true
+        }
+        // 兼容：question 有 questionId 字段的情况
+        if (question.questionId && sq.id === question.questionId) {
+          return true
+        }
+        return false
+      })
     },
     addQuestion(question) {
       // 检查是否已添加
@@ -1130,7 +1164,18 @@ export default {
       this.$message.success('添加成功')
     },
     removeQuestion(question) {
-      const index = this.selectedQuestions.findIndex(q => q.id === question.id)
+      // 根据题目类型查找索引
+      const index = this.selectedQuestions.findIndex(q => {
+        // 客观题：通过 id 或 questionId 判断
+        if (question.id) {
+          return q.id === question.id || q.questionId === question.id
+        }
+        // 编程题：通过 problemId 判断
+        if (question.problemId) {
+          return q.problemId === question.problemId
+        }
+        return false
+      })
       if (index > -1) {
         this.selectedQuestions.splice(index, 1)
       }
@@ -1157,6 +1202,41 @@ export default {
       }
       this.showDetailDialog = true
     },
+    // 查看题目详情（支持客观题和编程题）
+    async viewQuestionDetail(question) {
+      if (question.type === 'programming') {
+        // 编程题：需要加载完整信息
+        if (!this.programmingProblemsCache[question.problemId]) {
+          // 缓存中没有，需要先加载
+          try {
+            const loading = this.$loading({
+              lock: true,
+              text: '加载题目中...',
+              spinner: 'el-icon-loading',
+              background: 'rgba(0, 0, 0, 0.7)'
+            })
+            await this.loadProgrammingProblemByIds([question.problemId])
+            loading.close()
+          } catch (error) {
+            this.$message.error('加载题目失败')
+            return
+          }
+        }
+        // 从缓存获取完整题目信息
+        const fullProblem = this.programmingProblemsCache[question.problemId]
+        this.currentQuestion = {
+          ...question,
+          problem: fullProblem
+        }
+      } else {
+        // 客观题：直接显示
+        this.currentQuestion = {
+          ...question,
+          difficulty: parseInt(question.difficulty) || 2
+        }
+      }
+      this.showDetailDialog = true
+    },
     getQuestionTypeText(type) {
       const map = {
         single_choice: this.$t('m.Single_Choice'),
@@ -1177,16 +1257,17 @@ export default {
       }
       return colorMap[type] || 'info'
     },
-    // 将数据库中的难度值（1-3）转换为 el-rate 的星星数（1-5）
     getDifficultyStars(difficulty) {
-      // 数据库: 1=简单, 2=中等, 3=困难
-      // 显示: 映射为 1星, 3星, 5星
-      const difficultyMap = {
-        1: 1, // 简单 -> 1星
-        2: 3, // 中等 -> 3星
-        3: 5  // 困难 -> 5星
+      return parseInt(difficulty) || 1
+    },
+    // 解析题目标签
+    parseQuestionTags(tags) {
+      if (!tags) return []
+      try {
+        return JSON.parse(tags)
+      } catch (e) {
+        return []
       }
-      return difficultyMap[difficulty] || 3 // 默认3星
     },
     renderOptions(options) {
       if (!options) return '-'
@@ -1199,6 +1280,20 @@ export default {
       } catch (e) {
         return options.replace(/\n/g, '<br>')
       }
+    },
+    // 解析编程题样例
+    parseExamples(examples) {
+      if (!examples) return []
+      const regex = /<input>([\s\S]*?)<\/input><output>([\s\S]*?)<\/output>/g
+      const result = []
+      let match
+      while ((match = regex.exec(examples)) !== null) {
+        result.push({
+          input: match[1].trim(),
+          output: match[2].trim()
+        })
+      }
+      return result
     },
     handlePageChange(page) {
       this.currentPage = page
@@ -1892,26 +1987,52 @@ export default {
     },
 
     goBack() {
-      // 如果是编辑模式，返回到作业详情页
-      if (this.isEditMode && this.editId) {
-        this.$router.push({
-          name: 'TeacherHomeworkDetail',
-          params: {
-            classroomId: this.classroomId,
-            homeworkId: this.editId
-          }
-        })
+      // 根据当前路由判断返回路径
+      if (this.isAdminRoute) {
+        // 管理员路由：返回管理员班级管理页面
+        if (this.isEditMode && this.editId) {
+          // 编辑模式，返回作业详情（管理员路由）
+          this.$router.push({
+            path: '/admin/classroom',
+            query: {
+              classroomId: this.classroomId,
+              homeworkId: this.editId,
+              activeTab: 'homework'
+            }
+          })
+        } else {
+          // 创建模式，返回班级管理页面
+          this.$router.push({
+            path: '/admin/classroom',
+            query: {
+              classroomId: this.classroomId,
+              activeTab: 'homework'
+            }
+          })
+        }
       } else {
-        // 如果是创建模式，返回到作业列表页
-        this.$router.push({
-          name: 'TeacherHomework',
-          params: {
-            classroomId: this.classroomId
-          },
-          query: {
-            tab: 'homework'
-          }
-        })
+        // 教师路由：返回教师端页面
+        if (this.isEditMode && this.editId) {
+          // 编辑模式，返回到作业详情页
+          this.$router.push({
+            name: 'TeacherHomeworkDetail',
+            params: {
+              classroomId: this.classroomId,
+              homeworkId: this.editId
+            }
+          })
+        } else {
+          // 创建模式，返回到作业列表页
+          this.$router.push({
+            name: 'TeacherHomework',
+            params: {
+              classroomId: this.classroomId
+            },
+            query: {
+              tab: 'homework'
+            }
+          })
+        }
       }
     },
 
@@ -2005,14 +2126,34 @@ export default {
           if (questions.length > 0) {
             questions.forEach(q => {
               // 检查是否已存在
-              const exists = this.selectedQuestions.some(sq =>
-                (sq.id === q.questionId) ||
-                (sq.problemId && sq.problemId === q.problemId)
-              )
+              // 客观题：使用 id 或 questionId 判断
+              // 编程题：使用 problemId 判断
+              const exists = this.selectedQuestions.some(sq => {
+                // 客观题：比较 id 或 questionId
+                if (q.questionId || q.id) {
+                  return sq.id === q.questionId || sq.id === q.id || sq.questionId === q.id
+                }
+                // 编程题：比较 problemId
+                if (q.problemId) {
+                  return sq.problemId === q.problemId
+                }
+                return false
+              })
 
               if (!exists) {
+                // 为每个题目设置唯一标识（统一转换为字符串类型，确保类型一致）
+                let questionId
+                if (q.questionId || q.id) {
+                  // 客观题：转换为字符串
+                  questionId = String(q.questionId || q.id)
+                } else {
+                  // 编程题：使用 problemId（已经是字符串）
+                  questionId = q.problemId
+                }
+
                 this.selectedQuestions.push({
-                  id: q.questionId || q.id,
+                  id: questionId,  // 确保每个题目都有 id（字符串类型）
+                  questionId: (q.questionId || q.id) ? String(q.questionId || q.id) : undefined,
                   problemId: q.problemId,
                   type: q.questionType || q.type,
                   title: q.title,
@@ -2293,16 +2434,79 @@ export default {
   padding-left: 4px;
 }
 
-/* 题目管理卡片 - 左右布局 */
+/* 题目管理卡片 - 单列布局 */
 .questions-management-card {
   background: #fff;
 }
 
 .questions-container-layout {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 20px;
+  display: block;
   padding: 0 20px 20px;
+}
+
+/* 顶部工具栏 */
+.questions-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px 20px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-right .el-button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar-right .el-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 左侧添加题目面板 */
+.add-questions-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.action-card {
+  background: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #e0e6ed;
+}
+
+.action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.action-item h4 {
+  margin: 15px 0 10px;
+  color: #303133;
+  font-size: 16px;
+}
+
+.action-item p {
+  margin: 0 0 15px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.action-item .el-button {
+  width: 100%;
 }
 
 /* 左侧题库面板 */
@@ -2388,7 +2592,8 @@ export default {
 }
 
 /* 右侧已选题目面板 */
-.selected-questions-panel {
+.selected-questions-panel,
+.selected-questions-panel-full {
   display: flex;
   flex-direction: column;
   background: #fafbfc;
@@ -2538,6 +2743,39 @@ export default {
 /* 对话框样式优化 */
 .question-detail {
   padding: 10px;
+}
+
+.detail-content {
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  line-height: 1.8;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.example-box {
+  margin-bottom: 15px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  border: 1px solid #e0e6ed;
+}
+
+.example-title {
+  font-weight: bold;
+  color: #409EFF;
+  margin-bottom: 8px;
+}
+
+.example-box pre {
+  margin: 5px 0;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* 编程题预览样式 */
@@ -2805,6 +3043,27 @@ export default {
 
   .questions-container-layout {
     grid-template-columns: 1fr;
+  }
+
+  .questions-toolbar {
+    flex-direction: column;
+    gap: 15px;
+    padding: 15px;
+  }
+
+  .toolbar-left {
+    width: 100%;
+  }
+
+  .toolbar-right .el-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .toolbar-right .el-button {
+    flex: 1;
+    min-width: 120px;
   }
 
   .filter-section {

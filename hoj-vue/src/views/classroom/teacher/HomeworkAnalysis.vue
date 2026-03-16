@@ -65,34 +65,51 @@
             <div class="question-analysis-content">
               <!-- 题目统计 -->
               <el-row :gutter="20" class="question-stats">
-                <el-col :span="6">
+                <el-col :span="4">
                   <div class="mini-stat">
                     <span class="mini-stat-label">提交人数：</span>
                     <span class="mini-stat-value">{{ question.submittedCount }}</span>
                   </div>
                 </el-col>
-                <el-col :span="6">
+                <el-col :span="4">
+                  <div class="mini-stat">
+                    <span class="mini-stat-label">未提交人数：</span>
+                    <span class="mini-stat-value">{{ question.unsubmittedCount || 0 }}</span>
+                  </div>
+                </el-col>
+                <el-col :span="4">
                   <div class="mini-stat">
                     <span class="mini-stat-label">平均得分：</span>
                     <span class="mini-stat-value">{{ question.avgScore.toFixed(2) }}</span>
                   </div>
                 </el-col>
-                <el-col :span="6">
+                <el-col :span="4">
                   <div class="mini-stat">
                     <span class="mini-stat-label">得分率：</span>
                     <span class="mini-stat-value">{{ ((question.avgScore / question.score) * 100).toFixed(1) }}%</span>
                   </div>
                 </el-col>
-                <el-col :span="6">
-                  <el-button
-                    type="primary"
-                    size="small"
-                    icon="el-icon-user"
-                    @click="showQuestionSubmittedStudents(question)"
-                    :disabled="!question.submittedBy || question.submittedBy.length === 0"
-                  >
-                    查看作答学生 ({{ (question.submittedBy || []).length }}人)
-                  </el-button>
+                <el-col :span="8">
+                  <el-button-group>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      icon="el-icon-user"
+                      @click="showQuestionSubmittedStudents(question)"
+                      :disabled="!question.submittedBy || question.submittedBy.length === 0"
+                    >
+                      已提交 ({{ (question.submittedBy || []).length }}人)
+                    </el-button>
+                    <el-button
+                      type="warning"
+                      size="small"
+                      icon="el-icon-user"
+                      @click="showQuestionUnsubmittedStudents(question)"
+                      :disabled="!question.unsubmittedBy || question.unsubmittedBy.length === 0"
+                    >
+                      未提交 ({{ (question.unsubmittedBy || []).length }}人)
+                    </el-button>
+                  </el-button-group>
                 </el-col>
               </el-row>
 
@@ -157,14 +174,14 @@
                               @click="showOptionStudents(question.options[index])"
                               :style="{ cursor: question.options[index].selectedCount > 0 ? 'pointer' : 'default', pointerEvents: 'all' }"
                             >
-                              {{ getSliceLabel(question.options[index].content, question.type) }} {{ slice.percentage.toFixed(1) }}%
+                              {{ getSliceLabel(question.options[index], question.type) }} {{ slice.percentage.toFixed(1) }}%
                             </text>
                           </g>
                         </g>
                       </svg>
                     </div>
-                    <!-- 正确答案显示 -->
-                    <div class="correct-answer-display">
+                    <!-- 正确答案显示（仅选择题和判断题） -->
+                    <div v-if="['single_choice', 'multiple_choice', 'judge'].includes(question.type)" class="correct-answer-display">
                       <strong>正确答案：{{ getCorrectAnswerText(question) }}</strong>
                     </div>
                   </el-col>
@@ -180,7 +197,7 @@
                       >
                         <span class="legend-color" :style="{ backgroundColor: getOptionColor(index) }"></span>
                         <span class="legend-label">
-                          {{ question.type === 'judge' ? `选项：${option.content}` : option.content }}
+                          {{ getLegendLabel(option, question.type) }}
                         </span>
                         <span class="legend-count">{{ option.selectedCount }}人</span>
                         <span class="legend-percentage">({{ option.percentage.toFixed(1) }}%)</span>
@@ -297,6 +314,22 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- 题目未提交学生对话框 -->
+    <el-dialog
+      :title="`题目未提交学生 (${questionUnsubmittedStudents.length}人)`"
+      :visible.sync="questionUnsubmittedDialogVisible"
+      width="600px"
+    >
+      <el-table :data="questionUnsubmittedStudents" stripe max-height="400">
+        <el-table-column prop="realName" label="姓名" width="120" />
+        <el-table-column label="系统用户名">
+          <template slot-scope="{ row }">
+            <UserName :username="row.username" />
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -333,6 +366,9 @@ export default {
       // 题目作答学生对话框
       questionSubmittedDialogVisible: false,
       questionSubmittedStudents: [],
+      // 题目未提交学生对话框
+      questionUnsubmittedDialogVisible: false,
+      questionUnsubmittedStudents: [],
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -430,6 +466,10 @@ export default {
     showQuestionSubmittedStudents(question) {
       this.questionSubmittedStudents = question.submittedBy || []
       this.questionSubmittedDialogVisible = true
+    },
+    showQuestionUnsubmittedStudents(question) {
+      this.questionUnsubmittedStudents = question.unsubmittedBy || []
+      this.questionUnsubmittedDialogVisible = true
     },
     formatAnswer(answer) {
       if (!answer) return ''
@@ -641,16 +681,47 @@ export default {
       // 其他情况返回前两个字符
       return actualContent ? actualContent.substring(0, 2) : ''
     },
-    getSliceLabel(content, type) {
-      // 扇形图内部标签显示
+    getSliceLabel(option, type) {
+      // 编程题和主观题：使用 label 字段（分数段分布）
+      if (type === 'programming' || type === 'subjective') {
+        return option.label || ''
+      }
+
+      // 兼容旧版本：如果是字符串，说明是选择题的 content
+      if (typeof option === 'string') {
+        const content = option
+        // 判断题显示完整标签：选项：正确/错误
+        if (type === 'judge') {
+          if (content === '正确') return '选项：正确'
+          if (content === '错误') return '选项：错误'
+        }
+        // 其他题型使用简短标签
+        return this.getOptionShortLabel(content, type)
+      }
+
+      // 新版本：如果是对象，使用 content 或 label 字段
+      const content = option.content || option.label || ''
       // 判断题显示完整标签：选项：正确/错误
       if (type === 'judge') {
         if (content === '正确') return '选项：正确'
         if (content === '错误') return '选项：错误'
       }
-
       // 其他题型使用简短标签
       return this.getOptionShortLabel(content, type)
+    },
+    getLegendLabel(option, type) {
+      // 编程题和主观题：直接显示 label（分数段）
+      if (type === 'programming' || type === 'subjective') {
+        return option.label || ''
+      }
+
+      // 判断题：显示"选项：正确/错误"
+      if (type === 'judge') {
+        return `选项：${option.content || option.label || ''}`
+      }
+
+      // 其他题型：显示 content
+      return option.content || option.label || ''
     },
     getCorrectAnswerText(question) {
       // 如果没有答案，显示提示

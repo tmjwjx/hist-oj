@@ -20,6 +20,11 @@ func NewQueryService(db *gorm.DB) *QueryService {
 	return &QueryService{db: db}
 }
 
+// GetDB 获取数据库连接（供其他服务使用）
+func (s *QueryService) GetDB() *gorm.DB {
+	return s.db
+}
+
 // GetUserRating 获取用户rating信息（支持 UID 或用户名）
 func (s *QueryService) GetUserRating(uidOrUsername string) (map[string]interface{}, error) {
 	logger := utils.GetLogger()

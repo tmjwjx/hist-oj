@@ -2,6 +2,7 @@
   <el-row
     type="flex"
     justify="space-around"
+    class="submission-detail-wrapper"
   >
     <el-col
       :span="24"
@@ -633,4 +634,7 @@ export default {
 .subtask-title.active .text-color-purple.active {
   color: #676fc1 !important;
 }
+</style>
+
+<style>
 </style>

@@ -38,6 +38,12 @@ const ClassroomRoutes = {
       meta: { title: '创建作业', requiresRole: 'teacher' }
     },
     {
+      path: 'teacher/question-bank-browser/:classroomId',
+      name: 'QuestionBankBrowser',
+      component: () => import('@/views/classroom/teacher/QuestionBankBrowser'),
+      meta: { title: '题库浏览', requiresRole: 'teacher' }
+    },
+    {
       path: 'teacher/homework/:classroomId/:homeworkId',
       name: 'TeacherHomeworkDetail',
       component: () => import('@/views/classroom/teacher/HomeworkDetail'),

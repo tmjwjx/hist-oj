@@ -504,7 +504,8 @@ export default {
 
     // 判断是否可预览
     canPreview(fileType) {
-      const previewableTypes = ['pdf', 'txt', 'image', 'video', 'audio', 'ppt', 'word', 'excel']
+      // 视频不支持在线预览
+      const previewableTypes = ['pdf', 'txt', 'image', 'audio', 'ppt', 'word', 'excel']
       return previewableTypes.includes(fileType)
     },
 

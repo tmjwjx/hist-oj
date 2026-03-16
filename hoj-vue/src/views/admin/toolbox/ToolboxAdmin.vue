@@ -53,7 +53,7 @@ export default {
           description: '管理赛事报名系统和报名信息',
           icon: 'fa fa-trophy',
           iconColor: '#FFD700',
-          url: '/registration/admin.html',
+          url: '/admin/registration',
           requireAuth: 'admin' // 需要管理员权限（所有管理员）
         },
         {

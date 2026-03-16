@@ -2839,11 +2839,13 @@ func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
 
 			// 如果找到提交记录且判题完成
 			if targetSubmission != nil {
-				// BingOJ 状态码定义（来自 app.py）：
-				// status: -2=编译错误, -1=保留, 0=答案正确(AC), 1=答案错误(WA),
-				//         -3=格式错误(PE), 2=时间超限(TLE), 3=内存超限(MLE),
-				//         4=NO, 5=系统错误(SE), 6=等待中, 7=判题中, 8=部分正确(PC),
-				//         9=提交中, 10=提交失败
+				// HOJ 官方状态码定义（与 HOJ 系统保持一致）：
+				// status: -10=未提交(NS), -5=结果未知(SNR), -4=已取消(CA),
+				//         -3=格式错误(PE), -2=编译错误(CE), -1=答案错误(WA),
+				//         0=通过(AC), 1=时间超限(TLE), 2=内存超限(MLE),
+				//         3=运行错误(RE), 4=系统错误(SE), 5=等待中(Pending),
+				//         6=编译中(CP), 7=判题中(Judging), 8=部分通过(PAC),
+				//         9=提交中(Submitting), 10=提交失败(SF)
 				status := targetSubmission.Status
 
 				// 详细日志：打印从 BingOJ 获取的提交信息
@@ -2855,8 +2857,8 @@ func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
 					zap.String("language", targetSubmission.Language),
 					zap.String("celInfo", targetSubmission.CELInfo))
 
-				// 检查是否还在判题中或提交中（status 6=等待中, 7=判题中, 9=提交中）
-				if status == 6 || status == 7 || status == 9 {
+				// 检查是否还在判题中或提交中（status 5=Pending, 6=Compiling, 7=Judging, 9=Submitting）
+				if status == 5 || status == 6 || status == 7 || status == 9 {
 					logger.Debug("还在判题中，继续等待",
 						zap.Int("status", status))
 					time.Sleep(2 * time.Second)
@@ -2873,47 +2875,59 @@ func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
 				score := 0.0
 				judgeResult := ""
 
-				// 根据 status 判断评测结果
+				// 根据 status 判断评测结果（使用 HOJ 官方状态码标准）
 				switch status {
 				case 0:
-					// AC - 满分
+					// AC - Accepted（通过）
 					score = calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
 					judgeResult = "AC"
 				case -2:
-					// 编译错误
+					// CE - Compile Error（编译错误）
 					judgeResult = "CE"
 					score = 0
 				case -3:
-					// 格式错误
+					// PE - Presentation Error（格式错误）
 					judgeResult = "PE"
 					score = 0
-				case 1:
-					// 答案错误
+				case -1:
+					// WA - Wrong Answer（答案错误）
 					judgeResult = "WA"
 					score = 0
-				case 2:
-					// 时间超限
+				case 1:
+					// TLE - Time Limit Exceeded（时间超限）
 					judgeResult = "TLE"
 					score = 0
-				case 3:
-					// 内存超限
+				case 2:
+					// MLE - Memory Limit Exceeded（内存超限）
 					judgeResult = "MLE"
 					score = 0
-				case 4:
-					// NO
-					judgeResult = "NO"
+				case 3:
+					// RE - Runtime Error（运行错误）
+					judgeResult = "RE"
 					score = 0
-				case 5:
-					// 系统错误
+				case 4:
+					// SE - System Error（系统错误）
 					judgeResult = "SE"
 					score = 0
 				case 8:
-					// 部分正确 - 按比例计算分数
+					// PAC - Partial Accepted（部分通过）- 按比例计算分数
 					fullScore := calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
 					score = float64(targetSubmission.Score) / 100.0 * fullScore
-					judgeResult = "PC"
+					judgeResult = "PAC"
+				case -4:
+					// CA - Cancelled（已取消）
+					judgeResult = "CA"
+					score = 0
+				case -5:
+					// SNR - Submitted Unknown Result（结果未知）
+					judgeResult = "SNR"
+					score = 0
 				default:
+					// 未知状态，保留原始状态码数字
 					judgeResult = fmt.Sprintf("Unknown(%d)", status)
+					logger.Warn("未知的评测状态码",
+						zap.Int("status", status),
+						zap.Uint64("submit_id", submitID))
 				}
 
 				// 更新提交记录 - 只更新评测相关字段，不更新 answer
@@ -3377,7 +3391,7 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 				{"label": "满分", "minScore": float64(hq.Score), "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
 				{"label": "80%以上", "minScore": float64(hq.Score) * 0.8, "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
 				{"label": "60%-80%", "minScore": float64(hq.Score) * 0.6, "maxScore": float64(hq.Score) * 0.8, "count": 0, "selectedBy": []interface{}{}},
-				{"label": "60%以下", "minScore": 0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
+				{"label": "60%以下", "minScore": 0.0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
 			}
 
 			for _, s := range questionSubmissions {
@@ -3428,7 +3442,9 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 
 			// 编程题的提交学生列表
 			var submittedBy []interface{}
+			submittedUIDs := make(map[string]bool)
 			for _, s := range questionSubmissions {
+				submittedUIDs[s.UID] = true
 				if cs, exists := studentMap[s.UID]; exists {
 					username := ""
 					if cs.User != nil {
@@ -3443,6 +3459,24 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 				}
 			}
 			analysis["submittedBy"] = submittedBy
+
+			// 编程题的未提交学生列表
+			var unsubmittedBy []interface{}
+			for _, cs := range classroomStudents {
+				if !submittedUIDs[cs.UID] {
+					username := ""
+					if cs.User != nil {
+						username = cs.User.Username
+					}
+					unsubmittedBy = append(unsubmittedBy, map[string]interface{}{
+						"uid":      cs.UID,
+						"realName": cs.RealName,
+						"username": username,
+					})
+				}
+			}
+			analysis["unsubmittedBy"] = unsubmittedBy
+			analysis["unsubmittedCount"] = len(unsubmittedBy)
 		} else if hq.QuestionID != nil {
 			// 普通题目（从题库）
 			var question model.QuestionBank
@@ -3633,7 +3667,7 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 					{"label": "满分", "minScore": float64(hq.Score), "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
 					{"label": "80%以上", "minScore": float64(hq.Score) * 0.8, "maxScore": float64(hq.Score), "count": 0, "selectedBy": []interface{}{}},
 					{"label": "60%-80%", "minScore": float64(hq.Score) * 0.6, "maxScore": float64(hq.Score) * 0.8, "count": 0, "selectedBy": []interface{}{}},
-					{"label": "60%以下", "minScore": 0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
+					{"label": "60%以下", "minScore": 0.0, "maxScore": float64(hq.Score) * 0.6, "count": 0, "selectedBy": []interface{}{}},
 				}
 
 				for _, s := range questionSubmissions {
@@ -3725,6 +3759,29 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 				}
 			}
 			analysis["submittedBy"] = submittedBy
+
+			// 客观题的未提交学生列表
+			submittedUIDs := make(map[string]bool)
+			for _, s := range questionSubmissions {
+				submittedUIDs[s.UID] = true
+			}
+
+			var unsubmittedBy []interface{}
+			for _, cs := range classroomStudents {
+				if !submittedUIDs[cs.UID] {
+					username := ""
+					if cs.User != nil {
+						username = cs.User.Username
+					}
+					unsubmittedBy = append(unsubmittedBy, map[string]interface{}{
+						"uid":      cs.UID,
+						"realName": cs.RealName,
+						"username": username,
+					})
+				}
+			}
+			analysis["unsubmittedBy"] = unsubmittedBy
+			analysis["unsubmittedCount"] = len(unsubmittedBy)
 		}
 
 		questionAnalysis = append(questionAnalysis, analysis)
@@ -4734,6 +4791,43 @@ func (h *Handler) PreviewMaterialWithToken(c *gin.Context) {
 
 // ==================== 腾讯云COS文档预览 ====================
 
+// getFileType 根据文件名获取文件类型
+func getFileType(fileName string) string {
+	ext := strings.ToLower(fileName[strings.LastIndex(fileName, ".")+1:])
+
+	videoTypes := []string{"mp4", "webm", "ogv", "mov", "avi", "mkv", "flv", "m4v"}
+	audioTypes := []string{"mp3", "wav", "aac", "ogg", "m4a", "flac"}
+	imageTypes := []string{"jpg", "jpeg", "png", "gif", "bmp", "svg", "webp"}
+	documentTypes := []string{"pdf", "txt", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx"}
+
+	if containsItem(videoTypes, ext) {
+		return "video"
+	} else if containsItem(audioTypes, ext) {
+		return "audio"
+	} else if containsItem(imageTypes, ext) {
+		return "image"
+	} else if containsItem(documentTypes, ext) {
+		return "document"
+	}
+
+	return "unknown"
+}
+
+// isDocumentType 判断是否为文档类型（需要使用腾讯云文档预览）
+func isDocumentType(fileType string) bool {
+	return fileType == "document"
+}
+
+// containsItem 检查切片是否包含元素
+func containsItem(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 // GetCOSPreviewUrl 获取腾讯云COS文档预览URL
 func (h *Handler) GetCOSPreviewUrl(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -4815,10 +4909,33 @@ func (h *Handler) GetCOSPreviewUrl(c *gin.Context) {
 			zap.String("cos_path", cosPath))
 	}
 
-	// 生成数据万象文档预览URL
-	previewURL := cosService.GetDocPreviewURL(fileURL)
+	// 根据文件类型生成不同的预览URL
+	fileType := getFileType(material.FileName)
+	var previewURL string
+
+	if isDocumentType(fileType) {
+		// 文档类型：使用腾讯云文档预览
+		previewURL = cosService.GetDocPreviewURL(fileURL)
+		logger.Info("使用文档预览URL",
+			zap.String("file_type", fileType),
+			zap.String("preview_url", previewURL))
+	} else if fileType == "video" {
+		// 视频类型：不支持在线预览
+		logger.Info("视频文件不支持在线预览",
+			zap.Uint64("material_id", material.ID),
+			zap.String("file_name", material.FileName))
+		c.JSON(http.StatusOK, errorResponse(400, "视频文件不支持在线预览，请下载后观看"))
+		return
+	} else {
+		// 音频、图片：直接使用原始COS URL
+		previewURL = fileURL
+		logger.Info("使用原始URL直接预览",
+			zap.String("file_type", fileType),
+			zap.String("direct_url", previewURL))
+	}
 
 	logger.Info("返回预览URL",
+		zap.String("file_type", fileType),
 		zap.String("preview_url", previewURL),
 		zap.String("cos_url", fileURL),
 		zap.Bool("uploaded", !exists))
@@ -4826,6 +4943,7 @@ func (h *Handler) GetCOSPreviewUrl(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(gin.H{
 		"previewUrl": previewURL,
 		"cosUrl":     fileURL,
+		"fileType":   fileType,
 		"uploaded":   !exists,
 	}))
 }
