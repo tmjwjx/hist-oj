@@ -132,6 +132,21 @@
                   </el-tooltip>
                 </template>
                 <el-tooltip
+                  v-if="isRatingContest(contest.id)"
+                  content="Rating 比赛"
+                  placement="top"
+                  effect="dark"
+                >
+                  <el-tag
+                    type="danger"
+                    effect="plain"
+                    size="medium"
+                    style="margin-right: 10px;"
+                  >
+                    <i class="fa fa-star"></i> Rating
+                  </el-tag>
+                </el-tooltip>
+                <el-tooltip
                   :content="$t('m.' + CONTEST_TYPE_REVERSE[contest.auth].tips)"
                   placement="top"
                   effect="light"
@@ -380,9 +395,9 @@ import {
   CONTEST_STATUS_REVERSE,
   CONTEST_TYPE_REVERSE,
 } from "@/common/constants";
+import myMessage from "@/common/message";
 import { mapState, mapGetters } from "vuex";
 import Avatar from "vue-avatar";
-import myMessage from "@/common/message";
 const Announcements = () => import("@/components/oj/common/Announcements.vue");
 const SubmissionStatistic = () =>
   import("@/components/oj/home/SubmissionStatistic.vue");
@@ -405,6 +420,7 @@ export default {
       CONTEST_STATUS_REVERSE: {},
       CONTEST_TYPE_REVERSE: {},
       contests: [],
+      ratingContests: new Set(), // 存储 Rating 比赛的 ID
       loading: {
         recent7ACRankLoading: false,
         ratingRankLoading: false,
@@ -491,11 +507,110 @@ export default {
         (res) => {
           this.contests = res.data.data;
           this.loading.recentContests = false;
+
+          // 异步获取 Rating 比赛信息
+          this.fetchRatingContests();
         },
         (err) => {
           this.loading.recentContests = false;
         }
       );
+    },
+
+    async fetchRatingContests() {
+      if (!this.contests || this.contests.length === 0) return;
+
+      try {
+        // 提取所有比赛 ID
+        const contestIds = this.contests.map(c => c.id);
+
+        // 检查本地缓存
+        const cachedData = this.getRatingContestsFromCache(contestIds);
+        if (cachedData.allCached) {
+          // 所有数据都在缓存中，直接使用
+          this.ratingContests = cachedData.ratingContests;
+          this.$forceUpdate();
+          return;
+        }
+
+        // 使用批量查询接口（一次请求获取所有比赛的 Rating 状态）
+        const results = await ratingApi.getBatchContestInfo(contestIds);
+
+        // 更新 ratingContests Set 和缓存
+        this.ratingContests.clear();
+        Object.entries(results).forEach(([contestId, info]) => {
+          const id = parseInt(contestId);
+          if (info.isRating) {
+            this.ratingContests.add(id);
+          }
+          // 缓存到 localStorage（有效期 1 小时）
+          this.cacheRatingContest(id, info.isRating);
+        });
+
+        // 强制更新视图
+        this.$forceUpdate();
+      } catch (error) {
+        console.error('获取 Rating 比赛信息失败:', error);
+        // 失败时尝试使用缓存数据
+        const cachedData = this.getRatingContestsFromCache(this.contests.map(c => c.id));
+        if (cachedData.ratingContests.size > 0) {
+          this.ratingContests = cachedData.ratingContests;
+          this.$forceUpdate();
+        }
+      }
+    },
+
+    // 从缓存中获取 Rating 比赛信息
+    getRatingContestsFromCache(contestIds) {
+      const ratingContests = new Set();
+      let cachedCount = 0;
+
+      contestIds.forEach(id => {
+        const cacheKey = `rating_contest_${id}`;
+        const cached = localStorage.getItem(cacheKey);
+
+        if (cached) {
+          try {
+            const data = JSON.parse(cached);
+            // 检查缓存是否过期（1 小时）
+            if (Date.now() - data.timestamp < 3600000) {
+              cachedCount++;
+              if (data.isRating) {
+                ratingContests.add(id);
+              }
+            } else {
+              // 缓存过期，删除
+              localStorage.removeItem(cacheKey);
+            }
+          } catch (e) {
+            localStorage.removeItem(cacheKey);
+          }
+        }
+      });
+
+      return {
+        ratingContests,
+        allCached: cachedCount === contestIds.length
+      };
+    },
+
+    // 缓存 Rating 比赛信息
+    cacheRatingContest(contestId, isRating) {
+      const cacheKey = `rating_contest_${contestId}`;
+      const data = {
+        isRating,
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      } catch (e) {
+        // localStorage 可能已满，忽略错误
+        console.warn('缓存 Rating 信息失败:', e);
+      }
+    },
+
+    isRatingContest(contestId) {
+      return this.ratingContests.has(contestId);
     },
     getRecentUpdatedProblemList() {
       this.loading.recentUpdatedProblemsLoading = true;

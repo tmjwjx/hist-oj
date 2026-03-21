@@ -165,7 +165,6 @@ export default {
 
 .tool-icon i {
   font-size: 56px;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
 }
 
 .tool-card:hover .tool-icon {
