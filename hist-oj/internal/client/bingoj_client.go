@@ -339,10 +339,11 @@ func (c *BingoJClient) SubmitCode(pid string, cid int, language, code string) (s
 
 // SubmissionResult 提交结果
 type SubmissionResult struct {
-	Status int    `json:"status"`
-	Time   int    `json:"time"`
-	Memory int    `json:"memory"`
-	Score  int    `json:"score"`
+	Status       int    `json:"status"`
+	Time         int    `json:"time"`
+	Memory       int    `json:"memory"`
+	Score        int    `json:"score"`
+	ErrorMessage string `json:"errorMessage"` // 新增：错误信息（RE的具体原因等）
 }
 
 // SubmissionListItem 提交列表项

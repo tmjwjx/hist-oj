@@ -89,7 +89,11 @@
               <el-table-column prop="username" label="用户" width="80"></el-table-column>
               <el-table-column label="远程结果" width="100">
                 <template slot-scope="scope">
-                  <el-tag :type="getResultType(scope.row.result)" size="mini">
+                  <el-tag
+                    :type="getResultType(scope.row.result)"
+                    size="mini"
+                    class="clickable-result-tag"
+                    @click.native="showHistoryCaseDetails(scope.row)">
                     {{ scope.row.result }}
                   </el-tag>
                 </template>
@@ -214,6 +218,15 @@
               <i :class="remoteBannerIcon"></i> {{ remoteBannerText }}
             </div>
 
+            <!-- 远程判题错误信息 -->
+            <div v-if="remoteErrorMessage" class="remote-error-section">
+              <div class="error-header">
+                <i class="el-icon-warning" style="color: #F56C6C;"></i>
+                <strong>错误详情:</strong>
+              </div>
+              <pre class="remote-error-block">{{ remoteErrorMessage }}</pre>
+            </div>
+
             <!-- 样例测试详情 -->
             <div class="sample-section">
               <div class="sample-header">
@@ -234,9 +247,89 @@
                     <div><strong>输入:</strong><pre class="code-block">{{ sample.input }}</pre></div>
                     <div><strong>预期:</strong><pre class="code-block">{{ sample.expected }}</pre></div>
                     <div><strong>输出:</strong><pre class="code-block">{{ sample.output }}</pre></div>
+                    <!-- 错误信息（当发生RE等错误时显示） -->
+                    <div v-if="sample.stderr" class="error-section">
+                      <strong style="color: #F56C6C;">错误信息:</strong>
+                      <pre class="error-block">{{ sample.stderr }}</pre>
+                    </div>
+
+                    <!-- ✅ 新增：详细错误信息（来自 go-judge，包含 testlib 错误） -->
+                    <div v-if="sample.detailed_stderr && sample.detailed_stderr !== sample.stderr" class="detailed-error-section">
+                      <div class="error-header">
+                        <i class="el-icon-info" style="color: #409EFF;"></i>
+                        <strong style="color: #409EFF;">详细错误 (go-judge):</strong>
+                      </div>
+                      <pre class="detailed-error-block">{{ sample.detailed_stderr }}</pre>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <!-- 远程测试点详情 -->
+            <div class="case-section">
+              <div class="sample-header">
+                <h4>远程测试点详情</h4>
+                <el-tag size="small" type="info">
+                  {{ remoteSubmitId ? '提交ID: ' + remoteSubmitId : '提交ID: --' }}
+                </el-tag>
+              </div>
+
+              <el-alert
+                v-if="isCaseDetailsLoading"
+                title="正在加载测试点详情..."
+                type="info"
+                :closable="false"
+                style="margin-bottom: 10px">
+              </el-alert>
+
+              <el-table
+                v-if="remoteCaseDetails.length > 0"
+                :data="remoteCaseDetails"
+                size="mini"
+                stripe
+                border
+                style="width: 100%">
+                <el-table-column label="#" width="60" align="center">
+                  <template slot-scope="scope">
+                    {{ scope.row.seq || scope.$index + 1 }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="case_id" label="CaseID" width="90" align="center"></el-table-column>
+                <el-table-column label="结果" min-width="120" align="center">
+                  <template slot-scope="scope">
+                    <el-tag :type="getCaseStatusTagType(scope.row.status)" size="mini">
+                      {{ getCaseStatusText(scope.row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="时间" width="110" align="center">
+                  <template slot-scope="scope">
+                    {{ formatCaseTime(scope.row.time) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="内存" width="120" align="center">
+                  <template slot-scope="scope">
+                    {{ formatCaseMemory(scope.row.memory) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="分数" width="80" align="center">
+                  <template slot-scope="scope">
+                    {{ scope.row.score === null || scope.row.score === undefined ? '--' : scope.row.score }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="分组" width="80" align="center">
+                  <template slot-scope="scope">
+                    {{ scope.row.group_num === null || scope.row.group_num === undefined ? '--' : scope.row.group_num }}
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <el-empty
+                v-else-if="!isRunning"
+                :image-size="60"
+                description="暂无测试点详情">
+              </el-empty>
             </div>
           </el-card>
         </el-col>
@@ -258,12 +351,79 @@
           ></Highlight>
         </div>
       </el-dialog>
+
+      <!-- 历史提交测试点详情 -->
+      <el-dialog
+        title="历史提交测试点详情"
+        :visible.sync="historyCaseDialogVisible"
+        width="62%">
+        <div class="history-case-header">
+          <el-tag size="small" type="info">提交ID: {{ historyCaseSubmitId || '--' }}</el-tag>
+          <el-tag size="small">{{ historyCaseResult || '--' }}</el-tag>
+        </div>
+
+        <el-alert
+          v-if="historyCaseLoading"
+          title="正在加载测试点详情..."
+          type="info"
+          :closable="false"
+          style="margin-bottom: 12px">
+        </el-alert>
+
+        <el-table
+          v-if="historyCaseDetails.length > 0"
+          :data="historyCaseDetails"
+          size="mini"
+          stripe
+          border
+          style="width: 100%">
+          <el-table-column label="#" width="60" align="center">
+            <template slot-scope="scope">
+              {{ scope.row.seq || scope.$index + 1 }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="case_id" label="CaseID" width="90" align="center"></el-table-column>
+          <el-table-column label="结果" min-width="120" align="center">
+            <template slot-scope="scope">
+              <el-tag :type="getCaseStatusTagType(scope.row.status)" size="mini">
+                {{ getCaseStatusText(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" width="110" align="center">
+            <template slot-scope="scope">
+              {{ formatCaseTime(scope.row.time) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="内存" width="120" align="center">
+            <template slot-scope="scope">
+              {{ formatCaseMemory(scope.row.memory) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="分数" width="80" align="center">
+            <template slot-scope="scope">
+              {{ scope.row.score === null || scope.row.score === undefined ? '--' : scope.row.score }}
+            </template>
+          </el-table-column>
+          <el-table-column label="分组" width="80" align="center">
+            <template slot-scope="scope">
+              {{ scope.row.group_num === null || scope.row.group_num === undefined ? '--' : scope.row.group_num }}
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-empty
+          v-else-if="!historyCaseLoading"
+          :image-size="56"
+          description="该提交暂无测试点详情">
+        </el-empty>
+      </el-dialog>
     </el-row>
   </div>
 </template>
 
 <script>
-import { getJudgeInfo, getJudgeHistory, runCombinedJudge } from '@/common/judgeTerminal'
+import { getJudgeInfo, getJudgeHistory, getJudgeCaseDetails, runCombinedJudge } from '@/common/judgeTerminal'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 const Highlight = () => import('@/components/oj/common/Highlight')
@@ -306,10 +466,19 @@ export default {
       remoteBannerText: '等待开始...',
       remoteBannerClass: 'bg-pending',
       remoteBannerIcon: 'el-icon-loading',
+      remoteErrorMessage: '', // 新增：远程判题错误信息
+      remoteSubmitId: '',
+      remoteCaseDetails: [],
+      isCaseDetailsLoading: false,
       sampleResults: [],
       sampleSummary: '等待中',
       expandedSamples: {},
       codeDialogVisible: false,
+      historyCaseDialogVisible: false,
+      historyCaseLoading: false,
+      historyCaseDetails: [],
+      historyCaseSubmitId: '',
+      historyCaseResult: '',
       currentCode: '',
       currentLanguage: ''
     }
@@ -462,6 +631,10 @@ export default {
       this.showResult = true
       this.logs = []
       this.sampleResults = []
+      this.remoteErrorMessage = '' // 清空远程错误信息
+      this.remoteSubmitId = ''
+      this.remoteCaseDetails = []
+      this.isCaseDetailsLoading = false
       this.remoteBannerText = '本地测试中...'
       this.remoteBannerClass = 'bg-pending'
       this.remoteBannerIcon = 'el-icon-loading'
@@ -494,6 +667,13 @@ export default {
       switch (data.type) {
         case 'log':
           this.addLog(data.msg)
+          if (!this.remoteSubmitId && typeof data.msg === 'string') {
+            const matched = data.msg.match(/提交ID:\s*(\d+)/)
+            if (matched && matched[1]) {
+              this.remoteSubmitId = matched[1]
+              this.fetchCaseDetails(this.remoteSubmitId)
+            }
+          }
           break
         case 'sample_res':
           this.sampleResults.push(data.data)
@@ -506,7 +686,25 @@ export default {
           this.remoteBannerIcon = 'el-icon-close'
           break
         case 'remote_status':
-          this.updateRemoteStatus(data.data.status)
+          this.updateRemoteStatus(data.data)
+          if (data.data && data.data.submit_id) {
+            this.remoteSubmitId = data.data.submit_id
+          }
+          if (this.isFinalRemoteStatus(data.data.status) && this.remoteSubmitId) {
+            this.fetchCaseDetails(this.remoteSubmitId)
+          }
+          break
+        case 'remote_submit':
+          if (data.data && data.data.submit_id) {
+            this.remoteSubmitId = data.data.submit_id
+            this.fetchCaseDetails(this.remoteSubmitId)
+          }
+          break
+        case 'case_details':
+          if (data.data && Array.isArray(data.data.cases)) {
+            this.remoteCaseDetails = data.data.cases
+            this.isCaseDetailsLoading = false
+          }
           break
       }
     },
@@ -520,14 +718,25 @@ export default {
     // 处理 SSE 完成
     handleSSEComplete() {
       this.isRunning = false
+      if (this.remoteSubmitId && this.remoteCaseDetails.length === 0) {
+        this.fetchCaseDetails(this.remoteSubmitId)
+      }
       if (this.problemInfo.displayId) {
         this.fetchProblemInfo()
       }
     },
 
     // 更新远程状态
-    updateRemoteStatus(status) {
+    updateRemoteStatus(data) {
+      const status = data.status
       this.remoteBannerText = status
+
+      // 提取错误信息
+      if (data.errorMessage) {
+        this.remoteErrorMessage = data.errorMessage
+      } else {
+        this.remoteErrorMessage = ''
+      }
 
       if (status === '答案正确') {
         this.remoteBannerClass = 'bg-success'
@@ -541,6 +750,40 @@ export default {
       }
     },
 
+    isFinalRemoteStatus(status) {
+      return !['等待中', '判题中', '提交中'].includes(status)
+    },
+
+    async fetchCaseDetails(submitId) {
+      if (!submitId || this.isCaseDetailsLoading || this.remoteCaseDetails.length > 0) {
+        return
+      }
+
+      this.isCaseDetailsLoading = true
+      try {
+        const maxAttempts = 5
+        for (let i = 1; i <= maxAttempts; i++) {
+          const res = await getJudgeCaseDetails({
+            submit_id: submitId,
+            username: this.form.username,
+            password: this.form.password
+          })
+          if (res.code === 200 && res.data && Array.isArray(res.data.cases) && res.data.cases.length > 0) {
+            this.remoteCaseDetails = res.data.cases
+            break
+          }
+          if (i < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
+      } catch (error) {
+        console.error('获取测试点详情失败:', error)
+        this.addLog(`获取测试点详情失败: ${error.message || '未知错误'}`)
+      } finally {
+        this.isCaseDetailsLoading = false
+      }
+    },
+
     // 更新样例摘要
     updateSampleSummary() {
       const passCount = this.sampleResults.filter(s => s.is_ok).length
@@ -551,6 +794,46 @@ export default {
     // 切换样例展开状态
     toggleSample(id) {
       this.$set(this.expandedSamples, id, !this.expandedSamples[id])
+    },
+
+    getCaseStatusText(status) {
+      const statusMap = {
+        '-10': '未提交',
+        '-5': '结果未知',
+        '-4': '已取消',
+        '-3': '格式错误',
+        '-2': '编译错误',
+        '-1': '答案错误',
+        '0': '答案正确',
+        '1': '时间超限',
+        '2': '内存超限',
+        '3': '运行错误',
+        '4': '系统错误',
+        '6': '等待中',
+        '7': '判题中',
+        '8': '部分正确',
+        '9': '提交中',
+        '10': '提交失败'
+      }
+      if (status === null || status === undefined) return '--'
+      return statusMap[String(status)] || `状态${status}`
+    },
+
+    getCaseStatusTagType(status) {
+      if (status === 0) return 'success'
+      if ([6, 7, 9].includes(status)) return 'warning'
+      if (status === null || status === undefined) return 'info'
+      return 'danger'
+    },
+
+    formatCaseTime(time) {
+      if (time === null || time === undefined) return '--'
+      return `${time} ms`
+    },
+
+    formatCaseMemory(memory) {
+      if (memory === null || memory === undefined) return '--'
+      return `${memory} KB`
     },
 
     // 添加日志
@@ -655,6 +938,36 @@ export default {
       this.currentCode = row.code
       this.currentLanguage = row.language || ''
       this.codeDialogVisible = true
+    },
+
+    // 查看历史提交测试点详情
+    async showHistoryCaseDetails(row) {
+      if (!row || !row.submit_id) {
+        this.$message.warning('该记录缺少提交ID，无法查询测试点详情')
+        return
+      }
+
+      this.historyCaseDialogVisible = true
+      this.historyCaseLoading = true
+      this.historyCaseDetails = []
+      this.historyCaseSubmitId = row.submit_id
+      this.historyCaseResult = row.result || ''
+
+      try {
+        const res = await getJudgeCaseDetails({
+          submit_id: row.submit_id,
+          username: this.form.username,
+          password: this.form.password
+        })
+        if (res.code === 200 && res.data && Array.isArray(res.data.cases)) {
+          this.historyCaseDetails = res.data.cases
+        }
+      } catch (error) {
+        this.$message.error('获取历史测试点详情失败')
+        console.error('获取历史测试点详情失败:', error)
+      } finally {
+        this.historyCaseLoading = false
+      }
     },
 
     // 获取判题模式文本
@@ -823,6 +1136,17 @@ export default {
   margin-right: 5px;
 }
 
+.clickable-result-tag {
+  cursor: pointer;
+}
+
+.history-case-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 /* 题目内容 */
 .problem-content {
   font-size: 14px;
@@ -933,6 +1257,10 @@ export default {
   margin-top: 20px;
 }
 
+.case-section {
+  margin-top: 20px;
+}
+
 .sample-header {
   display: flex;
   justify-content: space-between;
@@ -1001,6 +1329,60 @@ export default {
   margin-top: 5px;
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* 错误信息块样式 */
+.error-section {
+  margin-top: 10px;
+  padding: 10px;
+  background: #FEF0F0;
+  border-left: 4px solid #F56C6C;
+  border-radius: 4px;
+}
+
+.error-block {
+  background: #FFF;
+  color: #F56C6C;
+  padding: 8px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 5px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* 远程判题错误信息样式 */
+.remote-error-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #FEF0F0;
+  border-left: 4px solid #F56C6C;
+  border-radius: 4px;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #303133;
+}
+
+.remote-error-block {
+  background: #FFF;
+  color: #F56C6C;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* 代码显示容器 - 与学生端一致 */

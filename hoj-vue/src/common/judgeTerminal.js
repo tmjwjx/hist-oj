@@ -47,6 +47,23 @@ export function getJudgeHistory(data) {
 }
 
 /**
+ * 获取远程判题测试点详情
+ * @param {Object} data - 请求参数
+ * @param {string} data.submit_id - 提交ID
+ */
+export function getJudgeCaseDetails(data) {
+  const token = localStorage.getItem('token')
+
+  if (token && !data.password) {
+    const { password, ...dataWithoutPassword } = data
+    data = dataWithoutPassword
+    data.token = token
+  }
+
+  return axios.post('/judge-api/get-case-details', data).then(res => res.data)
+}
+
+/**
  * 本地测试并提交代码（SSE 流式接口）
  * @param {Object} data - 请求参数
  * @param {string} data.pid - 题目ID
@@ -84,28 +101,42 @@ export function runCombinedJudge(data, onMessage, onError, onComplete) {
   }).then(response => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    let buffer = ''
+
+    function handleEvent(rawEvent) {
+      if (!rawEvent) return
+      const lines = rawEvent.split('\n')
+      const dataLines = lines
+        .filter(line => line.startsWith('data:'))
+        .map(line => line.replace(/^data:\s?/, ''))
+
+      if (dataLines.length === 0) return
+
+      const payload = dataLines.join('\n')
+      try {
+        const parsed = JSON.parse(payload)
+        if (onMessage) onMessage(parsed)
+      } catch (e) {
+        console.error('解析 SSE 消息失败:', e, payload)
+      }
+    }
 
     function read() {
       reader.read().then(({ done, value }) => {
         if (done) {
+          // 处理最后一段未以 \n\n 结尾的数据
+          if (buffer.trim()) {
+            handleEvent(buffer)
+          }
           if (onComplete) onComplete()
           return
         }
 
-        // 解析 SSE 数据
-        const text = decoder.decode(value)
-        const lines = text.split('\n\n')
-
-        lines.forEach(line => {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.substring(6))
-              if (onMessage) onMessage(data)
-            } catch (e) {
-              console.error('解析 SSE 消息失败:', e)
-            }
-          }
-        })
+        // 带缓冲的 SSE 解析，避免 JSON 被分片截断
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
+        events.forEach(handleEvent)
 
         // 继续读取
         read()

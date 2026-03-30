@@ -136,7 +136,21 @@ type GetHistoryRequest struct {
 // GetHistoryResponse 获取历史记录响应
 type GetHistoryResponse struct {
 	List  []*model.SubmissionHistory `json:"list"`
-	Total int64                       `json:"total"`
+	Total int64                      `json:"total"`
+}
+
+// GetCaseDetailsRequest 获取测试点详情请求
+type GetCaseDetailsRequest struct {
+	SubmitID string `json:"submit_id" binding:"required"`
+	Username string `json:"username"`
+	Password string `json:"password"` // 密码（可选，与 Token 二选一）
+	Token    string `json:"token"`    // Token（可选，与 Password 二选一）
+}
+
+// GetCaseDetailsResponse 获取测试点详情响应
+type GetCaseDetailsResponse struct {
+	SubmitID string                     `json:"submit_id"`
+	Cases    []*service.JudgeCaseDetail `json:"cases"`
 }
 
 // GetHistory 获取提交历史（分页）
@@ -175,6 +189,47 @@ func (h *JudgeHandler) GetHistory(c *gin.Context) {
 	result := &GetHistoryResponse{
 		List:  list,
 		Total: total,
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// GetCaseDetails 获取提交测试点详情
+func (h *JudgeHandler) GetCaseDetails(c *gin.Context) {
+	var req GetCaseDetailsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	h.logger.Info("获取测试点详情", zap.String("submit_id", req.SubmitID))
+
+	// 认证：优先使用 Token，其次使用用户名+密码
+	bingoJClient := h.judgeService.GetBingoJClient()
+	if req.Token != "" {
+		bingoJClient.SetToken(req.Token)
+	} else if req.Password != "" {
+		if err := bingoJClient.Login(req.Username, req.Password); err != nil {
+			h.logger.Error("获取测试点详情登录失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(401, "用户认证失败"))
+			return
+		}
+	} else {
+		c.JSON(http.StatusOK, errorResponse(400, "未提供认证信息（Token 或密码）"))
+		return
+	}
+
+	cases, err := h.judgeService.GetJudgeCaseDetails(req.SubmitID)
+	if err != nil {
+		h.logger.Error("获取测试点详情失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, err.Error()))
+		return
+	}
+
+	result := &GetCaseDetailsResponse{
+		SubmitID: req.SubmitID,
+		Cases:    cases,
 	}
 
 	c.JSON(http.StatusOK, successResponse(result))
@@ -383,12 +438,14 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 
 	h.logger.Info("远程提交成功", zap.String("submit_id", submitID))
 	sendSSE(c, "log", fmt.Sprintf("提交ID: %s，等待 2 秒后查询结果...", submitID))
+	sendSSE(c, "remote_submit", map[string]string{"submit_id": submitID})
+	sendSSE(c, "remote_status", map[string]string{"status": "提交中", "submit_id": submitID})
 
 	// 等待 2 秒后再查询结果，避免提交过快导致查询失败
 	time.Sleep(2 * time.Second)
 
-	// 轮询判题结果
-	for i := 0; i < 20; i++ {
+	// 轮询判题结果（最多等待 120 秒）
+	for i := 0; i < 120; i++ {
 		h.logger.Debug("查询判题结果", zap.Int("次数", i+1), zap.String("submit_id", submitID))
 		result, err := bingoJClient.GetSubmissionResult(submitID)
 		if err != nil {
@@ -398,18 +455,53 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		}
 
 		statusText := client.GetStatusText(result.Status)
-		h.logger.Info("判题结果", zap.Int("status", result.Status), zap.String("status_text", statusText))
+		h.logger.Info("判题结果", zap.Int("status", result.Status), zap.String("status_text", statusText), zap.String("error_message", result.ErrorMessage))
 
 		// 判题中
 		if result.Status == 6 || result.Status == 7 || result.Status == 9 {
-			sendSSE(c, "remote_status", map[string]string{"status": statusText})
+			sendSSE(c, "remote_status", map[string]string{
+				"status":    statusText,
+				"submit_id": submitID,
+			})
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		// 判题完成
-		sendSSE(c, "remote_status", map[string]string{"status": statusText})
+		sendSSE(c, "remote_status", map[string]string{
+			"status":       statusText,
+			"submit_id":    submitID,
+			"errorMessage": result.ErrorMessage, // 新增：传递错误信息
+		})
 		sendSSE(c, "log", fmt.Sprintf("最终结果: %s", statusText))
+
+		// 发送测试点详情（可能存在短暂写库延迟，最多重试 5 次）
+		var (
+			cases   []*service.JudgeCaseDetail
+			caseErr error
+		)
+		for attempt := 1; attempt <= 5; attempt++ {
+			cases, caseErr = h.judgeService.GetJudgeCaseDetails(submitID)
+			if caseErr == nil && len(cases) > 0 {
+				break
+			}
+			if attempt < 5 {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+
+		if caseErr != nil {
+			h.logger.Warn("获取测试点详情失败", zap.String("submit_id", submitID), zap.Error(caseErr))
+			sendSSE(c, "log", fmt.Sprintf("警告: 获取测试点详情失败: %s", caseErr.Error()))
+		} else if len(cases) > 0 {
+			sendSSE(c, "case_details", map[string]interface{}{
+				"submit_id": submitID,
+				"cases":     cases,
+			})
+			sendSSE(c, "log", fmt.Sprintf("测试点详情已返回，共 %d 个测试点", len(cases)))
+		} else {
+			sendSSE(c, "log", "未查询到测试点详情")
+		}
 
 		// 保存到数据库
 		if err := h.judgeService.SaveSubmissionHistory(

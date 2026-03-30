@@ -4,7 +4,14 @@ import { CONTEST_STATUS,CONTEST_STATUS_REVERSE,CONTEST_TYPE_REVERSE,RULE_TYPE, b
 import { mapState, mapGetters, mapActions } from 'vuex';
 import moment from 'moment';
 import storage from '@/common/storage';
+import ratingApi from '@/common/rating-api';
 export default {
+  data() {
+    return {
+      userRatings: new Map(), // 存储用户当前 Rating
+      ratingCache: {}, // 缓存用户颜色
+    }
+  },
   methods: {
     init(){
     this.contestID = this.$route.params.contestID;
@@ -53,6 +60,12 @@ export default {
         this.applyToTable(res.data.data.records);
         this.total = res.data.data.total
         this.loading.rank = false;
+
+        // 异步获取用户 Rating 数据（用于用户名着色）
+        const records = res.data.data.records || [];
+        this.fetchUserRatings(records).catch(error => {
+          console.error('获取用户 Rating 数据失败:', error);
+        });
       },(err)=>{
         this.loading.rank = false;
         if(this.refreshFunc){
@@ -108,6 +121,63 @@ export default {
         finalShowName = username;
       }
       return finalShowName;
+    },
+    // 批量获取用户当前 Rating（用于用户名着色）
+    async fetchUserRatings(records) {
+      if (!records || records.length === 0) return;
+
+      try {
+        const uids = records.map(r => r.uid).filter(uid => uid);
+        if (uids.length > 0) {
+          const batchRatingsData = await ratingApi.getBatchUserRating(uids);
+
+          // 清空旧数据
+          this.userRatings.clear();
+          this.ratingCache = {};
+
+          // 存储用户当前 Rating
+          Object.entries(batchRatingsData).forEach(([uid, data]) => {
+            if (data) {
+              const username = records.find(r => r.uid === uid)?.username;
+              const ratingInfo = {
+                rating: data.rating,
+                color: data.color,
+              };
+              // 同时用 uid 和 username 作为 key 存储
+              this.userRatings.set(uid, ratingInfo);
+              if (username) {
+                this.userRatings.set(username, ratingInfo);
+              }
+
+              // 缓存用户颜色
+              this.ratingCache[`usercolor_${username}`] = data.color;
+            }
+          });
+
+          // 强制更新视图
+          this.$forceUpdate();
+        }
+      } catch (error) {
+        console.warn('获取用户 Rating 数据失败:', error);
+      }
+    },
+    // 获取用户 Rating 颜色
+    getUserRatingColor(username) {
+      // 优先使用缓存
+      const cacheKey = `usercolor_${username}`;
+      if (this.ratingCache[cacheKey]) {
+        return this.ratingCache[cacheKey];
+      }
+
+      // 缓存未命中，查询 Map
+      const ratingInfo = this.userRatings.get(username);
+      if (ratingInfo) {
+        this.ratingCache[cacheKey] = ratingInfo.color;
+        return ratingInfo.color;
+      }
+
+      // 默认颜色（灰色，表示未定级）
+      return '#808080';
     }
   },
   computed: {

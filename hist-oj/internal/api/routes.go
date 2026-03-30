@@ -68,6 +68,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		{
 			judge.POST("/get-info", judgeHandler.GetInfo)
 			judge.POST("/get-history", judgeHandler.GetHistory)
+			judge.POST("/get-case-details", judgeHandler.GetCaseDetails)
 			judge.POST("/run-combined", judgeHandler.RunCombined)
 			judge.POST("/submit", judgeHandler.Submit)
 		}
@@ -94,23 +95,23 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 				admin.POST("/role/grant", handler.GrantUserRole)
 				admin.DELETE("/role/revoke", handler.RevokeUserRole)
 				admin.GET("/roles/:userId", handler.GetUserRoles)
-				admin.PUT("/user/:uid/roles", handler.UpdateUserRoles) // 更新 HOJ 用户角色
-				admin.GET("/classrooms", handler.GetAllClassrooms) // 获取所有班级（管理员）
-				admin.POST("/teacher/add", handler.AddClassroomTeacher) // 添加班级教师
-				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher) // 移除班级教师
-				admin.GET("/teachers/search", handler.SearchTeachers) // 搜索教师
+				admin.PUT("/user/:uid/roles", handler.UpdateUserRoles)                             // 更新 HOJ 用户角色
+				admin.GET("/classrooms", handler.GetAllClassrooms)                                 // 获取所有班级（管理员）
+				admin.POST("/teacher/add", handler.AddClassroomTeacher)                            // 添加班级教师
+				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher)                    // 移除班级教师
+				admin.GET("/teachers/search", handler.SearchTeachers)                              // 搜索教师
 				admin.GET("/users/search", AuthMiddleware(), handler.SearchUsersForRoleManagement) // 搜索用户（用于角色管理）
 
 				// 权限申请管理（管理员）
 				admin.GET("/role/applications", AuthMiddleware(), handler.GetRoleApplications) // 获取申请列表
-				admin.POST("/role/review", AuthMiddleware(), handler.ReviewRoleApplication) // 审批申请
+				admin.POST("/role/review", AuthMiddleware(), handler.ReviewRoleApplication)    // 审批申请
 
 				// 管理员题库管理
 				admin.GET("/question-bank", handler.AdminGetQuestionBank) // 获取所有题目
 
 				// 管理员试卷库管理
-				admin.GET("/exam-papers", handler.AdminGetExamPaperList) // 获取所有试卷
-				admin.PUT("/exam-paper/:paperId", handler.AdminUpdateExamPaper) // 更新试卷
+				admin.GET("/exam-papers", handler.AdminGetExamPaperList)           // 获取所有试卷
+				admin.PUT("/exam-paper/:paperId", handler.AdminUpdateExamPaper)    // 更新试卷
 				admin.DELETE("/exam-paper/:paperId", handler.AdminDeleteExamPaper) // 删除试卷
 			}
 
@@ -180,8 +181,8 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/:classroomId/homeworks", AuthMiddleware(), handler.GetHomeworkList)
 			// 具体路径要放在参数化路径之前
 			classroom.POST("/homework/upload-attachment", AuthMiddleware(), handler.UploadHomeworkAttachment) // 上传作业附件
-			classroom.POST("/homework/draft", AuthMiddleware(), handler.SaveHomeworkDraft) // 保存草稿
-			classroom.POST("/homework/submit", AuthMiddleware(), handler.SubmitHomework)    // 正式提交
+			classroom.POST("/homework/draft", AuthMiddleware(), handler.SaveHomeworkDraft)                    // 保存草稿
+			classroom.POST("/homework/submit", AuthMiddleware(), handler.SubmitHomework)                      // 正式提交
 			classroom.POST("/homework/grade", AuthMiddleware(), handler.GradeHomework)
 			classroom.POST("/homework/programming/grade", AuthMiddleware(), handler.GradeProgrammingHomework)
 			classroom.POST("/homework/recalculate", AuthMiddleware(), handler.RecalculateScore)
@@ -216,17 +217,17 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/material/copy", AuthMiddleware(), handler.CopyMaterialToClassroom)
 
 			// 资料库权限管理 - 需要认证
-			classroom.GET("/material/:materialId/permissions", AuthMiddleware(), handler.GetMaterialPermissions)      // 获取权限设置
-			classroom.POST("/material/permissions", AuthMiddleware(), handler.SetMaterialPermissions)              // 批量设置权限
+			classroom.GET("/material/:materialId/permissions", AuthMiddleware(), handler.GetMaterialPermissions)                // 获取权限设置
+			classroom.POST("/material/permissions", AuthMiddleware(), handler.SetMaterialPermissions)                           // 批量设置权限
 			classroom.POST("/material/:materialId/permissions/batch", AuthMiddleware(), handler.BatchSetAllMaterialPermissions) // 全部开启/关闭权限
-			classroom.GET("/material/:materialId/download", AuthMiddleware(), handler.DownloadMaterial)            // 下载资料（带权限验证）
-			classroom.GET("/material/:materialId/pdf", AuthMiddleware(), handler.GetMaterialPDFBase64)             // 获取PDF base64（旧版，兼容）
-			classroom.GET("/material/:materialId/pdf/binary", AuthMiddleware(), handler.GetMaterialPDFBinary)       // 获取PDF二进制（新版，性能更好）
+			classroom.GET("/material/:materialId/download", AuthMiddleware(), handler.DownloadMaterial)                         // 下载资料（带权限验证）
+			classroom.GET("/material/:materialId/pdf", AuthMiddleware(), handler.GetMaterialPDFBase64)                          // 获取PDF base64（旧版，兼容）
+			classroom.GET("/material/:materialId/pdf/binary", AuthMiddleware(), handler.GetMaterialPDFBinary)                   // 获取PDF二进制（新版，性能更好）
 
 			// Office文件预览（PPT/Word/Excel）- 需要认证
 			classroom.GET("/material/:materialId/preview-token", AuthMiddleware(), handler.GenerateMaterialPreviewToken) // 生成预览令牌
-			classroom.GET("/material/preview/:token", handler.PreviewMaterialWithToken) // 使用令牌预览文件（无需认证，令牌自带验证）
-			classroom.GET("/material/:materialId/cos-preview-url", AuthMiddleware(), handler.GetCOSPreviewUrl) // 腾讯云COS预览URL
+			classroom.GET("/material/preview/:token", handler.PreviewMaterialWithToken)                                  // 使用令牌预览文件（无需认证，令牌自带验证）
+			classroom.GET("/material/:materialId/cos-preview-url", AuthMiddleware(), handler.GetCOSPreviewUrl)           // 腾讯云COS预览URL
 
 			// 随机选人（教师）- 需要认证
 			classroom.POST("/:classroomId/random-pick", AuthMiddleware(), handler.RandomPick)
@@ -291,5 +292,3 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 	router.GET("/health", handler.HealthCheck)
 	router.HEAD("/health", handler.HealthCheck)
 }
-
-

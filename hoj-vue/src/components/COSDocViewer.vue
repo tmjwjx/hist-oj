@@ -153,13 +153,20 @@ export default {
       link.href = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.2.1/tcplayer.min.css'
       document.head.appendChild(link)
 
-      // 加载JS
-      const script = document.createElement('script')
-      script.src = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.5.0/tcplayer.v4.5.0.min.js'
-      script.onload = () => {
-        console.log('[COS Viewer] TCPlayer加载完成')
+      // 先加载 hls.js（TCPlayer 依赖）
+      const hlsScript = document.createElement('script')
+      hlsScript.src = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.5.0/hls.min.js'
+      hlsScript.onload = () => {
+        console.log('[COS Viewer] hls.js加载完成')
+        // hls.js 加载完成后，再加载 TCPlayer
+        const tcplayerScript = document.createElement('script')
+        tcplayerScript.src = 'https://web.sdk.qcloud.com/player/tcplayer/release/v4.5.0/tcplayer.v4.5.0.min.js'
+        tcplayerScript.onload = () => {
+          console.log('[COS Viewer] TCPlayer加载完成')
+        }
+        document.head.appendChild(tcplayerScript)
       }
-      document.head.appendChild(script)
+      document.head.appendChild(hlsScript)
     },
 
     async init() {
@@ -229,8 +236,9 @@ export default {
           this.$message.success('文件已上传到云端，预览准备完成')
         }
       } catch (err) {
-        console.error('[COS Viewer] 加载失败:', err.message)
-        this.error = '加载失败：' + (err.response?.data?.message || err.message)
+        console.error('[COS Viewer] 加载失败:', err)
+        const errorMsg = err.response?.data?.message || err.message || err.toString() || '未知错误'
+        this.error = '加载失败：' + errorMsg
         this.loading = false
       }
     },

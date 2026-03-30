@@ -16,11 +16,11 @@ import (
 
 // JudgeService 判题服务
 type JudgeService struct {
-	db                *gorm.DB
-	bingoJClient      *client.BingoJClient
-	hojClient         *client.HOJClient
-	historyService    *SubmissionHistoryService
-	logger            *zap.Logger
+	db             *gorm.DB
+	bingoJClient   *client.BingoJClient
+	hojClient      *client.HOJClient
+	historyService *SubmissionHistoryService
+	logger         *zap.Logger
 }
 
 // NewJudgeService 创建判题服务
@@ -44,16 +44,16 @@ type GetInfoRequest struct {
 	PID      string `json:"pid" binding:"required"`
 	CID      string `json:"cid"`
 	Mode     string `json:"mode" binding:"required"`
-	Username string `json:"username"`    // 用户名（可选，用于日志）
-	Password string `json:"password"`    // 密码（可选，用于手动登录）
-	Token    string `json:"token"`       // 已登录用户的token（优先使用）
+	Username string `json:"username"` // 用户名（可选，用于日志）
+	Password string `json:"password"` // 密码（可选，用于手动登录）
+	Token    string `json:"token"`    // 已登录用户的token（优先使用）
 }
 
 // GetInfoResponse 获取题目信息响应
 type GetInfoResponse struct {
-	DisplayID string                      `json:"displayId"`
-	Problem   *client.ProblemDetail       `json:"problem"`
-	History   []*model.SubmissionHistory  `json:"history"`
+	DisplayID string                     `json:"displayId"`
+	Problem   *client.ProblemDetail      `json:"problem"`
+	History   []*model.SubmissionHistory `json:"history"`
 }
 
 // GetInfo 获取题目信息
@@ -144,6 +144,8 @@ type SampleResult struct {
 	Input    string `json:"input"`
 	Expected string `json:"expected"`
 	Output   string `json:"output"`
+	Stderr   string `json:"stderr"` // HOJ 返回的错误信息
+	Status   int    `json:"status"` // 判题状态码
 }
 
 // ExtractSamples 从题目样例中提取输入输出
@@ -258,8 +260,10 @@ func (s *JudgeService) TestLocalSamples(pid int64, language, code, username, pas
 		}
 
 		// 处理测试结果
-		result.Output = testResult.Output // HOJ 已经提供了清理后的 userOutput
+		result.Output = testResult.Output      // HOJ 已经提供了清理后的 userOutput
 		result.IsOK = (testResult.Status == 0) // 0 表示 Accepted
+		result.Stderr = testResult.Stderr      // 保存错误信息
+		result.Status = testResult.Status      // 保存判题状态码
 
 		// 调试：打印完整结果
 		s.logger.Info("收到测试结果",
@@ -360,6 +364,39 @@ func (s *JudgeService) SaveSubmissionHistory(
 // GetHistory 获取提交历史（分页）
 func (s *JudgeService) GetHistory(pid, cid string, page, pageSize int) ([]*model.SubmissionHistory, int64, error) {
 	return s.historyService.GetByPIDAndCIDWithPage(pid, cid, page, pageSize)
+}
+
+// JudgeCaseDetail 判题测试点详情
+type JudgeCaseDetail struct {
+	CaseID   int64  `json:"case_id" gorm:"column:case_id"`
+	Status   *int   `json:"status" gorm:"column:status"`
+	Time     *int   `json:"time" gorm:"column:time"`
+	Memory   *int   `json:"memory" gorm:"column:memory"`
+	Score    *int   `json:"score" gorm:"column:score"`
+	GroupNum *int   `json:"group_num" gorm:"column:group_num"`
+	Seq      *int   `json:"seq" gorm:"column:seq"`
+	Mode     string `json:"mode" gorm:"column:mode"`
+}
+
+// GetJudgeCaseDetails 获取判题测试点详情
+func (s *JudgeService) GetJudgeCaseDetails(submitID string) ([]*JudgeCaseDetail, error) {
+	var details []*JudgeCaseDetail
+
+	err := s.db.Table("judge_case").
+		Select("case_id, status, time, memory, score, group_num, seq, mode").
+		Where("submit_id = ?", submitID).
+		Order("CASE WHEN seq IS NULL THEN 1 ELSE 0 END").
+		Order("seq ASC").
+		Order("case_id ASC").
+		Scan(&details).Error
+	if err != nil {
+		s.logger.Error("查询判题测试点详情失败",
+			zap.String("submit_id", submitID),
+			zap.Error(err))
+		return nil, fmt.Errorf("查询判题测试点详情失败: %w", err)
+	}
+
+	return details, nil
 }
 
 // GetBingoJClient 获取 BingoJ 客户端实例

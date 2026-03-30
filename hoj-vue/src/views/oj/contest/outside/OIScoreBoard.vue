@@ -296,6 +296,7 @@
                   <span
                     class="contest-username"
                     :title="row.rankShowName"
+                    :style="{ color: getUserRatingColor(row.username) }"
                   ><span
                       class="contest-rank-flag"
                       v-if="row.rank == -1"
@@ -363,6 +364,7 @@
                   <span
                     class="contest-username"
                     :title="row.rankShowName"
+                    :style="{ color: getUserRatingColor(row.username) }"
                   ><span
                       class="contest-rank-flag"
                       v-if="row.rank == -1"
