@@ -665,14 +665,14 @@ export default {
     parseJudgeAnswer(answer) {
       // 处理判断题答案，返回布尔值或null
       // null 表示未作答，true/false 表示已作答
-      // 支持多种格式：true/false, 1/0, 对/错, 正确/错误, True/False
       if (answer === '' || answer === null || answer === undefined) {
         return null // 未作答
       }
-      if (answer === true || answer === 'true' || answer === 1 || answer === '1' || answer === '对' || answer === '正确' || answer === 'True' || answer === 'TRUE') {
+      const normalized = String(answer).toLowerCase().trim()
+      if (normalized === 'true') {
         return true
       }
-      if (answer === false || answer === 'false' || answer === 0 || answer === '0' || answer === '错' || answer === '错误' || answer === 'False' || answer === 'FALSE') {
+      if (normalized === 'false') {
         return false
       }
       // 未知格式，返回null表示未作答

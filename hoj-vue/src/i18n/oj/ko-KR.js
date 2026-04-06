@@ -15,6 +15,7 @@ export const m = {
   NavBar_Home: '홈',
   NavBar_Problem: '문제',
   NavBar_Training: '훈련',
+  NavBar_Practice: '연습',
   NavBar_Contest: '대회',
   NavBar_Status: '제출 현황',
   NavBar_Rank: '랭킹',

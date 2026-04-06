@@ -19,6 +19,11 @@ SERVER_USER="root"
 SERVER_PASS="n208966737"
 PROJECT_DIR="/Users/zhuangqingjia/vscode/histoj/hist-oj"
 REMOTE_DIR="/opt"
+TARGET_PLATFORM="${TARGET_PLATFORM:-linux/amd64}"
+HIST_OJ_NO_CACHE="${HIST_OJ_NO_CACHE:-0}"
+FRONTEND_NO_CACHE="${FRONTEND_NO_CACHE:-1}"
+PRUNE_BEFORE_BUILD="${PRUNE_BEFORE_BUILD:-0}"
+GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD:-0}"
 
 # 日志函数
 log_info() {
@@ -31,6 +36,86 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 重试执行命令
+retry_cmd() {
+    local retries=$1
+    local sleep_seconds=$2
+    shift 2
+    local n=1
+
+    while [ $n -le "$retries" ]; do
+        if "$@"; then
+            return 0
+        fi
+        if [ $n -lt "$retries" ]; then
+            log_warn "命令失败，${sleep_seconds}s 后重试 (${n}/${retries})"
+            sleep "$sleep_seconds"
+        fi
+        n=$((n + 1))
+    done
+    return 1
+}
+
+# 预拉取基础镜像（规避网络波动导致的构建失败）
+pull_base_images() {
+    log_info "预拉取基础镜像..."
+    retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" node:16-alpine || {
+        log_error "node:16-alpine 拉取失败"
+        return 1
+    }
+    retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" nginx:alpine || {
+        log_error "nginx:alpine 拉取失败"
+        return 1
+    }
+    retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" golang:1.24-alpine || {
+        log_error "golang:1.24-alpine 拉取失败"
+        return 1
+    }
+    retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" alpine:3.18 || {
+        log_error "alpine:3.18 拉取失败"
+        return 1
+    }
+    log_info "✓ 基础镜像拉取完成"
+}
+
+# 构建前端镜像（BuildKit 失败时自动降级 legacy builder）
+build_frontend_image() {
+    local i=1
+    local max_try=3
+    local npm_registries="${NPM_REGISTRIES:-https://registry.npmmirror.com https://registry.npmjs.org}"
+    local npm_install_retries="${NPM_INSTALL_RETRIES:-3}"
+    local frontend_no_cache_args=()
+    if [ "${FRONTEND_NO_CACHE}" = "1" ]; then
+        frontend_no_cache_args+=(--no-cache)
+    fi
+
+    while [ $i -le $max_try ]; do
+        if [ $i -eq 1 ]; then
+            log_info "前端构建尝试 ${i}/${max_try}（BuildKit）..."
+            if DOCKER_BUILDKIT=1 docker build "${frontend_no_cache_args[@]}" --progress=plain --platform "${TARGET_PLATFORM}" \
+                --build-arg NPM_REGISTRIES="$npm_registries" \
+                --build-arg NPM_INSTALL_RETRIES="$npm_install_retries" \
+                -t hoj-frontend:latest .; then
+                return 0
+            fi
+        else
+            log_warn "前端构建尝试 ${i}/${max_try}（legacy builder，规避 short read/EOF）..."
+            if DOCKER_BUILDKIT=0 docker build "${frontend_no_cache_args[@]}" --platform "${TARGET_PLATFORM}" \
+                --build-arg NPM_REGISTRIES="$npm_registries" \
+                --build-arg NPM_INSTALL_RETRIES="$npm_install_retries" \
+                -t hoj-frontend:latest .; then
+                return 0
+            fi
+        fi
+
+        docker builder prune -af >/dev/null 2>&1 || true
+        sleep 5
+        i=$((i + 1))
+    done
+
+    return 1
 }
 
 # 检查必要的命令
@@ -61,18 +146,46 @@ build_images() {
     cd hoj-vue
     rm -rf dist node_modules/.cache
     cd "$PROJECT_DIR"
-    docker builder prune -af
-    docker system prune -af --volumes 2>/dev/null || true
+    if [ "${PRUNE_BEFORE_BUILD}" = "1" ]; then
+        docker builder prune -af 2>/dev/null || true
+    else
+        log_info "跳过 Docker builder prune（保留缓存以加速构建）"
+    fi
+
+    # 预拉取基础镜像，减少构建时网络抖动影响
+    pull_base_images || exit 1
 
     # 构建 hist-oj（包含报名系统、sim 代码查重工具）
-    log_info "构建 hist-oj 镜像（不使用缓存，包含 sim 查重工具和报名系统）..."
+    log_info "构建 hist-oj 镜像（默认使用缓存，包含 sim 查重工具和报名系统）..."
     cd hist-oj
     # 删除旧镜像以避免冲突
     docker rmi hist-oj:latest 2>/dev/null || true
-    docker build --no-cache --platform linux/amd64 -t hist-oj:latest . || {
-        log_error "hist-oj 镜像构建失败"
-        exit 1
-    }
+    local hist_no_cache_args=()
+    if [ "${HIST_OJ_NO_CACHE}" = "1" ]; then
+        hist_no_cache_args+=(--no-cache)
+    fi
+    # BuildKit 失败时自动降级 legacy builder（规避交叉编译 EOF 问题）
+    log_info "hist-oj 构建尝试 1/3（BuildKit）..."
+    if ! DOCKER_BUILDKIT=1 docker build "${hist_no_cache_args[@]}" --progress=plain --platform "${TARGET_PLATFORM}" \
+        --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
+        -t hist-oj:latest .; then
+        docker builder prune -af >/dev/null 2>&1 || true
+        sleep 5
+        log_warn "hist-oj 构建尝试 2/3（legacy builder）..."
+        if ! DOCKER_BUILDKIT=0 docker build "${hist_no_cache_args[@]}" --platform "${TARGET_PLATFORM}" \
+            --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
+            -t hist-oj:latest .; then
+            docker builder prune -af >/dev/null 2>&1 || true
+            sleep 5
+            log_warn "hist-oj 构建尝试 3/3（legacy builder）..."
+            if ! DOCKER_BUILDKIT=0 docker build "${hist_no_cache_args[@]}" --platform "${TARGET_PLATFORM}" \
+                --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
+                -t hist-oj:latest .; then
+                log_error "hist-oj 镜像构建失败"
+                exit 1
+            fi
+        fi
+    fi
     log_info "✓ hist-oj 镜像构建成功（包含报名系统、sim_c, sim_java 查重工具）"
 
     # 构建前端（Docker 构建时会自动安装 package.json 中的所有依赖，包括 jsQR）
@@ -89,7 +202,7 @@ build_images() {
 
     # 强制重新构建（不使用任何缓存）
     log_info "开始重新构建前端镜像（不使用缓存）..."
-    docker build --no-cache --platform linux/amd64 -t hoj-frontend:latest . || {
+    build_frontend_image || {
         log_error "hoj-frontend 镜像构建失败"
         exit 1
     }

@@ -234,7 +234,7 @@ func (h *Handler) UpdateUserRoles(c *gin.Context) {
 				"review_time":  now,
 				"review_note":  "管理员手动添加角色",
 			})
-		
+
 		if result.Error != nil {
 			logger.Warn("更新申请状态失败", zap.Error(result.Error))
 		} else if result.RowsAffected > 0 {
@@ -631,11 +631,11 @@ func (h *Handler) JoinClassroom(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		ClassCode   string `json:"classCode" binding:"required"`
-		RealName    string `json:"realName" binding:"required"`
-		Gender      string `json:"gender"`
+		ClassCode    string `json:"classCode" binding:"required"`
+		RealName     string `json:"realName" binding:"required"`
+		Gender       string `json:"gender"`
 		StudentClass string `json:"studentClass"`
-		StudentNo   string `json:"studentNo"`
+		StudentNo    string `json:"studentNo"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -732,8 +732,8 @@ func (h *Handler) RemoveStudent(c *gin.Context) {
 
 	// 尝试多种方式获取参数
 	var req struct {
-		ClassroomID uint64 `json:"classroomId"`
-		UID         string `json:"uid"`
+		ClassroomID    uint64 `json:"classroomId"`
+		UID            string `json:"uid"`
 		ClassroomIDStr string `form:"classroomId"`
 		UIDStr         string `form:"uid"`
 	}
@@ -1056,7 +1056,7 @@ func (h *Handler) SearchStudentsToAdd(c *gin.Context) {
 	}
 
 	var usersDB []UserInfoDB
-	
+
 	// 构建搜索条件：优先精确匹配，然后模糊匹配
 	// 使用原生 SQL 实现相关性排序
 	searchOrder := fmt.Sprintf(
@@ -1068,7 +1068,7 @@ func (h *Handler) SearchStudentsToAdd(c *gin.Context) {
 			"ELSE 5 END, username ASC",
 		keyword, keyword, keyword, keyword,
 	)
-	
+
 	query := db.Table("user_info").
 		Select("uuid, username, nickname, realname, email, status").
 		Where("(username LIKE ? OR realname LIKE ? OR nickname LIKE ?) AND status = 0",
@@ -1232,12 +1232,12 @@ func (h *Handler) CreateCheckin(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		ClassroomID            uint64  `json:"classroomId" binding:"required"`
-		CheckinName            string  `json:"checkinName"`
-		CheckinType            string  `json:"checkinType"`             // code 或 qrcode
-		QrcodeRefreshInterval   *int    `json:"qrcodeRefreshInterval"`   // 二维码刷新间隔(秒)
-		StartTime              string  `json:"startTime" binding:"required"` // RFC3339 format
-		EndTime                *string `json:"endTime"`                       // RFC3339 format (指针类型以支持null)
+		ClassroomID           uint64  `json:"classroomId" binding:"required"`
+		CheckinName           string  `json:"checkinName"`
+		CheckinType           string  `json:"checkinType"`                  // code 或 qrcode
+		QrcodeRefreshInterval *int    `json:"qrcodeRefreshInterval"`        // 二维码刷新间隔(秒)
+		StartTime             string  `json:"startTime" binding:"required"` // RFC3339 format
+		EndTime               *string `json:"endTime"`                      // RFC3339 format (指针类型以支持null)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1279,14 +1279,14 @@ func (h *Handler) CreateCheckin(c *gin.Context) {
 	}
 
 	checkin := &model.ClassroomCheckin{
-		ClassroomID:            req.ClassroomID,
-		CheckinCode:            checkinCode,
-		CheckinName:            req.CheckinName,
-		CheckinType:            checkinType,
-		QrcodeRefreshInterval:   qrcodeRefreshInterval,
-		StartTime:              startTime,
-		EndTime:                endTime,
-		Status:                 1,
+		ClassroomID:           req.ClassroomID,
+		CheckinCode:           checkinCode,
+		CheckinName:           req.CheckinName,
+		CheckinType:           checkinType,
+		QrcodeRefreshInterval: qrcodeRefreshInterval,
+		StartTime:             startTime,
+		EndTime:               endTime,
+		Status:                1,
 	}
 
 	if err := db.Create(checkin).Error; err != nil {
@@ -1304,8 +1304,8 @@ func (h *Handler) StudentCheckin(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		CheckinID  *uint64 `json:"checkinId"`  // 可选：验证签到码是否属于指定的签到表
-		CheckinCode string `json:"checkinCode" binding:"required"`
+		CheckinID   *uint64 `json:"checkinId"` // 可选：验证签到码是否属于指定的签到表
+		CheckinCode string  `json:"checkinCode" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1438,16 +1438,16 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 
 	// 创建学生视图的签到列表（移除敏感信息）+ 包含当前用户的签到状态
 	type StudentCheckinView struct {
-		ID                 uint64      `json:"id"`
-		ClassroomID        uint64      `json:"classroomId"`
-		CheckinName        string      `json:"checkinName"`
-		CheckinType        string      `json:"checkinType"`
-		QrcodeRefreshInterval int       `json:"qrcodeRefreshInterval"`
-		StartTime          time.Time   `json:"startTime"`
-		EndTime            *time.Time  `json:"endTime"`
-		Status             int         `json:"status"`
-		CreatedAt          time.Time   `json:"createdAt"`
-		UserCheckinStatus *string     `json:"userCheckinStatus"` // 当前用户的签到状态
+		ID                    uint64     `json:"id"`
+		ClassroomID           uint64     `json:"classroomId"`
+		CheckinName           string     `json:"checkinName"`
+		CheckinType           string     `json:"checkinType"`
+		QrcodeRefreshInterval int        `json:"qrcodeRefreshInterval"`
+		StartTime             time.Time  `json:"startTime"`
+		EndTime               *time.Time `json:"endTime"`
+		Status                int        `json:"status"`
+		CreatedAt             time.Time  `json:"createdAt"`
+		UserCheckinStatus     *string    `json:"userCheckinStatus"` // 当前用户的签到状态
 	}
 
 	studentCheckins := make([]StudentCheckinView, 0, len(checkins))
@@ -1470,15 +1470,15 @@ func (h *Handler) GetCheckinListForStudent(c *gin.Context) {
 
 	for _, checkin := range checkins {
 		view := StudentCheckinView{
-			ID:                  checkin.ID,
-			ClassroomID:         checkin.ClassroomID,
-			CheckinName:         checkin.CheckinName,
-			CheckinType:         checkin.CheckinType,
+			ID:                    checkin.ID,
+			ClassroomID:           checkin.ClassroomID,
+			CheckinName:           checkin.CheckinName,
+			CheckinType:           checkin.CheckinType,
 			QrcodeRefreshInterval: checkin.QrcodeRefreshInterval,
-			StartTime:           checkin.StartTime,
-			EndTime:             checkin.EndTime,
-			Status:              checkin.Status,
-			CreatedAt:           checkin.CreatedAt,
+			StartTime:             checkin.StartTime,
+			EndTime:               checkin.EndTime,
+			Status:                checkin.Status,
+			CreatedAt:             checkin.CreatedAt,
 		}
 
 		// 添加当前用户的签到状态
@@ -1814,8 +1814,8 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 		Options    string `json:"options"` // JSON string
 		Answer     string `json:"answer"`
 		Analysis   string `json:"analysis"` // 题目解析
-		Tags       string `json:"tags"` // 题目标签（JSON数组）
-		Course     string `json:"course"` // 题目所属课程
+		Tags       string `json:"tags"`     // 题目标签（JSON数组）
+		Course     string `json:"course"`   // 题目所属课程
 		Difficulty int    `json:"difficulty"`
 		Score      int    `json:"score"`
 		IsShared   int    `json:"isShared"`
@@ -1852,40 +1852,32 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 
 	db := client.GetDB()
 
+	var optionsInput *string
+	if strings.TrimSpace(req.Options) != "" {
+		optionsValue := req.Options
+		optionsInput = &optionsValue
+	}
+	normalizedAnswer, normalizedOptions, normalizeErr := normalizeQuestionAnswerForStorage(req.Type, req.Answer, optionsInput)
+	if normalizeErr != nil {
+		c.JSON(http.StatusOK, errorResponse(400, normalizeErr.Error()))
+		return
+	}
+
 	// 初始化题目对象
 	question := &model.QuestionBank{
 		Title:      req.Title,
 		Type:       req.Type,
 		Content:    req.Content,
+		Options:    normalizedOptions,
+		Answer:     normalizedAnswer,
 		Analysis:   req.Analysis, // 题目解析
-		Tags:       req.Tags, // 题目标签
-		Course:     req.Course, // 题目所属课程
+		Tags:       req.Tags,     // 题目标签
+		Course:     req.Course,   // 题目所属课程
 		Difficulty: req.Difficulty,
 		Score:      req.Score,
 		CreatorID:  creatorID.(string),
 		IsShared:   req.IsShared,
 		Status:     1,
-	}
-
-	// 根据题型设置 Options 和 Answer
-	if req.Type == "single_choice" || req.Type == "multiple_choice" {
-		// 单选和多选题需要选项
-		if req.Options != "" {
-			question.Options = &req.Options
-		}
-		question.Answer = req.Answer
-	} else if req.Type == "judge" {
-		// 判断题不需要选项，设置为 NULL
-		question.Options = nil
-		question.Answer = req.Answer
-	} else if req.Type == "subjective" {
-		// 主观题不需要选项
-		question.Options = nil
-		question.Answer = req.Answer
-	} else if req.Type == "programming" {
-		// 编程题不需要选项和答案
-		question.Options = nil
-		question.Answer = ""
 	}
 
 	if req.ProblemID != "" && req.Type == "programming" {
@@ -1917,8 +1909,8 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	questionType := c.Query("type")
 	isSharedStr := c.Query("isShared")
 	keyword := c.Query("keyword")
-	course := c.Query("course") // 课程筛选
-	tag := c.Query("tag") // 标签筛选
+	course := c.Query("course")         // 课程筛选
+	tag := c.Query("tag")               // 标签筛选
 	difficulty := c.Query("difficulty") // 难度筛选
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
@@ -2003,8 +1995,8 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 		Options    *string `json:"options"`
 		Answer     *string `json:"answer"`
 		Analysis   *string `json:"analysis"` // 题目解析
-		Tags       *string `json:"tags"` // 题目标签
-		Course     *string `json:"course"` // 题目所属课程
+		Tags       *string `json:"tags"`     // 题目标签
+		Course     *string `json:"course"`   // 题目所属课程
 		Difficulty *int    `json:"difficulty"`
 		Score      *int    `json:"score"`
 		IsShared   *int    `json:"isShared"`
@@ -2018,21 +2010,37 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 
 	db := client.GetDB()
 
+	var question model.QuestionBank
+	if err := db.Where("id = ? AND status = 1", questionID).First(&question).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		} else {
+			logger.Error("查询题目失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
 	updates := make(map[string]interface{})
 	if req.Title != nil {
 		updates["title"] = *req.Title
 	}
 	if req.Type != nil {
+		validTypes := map[string]bool{
+			"single_choice":   true,
+			"multiple_choice": true,
+			"judge":           true,
+			"subjective":      true,
+			"programming":     true,
+		}
+		if !validTypes[*req.Type] {
+			c.JSON(http.StatusOK, errorResponse(400, "题型不合法"))
+			return
+		}
 		updates["type"] = *req.Type
 	}
 	if req.Content != nil {
 		updates["content"] = *req.Content
-	}
-	if req.Options != nil {
-		updates["options"] = *req.Options
-	}
-	if req.Answer != nil {
-		updates["answer"] = *req.Answer
 	}
 	if req.Analysis != nil {
 		updates["analysis"] = *req.Analysis
@@ -2051,6 +2059,44 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 	}
 	if req.IsShared != nil {
 		updates["is_shared"] = *req.IsShared
+	}
+
+	needNormalizeAnswer := req.Type != nil || req.Options != nil || req.Answer != nil
+	if needNormalizeAnswer {
+		targetType := question.Type
+		if req.Type != nil {
+			targetType = *req.Type
+		}
+
+		targetAnswer := question.Answer
+		if req.Answer != nil {
+			targetAnswer = *req.Answer
+		}
+
+		var targetOptions *string
+		if req.Options != nil {
+			if strings.TrimSpace(*req.Options) != "" {
+				optionsValue := *req.Options
+				targetOptions = &optionsValue
+			} else {
+				targetOptions = nil
+			}
+		} else {
+			targetOptions = question.Options
+		}
+
+		normalizedAnswer, normalizedOptions, err := normalizeQuestionAnswerForStorage(targetType, targetAnswer, targetOptions)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+
+		updates["answer"] = normalizedAnswer
+		if normalizedOptions == nil {
+			updates["options"] = nil
+		} else {
+			updates["options"] = *normalizedOptions
+		}
 	}
 
 	if len(updates) == 0 {
@@ -2148,8 +2194,8 @@ func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
 	isSharedStr := c.Query("isShared")
 	searchField := c.Query("searchField") // 搜索字段：title, id, creator
 	keyword := c.Query("keyword")
-	course := c.Query("course") // 课程筛选
-	tag := c.Query("tag") // 标签筛选
+	course := c.Query("course")         // 课程筛选
+	tag := c.Query("tag")               // 标签筛选
 	difficulty := c.Query("difficulty") // 难度筛选
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
@@ -2247,8 +2293,8 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		Options    *string `json:"options"`
 		Answer     *string `json:"answer"`
 		Analysis   *string `json:"analysis"` // 题目解析
-		Tags       *string `json:"tags"` // 题目标签
-		Course     *string `json:"course"` // 题目所属课程
+		Tags       *string `json:"tags"`     // 题目标签
+		Course     *string `json:"course"`   // 题目所属课程
 		Difficulty *int    `json:"difficulty"`
 		Score      *int    `json:"score"`
 		IsShared   *int    `json:"isShared"`
@@ -2279,16 +2325,21 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		updates["title"] = *req.Title
 	}
 	if req.Type != nil {
+		validTypes := map[string]bool{
+			"single_choice":   true,
+			"multiple_choice": true,
+			"judge":           true,
+			"subjective":      true,
+			"programming":     true,
+		}
+		if !validTypes[*req.Type] {
+			c.JSON(http.StatusOK, errorResponse(400, "题型不合法"))
+			return
+		}
 		updates["type"] = *req.Type
 	}
 	if req.Content != nil {
 		updates["content"] = *req.Content
-	}
-	if req.Options != nil {
-		updates["options"] = *req.Options
-	}
-	if req.Answer != nil {
-		updates["answer"] = *req.Answer
 	}
 	if req.Analysis != nil {
 		updates["analysis"] = *req.Analysis
@@ -2307,6 +2358,49 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 	}
 	if req.IsShared != nil {
 		updates["is_shared"] = *req.IsShared
+	}
+
+	needNormalizeAnswer := req.Type != nil || req.Options != nil || req.Answer != nil
+	if needNormalizeAnswer {
+		targetType := question.Type
+		if req.Type != nil {
+			targetType = *req.Type
+		}
+
+		targetAnswer := question.Answer
+		if req.Answer != nil {
+			targetAnswer = *req.Answer
+		}
+
+		var targetOptions *string
+		if req.Options != nil {
+			if strings.TrimSpace(*req.Options) != "" {
+				optionsValue := *req.Options
+				targetOptions = &optionsValue
+			} else {
+				targetOptions = nil
+			}
+		} else {
+			targetOptions = question.Options
+		}
+
+		normalizedAnswer, normalizedOptions, err := normalizeQuestionAnswerForStorage(targetType, targetAnswer, targetOptions)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+
+		updates["answer"] = normalizedAnswer
+		if normalizedOptions == nil {
+			updates["options"] = nil
+		} else {
+			updates["options"] = *normalizedOptions
+		}
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "没有要更新的字段"))
+		return
 	}
 
 	if err := db.Model(&question).Updates(updates).Error; err != nil {
@@ -2372,8 +2466,8 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 		Options    string `json:"options"`
 		Answer     string `json:"answer"`
 		Analysis   string `json:"analysis"` // 题目解析
-		Tags       string `json:"tags"` // 题目标签
-		Course     string `json:"course"` // 题目所属课程
+		Tags       string `json:"tags"`     // 题目标签
+		Course     string `json:"course"`   // 题目所属课程
 		Difficulty int    `json:"difficulty"`
 		Score      int    `json:"score"`
 		IsShared   int    `json:"isShared"`
@@ -2409,32 +2503,31 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 
 	db := client.GetDB()
 
+	var optionsInput *string
+	if strings.TrimSpace(req.Options) != "" {
+		optionsValue := req.Options
+		optionsInput = &optionsValue
+	}
+	normalizedAnswer, normalizedOptions, normalizeErr := normalizeQuestionAnswerForStorage(req.Type, req.Answer, optionsInput)
+	if normalizeErr != nil {
+		c.JSON(http.StatusOK, errorResponse(400, normalizeErr.Error()))
+		return
+	}
+
 	question := &model.QuestionBank{
 		Title:      req.Title,
 		Type:       req.Type,
 		Content:    req.Content,
+		Options:    normalizedOptions,
+		Answer:     normalizedAnswer,
 		Analysis:   req.Analysis, // 题目解析
-		Tags:       req.Tags, // 题目标签
-		Course:     req.Course, // 题目所属课程
+		Tags:       req.Tags,     // 题目标签
+		Course:     req.Course,   // 题目所属课程
 		Difficulty: req.Difficulty,
 		Score:      req.Score,
 		CreatorID:  creatorID.(string),
 		IsShared:   req.IsShared,
 		Status:     1,
-	}
-
-	// 根据题型设置 Options 和 Answer
-	if req.Type == "single_choice" || req.Type == "multiple_choice" {
-		if req.Options != "" {
-			question.Options = &req.Options
-		}
-		question.Answer = req.Answer
-	} else if req.Type == "judge" {
-		question.Options = nil
-		question.Answer = req.Answer
-	} else if req.Type == "subjective" {
-		question.Options = nil
-		question.Answer = req.Answer
 	}
 
 	if err := db.Create(question).Error; err != nil {
@@ -2577,7 +2670,7 @@ func (h *Handler) SubmitQrcodeCheckin(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		Token    string `json:"token" binding:"required"`
+		Token     string `json:"token" binding:"required"`
 		CheckinID uint64 `json:"checkinId" binding:"required"`
 	}
 
@@ -2648,9 +2741,9 @@ func (h *Handler) SubmitQrcodeCheckin(c *gin.Context) {
 	// 创建签到记录
 	checkinTime := now
 	record := &model.ClassroomCheckinRecord{
-		CheckinID:  req.CheckinID,
-		UID:        uid.(string),
-		Status:     "present",
+		CheckinID:   req.CheckinID,
+		UID:         uid.(string),
+		Status:      "present",
 		CheckinTime: &checkinTime,
 	}
 
@@ -2774,8 +2867,8 @@ func (h *Handler) RemoveClassroomTeacher(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		ClassroomID uint64 `json:"classroomId" binding:"required"`
-		TeacherID   string `json:"teacherId" binding:"required"`
+		ClassroomID  uint64 `json:"classroomId" binding:"required"`
+		TeacherID    string `json:"teacherId" binding:"required"`
 		NewTeacherID string `json:"newTeacherId"` // 删除主教师时，必须指定新主教师
 	}
 
@@ -3015,10 +3108,10 @@ func (h *Handler) CreateExamPaper(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		Title         string                             `json:"title" binding:"required"`
-		Description   string                             `json:"description"`
-		IsShared      int                                `json:"isShared"`
-		Questions     []ExamPaperQuestionRequest         `json:"questions" binding:"required"`
+		Title       string                     `json:"title" binding:"required"`
+		Description string                     `json:"description"`
+		IsShared    int                        `json:"isShared"`
+		Questions   []ExamPaperQuestionRequest `json:"questions" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -3046,6 +3139,7 @@ func (h *Handler) CreateExamPaper(c *gin.Context) {
 		Title:         req.Title,
 		CreatorID:     uid.(string),
 		IsShared:      req.IsShared,
+		IsPublic:      0, // 主界面公开由管理员在后台统一控制
 		TotalScore:    totalScore,
 		QuestionCount: len(req.Questions),
 		Description:   req.Description,
@@ -3061,12 +3155,12 @@ func (h *Handler) CreateExamPaper(c *gin.Context) {
 	// 创建试卷题目关联
 	for i, q := range req.Questions {
 		examPaperQuestion := &model.ExamPaperQuestion{
-			ExamPaperID:  examPaper.ID,
-			QuestionID:   q.QuestionID,
-			ProblemID:    q.ProblemID,
+			ExamPaperID:   examPaper.ID,
+			QuestionID:    q.QuestionID,
+			ProblemID:     q.ProblemID,
 			QuestionOrder: i + 1,
-			QuestionType: q.QuestionType,
-			Score:        q.Score,
+			QuestionType:  q.QuestionType,
+			Score:         q.Score,
 		}
 		if err := db.Create(examPaperQuestion).Error; err != nil {
 			logger.Error("创建试卷题目关联失败", zap.Error(err))
@@ -3101,6 +3195,7 @@ func (h *Handler) GetExamPaperList(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	keyword := c.Query("keyword")
 	isSharedStr := c.Query("isShared")
+	isPublicStr := c.Query("isPublic")
 
 	db := client.GetDB()
 
@@ -3114,6 +3209,10 @@ func (h *Handler) GetExamPaperList(c *gin.Context) {
 	if isSharedStr != "" {
 		isShared, _ := strconv.Atoi(isSharedStr)
 		query = query.Where("is_shared = ?", isShared)
+	}
+	if isPublicStr != "" {
+		isPublic, _ := strconv.Atoi(isPublicStr)
+		query = query.Where("is_public = ?", isPublic)
 	}
 
 	var total int64
@@ -3153,6 +3252,9 @@ func (h *Handler) GetExamPaperDetail(c *gin.Context) {
 
 	var paper model.ExamPaper
 	if err := db.Preload("Creator").
+		Preload("Questions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("question_order ASC")
+		}).
 		Preload("Questions.Question").
 		Where("id = ? AND status = 1", paperID).
 		First(&paper).Error; err != nil {
@@ -3162,6 +3264,133 @@ func (h *Handler) GetExamPaperDetail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, successResponse(paper))
+}
+
+// GetPublicExamPaperList 获取主界面公开练习试卷列表（无需认证）
+func (h *Handler) GetPublicExamPaperList(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	keyword := c.Query("keyword")
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	db := client.GetDB()
+	query := db.Model(&model.ExamPaper{}).Where("status = 1 AND is_public = 1")
+	if keyword != "" {
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var papers []model.ExamPaper
+	if err := query.Preload("Creator").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Order("create_time DESC").
+		Find(&papers).Error; err != nil {
+		logger.Error("查询公开试卷列表失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"total":  total,
+		"page":   page,
+		"limit":  limit,
+		"papers": papers,
+	}))
+}
+
+// GetPublicExamPaperDetail 获取主界面公开练习试卷详情（无需认证）
+func (h *Handler) GetPublicExamPaperDetail(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	var paper model.ExamPaper
+	if err := db.Preload("Creator").
+		Preload("Questions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("question_order ASC")
+		}).
+		Preload("Questions.Question").
+		Where("id = ? AND status = 1 AND is_public = 1", paperID).
+		First(&paper).Error; err != nil {
+		logger.Error("查询公开试卷详情失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在或未公开"))
+		return
+	}
+
+	// 公开详情默认不返回标准答案与解析，避免一次性暴露全部答案
+	for i := range paper.Questions {
+		if paper.Questions[i].Question != nil {
+			paper.Questions[i].Question.Answer = ""
+			paper.Questions[i].Question.Analysis = ""
+		}
+	}
+
+	c.JSON(http.StatusOK, successResponse(paper))
+}
+
+// GetPublicExamPaperQuestionAnswer 获取公开练习某题标准答案（按题懒加载）
+func (h *Handler) GetPublicExamPaperQuestionAnswer(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	paperIDStr := c.Param("paperId")
+	paperID, err := strconv.ParseUint(paperIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "试卷ID格式错误"))
+		return
+	}
+
+	questionIDStr := c.Param("questionId")
+	questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "题目ID格式错误"))
+		return
+	}
+
+	db := client.GetDB()
+
+	// 校验公开试卷存在
+	var paper model.ExamPaper
+	if err := db.Where("id = ? AND status = 1 AND is_public = 1", paperID).First(&paper).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "试卷不存在或未公开"))
+		return
+	}
+
+	// 校验题目属于该试卷
+	var paperQuestion model.ExamPaperQuestion
+	if err := db.Where("exam_paper_id = ? AND question_id = ?", paperID, questionID).First(&paperQuestion).Error; err != nil {
+		c.JSON(http.StatusOK, errorResponse(404, "题目不在当前试卷中"))
+		return
+	}
+
+	var question model.QuestionBank
+	if err := db.Where("id = ? AND status = 1", questionID).First(&question).Error; err != nil {
+		logger.Error("查询题目答案失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"questionId": question.ID,
+		"answer":     question.Answer,
+		"analysis":   question.Analysis,
+	}))
 }
 
 // UpdateExamPaper 更新试卷
@@ -3182,10 +3411,10 @@ func (h *Handler) UpdateExamPaper(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       *string                     `json:"title"`
-		Description *string                     `json:"description"`
-		IsShared    *int                        `json:"isShared"`
-		Questions   []ExamPaperQuestionRequest  `json:"questions"`
+		Title       *string                    `json:"title"`
+		Description *string                    `json:"description"`
+		IsShared    *int                       `json:"isShared"`
+		Questions   []ExamPaperQuestionRequest `json:"questions"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -3265,8 +3494,8 @@ func (h *Handler) UpdateExamPaper(c *gin.Context) {
 
 		// 更新总分和题目数量
 		db.Model(&paper).Updates(map[string]interface{}{
-			"total_score":     totalScore,
-			"question_count":  len(req.Questions),
+			"total_score":    totalScore,
+			"question_count": len(req.Questions),
 		})
 	}
 
@@ -3367,7 +3596,10 @@ func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
 
 	// 查询试卷（只能导入共享试卷或自己创建的试卷）
 	var paper model.ExamPaper
-	if err := db.Preload("Questions.Question").
+	if err := db.Preload("Questions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("question_order ASC")
+	}).
+		Preload("Questions.Question").
 		Where("id = ? AND status = 1", paperID).
 		First(&paper).Error; err != nil {
 		logger.Error("查询试卷失败", zap.Error(err))
@@ -3378,7 +3610,7 @@ func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
 	// 权限检查：
 	// 1. 管理员（root或admin）可以导入所有试卷
 	// 2. 普通教师只能导入共享试卷或自己创建的试卷
- isAdmin := false
+	isAdmin := false
 	if roles, err := middleware.GetUserRoles(db, uid.(string)); err == nil {
 		isAdmin = middleware.HasAnyRole(roles, []string{middleware.RoleRoot, middleware.RoleAdmin})
 	}
@@ -3424,8 +3656,8 @@ func (h *Handler) ImportExamPaperToHomework(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
-		"questions":    result,
-		"totalScore":   paper.TotalScore,
+		"questions":     result,
+		"totalScore":    paper.TotalScore,
 		"questionCount": paper.QuestionCount,
 	}))
 }
@@ -3440,6 +3672,7 @@ func (h *Handler) AdminGetExamPaperList(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	keyword := c.Query("keyword")
 	isSharedStr := c.Query("isShared")
+	isPublicStr := c.Query("isPublic")
 
 	db := client.GetDB()
 
@@ -3453,6 +3686,10 @@ func (h *Handler) AdminGetExamPaperList(c *gin.Context) {
 	if isSharedStr != "" {
 		isShared, _ := strconv.Atoi(isSharedStr)
 		query = query.Where("is_shared = ?", isShared)
+	}
+	if isPublicStr != "" {
+		isPublic, _ := strconv.Atoi(isPublicStr)
+		query = query.Where("is_public = ?", isPublic)
 	}
 
 	var total int64
@@ -3491,10 +3728,11 @@ func (h *Handler) AdminUpdateExamPaper(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string                         `json:"title" binding:"required"`
-		Description string                         `json:"description"`
-		IsShared    int                            `json:"isShared"`
-		Questions   []ExamPaperQuestionRequest     `json:"questions"`
+		Title       string                     `json:"title" binding:"required"`
+		Description string                     `json:"description"`
+		IsShared    int                        `json:"isShared"`
+		IsPublic    int                        `json:"isPublic"`
+		Questions   []ExamPaperQuestionRequest `json:"questions"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -3528,10 +3766,11 @@ func (h *Handler) AdminUpdateExamPaper(c *gin.Context) {
 
 	// 更新试卷基本信息
 	if err := tx.Model(&paper).Updates(map[string]interface{}{
-		"title":         req.Title,
-		"description":   req.Description,
-		"is_shared":     req.IsShared,
-		"total_score":   totalScore,
+		"title":          req.Title,
+		"description":    req.Description,
+		"is_shared":      req.IsShared,
+		"is_public":      req.IsPublic,
+		"total_score":    totalScore,
 		"question_count": len(req.Questions),
 	}).Error; err != nil {
 		tx.Rollback()
@@ -3605,7 +3844,6 @@ func (h *Handler) AdminDeleteExamPaper(c *gin.Context) {
 	logger.Info("管理员删除试卷成功", zap.Uint64("paper_id", paperID))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
-
 
 // SearchUsersForRoleManagement 搜索用户（用于角色管理）
 // 允许所有管理员调用，用于查找用户并设置角色
@@ -3782,14 +4020,14 @@ func (h *Handler) CreateRoleApplication(c *gin.Context) {
 		return
 	}
 
-	logger.Info("用户申请班级角色", 
+	logger.Info("用户申请班级角色",
 		zap.String("uid", uid.(string)),
 		zap.String("role", req.Role),
 		zap.Uint64("applicationId", application.ID))
 
 	c.JSON(http.StatusOK, successResponse(gin.H{
 		"applicationId": application.ID,
-		"message": "申请已提交，请等待管理员审批",
+		"message":       "申请已提交，请等待管理员审批",
 	}))
 }
 
@@ -3860,8 +4098,8 @@ func (h *Handler) GetRoleApplications(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	// 获取查询参数
-	role := c.Query("role")       // teacher, student, all
-	status := c.Query("status")   // 0: 待审批, 1: 已批准, 2: 已拒绝, all
+	role := c.Query("role")     // teacher, student, all
+	status := c.Query("status") // 0: 待审批, 1: 已批准, 2: 已拒绝, all
 	currentPage, _ := strconv.Atoi(c.DefaultQuery("currentPage", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
@@ -3937,21 +4175,21 @@ func (h *Handler) GetRoleApplications(c *gin.Context) {
 	}
 
 	type ApplicationRecord struct {
-		ID         uint64     `json:"id"`
-		UID        string     `json:"uid"`
-		Username   string     `json:"username"`
-		Realname   string     `json:"realname"`
-		Email      string     `json:"email"`
-		Role       string     `json:"role"`
-		RoleName   string     `json:"roleName"`
-		Reason     string     `json:"reason"`
-		Status     int        `json:"status"`
-		StatusName string     `json:"statusName"`
-		ReviewerUID string    `json:"reviewerUid,omitempty"`
-		ReviewerName string   `json:"reviewerName,omitempty"`
-		ReviewTime *time.Time `json:"reviewTime,omitempty"`
-		ReviewNote string     `json:"reviewNote,omitempty"`
-		CreatedAt  time.Time  `json:"createdAt"`
+		ID           uint64     `json:"id"`
+		UID          string     `json:"uid"`
+		Username     string     `json:"username"`
+		Realname     string     `json:"realname"`
+		Email        string     `json:"email"`
+		Role         string     `json:"role"`
+		RoleName     string     `json:"roleName"`
+		Reason       string     `json:"reason"`
+		Status       int        `json:"status"`
+		StatusName   string     `json:"statusName"`
+		ReviewerUID  string     `json:"reviewerUid,omitempty"`
+		ReviewerName string     `json:"reviewerName,omitempty"`
+		ReviewTime   *time.Time `json:"reviewTime,omitempty"`
+		ReviewNote   string     `json:"reviewNote,omitempty"`
+		CreatedAt    time.Time  `json:"createdAt"`
 	}
 
 	records := make([]ApplicationRecord, len(applications))
@@ -4104,7 +4342,7 @@ func (h *Handler) ReviewRoleApplication(c *gin.Context) {
 			// 检查是否已有该角色
 			var existingRole model.ClassroomUserRole
 			err := db.Where("uid = ? AND role = ?", app.UID, app.Role).First(&existingRole).Error
-			
+
 			if err == nil {
 				// 已有角色，直接标记申请为已批准
 				app.Status = 1
@@ -4123,7 +4361,7 @@ func (h *Handler) ReviewRoleApplication(c *gin.Context) {
 					UID:  app.UID,
 					Role: app.Role,
 				}
-				
+
 				// 使用事务
 				tx := db.Begin()
 				if err := tx.Create(newRole).Error; err != nil {

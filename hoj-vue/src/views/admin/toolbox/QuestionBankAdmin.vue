@@ -7,6 +7,7 @@
           <span>客观题题库管理</span>
         </div>
         <div class="header-right">
+          <el-button type="primary" icon="el-icon-plus" @click="goCreatePage" size="small">创建客观题</el-button>
           <el-button icon="el-icon-refresh" @click="loadQuestions" size="small">刷新</el-button>
         </div>
       </div>
@@ -90,8 +91,8 @@
                 <el-col :span="12">
                   <div class="detail-section">
                     <h4>题目内容</h4>
-                    <div class="markdown-body" v-html="renderMarkdown(row.title)"></div>
-                    <div class="markdown-body" v-html="renderMarkdown(row.content)"></div>
+                    <div class="markdown-body" v-html="renderMarkdown(row.title)" v-highlight></div>
+                    <div class="markdown-body" v-html="renderMarkdown(row.content)" v-highlight></div>
                   </div>
                 </el-col>
                 <el-col :span="12">
@@ -99,11 +100,13 @@
                     <h4>选项与答案</h4>
                     <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'">
                       <div v-if="row.options">
-                        <div v-for="(opt, idx) in parseOptions(row.options)" :key="idx" class="option-item">
-                          <el-tag :type="isCorrectAnswer(row.answer, idx) ? 'success' : 'info'" size="small">
-                            {{ ['A', 'B', 'C', 'D'][idx] }}
-                          </el-tag>
-                          <span v-html="renderMarkdown(opt)"></span>
+                        <div v-for="(opt, idx) in parseOptions(row.options)" :key="idx" class="option-item detail-option-item">
+                          <div class="detail-option-head">
+                            <el-tag :type="isCorrectAnswer(row.answer, idx) ? 'success' : 'info'" size="small">
+                              {{ ['A', 'B', 'C', 'D'][idx] }}
+                            </el-tag>
+                          </div>
+                          <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt)" v-highlight></div>
                         </div>
                       </div>
                       <div class="answer-info">
@@ -114,20 +117,20 @@
                     <div v-else-if="row.type === 'judge'">
                       <div class="answer-info">
                         <strong>正确答案：</strong>
-                        <el-tag :type="row.answer === '正确' ? 'success' : 'warning'">{{ row.answer }}</el-tag>
+                        <el-tag :type="isJudgeTrue(row.answer) ? 'success' : 'warning'">{{ isJudgeTrue(row.answer) ? '正确' : '错误' }}</el-tag>
                       </div>
                     </div>
                     <div v-else-if="row.type === 'subjective'">
                       <div class="answer-info">
                         <strong>参考答案：</strong>
-                        <div class="markdown-body" v-html="renderMarkdown(row.answer)"></div>
+                        <div class="markdown-body" v-html="renderMarkdown(row.answer)" v-highlight></div>
                       </div>
                     </div>
 
                     <!-- 题目解析 -->
                     <div v-if="row.analysis" class="analysis-info" style="margin-top: 15px;">
                       <h4 style="color: #409EFF; margin-bottom: 8px;">题目解析</h4>
-                      <div class="markdown-body" v-html="renderMarkdown(row.analysis)"></div>
+                      <div class="markdown-body" v-html="renderMarkdown(row.analysis)" v-highlight></div>
                     </div>
 
                     <!-- 题目标签 -->
@@ -157,7 +160,7 @@
         <el-table-column prop="id" label="ID" width="80"></el-table-column>
         <el-table-column prop="title" label="题目标题" min-width="200">
           <template slot-scope="{ row }">
-            <div v-html="renderMarkdown(row.title)" class="markdown-body"></div>
+            <div v-html="renderMarkdown(row.title)" class="markdown-body" v-highlight></div>
           </template>
         </el-table-column>
         <el-table-column prop="type" label="题型" width="100">
@@ -212,7 +215,7 @@
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template slot-scope="{ row }">
-            <el-button size="mini" type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button size="mini" type="primary" @click="goEditPage(row)">编辑</el-button>
             <el-button size="mini" type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -236,12 +239,13 @@
     <el-dialog
       :title="editForm.id ? '编辑题目' : '创建题目'"
       :visible.sync="showEditDialog"
-      width="1200px"
+      width="1480px"
       :close-on-click-modal="false"
+      class="question-edit-dialog"
     >
       <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form :model="editForm" ref="editForm" label-width="120px">
+        <el-col :span="14" class="question-form-column">
+          <el-form :model="editForm" ref="editForm" label-width="110px" class="question-form">
             <el-form-item label="题型" prop="type">
               <el-select v-model="editForm.type" @change="handleTypeChange">
                 <el-option label="单选题" value="single_choice"></el-option>
@@ -257,7 +261,7 @@
               <el-input
                 type="textarea"
                 v-model="editForm.content"
-                :rows="4"
+                :rows="7"
                 placeholder="请输入题目内容"
               ></el-input>
             </el-form-item>
@@ -312,7 +316,7 @@
                 <el-input
                   type="textarea"
                   v-model="editForm.referenceAnswer"
-                  :rows="4"
+                  :rows="3"
                   placeholder="请输入参考答案"
                 ></el-input>
               </el-form-item>
@@ -323,7 +327,7 @@
               <el-input
                 type="textarea"
                 v-model="editForm.analysis"
-                :rows="3"
+                :rows="2"
                 placeholder="请输入题目解析（可选）"
               ></el-input>
             </el-form-item>
@@ -355,39 +359,53 @@
               </div>
             </el-form-item>
 
-            <!-- 题目所属课程 -->
-            <el-form-item label="所属课程">
-              <el-select
-                v-model="editForm.course"
-                placeholder="请选择课程"
-                style="width: 100%"
-              >
-                <el-option label="数据结构" value="数据结构"></el-option>
-                <el-option label="算法设计与分析" value="算法设计与分析"></el-option>
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="难度" prop="difficulty">
-              <el-rate v-model="editForm.difficulty" :max="3"></el-rate>
-            </el-form-item>
-            <el-form-item label="默认分值" prop="score">
-              <el-input-number v-model="editForm.score" :min="1" :max="100"></el-input-number>
-            </el-form-item>
-            <el-form-item label="共享状态" prop="isShared">
-              <el-switch v-model="editForm.isShared" active-text="共享" inactive-text="个人"></el-switch>
-            </el-form-item>
+            <el-row :gutter="12" class="compact-form-row">
+              <el-col :span="12">
+                <el-form-item label="所属课程">
+                  <el-select
+                    v-model="editForm.course"
+                    placeholder="请选择课程"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="course in commonCourses"
+                      :key="course"
+                      :label="course"
+                      :value="course"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="难度" prop="difficulty">
+                  <el-rate v-model="editForm.difficulty" :max="3"></el-rate>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="12" class="compact-form-row">
+              <el-col :span="12">
+                <el-form-item label="默认分值" prop="score">
+                  <el-input-number v-model="editForm.score" :min="1" :max="100"></el-input-number>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="共享状态" prop="isShared">
+                  <el-switch v-model="editForm.isShared" active-text="共享" inactive-text="个人"></el-switch>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="10" class="preview-column">
           <el-card class="preview-card">
             <div slot="header">
               <i class="el-icon-view"></i> 实时预览
             </div>
             <div class="preview-content">
-              <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title"></div>
+              <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title" v-highlight></div>
               <p v-else class="preview-placeholder">题目标题预览</p>
 
-              <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text"></div>
+              <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text" v-highlight></div>
               <p v-else class="preview-placeholder">题目内容预览</p>
 
               <!-- 选项预览 -->
@@ -396,7 +414,7 @@
                   <el-tag :type="editForm.correctAnswer === index ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -406,7 +424,7 @@
                   <el-tag :type="editForm.correctAnswers[index] ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -434,7 +452,7 @@
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
                   <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
                 </el-divider>
-                <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content"></div>
+                <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
               </div>
               <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
             </div>
@@ -512,12 +530,24 @@ export default {
       // 常用课程
       commonCourses: [
         '数据结构',
-        '算法设计与分析'
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
       ]
     }
   },
   mounted() {
     this.loadQuestions()
+  },
+  watch: {
+    '$route.query.refreshTs'() {
+      this.loadQuestions()
+    }
   },
   methods: {
     async loadQuestions() {
@@ -566,6 +596,36 @@ export default {
     handleCurrentChange(val) {
       this.pagination.currentPage = val
       this.loadQuestions()
+    },
+    goCreatePage() {
+      this.$router.push({ name: 'admin-question-bank-create' })
+    },
+    goEditPage(row) {
+      if (!row || !row.id) {
+        this.$message.warning('题目ID无效')
+        return
+      }
+      this.$router.push({ name: 'admin-question-bank-edit', params: { questionId: String(row.id) } })
+    },
+    handleCreate() {
+      this.editForm = {
+        id: null,
+        type: 'single_choice',
+        title: '',
+        content: '',
+        choiceOptions: ['', '', '', ''],
+        correctAnswer: 0,
+        correctAnswers: [false, false, false, false],
+        referenceAnswer: '',
+        analysis: '',
+        tags: [],
+        course: '',
+        difficulty: 1,
+        score: 2,
+        isShared: false
+      }
+      this.tagInput = ''
+      this.showEditDialog = true
     },
     handleEdit(row) {
       this.editForm = {
@@ -634,7 +694,7 @@ export default {
           }
         }
       } else if (row.type === 'judge') {
-        this.editForm.correctAnswer = row.answer === '正确' ? 'true' : 'false'
+        this.editForm.correctAnswer = this.isJudgeTrue(row.answer) ? 'true' : 'false'
       } else if (row.type === 'subjective') {
         this.editForm.referenceAnswer = row.answer || ''
       }
@@ -733,7 +793,7 @@ export default {
         submitData.answer = JSON.stringify(selectedAnswers)
       } else if (this.editForm.type === 'judge') {
         const answerValue = String(this.editForm.correctAnswer)
-        submitData.answer = answerValue === 'true' ? '正确' : '错误'
+        submitData.answer = answerValue === 'true' ? 'true' : 'false'
         submitData.options = null
       } else if (this.editForm.type === 'subjective') {
         submitData.answer = this.editForm.referenceAnswer || '需人工评分'
@@ -797,11 +857,16 @@ export default {
           return row.answer
         }
       } else if (row.type === 'judge') {
-        return row.answer
+        return this.isJudgeTrue(row.answer) ? '正确' : '错误'
       } else if (row.type === 'subjective') {
         return '需人工评分'
       }
       return row.answer
+    },
+    isJudgeTrue(answer) {
+      const raw = String(answer || '').trim()
+      const lowered = raw.toLowerCase()
+      return lowered === 'true'
     },
     getQuestionTypeName(type) {
       const map = {
@@ -865,6 +930,28 @@ export default {
   margin-bottom: 20px;
 }
 
+.question-form-column,
+.preview-column {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.question-form-column {
+  padding-right: 6px;
+}
+
+.preview-column {
+  padding-left: 6px;
+}
+
+.question-form .el-form-item {
+  margin-bottom: 14px;
+}
+
+.compact-form-row .el-form-item {
+  margin-bottom: 10px;
+}
+
 .question-detail {
   padding: 20px;
   background-color: #f5f7fa;
@@ -890,6 +977,30 @@ export default {
   border-radius: 4px;
 }
 
+.detail-option-item {
+  display: block;
+}
+
+.detail-option-head {
+  margin-bottom: 6px;
+}
+
+.detail-option-content {
+  width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.detail-option-content p {
+  margin: 0;
+}
+
+.detail-option-content pre {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .answer-info {
   margin-top: 15px;
   padding: 10px;
@@ -904,13 +1015,18 @@ export default {
 }
 
 .options-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.options-container .option-item {
+  margin-bottom: 0;
+  align-items: flex-start;
 }
 
 .preview-card {
-  height: 100%;
+  min-height: 100%;
 }
 
 .preview-content {
@@ -988,6 +1104,12 @@ export default {
   background: white;
   border-radius: 4px;
   line-height: 1.8;
+}
+
+@media (max-width: 1280px) {
+  .options-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 

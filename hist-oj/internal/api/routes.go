@@ -91,20 +91,21 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 			// 权限管理（管理员）
 			admin := classroom.Group("/admin")
+			admin.Use(AdminRoleAuthMiddleware())
 			{
 				admin.POST("/role/grant", handler.GrantUserRole)
 				admin.DELETE("/role/revoke", handler.RevokeUserRole)
 				admin.GET("/roles/:userId", handler.GetUserRoles)
-				admin.PUT("/user/:uid/roles", handler.UpdateUserRoles)                             // 更新 HOJ 用户角色
-				admin.GET("/classrooms", handler.GetAllClassrooms)                                 // 获取所有班级（管理员）
-				admin.POST("/teacher/add", handler.AddClassroomTeacher)                            // 添加班级教师
-				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher)                    // 移除班级教师
-				admin.GET("/teachers/search", handler.SearchTeachers)                              // 搜索教师
-				admin.GET("/users/search", AuthMiddleware(), handler.SearchUsersForRoleManagement) // 搜索用户（用于角色管理）
+				admin.PUT("/user/:uid/roles", handler.UpdateUserRoles)           // 更新 HOJ 用户角色
+				admin.GET("/classrooms", handler.GetAllClassrooms)               // 获取所有班级（管理员）
+				admin.POST("/teacher/add", handler.AddClassroomTeacher)          // 添加班级教师
+				admin.DELETE("/teacher/remove", handler.RemoveClassroomTeacher)  // 移除班级教师
+				admin.GET("/teachers/search", handler.SearchTeachers)            // 搜索教师
+				admin.GET("/users/search", handler.SearchUsersForRoleManagement) // 搜索用户（用于角色管理）
 
 				// 权限申请管理（管理员）
-				admin.GET("/role/applications", AuthMiddleware(), handler.GetRoleApplications) // 获取申请列表
-				admin.POST("/role/review", AuthMiddleware(), handler.ReviewRoleApplication)    // 审批申请
+				admin.GET("/role/applications", handler.GetRoleApplications) // 获取申请列表
+				admin.POST("/role/review", handler.ReviewRoleApplication)    // 审批申请
 
 				// 管理员题库管理
 				admin.GET("/question-bank", handler.AdminGetQuestionBank) // 获取所有题目
@@ -175,6 +176,10 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.PUT("/exam-paper/:paperId", AuthMiddleware(), handler.UpdateExamPaper)
 			classroom.DELETE("/exam-paper/:paperId", AuthMiddleware(), handler.DeleteExamPaper)
 			classroom.POST("/exam-paper/import", AuthMiddleware(), handler.ImportExamPaperToHomework)
+			// 主界面公开练习（无需认证，仅返回管理员公开的试卷）
+			classroom.GET("/public/exam-papers", handler.GetPublicExamPaperList)
+			classroom.GET("/public/exam-paper/:paperId", handler.GetPublicExamPaperDetail)
+			classroom.GET("/public/exam-paper/:paperId/question/:questionId/answer", handler.GetPublicExamPaperQuestionAnswer)
 
 			// 作业功能 - 需要认证
 			classroom.POST("/homework", AuthMiddleware(), handler.CreateHomework)

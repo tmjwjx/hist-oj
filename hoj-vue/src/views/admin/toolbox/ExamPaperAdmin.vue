@@ -1,12 +1,13 @@
 <template>
   <div class="exam-paper-admin-container">
-    <el-card class="exam-paper-card">
+    <el-card class="exam-paper-card" v-if="!showEditDialog">
       <div slot="header" class="card-header">
         <div class="header-left">
           <i class="el-icon-document-copy"></i>
           <span>试卷库管理</span>
         </div>
         <div class="header-right">
+          <el-button type="primary" icon="el-icon-plus" @click="openCreateDialog" size="small">创建试卷</el-button>
           <el-button icon="el-icon-refresh" @click="loadPapers" size="small">刷新</el-button>
         </div>
       </div>
@@ -32,6 +33,13 @@
               <el-option label="共享试卷" value="1"></el-option>
             </el-select>
           </el-col>
+          <el-col :span="6">
+            <el-select v-model="filters.isPublic" placeholder="主界面公开状态" clearable @change="loadPapers">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="未公开" value="0"></el-option>
+              <el-option label="已公开" value="1"></el-option>
+            </el-select>
+          </el-col>
         </el-row>
       </div>
 
@@ -49,6 +57,7 @@
               {{ row.title }}
               <el-tag v-if="row.isShared === 1" size="mini" type="success" style="margin-left: 8px;">共享</el-tag>
               <el-tag v-else size="mini" type="info" style="margin-left: 8px;">私有</el-tag>
+              <el-tag v-if="row.isPublic === 1" size="mini" type="danger" style="margin-left: 8px;">主界面公开</el-tag>
             </div>
           </template>
         </el-table-column>
@@ -101,9 +110,25 @@
       </div>
     </el-card>
 
-    <!-- 编辑试卷对话框（合并查看和编辑功能） -->
-    <el-dialog :title="isEditMode ? '编辑试卷' : '查看试卷'" :visible.sync="showEditDialog" width="80%" top="5vh" @close="resetEditForm">
-      <el-form v-if="editForm" :model="editForm" :rules="editRules" ref="editForm" label-width="100px">
+    <!-- 编辑试卷页面（合并查看和编辑功能） -->
+    <div v-if="showEditDialog" class="exam-paper-editor-page">
+      <div class="editor-toolbar">
+        <div class="editor-title-wrap">
+          <el-button icon="el-icon-arrow-left" @click="closeEditPage">返回试卷列表</el-button>
+          <h3 class="editor-page-title">{{ dialogTitle }}</h3>
+        </div>
+        <div class="editor-toolbar-actions">
+          <el-button @click="closeEditPage">{{ isCreateMode ? '取消' : '关闭' }}</el-button>
+          <el-button v-if="!isEditMode" type="primary" @click="isEditMode = true">编辑</el-button>
+          <template v-else>
+            <el-button v-if="!isCreateMode" @click="isEditMode = false">取消编辑</el-button>
+            <el-button type="primary" @click="confirmEdit" :loading="saving">{{ isCreateMode ? '创建' : '保存' }}</el-button>
+          </template>
+        </div>
+      </div>
+
+      <el-card class="exam-paper-editor-card" shadow="never">
+        <el-form v-if="editForm" :model="editForm" :rules="editRules" ref="editForm" label-width="100px">
         <el-form-item label="试卷标题" prop="title">
           <el-input v-model="editForm.title" placeholder="请输入试卷标题" :disabled="!isEditMode"></el-input>
         </el-form-item>
@@ -117,6 +142,14 @@
             inactive-text="私有"
             :disabled="!isEditMode"
             @change="handleSharedChange"
+          ></el-switch>
+        </el-form-item>
+        <el-form-item label="主界面公开">
+          <el-switch
+            v-model="editForm.isPublic"
+            active-text="公开"
+            inactive-text="不公开"
+            :disabled="!isEditMode"
           ></el-switch>
         </el-form-item>
 
@@ -183,6 +216,28 @@
               </el-select>
             </div>
 
+            <div class="quick-add-section">
+              <div class="quick-add-title">按 ID 快速添加客观题</div>
+              <div class="quick-add-row">
+                <el-input
+                  v-model.trim="quickAddQuestionId"
+                  size="small"
+                  clearable
+                  placeholder="输入客观题 ID，例如 1024"
+                  @keyup.enter.native="quickAddObjectiveQuestion"
+                ></el-input>
+                <el-button
+                  class="quick-add-btn"
+                  type="primary"
+                  size="small"
+                  :loading="quickAddQuestionLoading"
+                  @click="quickAddObjectiveQuestion"
+                >
+                  添加
+                </el-button>
+              </div>
+            </div>
+
             <div class="question-list" v-loading="questionsLoading">
               <el-table
                 :data="questionBank"
@@ -203,11 +258,11 @@
                       </div>
                       <el-collapse-transition>
                         <div v-show="row.showDetail" class="question-detail-content">
-                          <div class="question-description" v-html="renderMarkdown(row.content || row.title)"></div>
+                          <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
                           <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
                             <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
                               <span class="option-label">{{ option.label }}.</span>
-                              <span class="option-text" v-html="renderMarkdown(option.text)"></span>
+                              <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                             </div>
                           </div>
                           <div class="question-answer-meta">
@@ -315,11 +370,11 @@
                   <div v-if="q && (q.questionId || q.problemId)" class="item-content" :key="'content-' + (q.questionId || q.problemId || index)">
                     <!-- 客观题 -->
                     <div v-if="q.question && (q.question.title || q.question.content)">
-                      <div class="item-description" v-html="renderMarkdown(q.question.content || q.question.title)"></div>
+                      <div class="item-description markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
                       <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="item-options">
                         <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
                           <span class="option-label">{{ option.label }}.</span>
-                          <span class="option-text" v-html="renderMarkdown(option.text)"></span>
+                          <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                         </div>
                       </div>
                       <div class="item-answer">
@@ -415,7 +470,7 @@
               </div>
               <div class="question-edit-content" v-if="q && (q.questionId || q.problemId)">
                 <div v-if="q.question && (q.question.title || q.question.content)">
-                  <div class="question-title" v-html="renderMarkdown(q.question.content || q.question.title)"></div>
+                  <div class="question-title markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
                   <div v-if="q.question.type !== 'subjective'" class="question-meta">
                     <span class="meta-label">正确答案：</span>
                     <span class="meta-value">{{ formatAnswer(q.question) }}</span>
@@ -478,17 +533,18 @@
           >
           </el-alert>
         </el-form-item>
-      </el-form>
+        </el-form>
 
-      <span slot="footer">
-        <el-button @click="showEditDialog = false">关闭</el-button>
-        <el-button v-if="!isEditMode" type="primary" @click="isEditMode = true">编辑</el-button>
-        <template v-else>
-          <el-button @click="isEditMode = false">取消编辑</el-button>
-          <el-button type="primary" @click="confirmEdit" :loading="saving">保存</el-button>
-        </template>
-      </span>
-    </el-dialog>
+        <div class="editor-footer-actions">
+          <el-button @click="closeEditPage">{{ isCreateMode ? '取消' : '关闭' }}</el-button>
+          <el-button v-if="!isEditMode" type="primary" @click="isEditMode = true">编辑</el-button>
+          <template v-else>
+            <el-button v-if="!isCreateMode" @click="isEditMode = false">取消编辑</el-button>
+            <el-button type="primary" @click="confirmEdit" :loading="saving">{{ isCreateMode ? '创建' : '保存' }}</el-button>
+          </template>
+        </div>
+      </el-card>
+    </div>
 
     <!-- 添加编程题对话框 -->
     <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
@@ -834,7 +890,8 @@ export default {
       papers: [],
       filters: {
         keyword: '',
-        isShared: ''
+        isShared: '',
+        isPublic: ''
       },
       pagination: {
         currentPage: 1,
@@ -859,6 +916,8 @@ export default {
       questionCurrentPage: 1,
       questionPageSize: 10,
       questionBankTotal: 0,
+      quickAddQuestionId: '',
+      quickAddQuestionLoading: false,
       // 编程题相关
       showAddProgrammingDialog: false,
       programmingInputMode: 'manual', // 'manual' 或 'tag'
@@ -888,11 +947,27 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['userInfo'])
+    ...mapGetters(['userInfo']),
+    isCreateMode() {
+      return this.isEditMode && this.editForm && !this.editForm.id
+    },
+    dialogTitle() {
+      if (this.isCreateMode) {
+        return '创建试卷'
+      }
+      return this.isEditMode ? '编辑试卷' : '查看试卷'
+    }
   },
   mounted() {
     this.loadPapers()
     this.loadProblemTagsAndClassification()
+  },
+  watch: {
+    showEditDialog(newVal, oldVal) {
+      if (oldVal === true && newVal === false) {
+        this.resetEditForm()
+      }
+    }
   },
   methods: {
     async loadPapers() {
@@ -902,7 +977,8 @@ export default {
           page: this.pagination.currentPage,
           limit: this.pagination.pageSize,
           keyword: this.filters.keyword || undefined,
-          isShared: this.filters.isShared
+          isShared: this.filters.isShared,
+          isPublic: this.filters.isPublic
         })
         if (res.data.code === 200) {
           this.papers = res.data.data.papers || []
@@ -922,6 +998,29 @@ export default {
       this.pagination.currentPage = val
       this.loadPapers()
     },
+    openCreateDialog() {
+      this.currentPaper = null
+      this.isEditMode = true
+      this.showAddQuestionPanel = true
+      this.questionCurrentPage = 1
+      this.quickAddQuestionId = ''
+      this.quickAddQuestionLoading = false
+      this.editForm = {
+        id: null,
+        title: '',
+        description: '',
+        isShared: false,
+        isPublic: false,
+        questions: []
+      }
+      this.showEditDialog = true
+      this.loadQuestionBank()
+      this.$nextTick(() => {
+        if (this.$refs.editForm) {
+          this.$refs.editForm.clearValidate()
+        }
+      })
+    },
     async editPaper(row) {
       try {
         const res = await api.adminGetExamPaperDetail(row.id)
@@ -940,6 +1039,7 @@ export default {
             title: paper.title,
             description: paper.description || '',
             isShared: paper.isShared === 1,
+            isPublic: paper.isPublic === 1,
             questions: validQuestions.map(q => {
               // 安全地生成标题
               let title = '未知题目'
@@ -979,6 +1079,9 @@ export default {
       this.editForm = null
       this.currentPaper = null
       this.isEditMode = false
+      this.showAddQuestionPanel = false
+      this.quickAddQuestionId = ''
+      this.quickAddQuestionLoading = false
       if (this.$refs.editForm) {
         this.$refs.editForm.clearValidate()
       }
@@ -1012,12 +1115,14 @@ export default {
         }
 
         this.saving = true
+        const isCreateOperation = !this.editForm.id
         try {
           const data = {
             title: this.editForm.title,
             description: this.editForm.description,
             isShared: this.editForm.isShared ? 1 : 0,
-            questions: this.editForm.questions.map((q, index) => ({
+            isPublic: this.editForm.isPublic ? 1 : 0,
+            questions: this.editForm.questions.map(q => ({
               questionId: q.questionType === 'programming' ? null : q.questionId,
               problemId: q.questionType === 'programming' ? q.problemId : null,
               questionType: q.questionType,
@@ -1025,21 +1130,54 @@ export default {
             }))
           }
 
-          const res = await api.adminUpdateExamPaper(this.editForm.id, data)
-
-          if (res.data.code === 200) {
-            this.$message.success('更新成功')
-            this.showEditDialog = false
-            this.loadPapers()
+          let res
+          if (!isCreateOperation) {
+            res = await api.adminUpdateExamPaper(this.editForm.id, data)
           } else {
-            this.$message.error(res.data.message || '更新失败')
+            // 管理员创建试卷时复用教师端创建接口
+            res = await api.createExamPaper({
+              title: data.title,
+              description: data.description,
+              isShared: data.isShared,
+              questions: data.questions
+            })
+          }
+
+          if (res.data.code !== 200) {
+            this.$message.error(res.data.message || (isCreateOperation ? '创建失败' : '更新失败'))
+            return
+          }
+
+          // 创建时如果勾选了主界面公开，补一次管理员更新
+          if (isCreateOperation && this.editForm.isPublic) {
+            const createdPaperId = res && res.data && res.data.data ? res.data.data.id : null
+            if (createdPaperId) {
+              const publishRes = await api.adminUpdateExamPaper(createdPaperId, data)
+              if (publishRes.data.code !== 200) {
+                this.$message.warning('试卷已创建，但设置主界面公开失败，请在列表中编辑试卷后重试')
+              }
+            } else {
+              this.$message.warning('试卷已创建，但未拿到试卷ID，无法自动设置主界面公开')
+            }
+          }
+
+          this.$message.success(isCreateOperation ? '创建成功' : '更新成功')
+          this.showEditDialog = false
+          this.loadPapers()
+          if (isCreateOperation) {
+            this.questionCurrentPage = 1
+          } else {
+            this.showAddQuestionPanel = false
           }
         } catch (error) {
-          this.$message.error('更新失败')
+          this.$message.error(isCreateOperation ? '创建失败' : '更新失败')
         } finally {
           this.saving = false
         }
       })
+    },
+    closeEditPage() {
+      this.showEditDialog = false
     },
     handleSharedChange(newValue) {
       // El switch 的 v-model 会自动更新
@@ -1111,20 +1249,17 @@ export default {
             }
 
           case 'judge':
-            // 判断题：统一显示为 "正确" 或 "错误"
-            // 数据库中可能有多种格式："正确"/"错误"、"对"/"错"、true/false
+            // 判断题：统一仅按 true/false 显示
             const answer = question.answer
             if (!answer) return '-'
 
-            // 标准化答案
             const normalizedAnswer = String(answer).toLowerCase().trim()
-            if (['正确', '对', 'true', '1', '√', '✓'].some(v => normalizedAnswer === v.toLowerCase())) {
+            if (normalizedAnswer === 'true') {
               return '正确'
-            } else if (['错误', '错', 'false', '0', '×', '✗'].some(v => normalizedAnswer === v.toLowerCase())) {
+            } else if (normalizedAnswer === 'false') {
               return '错误'
             }
-            // 如果无法识别，返回原始值
-            return answer
+            return '-'
 
           case 'subjective':
             // 主观题：显示参考答案或提示
@@ -1168,6 +1303,44 @@ export default {
     handleQuestionPageChange(page) {
       this.questionCurrentPage = page
       this.loadQuestionBank()
+    },
+    isObjectiveQuestionType(type) {
+      return ['single_choice', 'multiple_choice', 'judge'].includes(type)
+    },
+    async quickAddObjectiveQuestion() {
+      const questionId = String(this.quickAddQuestionId || '').trim()
+      if (!questionId) {
+        this.$message.warning('请输入题目ID')
+        return
+      }
+      if (!/^\d+$/.test(questionId)) {
+        this.$message.warning('题目ID必须是数字')
+        return
+      }
+      if (this.editForm && this.editForm.questions && this.editForm.questions.some(q => q && String(q.questionId) === questionId)) {
+        this.$message.warning('该题目已添加')
+        return
+      }
+
+      this.quickAddQuestionLoading = true
+      try {
+        const res = await api.getQuestionDetail(questionId)
+        if (!res || !res.data || res.data.code !== 200 || !res.data.data) {
+          this.$message.error('未找到该题目')
+          return
+        }
+        const question = res.data.data
+        if (!this.isObjectiveQuestionType(question.type)) {
+          this.$message.warning('该题不是客观题，仅支持单选/多选/判断题')
+          return
+        }
+        this.addQuestion(question)
+        this.quickAddQuestionId = ''
+      } catch (error) {
+        this.$message.error('根据ID获取题目失败')
+      } finally {
+        this.quickAddQuestionLoading = false
+      }
     },
     // 添加客观题
     addQuestion(question) {
@@ -1615,13 +1788,17 @@ export default {
 
 <style scoped>
 .exam-paper-admin-container {
-  padding: 20px;
-  max-width: 1400px;
+  padding: 16px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
 .filter-bar {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .pagination-container {
@@ -1632,6 +1809,101 @@ export default {
 .paper-title {
   font-weight: 600;
   color: #303133;
+}
+
+.exam-paper-editor-page {
+  padding: 16px;
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.editor-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editor-page-title {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+}
+
+.editor-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ebeef5;
+}
+
+.exam-paper-card,
+.exam-paper-editor-card {
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-toolbar-actions .el-button,
+.editor-footer-actions .el-button,
+.header-right .el-button,
+.quick-add-btn,
+.add-programming-section .el-button {
+  border-radius: 6px;
+}
+
+.editor-toolbar-actions .el-button--primary,
+.editor-footer-actions .el-button--primary,
+.header-right .el-button--primary,
+.quick-add-btn.el-button--primary,
+.add-programming-section .el-button--primary {
+  background: #2f6ff6;
+  border-color: #2f6ff6;
+}
+
+.editor-toolbar-actions .el-button--primary:hover,
+.editor-footer-actions .el-button--primary:hover,
+.header-right .el-button--primary:hover,
+.quick-add-btn.el-button--primary:hover,
+.add-programming-section .el-button--primary:hover {
+  background: #285fdb;
+  border-color: #285fdb;
 }
 
 .questions-edit-list {
@@ -1702,25 +1974,25 @@ export default {
 .questions-selector {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px 0;
-  min-height: 500px;
+  gap: 14px;
+  padding: 14px 0;
+  min-height: 460px;
 }
 
 /* 左侧题库面板 */
 .question-bank-panel {
   display: flex;
   flex-direction: column;
-  background: #fafbfc;
-  border-radius: 8px;
-  border: 1px solid #e0e6ed;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #ebeef5;
   overflow: hidden;
 }
 
 .panel-header {
-  padding: 15px;
+  padding: 12px;
   background: #fff;
-  border-bottom: 1px solid #e0e6ed;
+  border-bottom: 1px solid #f0f2f5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1732,8 +2004,34 @@ export default {
 }
 
 .filter-section {
-  padding: 15px;
-  border-bottom: 1px solid #e0e6ed;
+  padding: 12px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.quick-add-section {
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fcfcfd;
+}
+
+.quick-add-title {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.quick-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-add-row .el-input {
+  flex: 1;
+}
+
+.quick-add-btn {
+  min-width: 86px;
 }
 
 .search-input {
@@ -1748,7 +2046,7 @@ export default {
 .question-list {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 12px;
   min-height: 300px;
 }
 
@@ -1829,16 +2127,16 @@ export default {
 .selected-questions-panel {
   display: flex;
   flex-direction: column;
-  background: #f0f9ff;
-  border-radius: 8px;
-  border: 1px solid #e0e6ed;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #ebeef5;
   overflow: hidden;
 }
 
 .selected-list {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 12px;
   max-height: 500px;
 }
 
@@ -1987,6 +2285,29 @@ export default {
 
   .exam-paper-admin-container {
     padding: 10px;
+  }
+
+  .exam-paper-editor-page {
+    padding: 10px;
+  }
+
+  .editor-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editor-toolbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .quick-add-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quick-add-btn {
+    width: 100%;
   }
 }
 

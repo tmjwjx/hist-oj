@@ -46,6 +46,8 @@ import TrainingList from "@/views/oj/training/TrainingList.vue"
 import TrainingDetails from "@/views/oj/training/TrainingDetails.vue"
 import TrainingProblemList from "@/views/oj/training/TrainingProblemList.vue"
 import TrainingRank from "@/views/oj/training/TrainingRank.vue"
+import PracticeList from "@/views/oj/practice/PracticeList.vue"
+import PracticeDetail from "@/views/oj/practice/PracticeDetail.vue"
 import GroupList from '@/views/oj/group/GroupList.vue'
 import GroupDetails from '@/views/oj/group/GroupDetails.vue'
 import GroupAnnouncementList from '@/views/oj/group/children/GroupAnnouncementList.vue'
@@ -138,6 +140,18 @@ const ojRoutes = [
         meta: { title: 'Training Rank' }
       }
     ]
+  },
+  {
+    path: '/practice',
+    name: 'PracticeList',
+    component: PracticeList,
+    meta: { title: 'Practice' }
+  },
+  {
+    path: '/practice/:paperId',
+    name: 'PracticeDetail',
+    component: PracticeDetail,
+    meta: { title: 'Practice Detail' }
   },
   {
     path: '/contest',

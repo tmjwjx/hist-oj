@@ -952,7 +952,14 @@ export default {
       // 常用课程列表
       commonCourses: [
         '数据结构',
-        '算法设计与分析'
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
       ],
       showDetailDialog: false,
       showFullPreviewDialog: false, // 全卷预览对话框
@@ -1443,11 +1450,20 @@ export default {
               result.problemId = q.problemId
               result.questionId = null
             } else {
-              result.questionId = q.id
+              const rawQuestionId = q.questionId !== undefined && q.questionId !== null ? q.questionId : q.id
+              const numericQuestionId = Number(rawQuestionId)
+              result.questionId = (Number.isInteger(numericQuestionId) && numericQuestionId > 0) ? numericQuestionId : null
               result.problemId = null
             }
             return result
           })
+        }
+
+        const invalidQuestion = data.questions.find(item => !item.problemId && !item.questionId)
+        if (invalidQuestion) {
+          this.$message.error('存在无效题目ID，请删除后重新添加')
+          this.submitting = false
+          return
         }
 
         try {
@@ -2130,8 +2146,10 @@ export default {
               // 编程题：使用 problemId 判断
               const exists = this.selectedQuestions.some(sq => {
                 // 客观题：比较 id 或 questionId
-                if (q.questionId || q.id) {
-                  return sq.id === q.questionId || sq.id === q.id || sq.questionId === q.id
+                const incomingQuestionId = q.questionId !== undefined && q.questionId !== null ? q.questionId : q.id
+                if (incomingQuestionId !== undefined && incomingQuestionId !== null && incomingQuestionId !== '') {
+                  const incomingKey = String(incomingQuestionId)
+                  return String(sq.id) === incomingKey || String(sq.questionId) === incomingKey
                 }
                 // 编程题：比较 problemId
                 if (q.problemId) {
@@ -2141,19 +2159,24 @@ export default {
               })
 
               if (!exists) {
-                // 为每个题目设置唯一标识（统一转换为字符串类型，确保类型一致）
+                // 为每个题目设置唯一标识
                 let questionId
                 if (q.questionId || q.id) {
-                  // 客观题：转换为字符串
-                  questionId = String(q.questionId || q.id)
+                  // 客观题：统一转为数字，避免后端 uint64 解析失败
+                  const numericQuestionId = Number(q.questionId || q.id)
+                  if (!Number.isInteger(numericQuestionId) || numericQuestionId <= 0) {
+                    console.warn('跳过无效题目ID:', q)
+                    return
+                  }
+                  questionId = numericQuestionId
                 } else {
                   // 编程题：使用 problemId（已经是字符串）
                   questionId = q.problemId
                 }
 
                 this.selectedQuestions.push({
-                  id: questionId,  // 确保每个题目都有 id（字符串类型）
-                  questionId: (q.questionId || q.id) ? String(q.questionId || q.id) : undefined,
+                  id: questionId,
+                  questionId: (q.questionId || q.id) ? questionId : undefined,
                   problemId: q.problemId,
                   type: q.questionType || q.type,
                   title: q.title,

@@ -35,6 +35,7 @@ const AdminCreateHomework = () => import('@/views/classroom/teacher/CreateHomewo
 const AdminStudentSubmissionDetail = () => import('@/views/classroom/teacher/StudentSubmissionDetail')
 const ToolboxAdmin = () => import('@/views/admin/toolbox/ToolboxAdmin')
 const QuestionBankAdmin = () => import('@/views/admin/toolbox/QuestionBankAdmin')
+const QuestionBankEditor = () => import('@/views/common/QuestionBankEditor')
 const ExamPaperAdmin = () => import('@/views/admin/toolbox/ExamPaperAdmin')
 
 const adminRoutes = [
@@ -94,6 +95,20 @@ const adminRoutes = [
         name: 'admin-question-bank',
         component: QuestionBankAdmin,
         meta: { requireSuperAdmin: true, title: '客观题题库管理' }
+      },
+      {
+        path: 'question-bank/create',
+        name: 'admin-question-bank-create',
+        component: QuestionBankEditor,
+        props: { scene: 'admin' },
+        meta: { requireSuperAdmin: true, title: '创建客观题' }
+      },
+      {
+        path: 'question-bank/edit/:questionId',
+        name: 'admin-question-bank-edit',
+        component: QuestionBankEditor,
+        props: { scene: 'admin' },
+        meta: { requireSuperAdmin: true, title: '编辑客观题' }
       },
       {
         path: 'exam-paper',

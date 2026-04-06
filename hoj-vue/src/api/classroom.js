@@ -289,6 +289,18 @@ export default {
   getExamPaperDetail(paperId) {
     return axios.get(`${BASE_URL}/exam-paper/${paperId}`)
   },
+  // 获取主界面公开练习试卷列表（无需认证）
+  getPublicExamPaperList(params) {
+    return axios.get(`${BASE_URL}/public/exam-papers`, { params })
+  },
+  // 获取主界面公开练习试卷详情（无需认证）
+  getPublicExamPaperDetail(paperId) {
+    return axios.get(`${BASE_URL}/public/exam-paper/${paperId}`)
+  },
+  // 获取主界面公开练习某题标准答案（按题加载）
+  getPublicExamPaperQuestionAnswer(paperId, questionId) {
+    return axios.get(`${BASE_URL}/public/exam-paper/${paperId}/question/${questionId}/answer`)
+  },
   // 更新试卷
   updateExamPaper(paperId, data) {
     return axios.put(`${BASE_URL}/exam-paper/${paperId}`, data)

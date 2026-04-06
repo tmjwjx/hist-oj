@@ -166,19 +166,28 @@
                   <span v-if="!questionIsScored[item.question.id]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
                 </span>
               </div>
-              <div class="question-title markdown-body" v-html="formatContent(item.question.title)"></div>
-              <div class="question-content markdown-body" v-html="formatContent(item.question.content)"></div>
+              <div class="question-title markdown-body" v-html="formatContent(item.question.title)" v-highlight></div>
+              <div class="question-content markdown-body" v-html="formatContent(item.question.content)" v-highlight></div>
 
               <!-- 单选题选项 -->
               <div v-if="item.question.type === 'single_choice'" class="question-options">
-                <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
+                <div
+                  v-for="(option, idx) in parseOptions(item.question.options)"
+                  :key="idx"
+                  class="option-item option-item-clickable"
+                  @click="handleSingleChoiceSelect(item.question.id, option.letter)"
+                >
                   <el-radio
                     v-model="answers[item.question.id]"
                     :label="option.letter"
                     @change="handleAnswerChange"
+                    @click.native.stop
                     :disabled="isSubmitted"
                   >
-                    <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
+                    <span class="option-rich-text">
+                      <span class="option-letter option-head">{{ option.letter }}.</span>
+                      <span class="option-content markdown-body" v-html="formatContent(option.text)" v-highlight></span>
+                    </span>
                   </el-radio>
                 </div>
                 <!-- 显示学生已选择的选项 -->
@@ -194,20 +203,29 @@
                   <div class="analysis-title">
                     <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
                   </div>
-                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
               </div>
 
               <!-- 多选题选项 -->
               <div v-if="item.question.type === 'multiple_choice'" class="question-options">
-                <div v-for="(option, idx) in parseOptions(item.question.options)" :key="idx" class="option-item">
+                <div
+                  v-for="(option, idx) in parseOptions(item.question.options)"
+                  :key="idx"
+                  class="option-item option-item-clickable"
+                  @click="handleMultipleChoiceSelect(item.question.id, option.letter)"
+                >
                   <el-checkbox
                     v-model="multipleAnswers[item.question.id]"
                     :label="option.letter"
                     @change="handleMultipleChoiceChange(item.question.id)"
+                    @click.native.stop
                     :disabled="isSubmitted"
                   >
-                    <span v-html="`${option.letter}. ${formatContent(option.text)}`" class="markdown-body"></span>
+                    <span class="option-rich-text">
+                      <span class="option-letter option-head">{{ option.letter }}.</span>
+                      <span class="option-content markdown-body" v-html="formatContent(option.text)" v-highlight></span>
+                    </span>
                   </el-checkbox>
                 </div>
                 <!-- 显示学生已选择的选项（按字典序排列） -->
@@ -216,14 +234,14 @@
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
-                  <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
+                  <el-tag type="success">正确答案: {{ formatMultipleChoiceAnswer(item.question.answer) }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
                     <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
                   </div>
-                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
               </div>
 
@@ -247,14 +265,14 @@
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
-                  <el-tag type="success">正确答案: {{ item.question.answer === 'true' || item.question.answer === '正确' ? '正确' : '错误' }}</el-tag>
+                  <el-tag type="success">正确答案: {{ isJudgeTrue(item.question.answer) ? '正确' : '错误' }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
                     <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
                   </div>
-                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
               </div>
 
@@ -314,7 +332,7 @@
                   <div class="reference-answer-title">
                     <i class="el-icon-document"></i> 参考答案：
                   </div>
-                  <div v-if="item.question.answer" class="reference-answer-content markdown-body" v-html="formatContent(item.question.answer)"></div>
+                  <div v-if="item.question.answer" class="reference-answer-content markdown-body" v-html="formatContent(item.question.answer)" v-highlight></div>
                   <div v-else class="reference-answer-empty">教师未设置答案</div>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
@@ -322,7 +340,7 @@
                   <div class="analysis-title">
                     <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
                   </div>
-                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)"></div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
               </div>
             </div>
@@ -951,6 +969,32 @@ export default {
       this.hasUnsavedChanges = true
       this.scheduleAutoSave()
     },
+    // 单选题：支持点击整行选项
+    handleSingleChoiceSelect(questionId, optionLetter) {
+      if (this.isSubmitted) return
+      if (this.answers[questionId] === optionLetter) return
+      this.$set(this.answers, questionId, optionLetter)
+      this.handleAnswerChange()
+    },
+    // 多选题：支持点击整行选项
+    handleMultipleChoiceSelect(questionId, optionLetter) {
+      if (this.isSubmitted) return
+
+      const currentAnswers = Array.isArray(this.multipleAnswers[questionId])
+        ? [...this.multipleAnswers[questionId]]
+        : []
+
+      const existingIndex = currentAnswers.indexOf(optionLetter)
+      if (existingIndex >= 0) {
+        currentAnswers.splice(existingIndex, 1)
+      } else {
+        currentAnswers.push(optionLetter)
+      }
+
+      currentAnswers.sort()
+      this.$set(this.multipleAnswers, questionId, currentAnswers)
+      this.handleAnswerChange()
+    },
     // 页面初始化后立即保存一次（确保所有题目都有记录）
     async initializeAnswers() {
       try {
@@ -1263,6 +1307,23 @@ export default {
       } catch {
         return []
       }
+    },
+    formatMultipleChoiceAnswer(answer) {
+      if (!answer) return ''
+      try {
+        const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
+        if (Array.isArray(parsed)) {
+          return parsed.join(', ')
+        }
+      } catch (e) {
+        // fall through
+      }
+      return answer
+    },
+    isJudgeTrue(answer) {
+      const raw = String(answer || '').trim()
+      const lowered = raw.toLowerCase()
+      return lowered === 'true'
     },
     formatContent(content) {
       if (!content) return ''
@@ -2343,6 +2404,27 @@ export default {
 .question-options {
   margin-top: 15px;
 }
+.question-options /deep/ .el-radio,
+.question-options /deep/ .el-checkbox {
+  display: flex;
+  align-items: flex-start;
+  white-space: normal;
+  line-height: 1.7;
+  height: auto;
+}
+.question-options /deep/ .el-radio__label,
+.question-options /deep/ .el-checkbox__label {
+  display: block;
+  flex: 1;
+  width: 100%;
+  white-space: normal;
+  line-height: 1.7;
+  padding-left: 0;
+}
+.question-options /deep/ .el-radio__input,
+.question-options /deep/ .el-checkbox__input {
+  margin-top: 3px;
+}
 .option-item {
   margin: 10px 0;
   padding: 8px;
@@ -2350,8 +2432,36 @@ export default {
   border-radius: 4px;
   /* 移除 transition 避免轮询时闪烁 */
 }
+.option-item-clickable {
+  cursor: pointer;
+}
 .option-item:hover {
   background: #f5f7fa;
+}
+.option-rich-text {
+  display: block;
+  width: 100%;
+}
+.option-letter {
+  font-weight: 600;
+  color: #606266;
+}
+.option-head {
+  display: block;
+  margin-bottom: 6px;
+}
+.option-content {
+  display: block;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.question-options /deep/ .option-content p {
+  margin: 0;
+}
+.question-options /deep/ .option-content pre {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .student-answer {
   margin-top: 15px;

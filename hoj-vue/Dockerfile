@@ -7,16 +7,33 @@ WORKDIR /build
 # 复制 package 文件
 COPY package*.json ./
 
-# 设置 npm 镜像源（支持构建参数）
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-RUN rm -f package-lock.json && \
-    npm config set registry ${NPM_REGISTRY} && \
-    npm config set strict-ssl false && \
-    npm config set fetch-timeout 300000 && \
-    npm config set fetch-retries 3 && \
-    npm config set fetch-retry-mintimeout 10000 && \
-    npm config set fetch-retry-maxtimeout 60000 && \
-    npm install --legacy-peer-deps --no-audit
+# 设置 npm 镜像源（支持多源回退 + 重试）
+ARG NPM_REGISTRIES="https://registry.npmmirror.com https://registry.npmjs.org"
+ARG NPM_INSTALL_RETRIES=3
+RUN set -eux; \
+    npm config set strict-ssl false; \
+    npm config set fetch-timeout 600000; \
+    npm config set fetch-retries 5; \
+    npm config set fetch-retry-mintimeout 20000; \
+    npm config set fetch-retry-maxtimeout 120000; \
+    success=0; \
+    for registry in ${NPM_REGISTRIES}; do \
+      npm config set registry "${registry}"; \
+      echo "Using npm registry: ${registry}"; \
+      attempt=1; \
+      while [ "${attempt}" -le "${NPM_INSTALL_RETRIES}" ]; do \
+        echo "npm install attempt ${attempt}/${NPM_INSTALL_RETRIES} on ${registry}"; \
+        if npm install --legacy-peer-deps --no-audit --prefer-offline; then \
+          success=1; \
+          break; \
+        fi; \
+        npm cache clean --force || true; \
+        attempt=$((attempt + 1)); \
+        sleep 5; \
+      done; \
+      [ "${success}" -eq 1 ] && break; \
+    done; \
+    [ "${success}" -eq 1 ]
 
 # 复制源代码
 COPY . .

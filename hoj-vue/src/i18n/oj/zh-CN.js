@@ -15,6 +15,7 @@ export const m = {
   NavBar_Home: '首页',
   NavBar_Problem: '题目',
   NavBar_Training: '训练',
+  NavBar_Practice: '练习',
   NavBar_Contest: '比赛',
   NavBar_Status: '评测',
   NavBar_Rank: '排名',

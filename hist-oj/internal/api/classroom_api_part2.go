@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"math/rand"
@@ -23,11 +23,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/client"
+	"github.com/hoj/hist-oj/internal/config"
 	middlewarepkg "github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
-	"github.com/hoj/hist-oj/internal/config"
 )
 
 // compareArrays 比较两个字符串数组是否相同（不考虑顺序）
@@ -46,24 +46,71 @@ func compareArrays(a, b []string) bool {
 }
 
 // normalizeJudgeAnswer 将判断题答案规范化为统一格式进行比较
-// 支持的输入格式: "true", "false", "对", "错", "正确", "错误"
-// 返回统一为: "true" 或 "false"
+// 仅支持: "true", "false"
+// 非法值返回空字符串
 func normalizeJudgeAnswer(answer string) string {
-	answer = strings.TrimSpace(answer)
-	// 将所有表示"正确"的格式统一为 "true"
-	if answer == "true" || answer == "对" || answer == "正确" {
+	normalized := strings.ToLower(strings.TrimSpace(answer))
+	if normalized == "true" {
 		return "true"
 	}
-	// 将所有表示"错误"的格式统一为 "false"
-	if answer == "false" || answer == "错" || answer == "错误" {
+	if normalized == "false" {
 		return "false"
 	}
-	return answer
+	return ""
 }
 
-// compareJudgeAnswers 比较判断题答案(兼容多种格式)
+// compareJudgeAnswers 比较判断题答案(严格 true/false)
 func compareJudgeAnswers(studentAnswer, correctAnswer string) bool {
-	return normalizeJudgeAnswer(studentAnswer) == normalizeJudgeAnswer(correctAnswer)
+	normalizedStudent := normalizeJudgeAnswer(studentAnswer)
+	normalizedCorrect := normalizeJudgeAnswer(correctAnswer)
+	if normalizedStudent == "" || normalizedCorrect == "" {
+		return false
+	}
+	return normalizedStudent == normalizedCorrect
+}
+
+// FlexibleUint64 支持 JSON 中 number 或 string 两种格式的无符号整数
+type FlexibleUint64 uint64
+
+func (u *FlexibleUint64) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	// 兼容前端把数字 ID 序列化为字符串的场景
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return fmt.Errorf("questionId不能为空字符串")
+		}
+		v, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("questionId必须是无符号整数: %w", err)
+		}
+		*u = FlexibleUint64(v)
+		return nil
+	}
+
+	var v uint64
+	if err := json.Unmarshal(data, &v); err == nil {
+		*u = FlexibleUint64(v)
+		return nil
+	}
+
+	return fmt.Errorf("questionId必须是无符号整数")
+}
+
+func flexibleUint64ToPtr(v *FlexibleUint64) *uint64 {
+	if v == nil {
+		return nil
+	}
+	id := uint64(*v)
+	return &id
 }
 
 // ==================== 作业/考试功能 ====================
@@ -82,29 +129,29 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 	}
 
 	type HomeworkQuestionItem struct {
-		QuestionID   *uint64 `json:"questionId"`   // 题库题目ID(可选)
-		ProblemID    *string `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型支持"0001"等格式)
-		QuestionType string  `json:"questionType"` // 题目类型(可选,用于设置默认分数)
-		Score        int     `json:"score"`        // 分值(可选,默认根据题型设置)
+		QuestionID   *FlexibleUint64 `json:"questionId"`   // 题库题目ID(可选,支持 number/string)
+		ProblemID    *string         `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型支持"0001"等格式)
+		QuestionType string          `json:"questionType"` // 题目类型(可选,用于设置默认分数)
+		Score        int             `json:"score"`        // 分值(可选,默认根据题型设置)
 	}
 
 	var req struct {
-		ClassroomID  uint64                 `json:"classroomId" binding:"required"`
-		Title        string                 `json:"title" binding:"required"`
-		Description  string                 `json:"description"`
-		StartTime    string                 `json:"startTime" binding:"required"` // RFC3339 format
-		EndTime      string                 `json:"endTime" binding:"required"`   // RFC3339 format
-		ShowScore    int                    `json:"showScore"`
-		ShowHomework int                    `json:"showHomework"`
-		ShowAnswer   int                    `json:"showAnswer"`
+		ClassroomID  uint64 `json:"classroomId" binding:"required"`
+		Title        string `json:"title" binding:"required"`
+		Description  string `json:"description"`
+		StartTime    string `json:"startTime" binding:"required"` // RFC3339 format
+		EndTime      string `json:"endTime" binding:"required"`   // RFC3339 format
+		ShowScore    int    `json:"showScore"`
+		ShowHomework int    `json:"showHomework"`
+		ShowAnswer   int    `json:"showAnswer"`
 		// 考试模式字段
-		IsExamMode              int `json:"isExamMode"`
-		ExamDuration            int `json:"examDuration"`
-		AllowSubmitAfterMinutes int `json:"allowSubmitAfterMinutes"`
-		DisableCopyPaste        int `json:"disableCopyPaste"`
-		RequireFullscreen       int `json:"requireFullscreen"`
-		DisallowTabSwitch       int `json:"disallowTabSwitch"`
-		Questions    []HomeworkQuestionItem `json:"questions" binding:"required"`
+		IsExamMode              int                    `json:"isExamMode"`
+		ExamDuration            int                    `json:"examDuration"`
+		AllowSubmitAfterMinutes int                    `json:"allowSubmitAfterMinutes"`
+		DisableCopyPaste        int                    `json:"disableCopyPaste"`
+		RequireFullscreen       int                    `json:"requireFullscreen"`
+		DisallowTabSwitch       int                    `json:"disallowTabSwitch"`
+		Questions               []HomeworkQuestionItem `json:"questions" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -192,13 +239,13 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 			questionIDPtr = nil
 		} else {
 			// 普通题目
-			questionIDPtr = q.QuestionID
+			questionIDPtr = flexibleUint64ToPtr(q.QuestionID)
 		}
 
 		homeworkQuestion := &model.HomeworkQuestion{
 			HomeworkID:    homework.ID,
-			QuestionID:    questionIDPtr,  // 使用指针,编程题时为nil
-			ProblemID:     q.ProblemID,    // HOJ题目ID
+			QuestionID:    questionIDPtr, // 使用指针,编程题时为nil
+			ProblemID:     q.ProblemID,   // HOJ题目ID
 			QuestionOrder: i + 1,
 			Score:         score,
 		}
@@ -235,11 +282,11 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 		DisableCopyPaste        int `json:"disableCopyPaste"`
 		RequireFullscreen       int `json:"requireFullscreen"`
 		DisallowTabSwitch       int `json:"disallowTabSwitch"`
-		Questions    []struct {
-			QuestionID   *uint64 `json:"questionId"`   // 题库题目ID(可选)
-			ProblemID    *string `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型)
-			QuestionType string  `json:"questionType"` // 题目类型(可选,用于设置默认分数)
-			Score        int     `json:"score"`        // 分值(可选,默认根据题型设置)
+		Questions               []struct {
+			QuestionID   *FlexibleUint64 `json:"questionId"`   // 题库题目ID(可选,支持 number/string)
+			ProblemID    *string         `json:"problemId"`    // HOJ题目ID(可选,编程题使用,字符串类型)
+			QuestionType string          `json:"questionType"` // 题目类型(可选,用于设置默认分数)
+			Score        int             `json:"score"`        // 分值(可选,默认根据题型设置)
 		} `json:"questions" binding:"required"`
 	}
 
@@ -359,13 +406,13 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 			questionIDPtr = nil
 		} else {
 			// 普通题目
-			questionIDPtr = q.QuestionID
+			questionIDPtr = flexibleUint64ToPtr(q.QuestionID)
 		}
 
 		homeworkQuestion := &model.HomeworkQuestion{
 			HomeworkID:    req.ID,
-			QuestionID:    questionIDPtr,  // 使用指针,编程题时为nil
-			ProblemID:     q.ProblemID,    // HOJ题目ID
+			QuestionID:    questionIDPtr, // 使用指针,编程题时为nil
+			ProblemID:     q.ProblemID,   // HOJ题目ID
 			QuestionOrder: i + 1,
 			Score:         score,
 		}
@@ -644,6 +691,18 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 			continue
 		}
 
+		normalizedAnswer, normErr := normalizeStudentAnswerForStorage(&question, answer)
+		if normErr != nil {
+			logger.Warn("草稿答案格式错误",
+				zap.Uint64("question_id", questionID),
+				zap.String("question_type", question.Type),
+				zap.String("raw_answer", answer),
+				zap.Error(normErr))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(400, "答案格式错误"))
+			return
+		}
+
 		// 获取附件URL（如果有）
 		attachment := ""
 		if req.Attachments != nil {
@@ -666,7 +725,7 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 		if checkErr == nil {
 			// 更新已有记录（只更新需要的字段，避免更新 ExamStartTime 等字段）
 			updates := map[string]interface{}{
-				"answer": answer,
+				"answer": normalizedAnswer,
 			}
 			// 只有当 req.Attachments 不为 nil 且当前题目有附件数据时，才更新 attachment
 			// 避免自动保存草稿时清空已上传的图片
@@ -684,13 +743,13 @@ func (h *Handler) SaveHomeworkDraft(c *gin.Context) {
 		} else {
 			// 创建新记录（草稿状态）
 			submit := &model.HomeworkSubmit{
-				HomeworkID:           req.HomeworkID,
-				QuestionID:           &questionID, // 使用指针
-				UID:                  uid.(string),
-				Answer:               answer,
-				Attachment:           attachment,
-				Score:                0, // 草稿不判分
-				IsScored:             0,
+				HomeworkID:            req.HomeworkID,
+				QuestionID:            &questionID, // 使用指针
+				UID:                   uid.(string),
+				Answer:                normalizedAnswer,
+				Attachment:            attachment,
+				Score:                 0, // 草稿不判分
+				IsScored:              0,
 				IsOfficiallySubmitted: 0, // 草稿状态
 			}
 
@@ -723,8 +782,8 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 
 	var req struct {
 		HomeworkID  uint64            `json:"homeworkId" binding:"required"`
-		Answers     map[string]string `json:"answers" binding:"required"`    // questionId -> answer
-		Attachments map[string]string `json:"attachments"`                   // questionId -> attachment URLs (comma separated)
+		Answers     map[string]string `json:"answers" binding:"required"` // questionId -> answer
+		Attachments map[string]string `json:"attachments"`                // questionId -> attachment URLs (comma separated)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -789,6 +848,19 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			continue
 		}
 
+		normalizedAnswer, normErr := normalizeStudentAnswerForStorage(&question, answer)
+		if normErr != nil {
+			logger.Warn("提交答案格式错误",
+				zap.Uint64("question_id", questionID),
+				zap.String("question_type", question.Type),
+				zap.String("raw_answer", answer),
+				zap.Error(normErr))
+			tx.Rollback()
+			c.JSON(http.StatusOK, errorResponse(400, "答案格式错误"))
+			return
+		}
+		answer = normalizedAnswer
+
 		// 获取附件URL（如果有）
 		attachment := ""
 		if req.Attachments != nil {
@@ -817,7 +889,7 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 					}
 				}
 			} else if question.Type == "judge" {
-				// 对于判断题，使用规范化比较（兼容多种格式：true/false/对/错/正确/错误）
+				// 对于判断题，使用严格规范化比较（仅 true/false）
 				if compareJudgeAnswers(answer, question.Answer) {
 					// 获取该题在作业中的分值
 					var homeworkQuestion model.HomeworkQuestion
@@ -896,13 +968,13 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 		} else {
 			// 创建新提交
 			submit := &model.HomeworkSubmit{
-				HomeworkID:           req.HomeworkID,
-				QuestionID:           &questionID, // 使用指针
-				UID:                  uid.(string),
-				Answer:               answer,
-				Attachment:           attachment,
-				Score:                score,
-				IsScored:             isScored,
+				HomeworkID:            req.HomeworkID,
+				QuestionID:            &questionID, // 使用指针
+				UID:                   uid.(string),
+				Answer:                answer,
+				Attachment:            attachment,
+				Score:                 score,
+				IsScored:              isScored,
 				IsOfficiallySubmitted: 1, // 标记为正式提交
 			}
 
@@ -982,8 +1054,8 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 							// 更新为已评分
 							if err := tx.Model(&existingSubmit).
 								Updates(map[string]interface{}{
-									"score":      score,
-									"is_scored":  1,
+									"score":     score,
+									"is_scored": 1,
 								}).Error; err != nil {
 								logger.Error("更新客观题评分失败",
 									zap.Error(err),
@@ -1148,7 +1220,7 @@ func (h *Handler) GetHomeworkSubmissions(c *gin.Context) {
 	type SubmissionWithHomeworkQuestionID struct {
 		model.HomeworkSubmit
 		HomeworkQuestionID *uint64 `json:"homeworkQuestionId,omitempty"` // 作业题目关联表ID（编程题评分时使用）
-		RealName           string `json:"realName,omitempty"`            // 班级学生真实姓名
+		RealName           string  `json:"realName,omitempty"`           // 班级学生真实姓名
 	}
 
 	result := make([]SubmissionWithHomeworkQuestionID, 0, len(submissions))
@@ -1389,9 +1461,9 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 
 	result := map[string]interface{}{
 		"answers":               string(answersJSON),
-		"scores":                string(scoresJSON),         // 每题得分
-		"isScoredMap":           string(isScoredJSON),      // 每题评分状态
-		"attachments":            string(attachmentsJSON),    // 每题附件
+		"scores":                string(scoresJSON),      // 每题得分
+		"isScoredMap":           string(isScoredJSON),    // 每题评分状态
+		"attachments":           string(attachmentsJSON), // 每题附件
 		"submitTime":            submitTime,
 		"isOfficiallySubmitted": isOfficiallySubmitted,
 		"hasUngraded":           hasUngraded, // 是否有未评分的题目
@@ -1879,8 +1951,8 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 // CopyMaterialToClassroom 复制资料到班级（教师）
 func (h *Handler) CopyMaterialToClassroom(c *gin.Context) {
 	var req struct {
-		MaterialID  uint64 `json:"materialId" binding:"required"`
-		FolderID    uint64 `json:"folderId" binding:"required"`
+		MaterialID uint64 `json:"materialId" binding:"required"`
+		FolderID   uint64 `json:"folderId" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -2250,7 +2322,7 @@ func (h *Handler) GradeHomework(c *gin.Context) {
 	var req struct {
 		HomeworkID uint64  `json:"homeworkId" binding:"required"`
 		QuestionID uint64  `json:"questionId" binding:"required"`
-		UID        string `json:"uid" binding:"required"`
+		UID        string  `json:"uid" binding:"required"`
 		Score      float64 `json:"score"`
 	}
 
@@ -2311,7 +2383,7 @@ func (h *Handler) GradeProgrammingHomework(c *gin.Context) {
 	var req struct {
 		HomeworkID uint64  `json:"homeworkId" binding:"required"`
 		ProblemID  string  `json:"problemId" binding:"required"`
-		UID        string `json:"uid" binding:"required"`
+		UID        string  `json:"uid" binding:"required"`
 		Score      float64 `json:"score"`
 	}
 
@@ -2417,7 +2489,7 @@ func (h *Handler) RecalculateScore(c *gin.Context) {
 			}
 		}
 	} else if question.Type == "judge" {
-		// 对于判断题，使用规范化比较（兼容多种格式）
+		// 对于判断题，使用严格规范化比较（仅 true/false）
 		if compareJudgeAnswers(submit.Answer, question.Answer) {
 			var homeworkQuestion model.HomeworkQuestion
 			if err := db.Where("homework_id = ? AND question_id = ?",
@@ -2681,12 +2753,12 @@ func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
 	logger.Info("=== SaveProgrammingSubmission 被调用 ===")
 
 	var req struct {
-		HomeworkID uint64  `json:"homeworkId" binding:"required"`
-		ProblemID  string  `json:"problemId" binding:"required"` // 编程题ID
-		SubmitID   interface{} `json:"submitId" binding:"required"` // 支持字符串或数字
-		Code       string  `json:"code"`
-		Language   string  `json:"language"`
-		Token      string  `json:"token"` // BingOJ token
+		HomeworkID uint64      `json:"homeworkId" binding:"required"`
+		ProblemID  string      `json:"problemId" binding:"required"` // 编程题ID
+		SubmitID   interface{} `json:"submitId" binding:"required"`  // 支持字符串或数字
+		Code       string      `json:"code"`
+		Language   string      `json:"language"`
+		Token      string      `json:"token"` // BingOJ token
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -3431,7 +3503,7 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 
 				optionStats = append(optionStats, map[string]interface{}{
 					"label":         segment["label"],
-					"selectedCount":  selectedCount,
+					"selectedCount": selectedCount,
 					"percentage":    percentage,
 					"selectedBy":    segment["selectedBy"],
 				})
@@ -3707,7 +3779,7 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 
 					optionStats = append(optionStats, map[string]interface{}{
 						"label":         segment["label"],
-						"selectedCount":  selectedCount,
+						"selectedCount": selectedCount,
 						"percentage":    percentage,
 						"selectedBy":    segment["selectedBy"],
 					})
@@ -4232,7 +4304,6 @@ func (h *Handler) DownloadMaterial(c *gin.Context) {
 		zap.String("filename", material.FileName),
 		zap.String("uid", uid.(string)))
 }
-
 
 // GetMaterialPDFBase64 获取PDF文件的base64编码（用于前端PDF.js渲染）
 // @deprecated 使用 GetMaterialPDFBinary 替代，性能更好

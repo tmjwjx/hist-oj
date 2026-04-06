@@ -46,14 +46,14 @@ type Classroom struct {
 	ClassBelong string    `gorm:"type:varchar(100);not null" json:"classBelong"`
 	ClassCode   string    `gorm:"type:varchar(8);not null;uniqueIndex" json:"classCode"`
 	TeacherID   string    `gorm:"type:varchar(32);not null;index:idx_teacher_id" json:"teacherId"` // 主教师ID，保留用于向后兼容
-	Status      int       `gorm:"type:int;default:1" json:"status"` // 1: 正常, 0: 已删除
+	Status      int       `gorm:"type:int;default:1" json:"status"`                                // 1: 正常, 0: 已删除
 	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Teacher  *UserInfo            `gorm:"foreignKey:TeacherID;references:UUID" json:"teacher,omitempty"`
-	Teachers []ClassroomTeacher   `gorm:"foreignKey:ClassroomID" json:"teachers,omitempty"` // 班级所有教师
-	Students []ClassroomStudent   `gorm:"foreignKey:ClassroomID" json:"students,omitempty"`
+	Teacher  *UserInfo          `gorm:"foreignKey:TeacherID;references:UUID" json:"teacher,omitempty"`
+	Teachers []ClassroomTeacher `gorm:"foreignKey:ClassroomID" json:"teachers,omitempty"` // 班级所有教师
+	Students []ClassroomStudent `gorm:"foreignKey:ClassroomID" json:"students,omitempty"`
 }
 
 // TableName 指定表名
@@ -85,18 +85,18 @@ func (ClassroomStudent) TableName() string {
 
 // ClassroomCheckin 签到表
 type ClassroomCheckin struct {
-	ID                     uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	ClassroomID            uint64     `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
-	CheckinCode            string     `gorm:"type:varchar(20);not null;index:idx_checkin_code" json:"checkinCode"`
-	CheckinName            string     `gorm:"type:varchar(100)" json:"checkinName"`
-	CheckinType            string     `gorm:"type:varchar(20);default:'code'" json:"checkinType"` // code 或 qrcode
-	QrcodeToken            string     `gorm:"type:varchar(255)" json:"qrcodeToken"`
-	QrcodeExpiresAt        *time.Time `gorm:"type:datetime" json:"qrcodeExpiresAt"`
-	QrcodeRefreshInterval   int        `gorm:"type:int;default:15" json:"qrcodeRefreshInterval"` // 二维码刷新间隔(秒)
-	StartTime              time.Time  `gorm:"type:datetime;not null" json:"startTime"`
-	EndTime                *time.Time `gorm:"type:datetime" json:"endTime"`
-	Status                 int        `gorm:"type:int;default:1" json:"status"` // 1: 进行中, 2: 已结束
-	CreatedAt              time.Time  `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	ID                    uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassroomID           uint64     `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
+	CheckinCode           string     `gorm:"type:varchar(20);not null;index:idx_checkin_code" json:"checkinCode"`
+	CheckinName           string     `gorm:"type:varchar(100)" json:"checkinName"`
+	CheckinType           string     `gorm:"type:varchar(20);default:'code'" json:"checkinType"` // code 或 qrcode
+	QrcodeToken           string     `gorm:"type:varchar(255)" json:"qrcodeToken"`
+	QrcodeExpiresAt       *time.Time `gorm:"type:datetime" json:"qrcodeExpiresAt"`
+	QrcodeRefreshInterval int        `gorm:"type:int;default:15" json:"qrcodeRefreshInterval"` // 二维码刷新间隔(秒)
+	StartTime             time.Time  `gorm:"type:datetime;not null" json:"startTime"`
+	EndTime               *time.Time `gorm:"type:datetime" json:"endTime"`
+	Status                int        `gorm:"type:int;default:1" json:"status"` // 1: 进行中, 2: 已结束
+	CreatedAt             time.Time  `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 
 	// 关联字段
 	Records []ClassroomCheckinRecord `gorm:"foreignKey:CheckinID" json:"records,omitempty"`
@@ -119,8 +119,8 @@ type ClassroomCheckinRecord struct {
 	UpdatedAt   time.Time  `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Student      *UserInfo           `gorm:"foreignKey:UID;references:UUID" json:"student,omitempty"`
-	ClassStudent *ClassroomStudent   `gorm:"-" json:"classStudent,omitempty"` // 班级学生信息（包含真实姓名）
+	Student      *UserInfo         `gorm:"foreignKey:UID;references:UUID" json:"student,omitempty"`
+	ClassStudent *ClassroomStudent `gorm:"-" json:"classStudent,omitempty"` // 班级学生信息（包含真实姓名）
 }
 
 // TableName 指定表名
@@ -136,15 +136,15 @@ type QuestionBank struct {
 	Content    string    `gorm:"type:text;not null" json:"content"`
 	Options    *string   `gorm:"type:json" json:"options"` // JSON格式的选项（可为NULL）
 	Answer     string    `gorm:"type:text" json:"answer"`
-	Analysis   string    `gorm:"type:text" json:"analysis"` // 题目解析
-	Tags       string    `gorm:"type:json" json:"tags"` // 题目标签（JSON数组格式）
-	Course     string    `gorm:"type:varchar(100)" json:"course"` // 题目所属课程
+	Analysis   string    `gorm:"type:text" json:"analysis"`            // 题目解析
+	Tags       string    `gorm:"type:json" json:"tags"`                // 题目标签（JSON数组格式）
+	Course     string    `gorm:"type:varchar(100)" json:"course"`      // 题目所属课程
 	Difficulty int       `gorm:"type:int;default:1" json:"difficulty"` // 1: 简单, 2: 中等, 3: 困难
 	Score      int       `gorm:"type:int;default:2" json:"score"`
 	CreatorID  string    `gorm:"type:varchar(32);not null;index:idx_creator_id" json:"creatorId"`
 	IsShared   int       `gorm:"type:int;default:0;index:idx_is_shared" json:"isShared"` // 0: 个人, 1: 共享
-	ProblemID  *string   `gorm:"type:varchar(50)" json:"problemId"` // 关联的OJ题目ID（编程题,字符串类型支持"0001"等格式）
-	Status     int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 正常, 0: 已删除
+	ProblemID  *string   `gorm:"type:varchar(50)" json:"problemId"`                      // 关联的OJ题目ID（编程题,字符串类型支持"0001"等格式）
+	Status     int       `gorm:"type:int;default:1;index:idx_status" json:"status"`      // 1: 正常, 0: 已删除
 	CreatedAt  time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt  time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
@@ -165,9 +165,9 @@ type ClassroomHomework struct {
 	Description  string    `gorm:"type:text" json:"description"`
 	StartTime    time.Time `gorm:"type:datetime;not null" json:"startTime"`
 	EndTime      time.Time `gorm:"type:datetime;not null" json:"endTime"`
-	ShowScore    int       `gorm:"type:int;default:1" json:"showScore"` // 完成后是否显示成绩
-	ShowHomework int       `gorm:"type:int;default:0" json:"showHomework"` // 完成后是否查看作业题目
-	ShowAnswer   int       `gorm:"type:int;default:0" json:"showAnswer"` // 学生提交后是否可以查看答案
+	ShowScore    int       `gorm:"type:int;default:1" json:"showScore"`               // 完成后是否显示成绩
+	ShowHomework int       `gorm:"type:int;default:0" json:"showHomework"`            // 完成后是否查看作业题目
+	ShowAnswer   int       `gorm:"type:int;default:0" json:"showAnswer"`              // 学生提交后是否可以查看答案
 	Status       int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 未开始, 2: 进行中, 3: 已结束
 	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
@@ -192,13 +192,13 @@ func (ClassroomHomework) TableName() string {
 
 // HomeworkQuestion 作业题目关联表
 type HomeworkQuestion struct {
-	ID            uint64        `gorm:"primaryKey;autoIncrement" json:"id"`
-	HomeworkID    uint64        `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	QuestionID    *uint64       `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"`    // 题库题目ID（可为空，编程题为空）
-	ProblemID     *string       `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用，字符串类型）
-	QuestionOrder int           `gorm:"type:int;not null" json:"questionOrder"`
-	Score         int           `gorm:"type:int;default:2" json:"score"`
-	CreatedAt     time.Time     `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID    uint64    `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	QuestionID    *uint64   `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"` // 题库题目ID（可为空，编程题为空）
+	ProblemID     *string   `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用，字符串类型）
+	QuestionOrder int       `gorm:"type:int;not null" json:"questionOrder"`
+	Score         int       `gorm:"type:int;default:2" json:"score"`
+	CreatedAt     time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 
 	// 关联字段
 	Question *QuestionBank `gorm:"foreignKey:QuestionID" json:"question,omitempty"`
@@ -211,30 +211,30 @@ func (HomeworkQuestion) TableName() string {
 
 // HomeworkSubmit 作业提交记录表
 type HomeworkSubmit struct {
-	ID                  uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	HomeworkID          uint64   `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	QuestionID          *uint64  `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"`  // 题库题目ID（可为空）
-	ProblemID           *string  `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用）
-	UID                 string   `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	Answer              string   `gorm:"type:text" json:"answer"`
-	Attachment          string   `gorm:"type:varchar(1000)" json:"attachment"` // 图片附件URL（主观题使用，多个图片用逗号分隔）
-	SubmitID            *uint64  `gorm:"type:bigint unsigned" json:"submitId"` // 提交记录ID（编程题）
-	Score               float64  `gorm:"type:decimal(5,2);default:0" json:"score"`
-	IsScored            int      `gorm:"type:int;default:0" json:"isScored"` // 是否已批改
-	IsOfficiallySubmitted int    `gorm:"type:int;default:0" json:"isOfficiallySubmitted"` // 是否已正式提交（0=草稿自动保存，1=用户点击提交）
-	JudgeResult         string   `gorm:"type:varchar(50)" json:"judgeResult"` // 评测结果（编程题）
-	CreatedAt           time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
-	UpdatedAt           time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+	ID                    uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID            uint64    `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	QuestionID            *uint64   `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId,omitempty"` // 题库题目ID（可为空）
+	ProblemID             *string   `gorm:"type:varchar(50);index:idx_problem_id" json:"problemId,omitempty"`       // HOJ 题目ID（编程题使用）
+	UID                   string    `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	Answer                string    `gorm:"type:text" json:"answer"`
+	Attachment            string    `gorm:"type:varchar(1000)" json:"attachment"` // 图片附件URL（主观题使用，多个图片用逗号分隔）
+	SubmitID              *uint64   `gorm:"type:bigint unsigned" json:"submitId"` // 提交记录ID（编程题）
+	Score                 float64   `gorm:"type:decimal(5,2);default:0" json:"score"`
+	IsScored              int       `gorm:"type:int;default:0" json:"isScored"`              // 是否已批改
+	IsOfficiallySubmitted int       `gorm:"type:int;default:0" json:"isOfficiallySubmitted"` // 是否已正式提交（0=草稿自动保存，1=用户点击提交）
+	JudgeResult           string    `gorm:"type:varchar(50)" json:"judgeResult"`             // 评测结果（编程题）
+	CreatedAt             time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt             time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 考试模式字段
-	ExamStartTime           *time.Time `gorm:"type:datetime;comment:考试开始时间" json:"examStartTime,omitempty"`
-	ExamEndTime             *time.Time `gorm:"type:datetime;comment:考试结束时间" json:"examEndTime,omitempty"`
-	IsForcedSubmit          int        `gorm:"type:int;default:0;comment:是否强制收卷(0否1是)" json:"isForcedSubmit"`
-	TabSwitchCount          int        `gorm:"type:int;default:0;comment:切换标签页次数" json:"tabSwitchCount"`
-	FullscreenExitCount     int        `gorm:"type:int;default:0;comment:退出全屏次数" json:"fullscreenExitCount"`
-	CopyPasteAttemptCount   int        `gorm:"type:int;default:0;comment:尝试复制粘贴次数" json:"copyPasteAttemptCount"`
-	DeviceInfo              string     `gorm:"type:varchar(500);comment:设备信息" json:"deviceInfo"`
-	BrowserInfo             string     `gorm:"type:varchar(500);comment:浏览器信息" json:"browserInfo"`
+	ExamStartTime         *time.Time `gorm:"type:datetime;comment:考试开始时间" json:"examStartTime,omitempty"`
+	ExamEndTime           *time.Time `gorm:"type:datetime;comment:考试结束时间" json:"examEndTime,omitempty"`
+	IsForcedSubmit        int        `gorm:"type:int;default:0;comment:是否强制收卷(0否1是)" json:"isForcedSubmit"`
+	TabSwitchCount        int        `gorm:"type:int;default:0;comment:切换标签页次数" json:"tabSwitchCount"`
+	FullscreenExitCount   int        `gorm:"type:int;default:0;comment:退出全屏次数" json:"fullscreenExitCount"`
+	CopyPasteAttemptCount int        `gorm:"type:int;default:0;comment:尝试复制粘贴次数" json:"copyPasteAttemptCount"`
+	DeviceInfo            string     `gorm:"type:varchar(500);comment:设备信息" json:"deviceInfo"`
+	BrowserInfo           string     `gorm:"type:varchar(500);comment:浏览器信息" json:"browserInfo"`
 
 	// 关联字段
 	Student  *UserInfo     `gorm:"foreignKey:UID;references:UUID" json:"student,omitempty"`
@@ -248,18 +248,18 @@ func (HomeworkSubmit) TableName() string {
 
 // ClassroomFolder 资料库文件夹表
 type ClassroomFolder struct {
-	ID          uint64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	ClassroomID uint64            `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
-	FolderName  string            `gorm:"type:varchar(100);not null" json:"folderName"`
-	ParentID    uint64            `gorm:"type:bigint unsigned;default:0;index:idx_parent_id" json:"parentId"` // 0表示根目录
-	CreatorID   string            `gorm:"type:varchar(32);not null" json:"creatorId"`
-	SortOrder   int               `gorm:"type:int;default:0" json:"sortOrder"`
-	Status      int               `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 正常, 0: 已删除
-	CreatedAt   time.Time         `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
-	UpdatedAt   time.Time         `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassroomID uint64    `gorm:"type:bigint unsigned;not null;index:idx_classroom_id" json:"classroomId"`
+	FolderName  string    `gorm:"type:varchar(100);not null" json:"folderName"`
+	ParentID    uint64    `gorm:"type:bigint unsigned;default:0;index:idx_parent_id" json:"parentId"` // 0表示根目录
+	CreatorID   string    `gorm:"type:varchar(32);not null" json:"creatorId"`
+	SortOrder   int       `gorm:"type:int;default:0" json:"sortOrder"`
+	Status      int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 正常, 0: 已删除
+	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Children  []ClassroomFolder  `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	Children  []ClassroomFolder   `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 	Materials []ClassroomMaterial `gorm:"foreignKey:FolderID" json:"materials,omitempty"`
 }
 
@@ -285,8 +285,8 @@ type ClassroomMaterial struct {
 	UpdatedAt     time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Creator    *UserInfo                      `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
-	Permission *ClassroomMaterialPermission   `gorm:"-" json:"permission,omitempty"` // 当前用户的权限（不存储在数据库）
+	Creator    *UserInfo                    `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
+	Permission *ClassroomMaterialPermission `gorm:"-" json:"permission,omitempty"` // 当前用户的权限（不存储在数据库）
 }
 
 // TableName 指定表名
@@ -296,13 +296,13 @@ func (ClassroomMaterial) TableName() string {
 
 // ClassroomMaterialPermission 资料库文件权限表
 type ClassroomMaterialPermission struct {
-	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	MaterialID   uint64    `gorm:"type:bigint unsigned;not null;index:idx_material_id" json:"materialId"`
-	StudentUID   string    `gorm:"type:varchar(32);not null;index:idx_student_uid" json:"studentUid"`
-	CanPreview   int       `gorm:"type:int;default:0;comment:是否可预览(0否1是)" json:"canPreview"`
-	CanDownload  int       `gorm:"type:int;default:0;comment:是否可下载(0否1是)" json:"canDownload"`
-	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
-	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	MaterialID  uint64    `gorm:"type:bigint unsigned;not null;index:idx_material_id" json:"materialId"`
+	StudentUID  string    `gorm:"type:varchar(32);not null;index:idx_student_uid" json:"studentUid"`
+	CanPreview  int       `gorm:"type:int;default:0;comment:是否可预览(0否1是)" json:"canPreview"`
+	CanDownload int       `gorm:"type:int;default:0;comment:是否可下载(0否1是)" json:"canDownload"`
+	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
 	Material *ClassroomMaterial `gorm:"foreignKey:MaterialID" json:"material,omitempty"`
@@ -322,7 +322,7 @@ type ClassroomRandomPick struct {
 	PickTime    time.Time `gorm:"type:datetime;autoCreateTime;index:idx_pick_time" json:"pickTime"`
 
 	// 关联字段
-	PickedUser   *UserInfo         `gorm:"foreignKey:PickedUID;references:UUID" json:"pickedUser,omitempty"`
+	PickedUser  *UserInfo         `gorm:"foreignKey:PickedUID;references:UUID" json:"pickedUser,omitempty"`
 	StudentInfo *ClassroomStudent `gorm:"-" json:"studentInfo,omitempty"` // 不在数据库中，仅用于API返回
 }
 
@@ -353,10 +353,10 @@ func (ClassroomMessage) TableName() string {
 
 // StudentQuestionOrder 学生题目顺序映射表（考试模式用）
 type StudentQuestionOrder struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
-	HomeworkID   uint64 `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	UID          string `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	OrderMapping string `gorm:"type:text;not null;comment:题目顺序映射JSON" json:"orderMapping"`
+	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID   uint64    `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	UID          string    `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	OrderMapping string    `gorm:"type:text;not null;comment:题目顺序映射JSON" json:"orderMapping"`
 	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 }
 
@@ -367,12 +367,12 @@ func (StudentQuestionOrder) TableName() string {
 
 // ExamViolationLog 考试违规日志表
 type ExamViolationLog struct {
-	ID            uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
-	HomeworkID    uint64 `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
-	UID           string `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	ViolationType string `gorm:"type:varchar(50);not null;index:idx_violation_type;comment:违规类型(tab_switch, fullscreen_exit, copy_attempt, paste_attempt, context_menu, devtools_attempt)" json:"violationType"`
-	Description   string `gorm:"type:text;comment:违规详情" json:"description"`
-	IP            string `gorm:"type:varchar(50);comment:IP地址" json:"ip"`
+	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	HomeworkID    uint64    `gorm:"type:bigint unsigned;not null;index:idx_homework_id" json:"homeworkId"`
+	UID           string    `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	ViolationType string    `gorm:"type:varchar(50);not null;index:idx_violation_type;comment:违规类型(tab_switch, fullscreen_exit, copy_attempt, paste_attempt, context_menu, devtools_attempt)" json:"violationType"`
+	Description   string    `gorm:"type:text;comment:违规详情" json:"description"`
+	IP            string    `gorm:"type:varchar(50);comment:IP地址" json:"ip"`
 	CreatedAt     time.Time `gorm:"column:create_time;autoCreateTime;index:idx_create_time" json:"createdAt"`
 }
 
@@ -387,6 +387,7 @@ type ExamPaper struct {
 	Title         string    `gorm:"type:varchar(255);not null" json:"title"`
 	CreatorID     string    `gorm:"type:varchar(32);not null;index:idx_creator_id" json:"creatorId"`
 	IsShared      int       `gorm:"type:tinyint(1);default:0;index:idx_is_shared" json:"isShared"` // 0=私有，1=共享
+	IsPublic      int       `gorm:"type:tinyint(1);default:0;index:idx_is_public" json:"isPublic"` // 0=不公开到主界面，1=公开到主界面
 	TotalScore    int       `gorm:"type:int;default:0" json:"totalScore"`
 	QuestionCount int       `gorm:"type:int;default:0" json:"questionCount"`
 	Description   string    `gorm:"type:text" json:"description"`
@@ -395,8 +396,8 @@ type ExamPaper struct {
 	UpdatedAt     time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Creator   *UserInfo              `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
-	Questions []ExamPaperQuestion    `gorm:"foreignKey:ExamPaperID" json:"questions,omitempty"`
+	Creator   *UserInfo           `gorm:"foreignKey:CreatorID;references:UUID" json:"creator,omitempty"`
+	Questions []ExamPaperQuestion `gorm:"foreignKey:ExamPaperID" json:"questions,omitempty"`
 }
 
 // TableName 指定表名
@@ -406,13 +407,13 @@ func (ExamPaper) TableName() string {
 
 // ExamPaperQuestion 试卷题目关联表
 type ExamPaperQuestion struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
-	ExamPaperID  uint64 `gorm:"type:bigint unsigned;not null;uniqueIndex:uk_exam_paper_order" json:"examPaperId"`
-	QuestionID   *uint64 `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId"`   // 客观题ID
-	ProblemID    *string `gorm:"type:varchar(64);index:idx_problem_id" json:"problemId"`         // 编程题ID
-	QuestionOrder int    `gorm:"type:int;not null;uniqueIndex:uk_exam_paper_order" json:"questionOrder"`
-	QuestionType string `gorm:"type:varchar(50);not null" json:"questionType"` // single_choice, multiple_choice, judge, subjective, programming
-	Score        int    `gorm:"type:int;not null;default:0" json:"score"`
+	ID            uint64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	ExamPaperID   uint64  `gorm:"type:bigint unsigned;not null;uniqueIndex:uk_exam_paper_order" json:"examPaperId"`
+	QuestionID    *uint64 `gorm:"type:bigint unsigned;index:idx_question_id" json:"questionId"` // 客观题ID
+	ProblemID     *string `gorm:"type:varchar(64);index:idx_problem_id" json:"problemId"`       // 编程题ID
+	QuestionOrder int     `gorm:"type:int;not null;uniqueIndex:uk_exam_paper_order" json:"questionOrder"`
+	QuestionType  string  `gorm:"type:varchar(50);not null" json:"questionType"` // single_choice, multiple_choice, judge, subjective, programming
+	Score         int     `gorm:"type:int;not null;default:0" json:"score"`
 
 	// 关联字段
 	ExamPaper *ExamPaper    `gorm:"foreignKey:ExamPaperID" json:"examPaper,omitempty"`
@@ -452,20 +453,20 @@ func InitClassroomTables(db *gorm.DB) error {
 
 // ClassroomRoleRequest 班级角色申请表
 type ClassroomRoleRequest struct {
-	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	UID         string    `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	Role        string    `gorm:"type:varchar(20);not null;index:idx_role" json:"role"` // teacher, student
-	Reason      string    `gorm:"type:text" json:"reason"` // 申请理由
-	Status      int       `gorm:"type:int;default:0;index:idx_status" json:"status"` // 0: 待审批, 1: 已批准, 2: 已拒绝
-	ReviewerUID string    `gorm:"type:varchar(32)" json:"reviewerUid"` // 审批人UID
-	ReviewTime  *time.Time `gorm:"type:datetime" json:"reviewTime"` // 审批时间
-	ReviewNote  string    `gorm:"type:text" json:"reviewNote"` // 审批备注
-	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
-	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+	ID          uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UID         string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	Role        string     `gorm:"type:varchar(20);not null;index:idx_role" json:"role"` // teacher, student
+	Reason      string     `gorm:"type:text" json:"reason"`                              // 申请理由
+	Status      int        `gorm:"type:int;default:0;index:idx_status" json:"status"`    // 0: 待审批, 1: 已批准, 2: 已拒绝
+	ReviewerUID string     `gorm:"type:varchar(32)" json:"reviewerUid"`                  // 审批人UID
+	ReviewTime  *time.Time `gorm:"type:datetime" json:"reviewTime"`                      // 审批时间
+	ReviewNote  string     `gorm:"type:text" json:"reviewNote"`                          // 审批备注
+	CreatedAt   time.Time  `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time  `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 
 	// 关联字段
-	Applicant  *UserInfo `gorm:"foreignKey:UID;references:UUID" json:"applicant,omitempty"`
-	Reviewer   *UserInfo `gorm:"foreignKey:ReviewerUID;references:UUID" json:"reviewer,omitempty"`
+	Applicant *UserInfo `gorm:"foreignKey:UID;references:UUID" json:"applicant,omitempty"`
+	Reviewer  *UserInfo `gorm:"foreignKey:ReviewerUID;references:UUID" json:"reviewer,omitempty"`
 }
 
 // TableName 指定表名

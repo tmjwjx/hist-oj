@@ -55,7 +55,14 @@ RUN if [ -d third_party/sim/sim_src ]; then \
     fi
 
 # 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o hist-oj-service ./cmd/server
+# 默认开启 -v 输出编译进度；如需强制全量重编译可传入 GO_BUILD_FORCE_REBUILD=1
+ARG GO_BUILD_FORCE_REBUILD=0
+RUN set -eux; \
+    GO_BUILD_FLAGS="-v"; \
+    if [ "${GO_BUILD_FORCE_REBUILD}" = "1" ]; then \
+        GO_BUILD_FLAGS="${GO_BUILD_FLAGS} -a"; \
+    fi; \
+    CGO_ENABLED=0 GOOS=linux go build ${GO_BUILD_FLAGS} -o hist-oj-service ./cmd/server
 
 # 运行阶段
 FROM alpine:3.18

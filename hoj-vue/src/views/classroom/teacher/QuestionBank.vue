@@ -5,7 +5,7 @@
       <h3>{{ $t('m.Question_Bank') }}</h3>
     </div>
     <div class="action-bar">
-      <el-button type="primary" icon="el-icon-plus" @click="showCreateDialog = true">
+      <el-button type="primary" icon="el-icon-plus" @click="goCreatePage">
         {{ $t('m.Create_Question') }}
       </el-button>
     </div>
@@ -117,7 +117,7 @@
           <el-button size="small" type="info" @click="handleViewDetail(row)">
             {{ $t('m.View_Detail') || '查看详情' }}
           </el-button>
-          <el-button size="small" @click="handleEdit(row)">{{ $t('m.Edit') }}</el-button>
+          <el-button size="small" @click="goEditPage(row)">{{ $t('m.Edit') }}</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">
             {{ $t('m.Delete') }}
           </el-button>
@@ -125,10 +125,10 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="1200px">
+    <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="1480px" class="question-edit-dialog">
       <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form :model="createForm" ref="createForm" label-width="120px">
+        <el-col :span="14" class="question-form-column">
+          <el-form :model="createForm" ref="createForm" label-width="110px" class="question-form">
             <el-form-item :label="$t('m.Question_Type')" prop="type">
               <el-select v-model="createForm.type" @change="handleTypeChange">
                 <el-option :label="$t('m.Single_Choice')" value="single_choice" />
@@ -141,7 +141,7 @@
               <el-input v-model="createForm.title" />
             </el-form-item>
             <el-form-item :label="$t('m.Content')" prop="content">
-              <el-input type="textarea" v-model="createForm.content" :rows="4" />
+              <el-input type="textarea" v-model="createForm.content" :rows="7" />
             </el-form-item>
 
         <!-- 单选题：固定4个选项，单选 -->
@@ -193,13 +193,13 @@
         <!-- 主观题：需要人工打分 -->
         <template v-if="createForm.type === 'subjective'">
           <el-form-item :label="$t('m.Reference_Answer')">
-            <el-input type="textarea" v-model="createForm.referenceAnswer" :rows="4" :placeholder="$t('m.Reference_Answer_Tip')" />
+            <el-input type="textarea" v-model="createForm.referenceAnswer" :rows="3" :placeholder="$t('m.Reference_Answer_Tip')" />
           </el-form-item>
         </template>
 
         <!-- 题目解析 -->
         <el-form-item label="题目解析">
-          <el-input type="textarea" v-model="createForm.analysis" :rows="3" placeholder="请输入题目解析（可选）" />
+          <el-input type="textarea" v-model="createForm.analysis" :rows="2" placeholder="请输入题目解析（可选）" />
         </el-form-item>
 
         <!-- 题目标签 -->
@@ -229,43 +229,57 @@
           </div>
         </el-form-item>
 
-        <!-- 题目所属课程 -->
-        <el-form-item label="所属课程">
-          <el-select
-            v-model="createForm.course"
-            placeholder="请选择课程"
-            style="width: 100%"
-          >
-            <el-option label="数据结构" value="数据结构"></el-option>
-            <el-option label="算法设计与分析" value="算法设计与分析"></el-option>
-          </el-select>
-        </el-form-item>
-
-        <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
-          <el-rate v-model="createForm.difficulty" :max="3" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Score')" prop="score">
-          <el-input-number v-model="createForm.score" :min="1" :max="100" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Share_To_Question_Pool')">
-          <el-switch v-model="createForm.isShared" />
-          <div class="form-tip">
-            <i class="el-icon-info"></i>
-            {{ $t('m.Share_To_Question_Pool_Tip') }}
-          </div>
-        </el-form-item>
+        <el-row :gutter="12" class="compact-form-row">
+          <el-col :span="12">
+            <el-form-item label="所属课程">
+              <el-select
+                v-model="createForm.course"
+                placeholder="请选择课程"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="course in commonCourses"
+                  :key="course"
+                  :label="course"
+                  :value="course"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
+              <el-rate v-model="createForm.difficulty" :max="3" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12" class="compact-form-row">
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Score')" prop="score">
+              <el-input-number v-model="createForm.score" :min="1" :max="100" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Share_To_Question_Pool')">
+              <el-switch v-model="createForm.isShared" />
+              <div class="form-tip compact-tip">
+                <i class="el-icon-info"></i>
+                {{ $t('m.Share_To_Question_Pool_Tip') }}
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="10" class="preview-column">
           <el-card class="preview-card markdown-preview">
             <div slot="header">
               <i class="el-icon-view"></i> 实时预览
             </div>
             <div class="preview-content">
-              <div v-if="createForm.title" v-html="renderMarkdown(createForm.title)" class="markdown-body preview-title"></div>
+              <div v-if="createForm.title" v-html="renderMarkdown(createForm.title)" class="markdown-body preview-title" v-highlight></div>
               <p v-else class="preview-placeholder">题目标题预览</p>
 
-              <div v-if="createForm.content" v-html="renderMarkdown(createForm.content)" class="markdown-body preview-content-text"></div>
+              <div v-if="createForm.content" v-html="renderMarkdown(createForm.content)" class="markdown-body preview-content-text" v-highlight></div>
               <p v-else class="preview-placeholder">题目内容预览</p>
 
               <!-- 单选题选项预览 -->
@@ -275,7 +289,7 @@
                   <el-tag :type="createForm.correctAnswer === index ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -286,7 +300,7 @@
                   <el-tag :type="createForm.correctAnswers[index] ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -316,7 +330,7 @@
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
                   <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
                 </el-divider>
-                <div v-html="renderMarkdown(createForm.analysis)" class="markdown-body preview-analysis-content"></div>
+                <div v-html="renderMarkdown(createForm.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
               </div>
               <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
             </div>
@@ -330,10 +344,10 @@
     </el-dialog>
 
     <!-- 编辑题目对话框 -->
-    <el-dialog :title="$t('m.Edit_Question')" :visible.sync="showEditDialog" width="1200px">
+    <el-dialog :title="$t('m.Edit_Question')" :visible.sync="showEditDialog" width="1480px" class="question-edit-dialog">
       <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form :model="editForm" ref="editForm" label-width="120px">
+        <el-col :span="14" class="question-form-column">
+          <el-form :model="editForm" ref="editForm" label-width="110px" class="question-form">
             <el-form-item :label="$t('m.Question_Type')" prop="type">
               <el-select v-model="editForm.type" @change="handleEditTypeChange">
                 <el-option :label="$t('m.Single_Choice')" value="single_choice" />
@@ -346,7 +360,7 @@
               <el-input v-model="editForm.title" />
             </el-form-item>
             <el-form-item :label="$t('m.Content')" prop="content">
-              <el-input type="textarea" v-model="editForm.content" :rows="4" />
+              <el-input type="textarea" v-model="editForm.content" :rows="7" />
             </el-form-item>
 
         <!-- 单选题 -->
@@ -390,13 +404,13 @@
         <!-- 主观题 -->
         <template v-if="editForm.type === 'subjective'">
           <el-form-item :label="$t('m.Reference_Answer')">
-            <el-input type="textarea" v-model="editForm.referenceAnswer" :rows="4" :placeholder="$t('m.Reference_Answer_Tip')" />
+            <el-input type="textarea" v-model="editForm.referenceAnswer" :rows="3" :placeholder="$t('m.Reference_Answer_Tip')" />
           </el-form-item>
         </template>
 
         <!-- 题目解析 -->
         <el-form-item label="题目解析">
-          <el-input type="textarea" v-model="editForm.analysis" :rows="3" placeholder="请输入题目解析（可选）" />
+          <el-input type="textarea" v-model="editForm.analysis" :rows="2" placeholder="请输入题目解析（可选）" />
         </el-form-item>
 
         <!-- 题目标签 -->
@@ -426,43 +440,57 @@
           </div>
         </el-form-item>
 
-        <!-- 题目所属课程 -->
-        <el-form-item label="所属课程">
-          <el-select
-            v-model="editForm.course"
-            placeholder="请选择课程"
-            style="width: 100%"
-          >
-            <el-option label="数据结构" value="数据结构"></el-option>
-            <el-option label="算法设计与分析" value="算法设计与分析"></el-option>
-          </el-select>
-        </el-form-item>
-
-        <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
-          <el-rate v-model="editForm.difficulty" :max="3" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Score')" prop="score">
-          <el-input-number v-model="editForm.score" :min="1" :max="100" />
-        </el-form-item>
-        <el-form-item :label="$t('m.Share_To_Question_Pool')">
-          <el-switch v-model="editForm.isShared" />
-          <div class="form-tip">
-            <i class="el-icon-info"></i>
-            {{ $t('m.Share_To_Question_Pool_Tip') }}
-          </div>
-        </el-form-item>
+        <el-row :gutter="12" class="compact-form-row">
+          <el-col :span="12">
+            <el-form-item label="所属课程">
+              <el-select
+                v-model="editForm.course"
+                placeholder="请选择课程"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="course in commonCourses"
+                  :key="course"
+                  :label="course"
+                  :value="course"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Difficulty')" prop="difficulty">
+              <el-rate v-model="editForm.difficulty" :max="3" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12" class="compact-form-row">
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Score')" prop="score">
+              <el-input-number v-model="editForm.score" :min="1" :max="100" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('m.Share_To_Question_Pool')">
+              <el-switch v-model="editForm.isShared" />
+              <div class="form-tip compact-tip">
+                <i class="el-icon-info"></i>
+                {{ $t('m.Share_To_Question_Pool_Tip') }}
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="10" class="preview-column">
           <el-card class="preview-card markdown-preview">
             <div slot="header">
               <i class="el-icon-view"></i> 实时预览
             </div>
             <div class="preview-content">
-              <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title"></div>
+              <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title" v-highlight></div>
               <p v-else class="preview-placeholder">题目标题预览</p>
 
-              <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text"></div>
+              <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text" v-highlight></div>
               <p v-else class="preview-placeholder">题目内容预览</p>
 
               <!-- 单选题选项预览 -->
@@ -471,7 +499,7 @@
                   <el-tag :type="editForm.correctAnswer === index ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -482,7 +510,7 @@
                   <el-tag :type="editForm.correctAnswers[index] ? 'success' : 'info'" size="small">
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
-                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body"></div>
+                  <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
                   <div v-else class="preview-placeholder">选项内容</div>
                 </div>
               </div>
@@ -512,7 +540,7 @@
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
                   <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
                 </el-divider>
-                <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content"></div>
+                <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
               </div>
               <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
             </div>
@@ -571,13 +599,13 @@
         <!-- 题目标题 -->
         <div class="detail-section">
           <h4 class="detail-label">题目标题：</h4>
-          <div v-html="renderMarkdown(viewQuestion.title)" class="markdown-body detail-content"></div>
+          <div v-html="renderMarkdown(viewQuestion.title)" class="markdown-body detail-content" v-highlight></div>
         </div>
 
         <!-- 题目描述 -->
         <div v-if="viewQuestion.content" class="detail-section">
           <h4 class="detail-label">题目描述：</h4>
-          <div v-html="renderMarkdown(viewQuestion.content)" class="markdown-body detail-content"></div>
+          <div v-html="renderMarkdown(viewQuestion.content)" class="markdown-body detail-content" v-highlight></div>
         </div>
 
         <!-- 选择题选项 -->
@@ -587,7 +615,7 @@
             <div v-if="parseQuestionOptions(viewQuestion.options).length > 0">
               <div v-for="(option, index) in parseQuestionOptions(viewQuestion.options)" :key="index" class="option-item-detail">
                 <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
-                <span v-html="renderMarkdown(option)" class="option-text"></span>
+                <span v-html="renderMarkdown(option)" class="option-text markdown-body" v-highlight></span>
               </div>
             </div>
             <div v-else class="no-options">
@@ -606,11 +634,11 @@
             <el-tag v-else-if="viewQuestion.type === 'multiple_choice'" type="success">
               {{ parseMultipleChoiceAnswer(viewQuestion) }}
             </el-tag>
-            <el-tag v-else-if="viewQuestion.type === 'judge'" :type="viewQuestion.answer === 'true' ? 'success' : 'danger'">
-              {{ viewQuestion.answer === 'true' ? $t('m.True') || '正确' : $t('m.False') || '错误' }}
+            <el-tag v-else-if="viewQuestion.type === 'judge'" :type="isJudgeTrue(viewQuestion.answer) ? 'success' : 'danger'">
+              {{ isJudgeTrue(viewQuestion.answer) ? $t('m.True') || '正确' : $t('m.False') || '错误' }}
             </el-tag>
             <div v-else-if="viewQuestion.type === 'subjective'" class="subjective-answer">
-              <div v-if="viewQuestion.answer" v-html="renderMarkdown(viewQuestion.answer)" class="markdown-body"></div>
+              <div v-if="viewQuestion.answer" v-html="renderMarkdown(viewQuestion.answer)" class="markdown-body" v-highlight></div>
               <span v-else style="color: #909399;">暂无参考答案</span>
             </div>
           </div>
@@ -622,7 +650,7 @@
             <i class="el-icon-document" style="color: #E6A23C;"></i>
             <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
           </el-divider>
-          <div v-html="renderMarkdown(viewQuestion.analysis)" class="markdown-body detail-content"></div>
+          <div v-html="renderMarkdown(viewQuestion.analysis)" class="markdown-body detail-content" v-highlight></div>
         </div>
 
         <!-- 创建和更新时间 -->
@@ -739,7 +767,14 @@ export default {
       // 常用课程
       commonCourses: [
         '数据结构',
-        '算法设计与分析'
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
       ],
       // 查看详情
       showViewDialog: false,
@@ -893,7 +928,7 @@ export default {
       } else if (this.createForm.type === 'judge') {
         // 判断题 - 确保 correctAnswer 是字符串类型
         const answerValue = String(this.createForm.correctAnswer)
-        submitData.answer = answerValue === 'true' ? '正确' : '错误'
+        submitData.answer = answerValue === 'true' ? 'true' : 'false'
         submitData.options = null // 判断题不需要选项
       } else if (this.createForm.type === 'subjective') {
         // 主观题
@@ -961,6 +996,20 @@ export default {
     handleViewDetail(question) {
       this.viewQuestion = question
       this.showViewDialog = true
+    },
+    goCreatePage() {
+      const query = {}
+      if (this.classroomId) {
+        query.classroomId = this.classroomId
+      }
+      this.$router.push({ name: 'QuestionBankCreate', query })
+    },
+    goEditPage(question) {
+      if (!question || !question.id) {
+        this.$message.warning('题目ID无效')
+        return
+      }
+      this.$router.push({ name: 'QuestionBankEdit', params: { questionId: String(question.id) } })
     },
     handleEdit(question) {
       this.currentEditId = question.id
@@ -1037,7 +1086,7 @@ export default {
           }
         }
       } else if (question.type === 'judge') {
-        this.editForm.correctAnswer = question.answer === '正确' ? 'true' : 'false'
+        this.editForm.correctAnswer = this.isJudgeTrue(question.answer) ? 'true' : 'false'
       } else if (question.type === 'subjective') {
         this.editForm.referenceAnswer = question.answer || ''
       }
@@ -1087,7 +1136,7 @@ export default {
       } else if (this.editForm.type === 'judge') {
         // 判断题 - 确保 correctAnswer 是字符串类型
         const answerValue = String(this.editForm.correctAnswer)
-        submitData.answer = answerValue === 'true' ? '正确' : '错误'
+        submitData.answer = answerValue === 'true' ? 'true' : 'false'
         submitData.options = null // 判断题不需要选项
       } else if (this.editForm.type === 'subjective') {
         submitData.answer = this.editForm.referenceAnswer || '需人工评分'
@@ -1211,6 +1260,11 @@ export default {
       }
       return '暂无答案'
     },
+    isJudgeTrue(answer) {
+      const raw = String(answer || '').trim()
+      const lowered = raw.toLowerCase()
+      return lowered === 'true'
+    },
     // 格式化时间
     formatTime(time) {
       if (!time) return '--'
@@ -1247,15 +1301,41 @@ export default {
   margin-bottom: 20px;
 }
 
+.question-form-column,
+.preview-column {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.question-form-column {
+  padding-right: 6px;
+}
+
+.preview-column {
+  padding-left: 6px;
+}
+
+.question-form .el-form-item {
+  margin-bottom: 14px;
+}
+
+.compact-form-row .el-form-item {
+  margin-bottom: 10px;
+}
+
+.compact-tip {
+  margin-top: 4px;
+}
+
 .options-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
 }
 
 .option-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
@@ -1301,7 +1381,7 @@ export default {
 
 /* 预览卡片样式 */
 .preview-card {
-  height: 100%;
+  min-height: 100%;
   border: 2px solid #E4E7ED;
 }
 
@@ -1428,8 +1508,7 @@ export default {
 }
 
 .option-item-detail {
-  display: flex;
-  align-items: flex-start;
+  display: block;
   padding: 8px 0;
   border-bottom: 1px solid #eee;
 }
@@ -1441,13 +1520,25 @@ export default {
 .option-label {
   font-weight: bold;
   color: #409EFF;
-  margin-right: 10px;
-  min-width: 30px;
+  display: block;
+  margin-bottom: 6px;
 }
 
 .option-text {
-  flex: 1;
+  display: block;
+  width: 100%;
   word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.option-text p {
+  margin: 0;
+}
+
+.option-text pre {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .no-options {
@@ -1464,6 +1555,12 @@ export default {
   margin-top: 20px;
   padding-top: 15px;
   border-top: 1px solid #eee;
+}
+
+@media (max-width: 1280px) {
+  .options-container {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 

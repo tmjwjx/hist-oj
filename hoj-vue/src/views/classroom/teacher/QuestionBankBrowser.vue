@@ -152,8 +152,8 @@
                   <el-tag v-else-if="row.type === 'multiple_choice'" type="success" size="small">
                     {{ parseMultipleChoiceAnswer(row) }}
                   </el-tag>
-                  <el-tag v-else-if="row.type === 'judge'" :type="row.answer === 'true' ? 'success' : 'danger'" size="small">
-                    {{ row.answer === 'true' ? '正确' : '错误' }}
+                  <el-tag v-else-if="row.type === 'judge'" :type="isJudgeTrue(row.answer) ? 'success' : 'danger'" size="small">
+                    {{ isJudgeTrue(row.answer) ? '正确' : '错误' }}
                   </el-tag>
                   <div v-else-if="row.type === 'subjective'" class="subjective-answer">
                     <div v-if="row.answer" v-html="renderMarkdown(row.answer)" class="markdown-body"></div>
@@ -293,7 +293,14 @@ export default {
       },
       commonCourses: [
         '数据结构',
-        '算法设计与分析'
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
       ],
       expandedRows: []
     }
@@ -444,6 +451,11 @@ export default {
         }
       }
       return '暂无答案'
+    },
+    isJudgeTrue(answer) {
+      const raw = String(answer || '').trim()
+      const lowered = raw.toLowerCase()
+      return lowered === 'true'
     },
     formatTime(time) {
       if (!time) return '--'

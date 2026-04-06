@@ -153,7 +153,7 @@
       </span>
     </el-dialog>
 
-    <div class="exam-paper-container">
+    <div class="exam-paper-container" v-if="!showCreateDialog">
     <el-card class="exam-paper-card">
       <div slot="header" class="card-header">
         <div class="header-left">
@@ -266,17 +266,21 @@
     </el-card>
   </div>
 
-  <!-- 创建/编辑试卷对话框 - 移到容器外部 -->
-  <el-dialog
-    :title="isEditMode ? '编辑试卷' : '创建试卷'"
-    :visible.sync="showCreateDialog"
-    width="90%"
-    :close-on-click-modal="false"
-    top="5vh"
-    class="exam-paper-dialog"
-    append-to-body
-  >
-    <el-form :model="paperForm" :rules="paperRules" ref="paperForm" label-width="100px">
+  <!-- 创建/编辑试卷页面 -->
+  <div v-if="showCreateDialog" class="exam-paper-editor-page">
+    <div class="editor-toolbar">
+      <div class="editor-title-wrap">
+        <el-button icon="el-icon-arrow-left" @click="showCreateDialog = false">返回试卷列表</el-button>
+        <h3 class="editor-page-title">{{ isEditMode ? '编辑试卷' : '创建试卷' }}</h3>
+      </div>
+      <div class="editor-toolbar-actions">
+        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button type="primary" @click="savePaper" :loading="saving">保存</el-button>
+      </div>
+    </div>
+
+    <el-card class="exam-paper-editor-card" shadow="never">
+      <el-form :model="paperForm" :rules="paperRules" ref="paperForm" label-width="100px">
       <el-form-item label="试卷标题" prop="title">
         <el-input v-model="paperForm.title" placeholder="请输入试卷标题"></el-input>
       </el-form-item>
@@ -378,6 +382,28 @@
             ></el-input>
           </div>
 
+          <div class="quick-add-section">
+            <div class="quick-add-title">按 ID 快速添加客观题</div>
+            <div class="quick-add-row">
+              <el-input
+                v-model.trim="quickAddQuestionId"
+                size="small"
+                clearable
+                placeholder="输入客观题 ID，例如 1024"
+                @keyup.enter.native="quickAddObjectiveQuestion"
+              ></el-input>
+              <el-button
+                class="quick-add-btn"
+                type="primary"
+                size="small"
+                :loading="quickAddQuestionLoading"
+                @click="quickAddObjectiveQuestion"
+              >
+                添加
+              </el-button>
+            </div>
+          </div>
+
           <div class="question-list" v-loading="questionsLoading">
             <el-alert
               v-if="questionBank.length === 0 && !questionsLoading"
@@ -414,11 +440,11 @@
                     </div>
                     <el-collapse-transition>
                       <div v-show="row.showDetail" class="question-detail-content">
-                        <div class="question-description" v-html="renderMarkdown(row.content || row.title)"></div>
+                        <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
                         <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
                           <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
                             <span class="option-label">{{ option.label }}.</span>
-                            <span class="option-text" v-html="renderMarkdown(option.text)"></span>
+                            <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                           </div>
                         </div>
                         <div class="question-answer-meta" v-if="row && row.type">
@@ -532,11 +558,11 @@
                 <div v-if="q && (q.questionId || q.problemId)" class="item-content" :key="'content-' + (q.questionId || q.problemId || index)">
                   <!-- 客观题 -->
                   <div v-if="q.question && (q.question.title || q.question.content)">
-                    <div class="item-description" v-html="renderMarkdown(q.question.content || q.question.title)"></div>
+                    <div class="item-description markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
                     <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="item-options">
                       <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
                         <span class="option-label">{{ option.label }}.</span>
-                        <span class="option-text" v-html="renderMarkdown(option.text)"></span>
+                        <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                       </div>
                     </div>
                     <!-- 显示课程和标签 -->
@@ -606,13 +632,14 @@
           </div>
         </div>
       </div>
-    </el-form>
+      </el-form>
 
-    <span slot="footer">
-      <el-button @click="showCreateDialog = false">取消</el-button>
-      <el-button type="primary" @click="savePaper" :loading="saving">保存</el-button>
-    </span>
-  </el-dialog>
+      <div class="editor-footer-actions">
+        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button type="primary" @click="savePaper" :loading="saving">保存</el-button>
+      </div>
+    </el-card>
+  </div>
 
   <!-- 添加编程题对话框 -->
   <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
@@ -808,11 +835,11 @@
             <div class="question-content">
               <!-- 客观题 -->
               <div v-if="q?.question && (q.question.title || q.question.content)">
-                <div class="question-title" v-html="renderMarkdown(q.question.content || q.question.title)"></div>
+                <div class="question-title markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
                 <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="question-options">
                   <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
                     <span class="option-label">{{ option.label }}.</span>
-                    <span class="option-text" v-html="renderMarkdown(option.text)"></span>
+                    <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                   </div>
                 </div>
                 <!-- 显示课程和标签 -->
@@ -952,10 +979,19 @@ export default {
       questionCurrentPage: 1,
       questionPageSize: 10,
       questionBankTotal: 0,
+      quickAddQuestionId: '',
+      quickAddQuestionLoading: false,
       // 常用课程列表
       commonCourses: [
         '数据结构',
-        '算法设计与分析'
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
       ],
       // 编程题相关
       programmingInputMode: 'manual', // 'manual' 或 'tag'
@@ -1022,6 +1058,8 @@ export default {
           isShared: false,
           questions: []
         }
+        this.quickAddQuestionId = ''
+        this.quickAddQuestionLoading = false
         if (this.$refs.paperForm) {
           this.$refs.paperForm.clearValidate()
         }
@@ -1080,6 +1118,8 @@ export default {
       // 清空题库，避免被之前的题目影响
       this.questionBank = []
       this.questionBankTotal = 0
+      this.quickAddQuestionId = ''
+      this.quickAddQuestionLoading = false
 
       // 在下一个tick清除表单验证并打开对话框
       this.$nextTick(() => {
@@ -1154,6 +1194,44 @@ export default {
     handleQuestionPageChange(page) {
       this.questionCurrentPage = page
       this.loadQuestionBank()
+    },
+    isObjectiveQuestionType(type) {
+      return ['single_choice', 'multiple_choice', 'judge'].includes(type)
+    },
+    async quickAddObjectiveQuestion() {
+      const questionId = String(this.quickAddQuestionId || '').trim()
+      if (!questionId) {
+        this.$message.warning('请输入题目ID')
+        return
+      }
+      if (!/^\d+$/.test(questionId)) {
+        this.$message.warning('题目ID必须是数字')
+        return
+      }
+      if (this.paperForm.questions.some(q => q && String(q.questionId) === questionId)) {
+        this.$message.warning('该题目已添加')
+        return
+      }
+
+      this.quickAddQuestionLoading = true
+      try {
+        const res = await classroomApi.getQuestionDetail(questionId)
+        if (!res || !res.data || res.data.code !== 200 || !res.data.data) {
+          this.$message.error('未找到该题目')
+          return
+        }
+        const question = res.data.data
+        if (!this.isObjectiveQuestionType(question.type)) {
+          this.$message.warning('该题不是客观题，仅支持单选/多选/判断题')
+          return
+        }
+        this.addQuestion(question)
+        this.quickAddQuestionId = ''
+      } catch (error) {
+        this.$message.error('根据ID获取题目失败')
+      } finally {
+        this.quickAddQuestionLoading = false
+      }
     },
     // 添加客观题
     addQuestion(question) {
@@ -1748,20 +1826,17 @@ export default {
             }
 
           case 'judge':
-            // 判断题：统一显示为 "正确" 或 "错误"
-            // 数据库中可能有多种格式："正确"/"错误"、"对"/"错"、true/false
+            // 判断题：统一仅按 true/false 显示
             const answer = question.answer
             if (!answer) return '-'
 
-            // 标准化答案
             const normalizedAnswer = String(answer).toLowerCase().trim()
-            if (['正确', '对', 'true', '1', '√', '✓'].some(v => normalizedAnswer === v.toLowerCase())) {
+            if (normalizedAnswer === 'true') {
               return '正确'
-            } else if (['错误', '错', 'false', '0', '×', '✗'].some(v => normalizedAnswer === v.toLowerCase())) {
+            } else if (normalizedAnswer === 'false') {
               return '错误'
             }
-            // 如果无法识别，返回原始值
-            return answer
+            return '-'
 
           case 'subjective':
             // 主观题：显示参考答案或提示
@@ -1950,13 +2025,116 @@ export default {
 
 <style scoped>
 .exam-paper-container {
-  padding: 20px;
-  max-width: 1400px;
+  padding: 16px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
+.exam-paper-editor-page {
+  padding: 16px;
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.editor-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editor-page-title {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+}
+
+.editor-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exam-paper-editor-card {
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+
+.exam-paper-card {
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ebeef5;
+}
+
+.editor-toolbar-actions .el-button,
+.editor-footer-actions .el-button,
+.header-right .el-button,
+.quick-add-btn,
+.add-programming-section .el-button {
+  border-radius: 6px;
+}
+
+.editor-toolbar-actions .el-button--primary,
+.editor-footer-actions .el-button--primary,
+.header-right .el-button--primary,
+.quick-add-btn.el-button--primary,
+.add-programming-section .el-button--primary {
+  background: #2f6ff6;
+  border-color: #2f6ff6;
+}
+
+.editor-toolbar-actions .el-button--primary:hover,
+.editor-footer-actions .el-button--primary:hover,
+.header-right .el-button--primary:hover,
+.quick-add-btn.el-button--primary:hover,
+.add-programming-section .el-button--primary:hover {
+  background: #285fdb;
+  border-color: #285fdb;
+}
+
 .filter-bar {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .pagination-container {
@@ -1979,25 +2157,25 @@ export default {
 .questions-selector {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px 0;
-  min-height: 500px;
+  gap: 14px;
+  padding: 14px 0;
+  min-height: 460px;
 }
 
 /* 左侧题库面板 */
 .question-bank-panel {
   display: flex;
   flex-direction: column;
-  background: #fafbfc;
-  border-radius: 8px;
-  border: 1px solid #e0e6ed;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #ebeef5;
   overflow: hidden;
 }
 
 .panel-header {
-  padding: 15px;
+  padding: 12px;
   background: #fff;
-  border-bottom: 1px solid #e0e6ed;
+  border-bottom: 1px solid #f0f2f5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2009,8 +2187,34 @@ export default {
 }
 
 .filter-section {
-  padding: 15px;
-  border-bottom: 1px solid #e0e6ed;
+  padding: 12px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.quick-add-section {
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fcfcfd;
+}
+
+.quick-add-title {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.quick-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-add-row .el-input {
+  flex: 1;
+}
+
+.quick-add-btn {
+  min-width: 86px;
 }
 
 .search-input {
@@ -2025,7 +2229,7 @@ export default {
 .question-list {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 12px;
   min-height: 300px;
 }
 
@@ -2106,16 +2310,16 @@ export default {
 .selected-questions-panel {
   display: flex;
   flex-direction: column;
-  background: #f0f9ff;
-  border-radius: 8px;
-  border: 1px solid #e0e6ed;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #ebeef5;
   overflow: hidden;
 }
 
 .selected-list {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 12px;
   max-height: 500px;
 }
 
@@ -2427,6 +2631,29 @@ export default {
 
   .exam-paper-container {
     padding: 10px;
+  }
+
+  .exam-paper-editor-page {
+    padding: 10px;
+  }
+
+  .editor-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editor-toolbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .quick-add-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quick-add-btn {
+    width: 100%;
   }
 }
 

@@ -18,6 +18,13 @@ dist
 *.log
 logs/
 
+# 打包产物（不参与镜像构建）
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
 # 测试
 coverage/
 

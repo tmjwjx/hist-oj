@@ -12,6 +12,14 @@
 bin/
 *.exe
 *.test
+*.tar.gz
+*.zip
+hist-oj-service
+hist-oj-service-*
+hist-oj-server
+hist-oj-linux-amd64
+histoj
+server
 
 # Logs
 logs/
@@ -28,4 +36,3 @@ logs/
 Dockerfile
 docker-compose.yml
 .dockerignore
-

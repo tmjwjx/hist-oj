@@ -15,6 +15,7 @@ export const m = {
   NavBar_Home: 'Home',
   NavBar_Problem: 'Problem',
   NavBar_Training: 'Training',
+  NavBar_Practice: 'Practice',
   NavBar_Contest: 'Contest',
   NavBar_Status: 'Status',
   NavBar_Rank: 'Rank',

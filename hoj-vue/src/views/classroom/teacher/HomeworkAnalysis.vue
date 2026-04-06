@@ -731,12 +731,13 @@ export default {
 
       // 判断题
       if (question.type === 'judge') {
-        if (question.answer === '对' || question.answer === '["对"]' || question.answer === '["true"]' || question.answer === 'true') {
+        const normalizedAnswer = String(question.answer || '').toLowerCase().trim()
+        if (normalizedAnswer === 'true') {
           return '正确'
-        } else if (question.answer === '错' || question.answer === '["错"]' || question.answer === '["false"]' || question.answer === 'false') {
+        } else if (normalizedAnswer === 'false') {
           return '错误'
         }
-        return question.answer
+        return '教师未设置参考答案'
       }
 
       // 单选题和多选题

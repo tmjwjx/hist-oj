@@ -16,6 +16,20 @@ const ClassroomRoutes = {
       component: () => import('@/views/classroom/teacher/QuestionBank'),
       meta: { title: '题库', requiresRole: 'teacher' }
     },
+    {
+      path: 'question-bank/create',
+      name: 'QuestionBankCreate',
+      component: () => import('@/views/common/QuestionBankEditor'),
+      props: { scene: 'teacher' },
+      meta: { title: '创建客观题', requiresRole: 'teacher' }
+    },
+    {
+      path: 'question-bank/edit/:questionId',
+      name: 'QuestionBankEdit',
+      component: () => import('@/views/common/QuestionBankEditor'),
+      props: { scene: 'teacher' },
+      meta: { title: '编辑客观题', requiresRole: 'teacher' }
+    },
     // 试卷库（独立页面，不绑定到班级）
     {
       path: 'exam-paper',

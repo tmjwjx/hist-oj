@@ -15,6 +15,7 @@ export const m = {
   NavBar_Home: '首頁',
   NavBar_Problem: '題目',
   NavBar_Training: '訓練',
+  NavBar_Practice: '練習',
   NavBar_Contest: '比賽',
   NavBar_Status: '評測',
   NavBar_Rank: '排名',
