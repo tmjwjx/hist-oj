@@ -24,6 +24,7 @@
             <el-option label="多选题" value="multiple_choice"></el-option>
             <el-option label="判断题" value="judge"></el-option>
             <el-option label="主观题" value="subjective"></el-option>
+            <el-option label="组合题" value="composite"></el-option>
           </el-select>
         </el-col>
         <el-col :span="5">
@@ -392,7 +393,8 @@ export default {
         'single_choice': '单选题',
         'multiple_choice': '多选题',
         'judge': '判断题',
-        'subjective': '主观题'
+        'subjective': '主观题',
+        'composite': '组合题'
       }
       return typeMap[type] || type
     },
@@ -401,7 +403,8 @@ export default {
         'single_choice': 'primary',
         'multiple_choice': 'success',
         'judge': 'warning',
-        'subjective': 'info'
+        'subjective': 'info',
+        'composite': 'danger'
       }
       return colorMap[type] || ''
     },

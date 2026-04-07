@@ -1809,7 +1809,7 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 
 	var req struct {
 		Title      string `json:"title" binding:"required"`
-		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective programming"`
+		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective programming composite"`
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"` // JSON string
 		Answer     string `json:"answer"`
@@ -1861,6 +1861,19 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 	if normalizeErr != nil {
 		c.JSON(http.StatusOK, errorResponse(400, normalizeErr.Error()))
 		return
+	}
+
+	if req.Type == "composite" {
+		subQuestions, _, err := parseCompositeSubQuestionsFromStored(normalizedOptions)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+		totalScore := 0
+		for _, subQuestion := range subQuestions {
+			totalScore += subQuestion.Score
+		}
+		req.Score = totalScore
 	}
 
 	// 初始化题目对象
@@ -2032,6 +2045,7 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 			"judge":           true,
 			"subjective":      true,
 			"programming":     true,
+			"composite":       true,
 		}
 		if !validTypes[*req.Type] {
 			c.JSON(http.StatusOK, errorResponse(400, "题型不合法"))
@@ -2097,6 +2111,33 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 		} else {
 			updates["options"] = *normalizedOptions
 		}
+
+		if targetType == "composite" {
+			subQuestions, _, err := parseCompositeSubQuestionsFromStored(normalizedOptions)
+			if err != nil {
+				c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+				return
+			}
+			totalScore := 0
+			for _, subQuestion := range subQuestions {
+				totalScore += subQuestion.Score
+			}
+			updates["score"] = totalScore
+		}
+	}
+
+	// 组合题总分固定等于子题分值总和，不允许手动改分
+	if question.Type == "composite" && req.Type == nil && req.Options == nil && req.Answer == nil && req.Score != nil {
+		subQuestions, _, err := parseCompositeSubQuestionsFromStored(question.Options)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+		totalScore := 0
+		for _, subQuestion := range subQuestions {
+			totalScore += subQuestion.Score
+		}
+		updates["score"] = totalScore
 	}
 
 	if len(updates) == 0 {
@@ -2331,6 +2372,7 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 			"judge":           true,
 			"subjective":      true,
 			"programming":     true,
+			"composite":       true,
 		}
 		if !validTypes[*req.Type] {
 			c.JSON(http.StatusOK, errorResponse(400, "题型不合法"))
@@ -2396,6 +2438,33 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		} else {
 			updates["options"] = *normalizedOptions
 		}
+
+		if targetType == "composite" {
+			subQuestions, _, err := parseCompositeSubQuestionsFromStored(normalizedOptions)
+			if err != nil {
+				c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+				return
+			}
+			totalScore := 0
+			for _, subQuestion := range subQuestions {
+				totalScore += subQuestion.Score
+			}
+			updates["score"] = totalScore
+		}
+	}
+
+	// 组合题总分固定等于子题分值总和，不允许手动改分
+	if question.Type == "composite" && req.Type == nil && req.Options == nil && req.Answer == nil && req.Score != nil {
+		subQuestions, _, err := parseCompositeSubQuestionsFromStored(question.Options)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+		totalScore := 0
+		for _, subQuestion := range subQuestions {
+			totalScore += subQuestion.Score
+		}
+		updates["score"] = totalScore
 	}
 
 	if len(updates) == 0 {
@@ -2461,7 +2530,7 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 
 	var req struct {
 		Title      string `json:"title" binding:"required"`
-		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective"`
+		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective composite"`
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"`
 		Answer     string `json:"answer"`
@@ -2512,6 +2581,19 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 	if normalizeErr != nil {
 		c.JSON(http.StatusOK, errorResponse(400, normalizeErr.Error()))
 		return
+	}
+
+	if req.Type == "composite" {
+		subQuestions, _, err := parseCompositeSubQuestionsFromStored(normalizedOptions)
+		if err != nil {
+			c.JSON(http.StatusOK, errorResponse(400, err.Error()))
+			return
+		}
+		totalScore := 0
+		for _, subQuestion := range subQuestions {
+			totalScore += subQuestion.Score
+		}
+		req.Score = totalScore
 	}
 
 	question := &model.QuestionBank{

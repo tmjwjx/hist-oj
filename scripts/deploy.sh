@@ -21,9 +21,13 @@ PROJECT_DIR="/Users/zhuangqingjia/vscode/histoj/hist-oj"
 REMOTE_DIR="/opt"
 TARGET_PLATFORM="${TARGET_PLATFORM:-linux/amd64}"
 HIST_OJ_NO_CACHE="${HIST_OJ_NO_CACHE:-0}"
-FRONTEND_NO_CACHE="${FRONTEND_NO_CACHE:-1}"
+FRONTEND_NO_CACHE="${FRONTEND_NO_CACHE:-0}"
 PRUNE_BEFORE_BUILD="${PRUNE_BEFORE_BUILD:-0}"
 GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD:-0}"
+PULL_BASE_IMAGES="${PULL_BASE_IMAGES:-0}"
+CLEAN_FRONTEND_LOCAL_CACHE="${CLEAN_FRONTEND_LOCAL_CACHE:-0}"
+TAR_COMPRESS_LEVEL="${TAR_COMPRESS_LEVEL:-1}"
+CLEANUP_REMOTE_AFTER_DEPLOY="${CLEANUP_REMOTE_AFTER_DEPLOY:-0}"
 
 # 日志函数
 log_info() {
@@ -141,19 +145,28 @@ build_images() {
 
     cd "$PROJECT_DIR"
 
-    # 先清理旧的构建文件和 Docker 缓存
-    log_info "清理旧的构建文件和 Docker 缓存..."
-    cd hoj-vue
-    rm -rf dist node_modules/.cache
-    cd "$PROJECT_DIR"
+    # 可选：清理前端本地缓存（默认关闭，避免每次都做慢清理）
+    if [ "${CLEAN_FRONTEND_LOCAL_CACHE}" = "1" ]; then
+        log_info "清理前端本地缓存..."
+        cd hoj-vue
+        rm -rf dist node_modules/.cache
+        cd "$PROJECT_DIR"
+    else
+        log_info "跳过前端本地缓存清理（如需清理可设置 CLEAN_FRONTEND_LOCAL_CACHE=1）"
+    fi
+
     if [ "${PRUNE_BEFORE_BUILD}" = "1" ]; then
         docker builder prune -af 2>/dev/null || true
     else
         log_info "跳过 Docker builder prune（保留缓存以加速构建）"
     fi
 
-    # 预拉取基础镜像，减少构建时网络抖动影响
-    pull_base_images || exit 1
+    # 可选：预拉取基础镜像（默认关闭，避免每次耗时拉取）
+    if [ "${PULL_BASE_IMAGES}" = "1" ]; then
+        pull_base_images || exit 1
+    else
+        log_info "跳过基础镜像预拉取（如需启用可设置 PULL_BASE_IMAGES=1）"
+    fi
 
     # 构建 hist-oj（包含报名系统、sim 代码查重工具）
     log_info "构建 hist-oj 镜像（默认使用缓存，包含 sim 查重工具和报名系统）..."
@@ -189,7 +202,11 @@ build_images() {
     log_info "✓ hist-oj 镜像构建成功（包含报名系统、sim_c, sim_java 查重工具）"
 
     # 构建前端（Docker 构建时会自动安装 package.json 中的所有依赖，包括 jsQR）
-    log_info "构建 hoj-frontend 镜像（不使用缓存，包含 jsQR 二维码扫描功能和报名系统前端）..."
+    if [ "${FRONTEND_NO_CACHE}" = "1" ]; then
+        log_info "构建 hoj-frontend 镜像（不使用缓存，包含 jsQR 二维码扫描功能和报名系统前端）..."
+    else
+        log_info "构建 hoj-frontend 镜像（使用缓存加速，包含 jsQR 二维码扫描功能和报名系统前端）..."
+    fi
 
     # 切换到前端目录
     cd "$PROJECT_DIR/hoj-vue"
@@ -200,8 +217,11 @@ build_images() {
         log_info "构建前镜像 ID: $FRONTEND_IMAGE_BEFORE"
     fi
 
-    # 强制重新构建（不使用任何缓存）
-    log_info "开始重新构建前端镜像（不使用缓存）..."
+    if [ "${FRONTEND_NO_CACHE}" = "1" ]; then
+        log_info "开始重新构建前端镜像（不使用缓存）..."
+    else
+        log_info "开始构建前端镜像（使用缓存）..."
+    fi
     build_frontend_image || {
         log_error "hoj-frontend 镜像构建失败"
         exit 1
@@ -227,21 +247,40 @@ build_images() {
     cd "$PROJECT_DIR"
 }
 
+# 保存单个镜像（支持 pigz 多核压缩）
+save_single_image() {
+    local image_name="$1"
+    local output_file="$2"
+    local level="$TAR_COMPRESS_LEVEL"
+
+    if ! [[ "$level" =~ ^[1-9]$ ]]; then
+        log_warn "TAR_COMPRESS_LEVEL=${level} 非法，自动回退到 1"
+        level=1
+    fi
+
+    if command -v pigz >/dev/null 2>&1; then
+        local threads
+        threads="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+        docker save "$image_name" | pigz -"${level}" -p "${threads}" > "${output_file}"
+    else
+        docker save "$image_name" | gzip -"${level}" > "${output_file}"
+    fi
+}
+
 # 保存镜像
 save_images() {
     log_info "保存 Docker 镜像..."
+    log_info "压缩级别: ${TAR_COMPRESS_LEVEL}（1最快，9最小）"
 
-    # 保存 hist-oj 镜像
     log_info "保存 hist-oj 镜像..."
-    docker save hist-oj:latest | gzip -9 > hist-oj.tar.gz || {
+    save_single_image hist-oj:latest hist-oj.tar.gz || {
         log_error "hist-oj 镜像保存失败"
         exit 1
     }
     log_info "✓ hist-oj 镜像已保存 ($(du -h hist-oj.tar.gz | cut -f1))"
 
-    # 保存 hoj-frontend 镜像
     log_info "保存 hoj-frontend 镜像..."
-    docker save hoj-frontend:latest | gzip -9 > hoj-frontend.tar.gz || {
+    save_single_image hoj-frontend:latest hoj-frontend.tar.gz || {
         log_error "hoj-frontend 镜像保存失败"
         exit 1
     }
@@ -455,6 +494,10 @@ show_deployment_info() {
     log_info "  用户: ${SERVER_USER}"
     log_info "  项目目录: ${PROJECT_DIR}"
     log_info "  远程目录: ${REMOTE_DIR}"
+    log_info "  前端无缓存构建: ${FRONTEND_NO_CACHE}"
+    log_info "  预拉基础镜像: ${PULL_BASE_IMAGES}"
+    log_info "  压缩级别: ${TAR_COMPRESS_LEVEL}"
+    log_info "  部署后远端清理: ${CLEANUP_REMOTE_AFTER_DEPLOY}"
     log_info ""
     log_info "部署的服务："
     log_info "  1. hist-oj（后端 + 报名系统 + 对战 + Rating + 班级管理）"
@@ -646,7 +689,11 @@ main() {
     upload_files
     remote_deploy
     cleanup_local
-    cleanup_remote
+    if [ "${CLEANUP_REMOTE_AFTER_DEPLOY}" = "1" ]; then
+        cleanup_remote
+    else
+        log_info "跳过远端镜像清理（如需清理可设置 CLEANUP_REMOTE_AFTER_DEPLOY=1）"
+    fi
 
     # 部署 SSL（如果选择）
     if [ "$DEPLOY_SSL" = true ]; then

@@ -213,6 +213,7 @@
                 <el-option label="多选题" value="multiple_choice"></el-option>
                 <el-option label="判断题" value="judge"></el-option>
                 <el-option label="主观题" value="subjective"></el-option>
+                <el-option label="组合题" value="composite"></el-option>
               </el-select>
             </div>
 
@@ -1212,6 +1213,7 @@ export default {
         multiple_choice: 'warning',
         judge: 'info',
         subjective: 'primary',
+        composite: 'danger',
         programming: 'danger'
       }
       return tagMap[type] || 'info'
@@ -1222,6 +1224,7 @@ export default {
         multiple_choice: '多选题',
         judge: '判断题',
         subjective: '主观题',
+        composite: '组合题',
         programming: '编程题'
       }
       return labelMap[type] || type
@@ -1265,6 +1268,9 @@ export default {
             // 主观题：显示参考答案或提示
             return question.answer && question.answer !== '需人工评分' ? '有参考答案' : '需人工评分'
 
+          case 'composite':
+            return '组合题（按子题判分）'
+
           default:
             return '-'
         }
@@ -1305,7 +1311,7 @@ export default {
       this.loadQuestionBank()
     },
     isObjectiveQuestionType(type) {
-      return ['single_choice', 'multiple_choice', 'judge'].includes(type)
+      return ['single_choice', 'multiple_choice', 'judge', 'composite'].includes(type)
     },
     async quickAddObjectiveQuestion() {
       const questionId = String(this.quickAddQuestionId || '').trim()
@@ -1331,7 +1337,7 @@ export default {
         }
         const question = res.data.data
         if (!this.isObjectiveQuestionType(question.type)) {
-          this.$message.warning('该题不是客观题，仅支持单选/多选/判断题')
+          this.$message.warning('该题不是客观题，仅支持单选/多选/判断/组合题')
           return
         }
         this.addQuestion(question)
@@ -1378,7 +1384,8 @@ export default {
         single_choice: 2,
         multiple_choice: 5,
         judge: 1,
-        subjective: 5
+        subjective: 5,
+        composite: 10
       }
       return scores[type] || 10
     },

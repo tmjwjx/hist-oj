@@ -143,6 +143,45 @@
             ></el-input>
           </div>
 
+          <div v-if="currentQuestion.question.type === 'composite'" class="options composite-options">
+            <div
+              v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(currentQuestion.question.options)"
+              :key="subQuestion.id || subIndex"
+              class="composite-sub-question"
+            >
+              <div class="composite-sub-header">
+                <span>子题 {{ subIndex + 1 }}</span>
+                <span v-if="subQuestion.score !== null && subQuestion.score !== undefined" class="composite-sub-score">
+                  {{ subQuestion.score }} 分
+                </span>
+              </div>
+
+              <div
+                v-if="subQuestion.content"
+                class="composite-sub-content markdown-body"
+                v-html="renderMarkdown(subQuestion.content)"
+                v-highlight
+              ></div>
+              <div v-else class="composite-sub-placeholder">暂无子题题干</div>
+
+              <el-radio-group
+                :value="getCompositeSelectedAnswer(currentQuestion.question.id, subQuestion.id)"
+                @input="handleCompositeChoiceSelect(currentQuestion.question.id, subQuestion.id, $event)"
+              >
+                <el-radio
+                  v-for="(opt, idx) in normalizeCompositeOptions(subQuestion.options)"
+                  :key="`${subQuestion.id || subIndex}_${idx}`"
+                  :label="opt.letter"
+                >
+                  <span class="option-rich-text">
+                    <span class="option-letter option-head">{{ opt.letter }}.</span>
+                    <span class="option-text markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></span>
+                  </span>
+                </el-radio>
+              </el-radio-group>
+            </div>
+          </div>
+
           <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box">
             <div class="answer-title">标准答案</div>
             <div
@@ -153,7 +192,8 @@
                   formatLoadedAnswer(
                     answerDataMap[getQuestionKey(currentQuestion, currentQuestionIndex)] &&
                       answerDataMap[getQuestionKey(currentQuestion, currentQuestionIndex)].answer,
-                    currentQuestion.question.type
+                    currentQuestion.question.type,
+                    currentQuestion.question
                   )
                 )
               "
@@ -204,7 +244,8 @@ export default {
       answerDataMap: {},
       manualDoneMap: {},
       singleAnswers: {},
-      multipleAnswers: {}
+      multipleAnswers: {},
+      compositeAnswers: {}
     }
   },
   created() {
@@ -244,6 +285,14 @@ export default {
             const qid = item.question.id
             if (item.question.type === 'multiple_choice' && !Array.isArray(this.multipleAnswers[qid])) {
               this.$set(this.multipleAnswers, qid, [])
+            }
+            if (
+              item.question.type === 'composite' &&
+              (!this.compositeAnswers[qid] ||
+                typeof this.compositeAnswers[qid] !== 'object' ||
+                Array.isArray(this.compositeAnswers[qid]))
+            ) {
+              this.$set(this.compositeAnswers, qid, {})
             }
             if (
               (item.question.type === 'single_choice' ||
@@ -297,6 +346,15 @@ export default {
       const qid = item.question.id
       if (item.question.type === 'multiple_choice') {
         return Array.isArray(this.multipleAnswers[qid]) && this.multipleAnswers[qid].length > 0
+      }
+      if (item.question.type === 'composite') {
+        const subQuestions = this.parseCompositeSubQuestions(item.question.options)
+        if (!subQuestions.length) return false
+        const subAnswers = this.compositeAnswers[qid] || {}
+        return subQuestions.every(subQuestion => {
+          const answer = subAnswers[String(subQuestion.id || '')]
+          return answer !== undefined && answer !== null && String(answer).trim() !== ''
+        })
       }
       const value = this.singleAnswers[qid]
       return value !== undefined && value !== null && String(value).trim() !== ''
@@ -353,11 +411,56 @@ export default {
         return []
       }
     },
+    parseCompositeSubQuestions(optionsStr) {
+      if (!optionsStr) return []
+      try {
+        const parsed = typeof optionsStr === 'string' ? JSON.parse(optionsStr) : optionsStr
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((item, index) => ({
+          id: String((item && item.id) || `sub_${index + 1}`),
+          content: item && item.content ? String(item.content) : '',
+          options: Array.isArray(item && item.options) ? item.options : [],
+          score:
+            item && item.score !== undefined
+              ? item.score
+              : item && item.subScore !== undefined
+                ? item.subScore
+                : null
+        }))
+      } catch (e) {
+        return []
+      }
+    },
+    normalizeCompositeOptions(options) {
+      if (!Array.isArray(options)) return []
+      return options.map((opt, index) => {
+        const letter = String.fromCharCode(65 + index)
+        const rawText = typeof opt === 'string' ? opt : String(opt || '')
+        const normalizedText = rawText.replace(/^\s*[A-Za-z]\s*[\.\)、:：]\s*/, '')
+        return {
+          letter,
+          text: normalizedText
+        }
+      })
+    },
+    getCompositeSelectedAnswer(questionId, subQuestionId) {
+      const subAnswers = this.compositeAnswers[questionId]
+      if (!subAnswers || typeof subAnswers !== 'object') return ''
+      return subAnswers[String(subQuestionId)] || ''
+    },
+    handleCompositeChoiceSelect(questionId, subQuestionId, answerLetter) {
+      const current = this.compositeAnswers[questionId] && typeof this.compositeAnswers[questionId] === 'object'
+        ? { ...this.compositeAnswers[questionId] }
+        : {}
+      current[String(subQuestionId)] = answerLetter
+      this.$set(this.compositeAnswers, questionId, current)
+    },
     getTypeTag(type) {
       const map = {
         single_choice: 'success',
         multiple_choice: 'warning',
         judge: 'info',
+        composite: 'danger',
         subjective: 'primary',
         programming: 'danger'
       }
@@ -368,12 +471,13 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        composite: '组合题',
         subjective: '主观题',
         programming: '编程题'
       }
       return map[type] || type
     },
-    formatLoadedAnswer(answer, questionType) {
+    formatLoadedAnswer(answer, questionType, question = null) {
       if (!answer) return '暂无标准答案'
       if (questionType === 'multiple_choice') {
         try {
@@ -385,6 +489,32 @@ export default {
         const normalized = String(answer).toLowerCase()
         if (['true', '正确', '对', '1'].includes(normalized)) return '正确'
         if (['false', '错误', '错', '0'].includes(normalized)) return '错误'
+      }
+      if (questionType === 'composite') {
+        try {
+          const answerMap = typeof answer === 'string' ? JSON.parse(answer) : answer
+          if (!answerMap || typeof answerMap !== 'object' || Array.isArray(answerMap)) {
+            return String(answer)
+          }
+
+          const subQuestions = question ? this.parseCompositeSubQuestions(question.options) : []
+          if (subQuestions.length > 0) {
+            const lines = subQuestions.map((subQuestion, index) => {
+              const subAnswer =
+                answerMap[subQuestion.id] ||
+                answerMap[String(index + 1)] ||
+                answerMap[index] ||
+                answerMap[`sub_${index + 1}`]
+              return `- 子题 ${index + 1}: ${subAnswer || '-'}`
+            })
+            return lines.join('\n')
+          }
+
+          const lines = Object.keys(answerMap).map(key => `- ${key}: ${answerMap[key] || '-'}`)
+          return lines.length ? lines.join('\n') : '暂无标准答案'
+        } catch (e) {
+          return String(answer)
+        }
       }
       return answer
     },
@@ -603,6 +733,55 @@ export default {
   margin: 0;
   max-width: 100%;
   overflow-x: auto;
+}
+
+.composite-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.composite-sub-question {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fafbfd;
+}
+
+.composite-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.composite-sub-score {
+  color: #e6a23c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.composite-sub-content {
+  margin-bottom: 10px;
+}
+
+.composite-sub-placeholder {
+  color: #909399;
+  margin-bottom: 10px;
+}
+
+.practice-detail-page /deep/ .markdown-body pre {
+  padding: 0 !important;
+}
+
+.practice-detail-page /deep/ .markdown-body pre code {
+  margin: 0 !important;
+  text-indent: 0 !important;
+}
+
+.practice-detail-page /deep/ .markdown-body pre ol.pre-numbering {
+  display: none !important;
 }
 
 .answer-box {

@@ -868,6 +868,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
       }
@@ -878,6 +879,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        composite: 'danger',
         subjective: 'info',
         programming: 'danger'
       }

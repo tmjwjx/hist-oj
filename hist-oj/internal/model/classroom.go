@@ -443,7 +443,6 @@ func InitClassroomTables(db *gorm.DB) error {
 		&ClassroomMaterialPermission{},
 		&ClassroomRandomPick{},
 		&ClassroomMessage{},
-		&StudentQuestionOrder{},
 		&ExamViolationLog{},
 		&ExamPaper{},
 		&ExamPaperQuestion{},

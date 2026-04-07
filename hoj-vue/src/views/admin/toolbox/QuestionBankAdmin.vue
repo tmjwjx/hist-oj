@@ -22,6 +22,7 @@
               <el-option label="多选题" value="multiple_choice"></el-option>
               <el-option label="判断题" value="judge"></el-option>
               <el-option label="主观题" value="subjective"></el-option>
+              <el-option label="组合题" value="composite"></el-option>
             </el-select>
           </el-col>
           <el-col :span="6">
@@ -124,6 +125,24 @@
                       <div class="answer-info">
                         <strong>参考答案：</strong>
                         <div class="markdown-body" v-html="renderMarkdown(row.answer)" v-highlight></div>
+                      </div>
+                    </div>
+                    <div v-else-if="row.type === 'composite'">
+                      <div
+                        v-for="(sub, subIndex) in parseCompositeSubQuestions(row.options)"
+                        :key="sub.id || subIndex"
+                        class="detail-option-item"
+                      >
+                        <div style="font-weight: 600; margin-bottom: 6px;">子题 {{ subIndex + 1 }}（{{ sub.score || 0 }} 分）</div>
+                        <div class="markdown-body" v-html="renderMarkdown(sub.content || '')" v-highlight></div>
+                        <div v-for="(opt, idx) in parseOptions(JSON.stringify(sub.options || []))" :key="idx" class="detail-option-item">
+                          <div class="detail-option-head">
+                            <el-tag :type="getCompositeAnswer(row.answer, sub.id) === ['A', 'B', 'C', 'D'][idx] ? 'success' : 'info'" size="small">
+                              {{ ['A', 'B', 'C', 'D'][idx] }}
+                            </el-tag>
+                          </div>
+                          <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt)" v-highlight></div>
+                        </div>
                       </div>
                     </div>
 
@@ -798,6 +817,9 @@ export default {
       } else if (this.editForm.type === 'subjective') {
         submitData.answer = this.editForm.referenceAnswer || '需人工评分'
         submitData.options = null
+      } else if (this.editForm.type === 'composite') {
+        this.$message.warning('请使用组合题专用编辑页创建或编辑')
+        return
       }
 
       try {
@@ -860,8 +882,29 @@ export default {
         return this.isJudgeTrue(row.answer) ? '正确' : '错误'
       } else if (row.type === 'subjective') {
         return '需人工评分'
+      } else if (row.type === 'composite') {
+        return '组合题'
       }
       return row.answer
+    },
+    parseCompositeSubQuestions(optionsStr) {
+      try {
+        const parsed = JSON.parse(optionsStr || '[]')
+        return Array.isArray(parsed) ? parsed : []
+      } catch (e) {
+        return []
+      }
+    },
+    getCompositeAnswer(answerStr, subId) {
+      try {
+        const parsed = JSON.parse(answerStr || '{}')
+        if (parsed && typeof parsed === 'object') {
+          return parsed[subId] || ''
+        }
+      } catch (e) {
+        return ''
+      }
+      return ''
     },
     isJudgeTrue(answer) {
       const raw = String(answer || '').trim()
@@ -873,7 +916,8 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
-        subjective: '主观题'
+        subjective: '主观题',
+        composite: '组合题'
       }
       return map[type] || type
     },
@@ -882,7 +926,8 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
-        subjective: 'info'
+        subjective: 'info',
+        composite: 'danger'
       }
       return map[type] || ''
     },

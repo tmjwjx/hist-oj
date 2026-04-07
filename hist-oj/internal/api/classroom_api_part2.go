@@ -565,39 +565,6 @@ func (h *Handler) GetHomeworkDetail(c *gin.Context) {
 		isStudentSubmitted = true
 	}
 
-	// 考试模式：检查是否需要为学生返回乱序题目
-	if homework.IsExamMode == 1 && !isTeacher && !isAdmin {
-		// 查询学生的题目顺序映射
-		var studentOrder model.StudentQuestionOrder
-		if err := db.Where("homework_id = ? AND uid = ?", homeworkID, uid.(string)).
-			First(&studentOrder).Error; err == nil {
-			// 解析顺序映射
-			type OrderMappingItem struct {
-				OriginalOrder int `json:"originalOrder"`
-				DisplayOrder  int `json:"displayOrder"`
-			}
-			var orderMapping []OrderMappingItem
-			if err := json.Unmarshal([]byte(studentOrder.OrderMapping), &orderMapping); err == nil {
-				// 创建原始顺序到显示顺序的映射
-				originalToDisplay := make(map[int]int)
-				for _, item := range orderMapping {
-					originalToDisplay[item.OriginalOrder] = item.DisplayOrder
-				}
-
-				// 创建新的题目切片，按照乱序排列
-				newQuestions := make([]model.HomeworkQuestion, len(homework.Questions))
-				for _, q := range homework.Questions {
-					// q.QuestionOrder 是题目的原始顺序（1-based，从数据库question_order字段）
-					// 找到该题目应该显示的位置
-					displayOrder := originalToDisplay[q.QuestionOrder]
-					// displayOrder 是 1-based，转换为 0-based 索引
-					newQuestions[displayOrder-1] = q
-				}
-				homework.Questions = newQuestions
-			}
-		}
-	}
-
 	// 判断是否应该显示答案
 	shouldShowAnswer := false
 	if isTeacher || isAdmin {

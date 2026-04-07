@@ -21,6 +21,7 @@
                 <el-option label="多选题" value="multiple_choice"></el-option>
                 <el-option label="判断题" value="judge"></el-option>
                 <el-option label="主观题" value="subjective"></el-option>
+                <el-option label="组合题" value="composite"></el-option>
               </el-select>
             </el-form-item>
 
@@ -111,6 +112,71 @@
               </el-form-item>
             </template>
 
+            <template v-if="form.type === 'composite'">
+              <el-form-item label="子题配置" required>
+                <div class="composite-panel">
+                  <div
+                    v-for="(subQuestion, subIndex) in form.compositeQuestions"
+                    :key="subQuestion.id"
+                    class="composite-sub-question"
+                  >
+                    <div class="composite-sub-header">
+                      <span>子题 {{ subIndex + 1 }}</span>
+                      <div class="composite-sub-actions">
+                        <span class="composite-sub-score-label">分值</span>
+                        <el-input-number
+                          v-model="subQuestion.score"
+                          :min="1"
+                          :max="100"
+                          size="mini"
+                          @change="recalculateCompositeTotalScore"
+                        ></el-input-number>
+                        <el-button
+                          type="text"
+                          size="mini"
+                          @click="removeCompositeQuestion(subIndex)"
+                          :disabled="form.compositeQuestions.length <= 1"
+                        >
+                          删除
+                        </el-button>
+                      </div>
+                    </div>
+
+                    <div class="composite-content-editor">
+                      <el-input
+                        type="textarea"
+                        :rows="3"
+                        v-model="subQuestion.content"
+                        :placeholder="`请输入子题 ${subIndex + 1} 题干（支持 Markdown）`"
+                      ></el-input>
+                      <el-button size="mini" @click="openCompositeContentEditor(subIndex)">窗口编辑</el-button>
+                    </div>
+
+                    <div class="composite-options">
+                      <div v-for="(_, optionIndex) in subQuestion.choiceOptions" :key="optionIndex" class="option-item">
+                        <div class="option-select-wrap">
+                          <el-radio v-model="subQuestion.correctAnswer" :label="optionIndex">
+                            {{ optionLetters[optionIndex] }}
+                          </el-radio>
+                        </div>
+                        <div class="option-input-wrap">
+                          <el-input
+                            type="textarea"
+                            :rows="2"
+                            v-model="subQuestion.choiceOptions[optionIndex]"
+                            :placeholder="`${optionLetters[optionIndex]}. 子题选项内容（支持 Markdown）`"
+                          ></el-input>
+                        </div>
+                        <el-button size="mini" @click="openCompositeOptionEditor(subIndex, optionIndex)">窗口编辑</el-button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+                <el-button size="mini" type="primary" plain @click="addCompositeQuestion">新增子题</el-button>
+              </el-form-item>
+            </template>
+
             <el-form-item label="题目解析">
               <el-input
                 type="textarea"
@@ -164,7 +230,8 @@
             <el-row :gutter="12" class="compact-form-row">
               <el-col :span="12">
                 <el-form-item label="默认分值">
-                  <el-input-number v-model="form.score" :min="1" :max="100"></el-input-number>
+                  <el-input-number v-model="form.score" :min="1" :max="100" :disabled="form.type === 'composite'"></el-input-number>
+                  <div v-if="form.type === 'composite'" class="compact-tip">组合题总分自动等于所有子题分值之和</div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -230,6 +297,45 @@
               </el-alert>
             </div>
 
+            <div v-if="form.type === 'composite'" class="preview-options">
+              <div
+                v-for="(subQuestion, subIndex) in form.compositeQuestions"
+                :key="subQuestion.id"
+                class="preview-option-item composite-preview-item"
+              >
+                <div class="composite-preview-title">
+                  子题 {{ subIndex + 1 }}（{{ subQuestion.score || 0 }} 分）
+                </div>
+                <div
+                  v-if="subQuestion.content"
+                  class="markdown-body preview-option-content"
+                  v-html="renderMarkdown(subQuestion.content)"
+                  v-highlight
+                ></div>
+                <div v-else class="preview-placeholder">子题题干预览</div>
+                <div class="preview-options">
+                  <div
+                    v-for="(option, optionIndex) in subQuestion.choiceOptions"
+                    :key="optionIndex"
+                    class="preview-option-item"
+                  >
+                    <div class="preview-option-head">
+                      <el-tag :type="subQuestion.correctAnswer === optionIndex ? 'success' : 'info'" size="small">
+                        {{ optionLetters[optionIndex] }}
+                      </el-tag>
+                    </div>
+                    <div
+                      v-if="option"
+                      class="markdown-body preview-option-content"
+                      v-html="renderMarkdown(option)"
+                      v-highlight
+                    ></div>
+                    <div v-else class="preview-placeholder">选项内容</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div v-if="form.analysis" class="preview-analysis">
               <el-divider content-position="left">
                 <i class="el-icon-document" style="color: #E6A23C;"></i>
@@ -244,7 +350,7 @@
     </el-row>
 
     <el-dialog
-      :title="`编辑选项 ${currentOptionLetter}`"
+      :title="optionEditorTitle"
       :visible.sync="optionEditor.visible"
       width="1100px"
       append-to-body
@@ -311,6 +417,8 @@ export default {
       optionEditor: {
         visible: false,
         index: null,
+        subIndex: null,
+        mode: '',
         content: ''
       },
       commonCourses: [
@@ -347,10 +455,25 @@ export default {
     backRouteName() {
       return this.isAdmin ? 'admin-question-bank' : 'QuestionBank'
     },
-    currentOptionLetter() {
-      const index = this.optionEditor.index
-      if (index === null || index < 0 || index >= this.optionLetters.length) return ''
-      return this.optionLetters[index]
+    optionEditorTitle() {
+      if (!this.optionEditor.mode) {
+        return '编辑内容'
+      }
+      if (this.optionEditor.mode === 'normal_option') {
+        const index = this.optionEditor.index
+        const letter = this.optionLetters[index] || ''
+        return `编辑选项 ${letter}`
+      }
+      if (this.optionEditor.mode === 'composite_content') {
+        const subIndex = this.optionEditor.subIndex
+        return `编辑子题 ${subIndex + 1} 题干`
+      }
+      if (this.optionEditor.mode === 'composite_option') {
+        const subIndex = this.optionEditor.subIndex
+        const letter = this.optionLetters[this.optionEditor.index] || ''
+        return `编辑子题 ${subIndex + 1} 选项 ${letter}`
+      }
+      return '编辑内容'
     }
   },
   created() {
@@ -367,6 +490,7 @@ export default {
         choiceOptions: ['', '', '', ''],
         correctAnswer: 0,
         correctAnswers: [false, false, false, false],
+        compositeQuestions: [this.getDefaultCompositeQuestion(1)],
         referenceAnswer: '',
         analysis: '',
         tags: [],
@@ -375,6 +499,24 @@ export default {
         score: 2,
         isShared: false
       }
+    },
+    getDefaultCompositeQuestion(order) {
+      const serial = `${Date.now()}_${Math.floor(Math.random() * 100000)}_${order}`
+      return {
+        id: `sq_${serial}`,
+        content: '',
+        choiceOptions: ['', '', '', ''],
+        correctAnswer: 0,
+        score: 1
+      }
+    },
+    recalculateCompositeTotalScore() {
+      if (this.form.type !== 'composite') return
+      const total = (this.form.compositeQuestions || []).reduce((sum, item) => {
+        const score = Number(item && item.score ? item.score : 0)
+        return sum + (score > 0 ? score : 0)
+      }, 0)
+      this.form.score = total > 0 ? total : 1
     },
     goBack(forceRefresh = false) {
       const route = { name: this.backRouteName }
@@ -400,6 +542,13 @@ export default {
         this.form.correctAnswer = ''
         this.form.correctAnswers = [false, false, false, false]
         this.form.score = 5
+      } else if (this.form.type === 'composite') {
+        if (!Array.isArray(this.form.compositeQuestions) || this.form.compositeQuestions.length === 0) {
+          this.form.compositeQuestions = [this.getDefaultCompositeQuestion(1)]
+        }
+        this.form.correctAnswer = ''
+        this.form.correctAnswers = [false, false, false, false]
+        this.recalculateCompositeTotalScore()
       }
       this.form.referenceAnswer = ''
     },
@@ -415,17 +564,70 @@ export default {
     },
     openOptionEditor(index) {
       this.optionEditor.visible = true
+      this.optionEditor.mode = 'normal_option'
       this.optionEditor.index = index
+      this.optionEditor.subIndex = null
       this.optionEditor.content = this.form.choiceOptions[index] || ''
+    },
+    openCompositeContentEditor(subIndex) {
+      const subQuestion = this.form.compositeQuestions[subIndex]
+      if (!subQuestion) return
+      this.optionEditor.visible = true
+      this.optionEditor.mode = 'composite_content'
+      this.optionEditor.index = null
+      this.optionEditor.subIndex = subIndex
+      this.optionEditor.content = subQuestion.content || ''
+    },
+    openCompositeOptionEditor(subIndex, optionIndex) {
+      const subQuestion = this.form.compositeQuestions[subIndex]
+      if (!subQuestion) return
+      this.optionEditor.visible = true
+      this.optionEditor.mode = 'composite_option'
+      this.optionEditor.index = optionIndex
+      this.optionEditor.subIndex = subIndex
+      this.optionEditor.content = subQuestion.choiceOptions[optionIndex] || ''
     },
     closeOptionEditor() {
       this.optionEditor.visible = false
+      this.optionEditor.mode = ''
       this.optionEditor.index = null
+      this.optionEditor.subIndex = null
       this.optionEditor.content = ''
     },
     syncOptionEditorContent(value) {
-      if (this.optionEditor.index === null) return
-      this.$set(this.form.choiceOptions, this.optionEditor.index, value)
+      if (this.optionEditor.mode === 'normal_option') {
+        if (this.optionEditor.index === null) return
+        this.$set(this.form.choiceOptions, this.optionEditor.index, value)
+        return
+      }
+      if (this.optionEditor.mode === 'composite_content') {
+        const subIndex = this.optionEditor.subIndex
+        if (subIndex === null || !this.form.compositeQuestions[subIndex]) return
+        this.$set(this.form.compositeQuestions[subIndex], 'content', value)
+        return
+      }
+      if (this.optionEditor.mode === 'composite_option') {
+        const subIndex = this.optionEditor.subIndex
+        const optionIndex = this.optionEditor.index
+        if (subIndex === null || optionIndex === null || !this.form.compositeQuestions[subIndex]) return
+        this.$set(this.form.compositeQuestions[subIndex].choiceOptions, optionIndex, value)
+      }
+    },
+    addCompositeQuestion() {
+      if (!Array.isArray(this.form.compositeQuestions)) {
+        this.$set(this.form, 'compositeQuestions', [])
+      }
+      this.form.compositeQuestions.push(this.getDefaultCompositeQuestion(this.form.compositeQuestions.length + 1))
+      this.recalculateCompositeTotalScore()
+    },
+    removeCompositeQuestion(index) {
+      if (!Array.isArray(this.form.compositeQuestions)) return
+      if (this.form.compositeQuestions.length <= 1) {
+        this.$message.warning('组合题至少保留一个子题')
+        return
+      }
+      this.form.compositeQuestions.splice(index, 1)
+      this.recalculateCompositeTotalScore()
     },
     validateForm() {
       if (!this.form.title || !this.form.title.trim()) {
@@ -450,6 +652,34 @@ export default {
         if (selectedCount === 0) {
           this.$message.warning('请至少选择一个正确答案')
           return false
+        }
+      }
+
+      if (this.form.type === 'composite') {
+        if (!Array.isArray(this.form.compositeQuestions) || this.form.compositeQuestions.length === 0) {
+          this.$message.warning('请至少添加一个子题')
+          return false
+        }
+        for (let i = 0; i < this.form.compositeQuestions.length; i++) {
+          const subQuestion = this.form.compositeQuestions[i]
+          if (!subQuestion || !String(subQuestion.content || '').trim()) {
+            this.$message.warning(`请填写子题 ${i + 1} 的题干`)
+            return false
+          }
+          const invalidOptionIndex = (subQuestion.choiceOptions || []).findIndex(option => !String(option || '').trim())
+          if (invalidOptionIndex !== -1) {
+            this.$message.warning(`请填写子题 ${i + 1} 的 ${this.optionLetters[invalidOptionIndex]} 选项内容`)
+            return false
+          }
+          const subScore = Number(subQuestion.score || 0)
+          if (!Number.isFinite(subScore) || subScore <= 0) {
+            this.$message.warning(`子题 ${i + 1} 的分值必须大于0`)
+            return false
+          }
+          if (subQuestion.correctAnswer === null || subQuestion.correctAnswer === undefined || subQuestion.correctAnswer < 0 || subQuestion.correctAnswer > 3) {
+            this.$message.warning(`请选择子题 ${i + 1} 的正确答案`)
+            return false
+          }
         }
       }
       return true
@@ -484,6 +714,28 @@ export default {
       } else if (this.form.type === 'subjective') {
         submitData.answer = this.form.referenceAnswer || '需人工评分'
         submitData.options = null
+      } else if (this.form.type === 'composite') {
+        const compositeQuestions = (this.form.compositeQuestions || []).map((subQuestion, subIndex) => {
+          const subID = String(subQuestion.id || `sq_${subIndex + 1}`)
+          return {
+            id: subID,
+            content: subQuestion.content,
+            options: (subQuestion.choiceOptions || []).map((option, optionIndex) =>
+              `${this.optionLetters[optionIndex]}. ${option}`
+            ),
+            score: Number(subQuestion.score || 1)
+          }
+        })
+
+        const answerMap = {}
+        compositeQuestions.forEach((subQuestion, subIndex) => {
+          const selectedIndex = this.form.compositeQuestions[subIndex].correctAnswer
+          answerMap[subQuestion.id] = this.optionLetters[selectedIndex]
+        })
+
+        submitData.options = JSON.stringify(compositeQuestions)
+        submitData.answer = JSON.stringify(answerMap)
+        submitData.score = compositeQuestions.reduce((sum, item) => sum + (Number(item.score) || 0), 0)
       }
 
       if (!this.isAdmin) {
@@ -561,6 +813,46 @@ export default {
         nextForm.correctAnswer = String(question.answer || '').toLowerCase() === 'true' ? 'true' : 'false'
       } else if (question.type === 'subjective') {
         nextForm.referenceAnswer = question.answer || ''
+      } else if (question.type === 'composite') {
+        const answerIndexMap = { A: 0, B: 1, C: 2, D: 3 }
+        let parsedAnswerMap = {}
+        try {
+          const parsedAnswer = typeof question.answer === 'string' ? JSON.parse(question.answer || '{}') : question.answer
+          if (parsedAnswer && typeof parsedAnswer === 'object' && !Array.isArray(parsedAnswer)) {
+            parsedAnswerMap = parsedAnswer
+          }
+        } catch (e) {
+          parsedAnswerMap = {}
+        }
+
+        try {
+          const parsedOptions = typeof question.options === 'string' ? JSON.parse(question.options || '[]') : question.options
+          if (Array.isArray(parsedOptions) && parsedOptions.length > 0) {
+            nextForm.compositeQuestions = parsedOptions.map((item, index) => {
+              const subID = String(item.id || `sq_${index + 1}`)
+              const rawOptions = Array.isArray(item.options) ? item.options : []
+              const choiceOptions = rawOptions.length === 4
+                ? rawOptions.map(opt => String(opt).replace(/^[A-D]\.\s*/, ''))
+                : ['', '', '', '']
+              const rawAnswer = String(parsedAnswerMap[subID] || '').toUpperCase()
+              return {
+                id: subID,
+                content: item.content || '',
+                choiceOptions,
+                correctAnswer: answerIndexMap[rawAnswer] ?? 0,
+                score: Number(item.score || item.subScore || 1)
+              }
+            })
+          } else {
+            nextForm.compositeQuestions = [this.getDefaultCompositeQuestion(1)]
+          }
+        } catch (e) {
+          nextForm.compositeQuestions = [this.getDefaultCompositeQuestion(1)]
+        }
+        nextForm.score = (nextForm.compositeQuestions || []).reduce((sum, item) => {
+          const score = Number(item && item.score ? item.score : 0)
+          return sum + (score > 0 ? score : 0)
+        }, 0) || 1
       }
 
       this.form = nextForm
@@ -657,10 +949,67 @@ export default {
   margin-bottom: 10px;
 }
 
+.compact-tip {
+  margin-top: 4px;
+  color: #909399;
+  font-size: 12px;
+}
+
 .options-container {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.composite-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.composite-sub-question {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafbfd;
+}
+
+.composite-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.composite-sub-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composite-sub-score-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
+}
+
+.composite-content-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.composite-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.composite-preview-title {
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
 .option-item {
@@ -801,5 +1150,20 @@ export default {
   .preview-column {
     max-height: none;
   }
+}
+</style>
+
+<style>
+.question-editor-page .markdown-body pre {
+  padding: 0 !important;
+}
+
+.question-editor-page .markdown-body pre code {
+  margin: 0 !important;
+  text-indent: 0 !important;
+}
+
+.question-editor-page .markdown-body pre ol.pre-numbering {
+  display: none !important;
 }
 </style>

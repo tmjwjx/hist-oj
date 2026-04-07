@@ -484,6 +484,7 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        composite: '组合题',
         subjective: '主观题',
         programming: '编程题'
       }
@@ -494,6 +495,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        composite: 'danger',
         subjective: 'info',
         programming: 'danger'
       }

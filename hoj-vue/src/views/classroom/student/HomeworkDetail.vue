@@ -343,6 +343,52 @@
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
               </div>
+
+              <!-- 组合题 -->
+              <div v-if="item.question.type === 'composite'" class="question-options composite-answer-area">
+                <div
+                  v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(item.question.options)"
+                  :key="subQuestion.id || subIndex"
+                  class="composite-sub-question-card"
+                >
+                  <div class="composite-sub-header">
+                    <span>子题 {{ subIndex + 1 }}</span>
+                    <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                  </div>
+                  <div class="markdown-body" v-html="formatContent(subQuestion.content || '')" v-highlight></div>
+
+                  <div
+                    v-for="(option, optionIndex) in parseOptions(JSON.stringify(subQuestion.options || []))"
+                    :key="optionIndex"
+                    class="option-item option-item-clickable"
+                    @click="handleCompositeChoiceSelect(item.question.id, subQuestion.id, option.letter)"
+                  >
+                    <el-tag
+                      :type="getCompositeSelectedAnswer(item.question.id, subQuestion.id) === option.letter ? 'primary' : 'info'"
+                      size="small"
+                    >
+                      {{ option.letter }}
+                    </el-tag>
+                    <span class="option-rich-text">
+                      <span class="option-content markdown-body" v-html="formatContent(option.text)" v-highlight></span>
+                    </span>
+                  </div>
+
+                  <div class="student-answer" v-if="getCompositeSelectedAnswer(item.question.id, subQuestion.id)">
+                    <el-tag type="info">已选: {{ getCompositeSelectedAnswer(item.question.id, subQuestion.id) }}</el-tag>
+                  </div>
+                  <div class="correct-answer" v-if="canViewAnswer && isSubmitted">
+                    <el-tag type="success">正确答案: {{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id) || '-' }}</el-tag>
+                  </div>
+                </div>
+
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -515,6 +561,7 @@ export default {
       isSubmitted: false, // 是否已正式提交（区别于草稿）
       answers: {}, // 单选题、判断题、主观题答案
       multipleAnswers: {}, // 多选题答案数组 { questionId: ['A', 'B'] }
+      compositeAnswers: {}, // 组合题答案 { questionId: { subId: 'A' } }
       questionScores: {}, // 每题得分 { questionId: score }
       questionIsScored: {}, // 每题是否已评分 { questionId: boolean }
       programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
@@ -733,6 +780,8 @@ export default {
                   this.$set(this.answers, qid, '')
                 } else if (item.question.type === 'multiple_choice') {
                   this.$set(this.multipleAnswers, qid, [])
+                } else if (item.question.type === 'composite') {
+                  this.$set(this.compositeAnswers, qid, {})
                 }
               })
             }
@@ -890,13 +939,16 @@ export default {
 
             Object.keys(answersData).forEach(qid => {
               answeredCount++
+              const questionType = this.getQuestionTypeByQuestionId(qid)
 
-              // 尝试解析为数组（多选题）
+              // 按题型恢复答案（多选/组合题为JSON结构）
               try {
                 const parsed = JSON.parse(answersData[qid])
-                if (Array.isArray(parsed)) {
+                if (questionType === 'multiple_choice' && Array.isArray(parsed)) {
                   // 多选题
                   this.$set(this.multipleAnswers, qid, parsed)
+                } else if (questionType === 'composite' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                  this.$set(this.compositeAnswers, qid, parsed)
                 } else {
                   // 单选题、判断题、主观题
                   this.$set(this.answers, qid, answersData[qid])
@@ -995,6 +1047,39 @@ export default {
       this.$set(this.multipleAnswers, questionId, currentAnswers)
       this.handleAnswerChange()
     },
+    handleCompositeChoiceSelect(questionId, subId, optionLetter) {
+      if (this.isSubmitted) return
+      if (!questionId || !subId) return
+
+      const current = this.compositeAnswers[questionId] && typeof this.compositeAnswers[questionId] === 'object'
+        ? { ...this.compositeAnswers[questionId] }
+        : {}
+      if (current[subId] === optionLetter) return
+      current[subId] = optionLetter
+      this.$set(this.compositeAnswers, questionId, current)
+      this.handleAnswerChange()
+    },
+    getCompositeSelectedAnswer(questionId, subId) {
+      const subAnswers = this.compositeAnswers[questionId]
+      if (!subAnswers || typeof subAnswers !== 'object') return ''
+      return subAnswers[subId] || ''
+    },
+    getCompositeCorrectAnswer(answerStr, subId) {
+      try {
+        const parsed = typeof answerStr === 'string' ? JSON.parse(answerStr || '{}') : answerStr
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed[subId] || ''
+        }
+      } catch (e) {
+        return ''
+      }
+      return ''
+    },
+    getQuestionTypeByQuestionId(questionId) {
+      const questionIdStr = String(questionId)
+      const target = (this.homework.questions || []).find(item => item && item.question && String(item.question.id) === questionIdStr)
+      return target && target.question ? target.question.type : ''
+    },
     // 页面初始化后立即保存一次（确保所有题目都有记录）
     async initializeAnswers() {
       try {
@@ -1013,6 +1098,8 @@ export default {
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             // 如果已有答案就用已有的，否则用空字符串
             answersData[qid] = this.answers[qid] || ''
+          } else if (item.question.type === 'composite') {
+            answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
           }
         })
 
@@ -1077,6 +1164,8 @@ export default {
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
+          } else if (item.question.type === 'composite') {
+            answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
           }
         })
 
@@ -1128,6 +1217,8 @@ export default {
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
+          } else if (item.question.type === 'composite') {
+            answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
           }
         })
 
@@ -1204,6 +1295,13 @@ export default {
           if (!this.multipleAnswers[qid] || this.multipleAnswers[qid].length === 0) {
             unanswered.push(`第${this.getQuestionIndex(item)}题`)
           }
+        } else if (item.question.type === 'composite') {
+          const subQuestions = this.parseCompositeSubQuestions(item.question.options)
+          const subAnswers = this.compositeAnswers[qid] || {}
+          const hasMissing = subQuestions.some(subQuestion => !subAnswers[subQuestion.id])
+          if (hasMissing) {
+            unanswered.push(`第${this.getQuestionIndex(item)}题`)
+          }
         } else {
           // 其他题型：检查是否有答案
           if (!this.answers[qid]) {
@@ -1238,6 +1336,8 @@ export default {
           const qid = item.question.id
           if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
+          } else if (item.question.type === 'composite') {
+            answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
           }
         })
 
@@ -1308,6 +1408,20 @@ export default {
         return []
       }
     },
+    parseCompositeSubQuestions(optionsStr) {
+      try {
+        const parsed = typeof optionsStr === 'string' ? JSON.parse(optionsStr || '[]') : optionsStr
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((sub, index) => ({
+          id: String(sub.id || `sq_${index + 1}`),
+          content: sub.content || '',
+          options: Array.isArray(sub.options) ? sub.options : [],
+          score: Number(sub.score || sub.subScore || 0)
+        }))
+      } catch {
+        return []
+      }
+    },
     formatMultipleChoiceAnswer(answer) {
       if (!answer) return ''
       try {
@@ -1349,6 +1463,7 @@ export default {
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
         subjective: this.$t('m.Subjective'),
+        composite: '组合题',
         programming: this.$t('m.Programming')
       }
       return map[type] || type
@@ -2297,6 +2412,10 @@ export default {
         const qid = question.question.id
         if (question.question.type === 'multiple_choice') {
           isAnswered = this.multipleAnswers[qid] && this.multipleAnswers[qid].length > 0
+        } else if (question.question.type === 'composite') {
+          const subQuestions = this.parseCompositeSubQuestions(question.question.options)
+          const subAnswers = this.compositeAnswers[qid] || {}
+          isAnswered = subQuestions.length > 0 && subQuestions.every(sub => !!subAnswers[sub.id])
         } else {
           isAnswered = this.answers[qid] && this.answers[qid].toString().trim() !== ''
         }
@@ -2480,6 +2599,24 @@ export default {
 }
 .subjective-answer {
   margin-top: 15px;
+}
+.composite-answer-area {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.composite-sub-question-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+.composite-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 .programming-answer {
   margin-top: 15px;

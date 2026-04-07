@@ -1160,6 +1160,7 @@ export default {
           single_choice: 2,      // 单选题默认2分
           multiple_choice: 5,    // 多选题默认5分
           judge: 1,              // 判断题默认1分
+          composite: 10,         // 组合题默认10分
           subjective: 5,         // 主观题默认5分
           programming: 20        // 编程题默认20分
         }
@@ -1249,6 +1250,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
       }
@@ -1259,6 +1261,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        composite: 'danger',
         subjective: 'info',
         programming: 'danger'
       }

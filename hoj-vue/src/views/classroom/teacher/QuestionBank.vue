@@ -20,6 +20,7 @@
             <el-option label="多选题" value="multiple_choice"></el-option>
             <el-option label="判断题" value="judge"></el-option>
             <el-option label="主观题" value="subjective"></el-option>
+            <el-option label="组合题" value="composite"></el-option>
           </el-select>
         </el-col>
         <el-col :span="5">
@@ -1183,7 +1184,8 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        subjective: this.$t('m.Subjective')
+        subjective: this.$t('m.Subjective'),
+        composite: '组合题'
       }
       return map[type] || type
     },
@@ -1205,7 +1207,8 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
-        subjective: 'info'
+        subjective: 'info',
+        composite: 'danger'
       }
       return map[type] || ''
     },

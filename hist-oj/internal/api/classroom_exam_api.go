@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,12 +22,6 @@ import (
 type StartExamRequest struct {
 	DeviceInfo  string `json:"deviceInfo"`
 	BrowserInfo string `json:"browserInfo"`
-}
-
-// OrderMappingItem 题目顺序映射项
-type OrderMappingItem struct {
-	OriginalOrder int `json:"originalOrder"` // 教师设置的原始顺序
-	DisplayOrder  int `json:"displayOrder"`  // 学生看到的显示顺序
 }
 
 // StartExam 开始考试（学生点击"开始答题"）
@@ -113,46 +106,11 @@ func (h *Handler) StartExam(c *gin.Context) {
 		elapsedMinutes := int(time.Since(*existingSubmit.ExamStartTime).Minutes())
 		canSubmit := elapsedMinutes >= homework.AllowSubmitAfterMinutes && existingSubmit.IsOfficiallySubmitted == 0
 
-		// 获取学生保存的题目顺序
-		var studentOrder model.StudentQuestionOrder
-		questions := []gin.H{}
-		if err := db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid.(string)).First(&studentOrder).Error; err == nil {
-			// 找到了题目顺序映射，需要返回乱序的题目
-			var homeworkQuestions []model.HomeworkQuestion
-			if err := db.Where("homework_id = ?", homeworkIDUint64).
-				Preload("Question").
-				Order("question_order ASC").
-				Find(&homeworkQuestions).Error; err == nil {
-				// 解析顺序映射
-				var orderMapping []OrderMappingItem
-				json.Unmarshal([]byte(studentOrder.OrderMapping), &orderMapping)
-
-				// 根据映射关系重新排序题目
-				questions = make([]gin.H, len(homeworkQuestions))
-				for _, mapping := range orderMapping {
-					if mapping.DisplayOrder > 0 && mapping.DisplayOrder <= len(homeworkQuestions) {
-						// 找到对应原始顺序的题目
-						for _, q := range homeworkQuestions {
-							if q.QuestionOrder == mapping.OriginalOrder {
-								questionData := gin.H{
-									"id":            q.ID,
-									"homeworkId":    q.HomeworkID,
-									"questionId":    q.QuestionID,
-									"problemId":     q.ProblemID,
-									"displayOrder":  mapping.DisplayOrder,
-									"questionOrder": q.QuestionOrder,
-									"score":         q.Score,
-								}
-								if q.Question != nil {
-									questionData["question"] = q.Question
-								}
-								questions[mapping.DisplayOrder-1] = questionData
-								break
-							}
-						}
-					}
-				}
-			}
+		questions, err := getExamQuestionsInOriginalOrder(db, homeworkIDUint64)
+		if err != nil {
+			logger.Error("获取考试题目失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "获取题目失败"))
+			return
 		}
 
 		c.JSON(http.StatusOK, successResponse(gin.H{
@@ -179,43 +137,20 @@ func (h *Handler) StartExam(c *gin.Context) {
 		return
 	}
 
-	// 5. 获取作业题目（预加载Question关联）
-	var questions []model.HomeworkQuestion
+	// 5. 获取作业题目（按原始顺序返回，不再乱序）
+	var homeworkQuestions []model.HomeworkQuestion
 	if err := db.Where("homework_id = ?", homeworkID).
 		Preload("Question"). // 预加载题库信息
 		Order("question_order ASC").
-		Find(&questions).Error; err != nil {
+		Find(&homeworkQuestions).Error; err != nil {
 		logger.Error("获取题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "获取题目失败"))
 		return
 	}
 
-	// 6. 生成题目乱序并保存映射
-	shuffledQuestions, orderMapping := shuffleQuestions(questions)
+	questions := buildExamQuestionPayload(homeworkQuestions)
 
-	// 保存题目顺序映射（使用 FirstOrCreate 避免重复）
-	orderMappingJSON, err := json.Marshal(orderMapping)
-	if err != nil {
-		logger.Error("JSON序列化失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "数据处理失败"))
-		return
-	}
-
-	// 使用 FirstOrCreate 处理学生多次点击的情况
-	studentOrder := &model.StudentQuestionOrder{
-		HomeworkID:   homeworkIDUint64,
-		UID:          uid.(string),
-		OrderMapping: string(orderMappingJSON),
-	}
-	if err := db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid.(string)).
-		Assign(studentOrder).
-		FirstOrCreate(studentOrder).Error; err != nil {
-		logger.Error("保存题目顺序失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "保存题目顺序失败"))
-		return
-	}
-
-	// 7. 记录考试开始时间
+	// 6. 记录考试开始时间
 	// 首先检查是否有草稿记录
 	var submitCount int64
 	db.Model(&model.HomeworkSubmit{}).
@@ -268,7 +203,7 @@ func (h *Handler) StartExam(c *gin.Context) {
 		}
 	}
 
-	// 8. 更新设备信息和浏览器信息
+	// 7. 更新设备信息和浏览器信息
 	if err := db.Model(&model.HomeworkSubmit{}).
 		Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid).
 		Updates(map[string]interface{}{
@@ -283,23 +218,23 @@ func (h *Handler) StartExam(c *gin.Context) {
 		zap.String("homeworkId", homeworkID),
 		zap.Time("startTime", examStartTime))
 
-	// 9. 计算考试结束时间：取（开始时间+考试时长）和（作业结束时间）的较小值
+	// 8. 计算考试结束时间：取（开始时间+考试时长）和（作业结束时间）的较小值
 	examEndTimeByDuration := examStartTime.Add(time.Duration(homework.ExamDuration) * time.Minute)
 	examEndTime := examEndTimeByDuration
 	if examEndTimeByDuration.After(homework.EndTime) {
 		examEndTime = homework.EndTime
 	}
 
-	// 10. 计算是否允许交卷
+	// 9. 计算是否允许交卷
 	canSubmit := homework.AllowSubmitAfterMinutes == 0
 
-	// 11. 返回考试信息
+	// 10. 返回考试信息
 	c.JSON(http.StatusOK, successResponse(gin.H{
 		"examStartTime":    examStartTime,
 		"examEndTime":      examEndTime,
 		"remainingSeconds": getRemainingSeconds(homework.ExamDuration, &examStartTime, homework.EndTime),
 		"canSubmit":        canSubmit,
-		"questions":        shuffledQuestions,
+		"questions":        questions,
 		"examConfig": gin.H{
 			"examDuration":            homework.ExamDuration,
 			"allowSubmitAfterMinutes": homework.AllowSubmitAfterMinutes,
@@ -310,54 +245,35 @@ func (h *Handler) StartExam(c *gin.Context) {
 	}))
 }
 
-// shuffleQuestions 生成题目乱序
-func shuffleQuestions(questions []model.HomeworkQuestion) ([]gin.H, []OrderMappingItem) {
-	// Fisher-Yates 洗牌算法
-	n := len(questions)
-	indices := make([]int, n)
-	for i := 0; i < n; i++ {
-		indices[i] = i
+func getExamQuestionsInOriginalOrder(db *gorm.DB, homeworkID uint64) ([]gin.H, error) {
+	var questions []model.HomeworkQuestion
+	if err := db.Where("homework_id = ?", homeworkID).
+		Preload("Question").
+		Order("question_order ASC").
+		Find(&questions).Error; err != nil {
+		return nil, err
 	}
+	return buildExamQuestionPayload(questions), nil
+}
 
-	rand.Seed(time.Now().UnixNano())
-	for i := n - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		indices[i], indices[j] = indices[j], indices[i]
-	}
-
-	// 构建乱序后的题目列表和顺序映射
-	result := make([]gin.H, n)
-	orderMapping := make([]OrderMappingItem, n)
-
-	for displayOrder, originalIndex := range indices {
-		question := questions[originalIndex]
-
-		// 构建返回的题目对象（包含完整的question信息）
+func buildExamQuestionPayload(questions []model.HomeworkQuestion) []gin.H {
+	result := make([]gin.H, len(questions))
+	for idx, question := range questions {
 		questionData := gin.H{
 			"id":            question.ID,
 			"homeworkId":    question.HomeworkID,
 			"questionId":    question.QuestionID,
 			"problemId":     question.ProblemID,
-			"displayOrder":  displayOrder + 1, // 学生看到的顺序
-			"questionOrder": question.QuestionOrder, // 原始顺序
+			"displayOrder":  idx + 1,
+			"questionOrder": question.QuestionOrder,
 			"score":         question.Score,
 		}
-
-		// 如果有题库关联，包含question的完整信息
 		if question.Question != nil {
 			questionData["question"] = question.Question
 		}
-
-		result[displayOrder] = questionData
-
-		// 记录映射关系
-		orderMapping[displayOrder] = OrderMappingItem{
-			OriginalOrder: question.QuestionOrder,
-			DisplayOrder:  displayOrder + 1,
-		}
+		result[idx] = questionData
 	}
-
-	return result, orderMapping
+	return result
 }
 
 // getRemainingSeconds 计算剩余秒数
@@ -491,46 +407,11 @@ func (h *Handler) GetExamStatus(c *gin.Context) {
 	elapsedMinutes := int(time.Since(*submit.ExamStartTime).Minutes())
 	canSubmit := elapsedMinutes >= homework.AllowSubmitAfterMinutes && submit.IsOfficiallySubmitted == 0
 
-	// 获取学生保存的题目顺序
-	var studentOrder model.StudentQuestionOrder
-	questions := []gin.H{}
-	if err := db.Where("homework_id = ? AND uid = ?", homeworkIDUint64, uid.(string)).First(&studentOrder).Error; err == nil {
-		// 找到了题目顺序映射，需要返回乱序的题目
-		var homeworkQuestions []model.HomeworkQuestion
-		if err := db.Where("homework_id = ?", homeworkIDUint64).
-			Preload("Question").
-			Order("question_order ASC").
-			Find(&homeworkQuestions).Error; err == nil {
-			// 解析顺序映射
-			var orderMapping []OrderMappingItem
-			json.Unmarshal([]byte(studentOrder.OrderMapping), &orderMapping)
-
-			// 根据映射关系重新排序题目
-			questions = make([]gin.H, len(homeworkQuestions))
-			for _, mapping := range orderMapping {
-				if mapping.DisplayOrder > 0 && mapping.DisplayOrder <= len(homeworkQuestions) {
-					// 找到对应原始顺序的题目
-					for _, q := range homeworkQuestions {
-						if q.QuestionOrder == mapping.OriginalOrder {
-							questionData := gin.H{
-								"id":            q.ID,
-								"homeworkId":    q.HomeworkID,
-								"questionId":    q.QuestionID,
-								"problemId":     q.ProblemID,
-								"displayOrder":  mapping.DisplayOrder,
-								"questionOrder": q.QuestionOrder,
-								"score":         q.Score,
-							}
-							if q.Question != nil {
-								questionData["question"] = q.Question
-							}
-							questions[mapping.DisplayOrder-1] = questionData
-							break
-						}
-					}
-				}
-			}
-		}
+	questions, err := getExamQuestionsInOriginalOrder(db, homeworkIDUint64)
+	if err != nil {
+		logger.Error("获取考试题目失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "获取题目失败"))
+		return
 	}
 
 	c.JSON(http.StatusOK, successResponse(gin.H{
