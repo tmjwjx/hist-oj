@@ -2272,6 +2272,131 @@ func (h *Handler) UploadMessageImage(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(message))
 }
 
+// UploadQuestionImage 上传客观题题目内容图片（仅支持 png/jpg/jpeg）
+func (h *Handler) UploadQuestionImage(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	uid, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		logger.Warn("获取上传文件失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "请选择要上传的图片"))
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	allowedExts := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+	}
+	if !allowedExts[ext] {
+		c.JSON(http.StatusOK, errorResponse(400, "仅支持 png/jpg/jpeg 格式图片"))
+		return
+	}
+
+	const maxFileSize = 10 * 1024 * 1024 // 10MB
+	if file.Size <= 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "图片文件不能为空"))
+		return
+	}
+	if file.Size > maxFileSize {
+		c.JSON(http.StatusOK, errorResponse(400, "图片大小不能超过10MB"))
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		logger.Error("打开上传文件失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "读取图片失败"))
+		return
+	}
+	defer src.Close()
+
+	buffer := make([]byte, 512)
+	n, readErr := src.Read(buffer)
+	if readErr != nil && readErr != io.EOF {
+		logger.Error("读取上传文件失败", zap.Error(readErr))
+		c.JSON(http.StatusOK, errorResponse(500, "读取图片失败"))
+		return
+	}
+
+	contentType := http.DetectContentType(buffer[:n])
+	allowedContentTypes := map[string]bool{
+		"image/png":  true,
+		"image/jpeg": true,
+	}
+	if !allowedContentTypes[contentType] {
+		c.JSON(http.StatusOK, errorResponse(400, "仅支持 png/jpg/jpeg 格式图片"))
+		return
+	}
+
+	uniqueFileName := fmt.Sprintf("question_%s_%d_%s%s", uid.(string), time.Now().Unix(), generateRandomString(8), ext)
+	uploadDir := "./uploads/classroom/questions"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		logger.Error("创建题目图片目录失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "创建上传目录失败"))
+		return
+	}
+
+	fullPath := fmt.Sprintf("%s/%s", uploadDir, uniqueFileName)
+	if err := c.SaveUploadedFile(file, fullPath); err != nil {
+		logger.Error("保存题目图片失败", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "图片保存失败"))
+		return
+	}
+
+	imageURL := "/uploads/classroom/questions/" + uniqueFileName
+	logger.Info("上传客观题内容图片成功",
+		zap.String("uid", uid.(string)),
+		zap.String("filename", file.Filename),
+		zap.String("url", imageURL))
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"url":      imageURL,
+		"filename": file.Filename,
+		"size":     file.Size,
+	}))
+}
+
+// DeleteQuestionImages 删除客观题题目内容中已移除的图片（仅允许删除 uploads/classroom/questions 下的 png/jpg/jpeg）
+func (h *Handler) DeleteQuestionImages(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	if _, exists := c.Get("userId"); !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+
+	var req struct {
+		URLs []string `json:"urls" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("删除题目图片参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+	if len(req.URLs) == 0 {
+		c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+			"deleted": 0,
+			"skipped": 0,
+		}))
+		return
+	}
+
+	deleted, skipped := deleteQuestionImagesByURLs(logger, req.URLs)
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"deleted": deleted,
+		"skipped": skipped,
+	}))
+}
+
 // generateRandomString 生成随机字符串
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"

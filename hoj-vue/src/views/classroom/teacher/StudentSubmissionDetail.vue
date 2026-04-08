@@ -1329,6 +1329,14 @@ export default {
   border-radius: 3px !important;
 }
 
+.submission-detail .markdown-body pre code {
+  padding-left: 0 !important;
+}
+
+.submission-detail .markdown-body pre ol.pre-numbering li:before {
+  width: 40px !important;
+}
+
 /* 附件图片样式 */
 .attachment-images {
   margin-top: 15px;

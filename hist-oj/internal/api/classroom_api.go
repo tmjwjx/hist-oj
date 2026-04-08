@@ -2033,6 +2033,7 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 		}
 		return
 	}
+	originalImageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
 	updates := make(map[string]interface{})
 	if req.Title != nil {
@@ -2145,6 +2146,29 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 		return
 	}
 
+	nextTitle := question.Title
+	if value, ok := updates["title"].(string); ok {
+		nextTitle = value
+	}
+	nextContent := question.Content
+	if value, ok := updates["content"].(string); ok {
+		nextContent = value
+	}
+	nextAnalysis := question.Analysis
+	if value, ok := updates["analysis"].(string); ok {
+		nextAnalysis = value
+	}
+	nextOptions := question.Options
+	if value, exists := updates["options"]; exists {
+		if value == nil {
+			nextOptions = nil
+		} else if optionText, ok := value.(string); ok {
+			nextOptions = &optionText
+		}
+	}
+	updatedImageURLs := extractQuestionImageURLsFromFields(nextTitle, nextContent, nextAnalysis, nextOptions)
+	removedImageURLs := diffRemovedQuestionImageURLs(originalImageURLs, updatedImageURLs)
+
 	result := db.Model(&model.QuestionBank{}).
 		Where("id = ?", questionID).
 		Updates(updates)
@@ -2158,6 +2182,15 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
 		return
+	}
+
+	if len(removedImageURLs) > 0 {
+		deleted, skipped := deleteQuestionImagesByURLs(logger, removedImageURLs)
+		logger.Info("更新题目后回收图片",
+			zap.Uint64("question_id", questionID),
+			zap.Int("removed", len(removedImageURLs)),
+			zap.Int("deleted", deleted),
+			zap.Int("skipped", skipped))
 	}
 
 	logger.Info("更新题目", zap.Uint64("question_id", questionID))
@@ -2176,20 +2209,31 @@ func (h *Handler) DeleteQuestion(c *gin.Context) {
 
 	db := client.GetDB()
 
-	// 软删除
-	result := db.Model(&model.QuestionBank{}).
-		Where("id = ?", questionID).
-		Update("status", 0)
+	var question model.QuestionBank
+	if err := db.Where("id = ? AND status = 1", questionID).First(&question).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
+		} else {
+			logger.Error("查询题目失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+	imageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
-	if result.Error != nil {
-		logger.Error("删除题目失败", zap.Error(result.Error))
+	if err := db.Model(&question).Update("status", 0).Error; err != nil {
+		logger.Error("删除题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
 	}
 
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
-		return
+	if len(imageURLs) > 0 {
+		deleted, skipped := deleteQuestionImagesByURLs(logger, imageURLs)
+		logger.Info("删除题目后回收图片",
+			zap.Uint64("question_id", questionID),
+			zap.Int("images", len(imageURLs)),
+			zap.Int("deleted", deleted),
+			zap.Int("skipped", skipped))
 	}
 
 	logger.Info("删除题目", zap.Uint64("question_id", questionID))
@@ -2360,6 +2404,7 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		}
 		return
 	}
+	originalImageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
 	updates := make(map[string]interface{})
 	if req.Title != nil {
@@ -2472,10 +2517,42 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 		return
 	}
 
+	nextTitle := question.Title
+	if value, ok := updates["title"].(string); ok {
+		nextTitle = value
+	}
+	nextContent := question.Content
+	if value, ok := updates["content"].(string); ok {
+		nextContent = value
+	}
+	nextAnalysis := question.Analysis
+	if value, ok := updates["analysis"].(string); ok {
+		nextAnalysis = value
+	}
+	nextOptions := question.Options
+	if value, exists := updates["options"]; exists {
+		if value == nil {
+			nextOptions = nil
+		} else if optionText, ok := value.(string); ok {
+			nextOptions = &optionText
+		}
+	}
+	updatedImageURLs := extractQuestionImageURLsFromFields(nextTitle, nextContent, nextAnalysis, nextOptions)
+	removedImageURLs := diffRemovedQuestionImageURLs(originalImageURLs, updatedImageURLs)
+
 	if err := db.Model(&question).Updates(updates).Error; err != nil {
 		logger.Error("更新题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "更新失败"))
 		return
+	}
+
+	if len(removedImageURLs) > 0 {
+		deleted, skipped := deleteQuestionImagesByURLs(logger, removedImageURLs)
+		logger.Info("管理员更新题目后回收图片",
+			zap.Uint64("id", questionID),
+			zap.Int("removed", len(removedImageURLs)),
+			zap.Int("deleted", deleted),
+			zap.Int("skipped", skipped))
 	}
 
 	logger.Info("管理员更新题目", zap.Uint64("id", questionID))
@@ -2505,12 +2582,22 @@ func (h *Handler) AdminDeleteQuestion(c *gin.Context) {
 		}
 		return
 	}
+	imageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
 	// 软删除：更新status为0
 	if err := db.Model(&question).Update("status", 0).Error; err != nil {
 		logger.Error("删除题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
+	}
+
+	if len(imageURLs) > 0 {
+		deleted, skipped := deleteQuestionImagesByURLs(logger, imageURLs)
+		logger.Info("管理员删除题目后回收图片",
+			zap.Uint64("id", questionID),
+			zap.Int("images", len(imageURLs)),
+			zap.Int("deleted", deleted),
+			zap.Int("skipped", skipped))
 	}
 
 	logger.Info("管理员删除题目", zap.Uint64("id", questionID))

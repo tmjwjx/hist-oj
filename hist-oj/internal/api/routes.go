@@ -156,12 +156,14 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.POST("/checkin/:checkinId/qrcode/refresh", AuthMiddleware(), handler.RefreshQrcode)
 			classroom.POST("/checkin/qrcode/submit", AuthMiddleware(), handler.SubmitQrcodeCheckin)
 
-			// 题库功能（教师）- 需要认证
-			classroom.POST("/question", AuthMiddleware(), handler.CreateQuestion)
-			classroom.GET("/questions", AuthMiddleware(), handler.GetQuestionBank)
-			classroom.PUT("/question/:questionId", AuthMiddleware(), handler.UpdateQuestion)
-			classroom.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteQuestion)
-			classroom.GET("/question/:questionId", handler.GetQuestionDetail)
+				// 题库功能（教师）- 需要认证
+				classroom.POST("/question", AuthMiddleware(), handler.CreateQuestion)
+				classroom.GET("/questions", AuthMiddleware(), handler.GetQuestionBank)
+				classroom.POST("/question/upload-image", AuthMiddleware(), handler.UploadQuestionImage)
+				classroom.POST("/question/delete-image", AuthMiddleware(), handler.DeleteQuestionImages)
+				classroom.PUT("/question/:questionId", AuthMiddleware(), handler.UpdateQuestion)
+				classroom.DELETE("/question/:questionId", AuthMiddleware(), handler.DeleteQuestion)
+				classroom.GET("/question/:questionId", handler.GetQuestionDetail)
 
 			// 题库功能（管理员专用）- 需要超级管理员权限
 			classroom.GET("/admin/questions", SuperAdminAuthMiddleware(), handler.AdminGetQuestionBank)

@@ -1441,5 +1441,32 @@ export default {
 </style>
 
 <style>
-/* Highlight 组件的样式会自动应用，无需额外定义 */
+/* 判题终端代码查看：为行号预留更宽空间，避免遮挡代码 */
+.judge-terminal-page .code-display-wrapper .markdown-body pre {
+  padding: 0 16px 0 40px !important;
+  position: relative !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre code {
+  padding: 0 16px 0 0 !important;
+  line-height: 26px !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering {
+  line-height: 26px !important;
+  font-size: 1rem !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering li {
+  line-height: 26px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.judge-terminal-page .code-display-wrapper .markdown-body pre ol.pre-numbering li:before {
+  width: 40px !important;
+  font-size: 1rem !important;
+  line-height: 26px !important;
+  vertical-align: top !important;
+}
 </style>

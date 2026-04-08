@@ -840,11 +840,13 @@ footer h1 {
   padding-left: 6px;
 }
 .markdown-body img {
+  max-width: 100%;
+  height: auto;
   border: 0;
-  background: #ffffff;
-  padding: 15px;
-  margin: 5px 0;
-  box-shadow: inset 0 0 12px rgb(219 219 219);
+  background: transparent;
+  padding: 0;
+  margin: 8px 0;
+  box-shadow: none;
 }
 .markdown-body p {
   font-size: 15px;

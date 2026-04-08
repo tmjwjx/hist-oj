@@ -3151,6 +3151,7 @@ export default {
 }
 
 .student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering li:before {
+  width: 40px !important;
   font-size: 1rem !important;
   line-height: 26px !important;
   vertical-align: top !important;

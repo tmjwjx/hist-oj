@@ -25,7 +25,7 @@
               <span v-html="renderMarkdown('**判题模式:** ' + getJudgeModeText(currentViewProblem.problem.judgeMode))"></span>
             </el-tag>
             <el-tag size="small" type="success">
-              <span v-html="renderMarkdown('**难度:** ' + (currentViewProblem.problem.difficulty || '未知'))"></span>
+              <span v-html="renderMarkdown('**难度:** ' + getDifficultyName(currentViewProblem.problem.difficulty))"></span>
             </el-tag>
           </div>
 
@@ -566,6 +566,33 @@
                         <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                       </div>
                     </div>
+                    <div v-else-if="q.question.type === 'composite'" class="composite-question-block">
+                      <div
+                        v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
+                        :key="subQuestion.id || subIndex"
+                        class="composite-sub-question"
+                      >
+                        <div class="composite-sub-header">
+                          <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
+                          <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                        </div>
+                        <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                        <div class="item-options" v-if="subQuestion.options && subQuestion.options.length">
+                          <div
+                            v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
+                            :key="`${subQuestion.id || subIndex}_${optionIndex}`"
+                            class="option-item"
+                          >
+                            <span class="option-label">{{ option.label }}.</span>
+                            <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                          </div>
+                        </div>
+                        <div class="item-answer">
+                          <span class="meta-label">答案：</span>
+                          <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
+                        </div>
+                      </div>
+                    </div>
                     <!-- 显示课程和标签 -->
                     <div class="item-meta-tags" style="margin-top: 8px;">
                       <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
@@ -581,7 +608,7 @@
                         {{ tag }}
                       </el-tag>
                     </div>
-                    <div class="item-answer">
+                    <div v-if="q.question.type !== 'composite'" class="item-answer">
                       <span class="meta-label">答案：</span>
                       <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                     </div>
@@ -606,6 +633,7 @@
                         <el-tag size="small">时间: {{ q.problem.timeLimit }}ms</el-tag>
                         <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
                         <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
+                        <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
                       </div>
                     </div>
                     <div v-else class="item-description">
@@ -824,79 +852,125 @@
 
         <el-divider></el-divider>
 
-        <div class="questions-list">
-          <div v-for="(q, index) in validQuestions" :key="index" class="question-item">
-            <div class="question-header">
-              <span class="question-order">{{ index + 1 }}.</span>
-              <el-tag size="small" :type="getQuestionTypeTag(q?.questionType)">
-                {{ getQuestionTypeLabel(q?.questionType) }}
-              </el-tag>
-              <el-tag size="small" type="warning" style="margin-left: 8px;">{{ q?.score || 0 }} 分</el-tag>
-            </div>
-            <div class="question-content">
-              <!-- 客观题 -->
-              <div v-if="q?.question && (q.question.title || q.question.content)">
-                <div class="question-title markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
-                <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="question-options">
-                  <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
-                    <span class="option-label">{{ option.label }}.</span>
-                    <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                  </div>
-                </div>
-                <!-- 显示课程和标签 -->
-                <div v-if="q.question.course || q.question.tags" class="question-tags-course" style="margin-top: 8px;">
-                  <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
-                    <i class="el-icon-collection"></i> {{ q.question.course }}
-                  </el-tag>
-                  <el-tag
-                    v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
-                    :key="idx"
-                    size="mini"
-                    type="info"
-                    style="margin-right: 3px;"
-                  >
-                    {{ tag }}
-                  </el-tag>
-                </div>
-                <div v-if="q.question.type !== 'subjective'" class="question-meta">
-                  <span class="meta-label">正确答案：</span>
-                  <span class="meta-value">{{ formatAnswer(q.question) }}</span>
-                </div>
+        <div class="questions-layout">
+          <div class="question-index-panel" v-if="validQuestions.length > 1">
+            <div class="question-index-title">题号导航</div>
+            <el-button
+              v-for="(q, index) in validQuestions"
+              :key="'index-nav-' + index"
+              size="mini"
+              plain
+              @click="scrollToPaperQuestion(index)"
+            >
+              {{ index + 1 }}
+            </el-button>
+          </div>
+
+          <div class="questions-list" ref="paperQuestionScroll">
+            <div v-for="(q, index) in validQuestions" :key="index" class="question-item" ref="paperQuestionItem">
+              <div class="question-header">
+                <span class="question-order">{{ index + 1 }}.</span>
+                <el-tag size="small" :type="getQuestionTypeTag(q?.questionType)">
+                  {{ getQuestionTypeLabel(q?.questionType) }}
+                </el-tag>
+                <el-tag size="small" type="warning" style="margin-left: 8px;">{{ q?.score || 0 }} 分</el-tag>
               </div>
-              <!-- 编程题 -->
-              <div v-else-if="q?.problemId">
-                <div v-if="q.problem && q.problem.title">
-                  <div class="question-title">
-                    <strong>{{ q.problem.title }}</strong>
-                    <el-button
-                      size="mini"
-                      type="text"
-                      icon="el-icon-view"
-                      @click.stop="viewProblemDetail(q.problem)"
-                      style="margin-left: 10px;"
-                    >
-                      查看详情
-                    </el-button>
+              <div class="question-content">
+                <!-- 客观题 -->
+                <div v-if="q?.question && (q.question.title || q.question.content)">
+                  <div class="question-title markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
+
+                  <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="question-options">
+                    <div v-for="(option, optionIndex) in parseOptions(q.question.options)" :key="optionIndex" class="option-item">
+                      <span class="option-label">{{ option.label }}.</span>
+                      <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                    </div>
                   </div>
-                  <div class="problem-description" v-html="renderMarkdown(q.problem.description)"></div>
-                  <div class="problem-meta">
-                    <el-tag size="small" type="info">时间: {{ q.problem.timeLimit }}ms</el-tag>
-                    <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
-                    <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
+
+                  <div v-else-if="q.question.type === 'composite'" class="composite-question-block">
+                    <div
+                      v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
+                      :key="subQuestion.id || subIndex"
+                      class="composite-sub-question"
+                    >
+                      <div class="composite-sub-header">
+                        <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
+                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                      </div>
+                      <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                      <div class="question-options" v-if="subQuestion.options && subQuestion.options.length">
+                        <div
+                          v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
+                          :key="`${subQuestion.id || subIndex}_${optionIndex}`"
+                          class="option-item"
+                        >
+                          <span class="option-label">{{ option.label }}.</span>
+                          <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                        </div>
+                      </div>
+                      <div class="question-meta">
+                        <span class="meta-label">正确答案：</span>
+                        <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 显示课程和标签 -->
+                  <div v-if="q.question.course || q.question.tags" class="question-tags-course" style="margin-top: 8px;">
+                    <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
+                      <i class="el-icon-collection"></i> {{ q.question.course }}
+                    </el-tag>
+                    <el-tag
+                      v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
+                      :key="idx"
+                      size="mini"
+                      type="info"
+                      style="margin-right: 3px;"
+                    >
+                      {{ tag }}
+                    </el-tag>
+                  </div>
+                  <div v-if="q.question.type !== 'composite'" class="question-meta">
+                    <span class="meta-label">正确答案：</span>
+                    <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                   </div>
                 </div>
-                <div v-else>
-                  <div class="question-title">
-                    <strong>BingOJ 编程题 - {{ q.problemId }}</strong>
-                    <el-button
-                      size="mini"
-                      type="text"
-                      icon="el-icon-view"
-                      @click.stop="fetchAndviewProblemDetail(q.problemId)"
-                      style="margin-left: 10px;"
-                    >
-                      查看详情
-                    </el-button>
+                <!-- 编程题 -->
+                <div v-else-if="q?.problemId">
+                  <div v-if="q.problem && q.problem.title">
+                    <div class="question-title">
+                      <strong>{{ q.problem.title }}</strong>
+                      <el-button
+                        size="mini"
+                        type="text"
+                        icon="el-icon-view"
+                        @click.stop="viewProblemDetail(q.problem)"
+                        style="margin-left: 10px;"
+                      >
+                        查看详情
+                      </el-button>
+                    </div>
+                    <div class="problem-description" v-html="renderMarkdown(q.problem.description)"></div>
+                    <div class="problem-meta">
+                      <el-tag size="small" type="info">时间: {{ q.problem.timeLimit }}ms</el-tag>
+                      <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
+                      <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
+                      <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
+                    </div>
+                  </div>
+                  <div v-else>
+                    <div class="question-title">
+                      <strong>BingOJ 编程题 - {{ q.problemId }}</strong>
+                      <el-button
+                        size="mini"
+                        type="text"
+                        icon="el-icon-view"
+                        @click.stop="fetchAndviewProblemDetail(q.problemId)"
+                        style="margin-left: 10px;"
+                      >
+                        查看详情
+                      </el-button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1607,6 +1681,7 @@ export default {
             })
           }
           this.showViewDialog = true
+          this.hydrateProgrammingProblemDetails(this.currentPaper.questions)
         }
       } catch (error) {
         this.$message.error('加载试卷详情失败')
@@ -1798,9 +1873,22 @@ export default {
       }
       return labelMap[type] || type
     },
+    normalizeQuestionImagePath(rawText) {
+      let content = String(rawText || '')
+      if (!content) return content
+      content = content.replace(
+        /(<img\b[^>]*\bsrc=["'])(uploads\/classroom\/[^"']+)(["'][^>]*>)/gi,
+        '$1/$2$3'
+      )
+      content = content.replace(
+        /(!\[[^\]]*]\()(uploads\/classroom\/[^)\s]+)(\))/gi,
+        '$1/$2$3'
+      )
+      return content
+    },
     renderMarkdown(text) {
       if (!text) return ''
-      return md.render(text)
+      return md.render(this.normalizeQuestionImagePath(text))
     },
     formatAnswer(question) {
       if (!question) return '-'
@@ -1843,8 +1931,7 @@ export default {
             return '-'
 
           case 'subjective':
-            // 主观题：显示参考答案或提示
-            return question.answer && question.answer !== '需人工评分' ? '有参考答案' : '需人工评分'
+            return question.answer || '需人工评分'
 
           case 'composite':
             return '组合题（按子题判分）'
@@ -1860,21 +1947,104 @@ export default {
       if (!row) return
       this.$set(row, 'showDetail', !row.showDetail)
     },
-    parseOptions(optionsStr) {
-      if (!optionsStr) return []
+    parseOptions(optionsInput) {
+      if (!optionsInput) return []
       try {
-        const options = JSON.parse(optionsStr)
+        const options = Array.isArray(optionsInput)
+          ? optionsInput
+          : JSON.parse(optionsInput)
         if (Array.isArray(options)) {
           const labels = ['A', 'B', 'C', 'D', 'E', 'F']
           return options.map((opt, index) => ({
             label: labels[index] || String.fromCharCode(65 + index),
-            text: opt
+            text: this.stripOptionPrefix(opt)
           }))
         }
       } catch (e) {
         // 解析失败
       }
       return []
+    },
+    stripOptionPrefix(optionText) {
+      return String(optionText || '').replace(/^[A-Z]\.\s*/, '')
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      try {
+        const parsed = Array.isArray(optionsInput)
+          ? optionsInput
+          : JSON.parse(optionsInput)
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((subQuestion, index) => ({
+          id: String(subQuestion.id || `sq_${index + 1}`),
+          content: subQuestion.content || '',
+          options: Array.isArray(subQuestion.options)
+            ? subQuestion.options
+            : (Array.isArray(subQuestion.choiceOptions) ? subQuestion.choiceOptions : []),
+          score: Number(subQuestion.score || subQuestion.subScore || 0)
+        }))
+      } catch (e) {
+        return []
+      }
+    },
+    parseCompositeAnswerMap(answerInput) {
+      if (!answerInput) return {}
+      try {
+        const parsed = typeof answerInput === 'string' ? JSON.parse(answerInput) : answerInput
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed
+        }
+      } catch (e) {
+        // ignore parse failure
+      }
+      return {}
+    },
+    getCompositeCorrectAnswer(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (key && Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return '-'
+    },
+    scrollToPaperQuestion(index) {
+      this.$nextTick(() => {
+        const container = this.$refs.paperQuestionScroll
+        const itemRefs = this.$refs.paperQuestionItem
+        const target = Array.isArray(itemRefs) ? itemRefs[index] : itemRefs
+        if (!container || !target) return
+        const targetTop = target.offsetTop - container.offsetTop
+        container.scrollTo({
+          top: Math.max(targetTop - 8, 0),
+          behavior: 'smooth'
+        })
+      })
+    },
+    async hydrateProgrammingProblemDetails(questions) {
+      if (!Array.isArray(questions) || questions.length === 0) return
+      const tasks = questions
+        .filter(q => q && q.problemId && (!q.problem || !q.problem.title))
+        .map(async q => {
+          try {
+            const res = await api.getProblem(q.problemId, '0', undefined)
+            if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
+              this.$set(q, 'problem', res.data.data.problem)
+            }
+          } catch (e) {
+            // ignore single problem fetch errors
+          }
+        })
+      if (tasks.length > 0) {
+        await Promise.all(tasks)
+      }
     },
     // 解析题目标签
     parseQuestionTags(tags) {
@@ -2529,6 +2699,7 @@ export default {
 }
 
 .paper-detail .questions-list {
+  flex: 1;
   max-height: 60vh;
   overflow-y: auto;
 }
@@ -2556,6 +2727,35 @@ export default {
 .paper-detail .question-content {
   color: #606266;
   line-height: 1.6;
+}
+
+.paper-detail .questions-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.paper-detail .question-index-panel {
+  width: 90px;
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 8px;
+  background: #fafafa;
+  position: sticky;
+  top: 0;
+}
+
+.paper-detail .question-index-title {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.paper-detail .question-index-panel .el-button {
+  width: 100%;
+  margin: 0 0 6px 0;
 }
 
 .paper-detail .question-title {
@@ -2590,6 +2790,47 @@ export default {
   color: #606266;
   line-height: 1.6;
   margin: 10px 0;
+}
+
+.paper-detail .composite-question-block {
+  margin-top: 10px;
+}
+
+.paper-detail .composite-sub-question {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fcfcfd;
+}
+
+.paper-detail .composite-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.paper-detail .composite-sub-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.paper-detail .composite-sub-content {
+  margin-bottom: 8px;
+}
+
+.paper-detail >>> .markdown-body pre {
+  padding: 0 !important;
+}
+
+.paper-detail >>> .markdown-body pre ol.pre-numbering {
+  display: none !important;
+}
+
+.paper-detail >>> .markdown-body img {
+  max-width: 100%;
+  height: auto;
 }
 
 /* 编程题预览 */
@@ -2661,6 +2902,28 @@ export default {
 
   .quick-add-btn {
     width: 100%;
+  }
+
+  .paper-detail .questions-layout {
+    flex-direction: column;
+  }
+
+  .paper-detail .question-index-panel {
+    width: 100%;
+    max-height: none;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .paper-detail .question-index-title {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .paper-detail .question-index-panel .el-button {
+    margin: 0;
   }
 }
 
@@ -2758,7 +3021,7 @@ export default {
 /* Markdown 代码块样式 */
 .problem-detail-view .example-content pre {
   margin: 0;
-  padding: 10px;
+  padding: 0;
   background-color: #f5f7fa;
   border-radius: 4px;
   overflow-x: auto;

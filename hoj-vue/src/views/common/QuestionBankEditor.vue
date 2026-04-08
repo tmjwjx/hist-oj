@@ -30,12 +30,32 @@
             </el-form-item>
 
             <el-form-item label="题目内容" required>
+              <div class="content-editor-toolbar">
+                <el-button
+                  size="mini"
+                  icon="el-icon-picture-outline"
+                  :loading="uploadingContentImage"
+                  @click="triggerContentImageUpload"
+                >
+                  上传图片
+                </el-button>
+                <span class="content-editor-tip">仅支持 png/jpg/jpeg，上传后自动插入 Markdown 图片语法</span>
+                <span class="content-editor-tip">点击右侧预览中的图片可手动调整显示宽度</span>
+              </div>
               <el-input
+                ref="contentInput"
                 type="textarea"
                 v-model="form.content"
                 :rows="7"
                 placeholder="请输入题目内容，支持 Markdown"
               ></el-input>
+              <input
+                ref="contentImageInput"
+                class="hidden-content-upload-input"
+                type="file"
+                accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                @change="handleContentImageSelected"
+              />
             </el-form-item>
 
             <template v-if="form.type === 'single_choice'">
@@ -253,7 +273,13 @@
             <div v-if="form.title" v-html="renderMarkdown(form.title)" class="markdown-body preview-title" v-highlight></div>
             <p v-else class="preview-placeholder">题目标题预览</p>
 
-            <div v-if="form.content" v-html="renderMarkdown(form.content)" class="markdown-body preview-content-text" v-highlight></div>
+            <div
+              v-if="form.content"
+              v-html="renderMarkdown(form.content)"
+              class="markdown-body preview-content-text"
+              v-highlight
+              @click="handleContentPreviewClick"
+            ></div>
             <p v-else class="preview-placeholder">题目内容预览</p>
 
             <div v-if="form.type === 'single_choice'" class="preview-options">
@@ -375,6 +401,58 @@
         <el-button @click="closeOptionEditor">关闭</el-button>
       </span>
     </el-dialog>
+
+    <el-dialog
+      title="调整图片大小"
+      :visible.sync="imageSizeDialog.visible"
+      width="620px"
+      append-to-body
+    >
+      <div class="image-size-dialog-body">
+        <div class="image-size-dialog-tip">
+          调整后会写入题目内容，保存题目后，学生作业/考试页和主页练习页会按相同尺寸显示。
+        </div>
+        <div class="image-size-preview-wrap">
+          <img
+            v-if="imageSizeDialog.url"
+            :src="imageSizeDialog.url"
+            :style="{
+              width: imageSizeDialog.width > 0 ? imageSizeDialog.width + 'px' : 'auto',
+              maxWidth: '100%'
+            }"
+            alt="预览图"
+          />
+        </div>
+        <div class="image-size-control-line">
+          <span class="image-size-label">宽度(px)</span>
+          <el-slider
+            v-model="imageSizeDialog.width"
+            :min="100"
+            :max="1200"
+            :step="10"
+            :disabled="imageSizeDialog.width === 0"
+            style="flex: 1;"
+          ></el-slider>
+          <el-input-number
+            v-model="imageSizeDialog.width"
+            :min="0"
+            :max="1200"
+            :step="10"
+            controls-position="right"
+          ></el-input-number>
+        </div>
+        <div class="image-size-presets">
+          <el-button size="mini" @click="imageSizeDialog.width = 300">小(300)</el-button>
+          <el-button size="mini" @click="imageSizeDialog.width = 500">中(500)</el-button>
+          <el-button size="mini" @click="imageSizeDialog.width = 800">大(800)</el-button>
+          <el-button size="mini" type="warning" plain @click="imageSizeDialog.width = 0">原始大小</el-button>
+        </div>
+      </div>
+      <span slot="footer">
+        <el-button @click="closeImageSizeDialog">取消</el-button>
+        <el-button type="primary" @click="applyImageSize">应用</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -397,6 +475,10 @@ md.use(katex, {
   enableSubscript: false
 })
 
+const QUESTION_IMAGE_UPLOAD_PREFIX = '/uploads/classroom/questions/'
+const QUESTION_IMAGE_MARKDOWN_REGEX = /!\[[^\]]*]\(([^)]+)\)/g
+const QUESTION_IMAGE_HTML_REGEX = /<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi
+
 export default {
   name: 'QuestionBankEditor',
   props: {
@@ -412,9 +494,10 @@ export default {
     return {
       loading: false,
       saving: false,
+      uploadingContentImage: false,
       tagInput: '',
       optionLetters: ['A', 'B', 'C', 'D'],
-      optionEditor: {
+	      optionEditor: {
         visible: false,
         index: null,
         subIndex: null,
@@ -432,6 +515,18 @@ export default {
         '政治',
         '英语'
       ],
+      imageSizeDialog: {
+        visible: false,
+        url: '',
+        sourceUrl: '',
+        alt: '图片描述',
+        width: 500,
+        startPos: -1,
+        endPos: -1
+      },
+      originalQuestionImageUrls: [],
+      sessionUploadedQuestionImageUrls: [],
+      hasSavedQuestion: false,
       form: this.getDefaultForm()
     }
   },
@@ -477,8 +572,16 @@ export default {
     }
   },
   created() {
+    this.originalQuestionImageUrls = []
+    this.sessionUploadedQuestionImageUrls = []
+    this.hasSavedQuestion = false
     if (this.isEdit) {
       this.loadQuestionDetail()
+    }
+  },
+  beforeDestroy() {
+    if (!this.hasSavedQuestion) {
+      this.cleanupSessionUploadedQuestionImagesOnExit()
     }
   },
   methods: {
@@ -525,6 +628,147 @@ export default {
       }
       this.$router.push(route)
     },
+    normalizeQuestionImageUrl(rawUrl) {
+      let value = String(rawUrl || '').trim()
+      if (!value) return ''
+
+      if (value.startsWith('<') && value.endsWith('>')) {
+        value = value.slice(1, -1).trim()
+      }
+      if (!value) return ''
+
+      try {
+        if (value.startsWith('//')) {
+          value = new URL(`https:${value}`).pathname
+        } else if (/^https?:\/\//i.test(value)) {
+          value = new URL(value).pathname
+        }
+      } catch (e) {
+        // ignore parse failure and continue with raw value
+      }
+
+      if (typeof window !== 'undefined' && value.startsWith(window.location.origin)) {
+        value = value.substring(window.location.origin.length)
+      }
+
+      value = value.split('?')[0]
+      value = value.split('#')[0]
+      if (!value.startsWith(QUESTION_IMAGE_UPLOAD_PREFIX)) return ''
+
+      const filename = value.substring(QUESTION_IMAGE_UPLOAD_PREFIX.length).trim()
+      if (!filename) return ''
+      if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) return ''
+      const lowerFilename = filename.toLowerCase()
+      if (!lowerFilename.endsWith('.png') && !lowerFilename.endsWith('.jpg') && !lowerFilename.endsWith('.jpeg')) return ''
+      return `${QUESTION_IMAGE_UPLOAD_PREFIX}${filename}`
+    },
+    uniqueQuestionImageUrls(urls) {
+      const result = []
+      const seen = new Set()
+      ;(urls || []).forEach((item) => {
+        const normalized = this.normalizeQuestionImageUrl(item)
+        if (!normalized || seen.has(normalized)) return
+        seen.add(normalized)
+        result.push(normalized)
+      })
+      return result
+    },
+    extractQuestionImageUrlsFromText(content) {
+      const text = String(content || '')
+      if (!text.trim()) return []
+
+      const urls = []
+      const markdownRegex = new RegExp(QUESTION_IMAGE_MARKDOWN_REGEX.source, 'g')
+      let markdownMatch = markdownRegex.exec(text)
+      while (markdownMatch) {
+        let candidate = (markdownMatch[1] || '').trim()
+        if (candidate) {
+          const titleMatch = candidate.match(/^(\S+)\s+["'][^"']*["']$/)
+          if (titleMatch && titleMatch[1]) {
+            candidate = titleMatch[1]
+          }
+          const normalized = this.normalizeQuestionImageUrl(candidate)
+          if (normalized) urls.push(normalized)
+        }
+        markdownMatch = markdownRegex.exec(text)
+      }
+
+      const htmlRegex = new RegExp(QUESTION_IMAGE_HTML_REGEX.source, 'gi')
+      let htmlMatch = htmlRegex.exec(text)
+      while (htmlMatch) {
+        const normalized = this.normalizeQuestionImageUrl(htmlMatch[1])
+        if (normalized) urls.push(normalized)
+        htmlMatch = htmlRegex.exec(text)
+      }
+
+      return this.uniqueQuestionImageUrls(urls)
+    },
+    collectQuestionImageUrlsFromForm(targetForm = this.form) {
+      if (!targetForm) return []
+
+      const texts = []
+      texts.push(targetForm.title || '')
+      texts.push(targetForm.content || '')
+      texts.push(targetForm.analysis || '')
+
+      const normalOptions = Array.isArray(targetForm.choiceOptions) ? targetForm.choiceOptions : []
+      normalOptions.forEach((option) => texts.push(option || ''))
+
+      const compositeQuestions = Array.isArray(targetForm.compositeQuestions) ? targetForm.compositeQuestions : []
+      compositeQuestions.forEach((subQuestion) => {
+        if (!subQuestion) return
+        texts.push(subQuestion.content || '')
+        const subOptions = Array.isArray(subQuestion.choiceOptions) ? subQuestion.choiceOptions : []
+        subOptions.forEach((option) => texts.push(option || ''))
+      })
+
+      const all = []
+      texts.forEach((text) => {
+        all.push(...this.extractQuestionImageUrlsFromText(text))
+      })
+      return this.uniqueQuestionImageUrls(all)
+    },
+    getSessionOrphanQuestionImageUrls(currentImageUrls = null) {
+      const activeUrls = this.uniqueQuestionImageUrls(
+        Array.isArray(currentImageUrls) ? currentImageUrls : this.collectQuestionImageUrlsFromForm()
+      )
+      const activeSet = new Set(activeUrls)
+      return this.uniqueQuestionImageUrls(this.sessionUploadedQuestionImageUrls).filter((url) => !activeSet.has(url))
+    },
+    async requestDeleteQuestionImages(urls, silent = false) {
+      const targetUrls = this.uniqueQuestionImageUrls(urls)
+      if (!targetUrls.length) return true
+
+      try {
+        const res = await this.$http.post('/api/classroom/question/delete-image', { urls: targetUrls })
+        if (res.data.code !== 200) {
+          if (!silent) this.$message.warning(res.data.message || '图片回收失败')
+          return false
+        }
+        return true
+      } catch (error) {
+        if (!silent) this.$message.warning('图片回收失败')
+        return false
+      }
+    },
+    async cleanupUnusedSessionUploadedQuestionImages() {
+      const orphanUrls = this.getSessionOrphanQuestionImageUrls()
+      if (!orphanUrls.length) return
+
+      const cleaned = await this.requestDeleteQuestionImages(orphanUrls, true)
+      if (cleaned) {
+        const orphanSet = new Set(orphanUrls)
+        this.sessionUploadedQuestionImageUrls = this.uniqueQuestionImageUrls(
+          this.sessionUploadedQuestionImageUrls.filter((item) => !orphanSet.has(this.normalizeQuestionImageUrl(item)))
+        )
+      }
+    },
+    cleanupSessionUploadedQuestionImagesOnExit() {
+      const targetUrls = this.uniqueQuestionImageUrls(this.sessionUploadedQuestionImageUrls)
+      if (!targetUrls.length) return
+
+      this.$http.post('/api/classroom/question/delete-image', { urls: targetUrls }).catch(() => {})
+    },
     handleTypeChange() {
       if (this.form.type === 'single_choice') {
         this.form.correctAnswer = 0
@@ -551,6 +795,194 @@ export default {
         this.recalculateCompositeTotalScore()
       }
       this.form.referenceAnswer = ''
+    },
+    triggerContentImageUpload() {
+      if (this.uploadingContentImage) {
+        return
+      }
+      const input = this.$refs.contentImageInput
+      if (!input) {
+        return
+      }
+      input.value = ''
+      input.click()
+    },
+    async handleContentImageSelected(event) {
+      const input = event && event.target ? event.target : null
+      const file = input && input.files && input.files.length > 0 ? input.files[0] : null
+      if (!file) {
+        return
+      }
+
+      const ext = (file.name || '').toLowerCase()
+      const isAllowedExt = ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg')
+      const mime = (file.type || '').toLowerCase()
+      const isAllowedMime = mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/jpg'
+
+      if (!isAllowedExt || (mime && !isAllowedMime)) {
+        this.$message.warning('仅支持上传 png/jpg/jpeg 格式图片')
+        if (input) input.value = ''
+        return
+      }
+
+      const maxSize = 10 * 1024 * 1024
+      if (file.size > maxSize) {
+        this.$message.warning('图片大小不能超过10MB')
+        if (input) input.value = ''
+        return
+      }
+
+      await this.uploadContentImage(file)
+      if (input) input.value = ''
+    },
+    async uploadContentImage(file) {
+      this.uploadingContentImage = true
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await this.$http.post('/api/classroom/question/upload-image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (res.data.code !== 200 || !res.data.data || !res.data.data.url) {
+          this.$message.error(res.data.message || '图片上传失败')
+          return
+        }
+
+        const imageURL = res.data.data.url
+        const normalizedImageURL = this.normalizeQuestionImageUrl(imageURL)
+        if (normalizedImageURL) {
+          this.sessionUploadedQuestionImageUrls = this.uniqueQuestionImageUrls([
+            ...this.sessionUploadedQuestionImageUrls,
+            normalizedImageURL
+          ])
+        }
+        const markdown = `![${file.name}](${imageURL})`
+        this.insertContentMarkdown(markdown)
+        this.$message.success('图片上传成功')
+      } catch (error) {
+        this.$message.error('图片上传失败')
+      } finally {
+        this.uploadingContentImage = false
+      }
+    },
+    insertContentMarkdown(markdown) {
+      const contentInput = this.$refs.contentInput
+      const textarea = contentInput && contentInput.$refs ? contentInput.$refs.textarea : null
+      if (!textarea || typeof textarea.selectionStart !== 'number' || typeof textarea.selectionEnd !== 'number') {
+        this.form.content = this.form.content ? `${this.form.content}\n${markdown}` : markdown
+        return
+      }
+
+      const source = this.form.content || ''
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const before = source.slice(0, start)
+      const after = source.slice(end)
+      const prefix = before && !before.endsWith('\n') ? '\n' : ''
+      const suffix = after && !after.startsWith('\n') ? '\n' : ''
+      const inserted = `${prefix}${markdown}${suffix}`
+      const next = `${before}${inserted}${after}`
+      this.form.content = next
+
+      this.$nextTick(() => {
+        const cursor = before.length + inserted.length
+        textarea.focus()
+        textarea.setSelectionRange(cursor, cursor)
+      })
+    },
+    handleContentPreviewClick(event) {
+      if (!event || !event.target || event.target.tagName !== 'IMG') {
+        return
+      }
+      this.findImageInContentMarkdown(event.target.src)
+    },
+    findImageInContentMarkdown(imageUrl) {
+      const content = this.form.content || ''
+      if (!content.trim()) {
+        return
+      }
+
+      let imagePath = imageUrl
+      if (imageUrl.startsWith(window.location.origin)) {
+        imagePath = imageUrl.substring(window.location.origin.length)
+      }
+
+      const escapedPath = this.escapeRegex(imagePath)
+      const mdImageRegex = new RegExp(`!\\[([^\\]]*)\\]\\(([^)]*${escapedPath}[^)]*)\\)`, 'g')
+      const htmlImgRegex = new RegExp(`<img[^>]*src=["']([^"']*${escapedPath}[^"']*)["'][^>]*>`, 'gi')
+
+      const mdMatch = mdImageRegex.exec(content)
+      const htmlMatch = htmlImgRegex.exec(content)
+
+      if (mdMatch) {
+        this.imageSizeDialog.url = imageUrl
+        this.imageSizeDialog.sourceUrl = mdMatch[2] || imagePath
+        this.imageSizeDialog.alt = mdMatch[1] || '图片描述'
+        this.imageSizeDialog.width = 0
+        this.imageSizeDialog.startPos = mdMatch.index
+        this.imageSizeDialog.endPos = mdMatch.index + mdMatch[0].length
+        this.imageSizeDialog.visible = true
+        return
+      }
+
+      if (htmlMatch) {
+        const widthMatch = htmlMatch[0].match(/width=["'](\d+)["']/i)
+        const altMatch = htmlMatch[0].match(/alt=["']([^"']*)["']/i)
+        this.imageSizeDialog.url = imageUrl
+        this.imageSizeDialog.sourceUrl = htmlMatch[1] || imagePath
+        this.imageSizeDialog.alt = altMatch ? altMatch[1] : '图片描述'
+        this.imageSizeDialog.width = widthMatch ? parseInt(widthMatch[1], 10) : 0
+        this.imageSizeDialog.startPos = htmlMatch.index
+        this.imageSizeDialog.endPos = htmlMatch.index + htmlMatch[0].length
+        this.imageSizeDialog.visible = true
+        return
+      }
+
+      this.$message.warning('未找到对应图片代码，请检查题目内容中的图片语法')
+    },
+    escapeRegex(text) {
+      return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    },
+    escapeHtmlAttr(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+    },
+    closeImageSizeDialog() {
+      this.imageSizeDialog.visible = false
+      this.imageSizeDialog.url = ''
+      this.imageSizeDialog.sourceUrl = ''
+      this.imageSizeDialog.alt = '图片描述'
+      this.imageSizeDialog.width = 500
+      this.imageSizeDialog.startPos = -1
+      this.imageSizeDialog.endPos = -1
+    },
+    applyImageSize() {
+      const start = this.imageSizeDialog.startPos
+      const end = this.imageSizeDialog.endPos
+      if (start === -1 || end === -1 || end <= start) {
+        this.$message.error('无法定位图片位置，请重新点击图片后再试')
+        return
+      }
+
+      const content = this.form.content || ''
+      const before = content.substring(0, start)
+      const after = content.substring(end)
+      const safeAlt = this.escapeHtmlAttr(this.imageSizeDialog.alt || '图片描述')
+      const sourceUrl = this.imageSizeDialog.sourceUrl || this.imageSizeDialog.url
+
+      let newImageCode = ''
+      if (this.imageSizeDialog.width > 0) {
+        newImageCode = `<img src="${sourceUrl}" width="${this.imageSizeDialog.width}" alt="${safeAlt}">`
+      } else {
+        newImageCode = `![${safeAlt}](${sourceUrl})`
+      }
+
+      this.form.content = before + newImageCode + after
+      this.closeImageSizeDialog()
+      this.$message.success('图片大小已更新，保存题目后学生端将同步显示')
     },
     addTag() {
       const tag = this.tagInput.trim()
@@ -856,6 +1288,7 @@ export default {
       }
 
       this.form = nextForm
+      this.originalQuestionImageUrls = this.collectQuestionImageUrlsFromForm(nextForm)
     },
     async submitQuestion() {
       if (!this.validateForm()) return
@@ -877,6 +1310,9 @@ export default {
         }
 
         if (res.data.code === 200) {
+          await this.cleanupUnusedSessionUploadedQuestionImages()
+          this.originalQuestionImageUrls = this.collectQuestionImageUrlsFromForm()
+          this.hasSavedQuestion = true
           this.$message.success(this.isEdit ? '更新成功' : '创建成功')
           this.goBack(true)
         } else {
@@ -943,6 +1379,72 @@ export default {
 
 .question-form .el-form-item {
   margin-bottom: 14px;
+}
+
+.content-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.content-editor-tip {
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hidden-content-upload-input {
+  display: none;
+}
+
+.image-size-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.image-size-dialog-tip {
+  font-size: 12px;
+  color: #909399;
+}
+
+.image-size-preview-wrap {
+  min-height: 140px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+
+.image-size-preview-wrap img {
+  display: block;
+  border-radius: 4px;
+}
+
+.image-size-control-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.image-size-label {
+  width: 70px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.image-size-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.question-editor-page /deep/ .preview-content-text img {
+  cursor: pointer;
 }
 
 .compact-form-row .el-form-item {

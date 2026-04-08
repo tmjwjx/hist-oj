@@ -1250,15 +1250,15 @@ export default {
 .markdown-body img {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
   margin: 12px 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   cursor: pointer;
-  transition: transform 0.2s;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 .markdown-body img:hover {
-  transform: scale(1.02);
+  transform: none;
 }
 
 .markdown-body img[width] {
@@ -1602,6 +1602,10 @@ export default {
   height: auto;
   display: block;
   margin: 12px 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 /* ===== 模态对话框样式 ===== */
