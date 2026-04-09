@@ -181,7 +181,7 @@
                       </svg>
                     </div>
                     <!-- 正确答案显示（仅选择题和判断题） -->
-                    <div v-if="['single_choice', 'multiple_choice', 'judge'].includes(question.type)" class="correct-answer-display">
+                    <div v-if="['single_choice', 'multiple_choice', 'judge', 'fill_blank'].includes(question.type)" class="correct-answer-display answer-info compact-answer-info">
                       <strong>正确答案：{{ getCorrectAnswerText(question) }}</strong>
                     </div>
                   </el-col>
@@ -245,10 +245,20 @@
       width="600px"
     >
       <el-table :data="allStudentsList" stripe max-height="400">
+        <el-table-column prop="rank" label="排名" width="80" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="realName" label="姓名" width="120" />
         <el-table-column label="系统用户名">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="score" label="总分" width="100" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -261,10 +271,20 @@
       width="600px"
     >
       <el-table :data="submittedStudentsList" stripe max-height="400">
+        <el-table-column prop="rank" label="排名" width="80" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="realName" label="姓名" width="120" />
         <el-table-column label="系统用户名">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="score" label="总分" width="100" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -277,10 +297,20 @@
       width="600px"
     >
       <el-table :data="unsubmittedStudentsList" stripe max-height="400">
+        <el-table-column prop="rank" label="排名" width="80" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="realName" label="姓名" width="120" />
         <el-table-column label="系统用户名">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="score" label="总分" width="100" align="center">
+          <template slot-scope="{ row }">
+            <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -403,6 +433,9 @@ export default {
       return ((this.analysisData.submittedCount || 0) / this.analysisData.totalStudentCount * 100).toFixed(1)
     },
     allStudentsList() {
+      if (Array.isArray(this.analysisData.studentRankings) && this.analysisData.studentRankings.length > 0) {
+        return this.analysisData.studentRankings
+      }
       return [...(this.analysisData.submittedStudents || []), ...(this.analysisData.unsubmittedStudents || [])]
     },
     submittedStudentsList() {
@@ -471,6 +504,10 @@ export default {
       this.questionUnsubmittedStudents = question.unsubmittedBy || []
       this.questionUnsubmittedDialogVisible = true
     },
+    formatScore(score) {
+      const numericScore = Number(score || 0)
+      return Number.isInteger(numericScore) ? numericScore : numericScore.toFixed(2)
+    },
     formatAnswer(answer) {
       if (!answer) return ''
       // 将 option_A 格式转换为 A
@@ -484,6 +521,7 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: '主观题',
         programming: '编程题'
@@ -495,6 +533,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         composite: 'danger',
         subjective: 'info',
         programming: 'danger'
@@ -508,7 +547,7 @@ export default {
     },
     getDistributionTitle(type) {
       // 根据题目类型返回不同的标题
-      const choiceTypes = ['single_choice', 'multiple_choice', 'judge']
+      const choiceTypes = ['single_choice', 'multiple_choice', 'judge', 'fill_blank']
       if (choiceTypes.includes(type)) {
         return '选项分布'
       }
@@ -743,7 +782,7 @@ export default {
       }
 
       // 单选题和多选题
-      if (question.type === 'single' || question.type === 'multiple') {
+      if (question.type === 'single_choice' || question.type === 'multiple_choice' || question.type === 'single' || question.type === 'multiple') {
         try {
           // 尝试解析 JSON 数组
           const answers = JSON.parse(question.answer)
@@ -756,7 +795,20 @@ export default {
         }
       }
 
-      // 其他题型（填空、编程等）
+      // 填空题
+      if (question.type === 'fill_blank') {
+        try {
+          const parsed = typeof question.answer === 'string' ? JSON.parse(question.answer) : question.answer
+          if (Array.isArray(parsed)) {
+            const values = parsed.map(item => String(item || '').trim()).filter(Boolean)
+            return values.length > 0 ? values.join(' / ') : '教师未设置参考答案'
+          }
+        } catch (e) {
+          // fall through
+        }
+      }
+
+      // 其他题型
       return question.answer || '教师未设置参考答案'
     }
   }

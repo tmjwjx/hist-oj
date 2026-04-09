@@ -559,25 +559,40 @@ const actions = {
 
     // 清除相关缓存，以便下次获取最新数据
     if (res.data && res.data.code === 200) {
-      const cacheKey = `${data.homeworkId}-${data.questionId}`
-      delete state.programmingSubmissionsCache[cacheKey]
+      const homeworkPrefix = `${data.homeworkId}-`
+      Object.keys(state.programmingSubmissionsCache).forEach((cacheKey) => {
+        if (cacheKey.startsWith(homeworkPrefix)) {
+          delete state.programmingSubmissionsCache[cacheKey]
+        }
+      })
     }
 
     return res.data
   },
   async getProgrammingSubmissions({ commit, state }, params) {
+    const requestParams = { ...(params || {}) }
+    const forceRefresh = !!requestParams.forceRefresh
+    delete requestParams.forceRefresh
+
+    const homeworkQuestionId = requestParams.homeworkQuestionId || requestParams.questionId
+    if (!homeworkQuestionId) {
+      return { code: 400, message: 'homeworkQuestionId不能为空', data: [] }
+    }
+    requestParams.homeworkQuestionId = homeworkQuestionId
+    delete requestParams.questionId
+
     // 生成缓存键
-    const cacheKey = `${params.homeworkId}-${params.questionId}`
+    const cacheKey = `${requestParams.homeworkId}-${requestParams.homeworkQuestionId}`
     const cached = state.programmingSubmissionsCache[cacheKey]
     const now = Date.now()
 
     // 如果有缓存且未过期，直接返回缓存数据
-    if (cached && (now - cached.timestamp < state.cacheTTL.programmingSubmissions)) {
+    if (!forceRefresh && cached && (now - cached.timestamp < state.cacheTTL.programmingSubmissions)) {
       return cached.data
     }
 
     // 没有缓存或缓存已过期，调用API
-    const res = await api.getProgrammingSubmissions(params)
+    const res = await api.getProgrammingSubmissions(requestParams)
 
     // 更新缓存
     commit('SET_PROGRAMMING_SUBMISSIONS_CACHE', {

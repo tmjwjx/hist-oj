@@ -27,15 +27,20 @@
             <span class="question-type">({{ getQuestionTypeText(item.type) }})</span>
             <span class="question-score">{{ item.score }}分</span>
           </div>
-          <div class="question-title markdown-body" v-html="renderMarkdown(item.title)"></div>
-          <div class="question-content markdown-body" v-html="renderMarkdown(item.content)"></div>
+          <div class="question-title markdown-body preview-markdown" v-html="renderMarkdown(item.title)" v-highlight></div>
+          <div
+            v-if="item.content"
+            class="question-content markdown-body preview-markdown"
+            v-html="renderMarkdown(item.content)"
+            v-highlight
+          ></div>
 
           <!-- 单选题选项（预览模式，不可作答） -->
           <div v-if="item.type === 'single_choice'" class="question-options">
             <div v-for="(option, idx) in parseOptions(item.options)" :key="idx" class="option-item">
               <div class="option-preview">
                 <span class="option-letter">{{ option.letter }}.</span>
-                <span class="option-text markdown-body" v-html="renderMarkdown(option.text)"></span>
+                <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
               </div>
             </div>
           </div>
@@ -45,7 +50,7 @@
             <div v-for="(option, idx) in parseOptions(item.options)" :key="idx" class="option-item">
               <div class="option-preview">
                 <span class="option-letter">{{ option.letter }}.</span>
-                <span class="option-text markdown-body" v-html="renderMarkdown(option.text)"></span>
+                <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
               </div>
             </div>
           </div>
@@ -60,6 +65,36 @@
               <span class="option-letter">✗</span>
               <span class="option-text">错误</span>
             </div>
+          </div>
+
+          <!-- 组合题 -->
+          <div v-if="item.type === 'composite'" class="question-options composite-preview-list">
+            <div
+              v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(item.options)"
+              :key="subQuestion.id || subIndex"
+              class="composite-preview-item"
+            >
+              <div class="composite-preview-header">
+                <span>子题 {{ subIndex + 1 }}</span>
+                <span>{{ Number(subQuestion.score || 0) }}分</span>
+              </div>
+              <div class="markdown-body preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+              <div class="question-options" style="padding-left: 0;">
+                <div v-for="(option, idx) in parseOptions(subQuestion.options)" :key="idx" class="option-item">
+                  <div class="option-preview">
+                    <span class="option-letter">{{ option.letter }}.</span>
+                    <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 填空题 -->
+          <div v-if="item.type === 'fill_blank'" class="subjective-preview">
+            <el-alert type="success" :closable="false">
+              <i class="el-icon-edit"></i> 填空题，学生需要在此处输入文本答案
+            </el-alert>
           </div>
 
           <!-- 主观题 -->
@@ -85,15 +120,15 @@
                   <div class="problem-content">
                     <div class="content-section">
                       <h4>题目描述</h4>
-                      <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.description)"></div>
+                      <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.description)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.input">
                       <h4>输入格式</h4>
-                      <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.input)"></div>
+                      <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.input)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.output">
                       <h4>输出格式</h4>
-                      <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.output)"></div>
+                      <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.output)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingExamplesForProblem(item.problemId).length > 0">
                       <h4>样例</h4>
@@ -260,13 +295,31 @@ export default {
     getTotalScore() {
       return this.selectedQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
     },
-    parseOptions(optionsStr) {
-      if (!optionsStr) return []
+    parseOptions(optionsInput) {
+      if (!optionsInput) return []
       try {
-        const options = JSON.parse(optionsStr)
+        const options = Array.isArray(optionsInput) ? optionsInput : JSON.parse(optionsInput)
+        if (!Array.isArray(options)) return []
         return options.map((opt, idx) => ({
           letter: String.fromCharCode(65 + idx),
-          text: opt
+          text: String(opt || '').replace(/^\s*[A-Za-z][\.\)、:：]\s*/, '').trim()
+        }))
+      } catch (e) {
+        return []
+      }
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      try {
+        const parsed = Array.isArray(optionsInput) ? optionsInput : JSON.parse(optionsInput)
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((subQuestion, index) => ({
+          id: String(subQuestion.id || `sq_${index + 1}`),
+          content: subQuestion.content || '',
+          options: Array.isArray(subQuestion.options)
+            ? subQuestion.options
+            : (Array.isArray(subQuestion.choiceOptions) ? subQuestion.choiceOptions : []),
+          score: Number(subQuestion.score || subQuestion.subScore || 0)
         }))
       } catch (e) {
         return []
@@ -277,6 +330,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
@@ -430,8 +484,47 @@ export default {
   padding-left: 20px;
 }
 
+.preview-container >>> .preview-markdown pre {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+.preview-container >>> .preview-markdown pre code,
+.preview-container >>> .preview-markdown code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+.preview-container >>> .preview-markdown p {
+  text-indent: 0 !important;
+}
+
 .option-item {
   margin-bottom: 10px;
+}
+
+.composite-preview-list {
+  margin-top: 12px;
+  padding-left: 0;
+}
+
+.composite-preview-item {
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.composite-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .option-preview {

@@ -10,7 +10,8 @@
       <div v-if="studentSubmission">
         <!-- 学生信息 -->
         <div class="student-info">
-          <p><strong>{{ $t('m.Student') }}:</strong> <UserName :username="studentSubmission.studentName" /></p>
+          <p><strong>{{ $t('m.Student_Name') }}:</strong> {{ studentSubmission.realName || '-' }}</p>
+          <p><strong>{{ $t('m.System_Username') }}:</strong> <UserName :username="studentSubmission.studentName" /></p>
           <p><strong>{{ $t('m.Submit_Time') }}:</strong> {{ formatTime(studentSubmission.submitTime) }}</p>
           <p><strong>{{ $t('m.Total_Score') }}:</strong> {{ studentSubmission.totalScore }}</p>
         </div>
@@ -74,8 +75,8 @@
                 <span class="question-score">{{ submit.question.score || 0 }}分</span>
               </div>
 
-              <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)"></div>
-              <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)"></div>
+              <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
+              <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)" v-highlight></div>
 
               <!-- 显示题目选项（单选、多选） -->
               <div v-if="submit.question.type === 'single_choice' || submit.question.type === 'multiple_choice'" class="question-options">
@@ -84,7 +85,7 @@
                     <el-tag type="info" size="small" effect="plain">
                       <span class="option-letter">{{ option.letter }}</span>
                     </el-tag>
-                    <span v-html="renderMarkdown(option.text)" class="markdown-body option-text"></span>
+                    <span v-html="renderMarkdown(option.text)" class="markdown-body option-text" v-highlight></span>
                     <!-- 正确答案标识 -->
                     <el-tag v-if="isCorrectAnswer(submit.question.answer, option.letter, submit.question.type)"
                       type="success"
@@ -96,16 +97,52 @@
                 </div>
               </div>
 
+              <!-- 组合题子题（未提交） -->
+              <div v-else-if="submit.question.type === 'composite'" class="question-options composite-answer-area">
+                <div
+                  v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(submit.question.options)"
+                  :key="subQuestion.id || subIndex"
+                  class="composite-sub-question-card"
+                >
+                  <div class="composite-sub-header">
+                    <span>子题 {{ subIndex + 1 }}</span>
+                    <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                  </div>
+                  <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+
+                  <div
+                    v-for="(option, optionIndex) in parseOptions(JSON.stringify(subQuestion.options || []))"
+                    :key="`${subQuestion.id || subIndex}_${optionIndex}`"
+                    class="option-item"
+                  >
+                    <div class="option-display">
+                      <el-tag type="info" size="small" effect="plain">
+                        <span class="option-letter">{{ option.letter }}</span>
+                      </el-tag>
+                      <span v-html="renderMarkdown(option.text)" class="markdown-body option-text" v-highlight></span>
+                      <el-tag
+                        v-if="getCompositeCorrectAnswer(submit.question.answer, subQuestion.id, subIndex) === option.letter"
+                        type="success"
+                        size="mini"
+                        style="margin-left: 8px;"
+                      >
+                        ✓ {{ $t('m.Correct_Answer') }}
+                      </el-tag>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- 填空题显示答案 -->
-              <div v-else-if="submit.question.type === 'fill_blank'" class="answer-display">
+              <div v-else-if="submit.question.type === 'fill_blank'" class="answer-display answer-info compact-answer-info">
                 <p><strong>{{ $t('m.Correct_Answer') }}:</strong></p>
-                <div v-html="renderMarkdown(submit.question.answer || '')" class="markdown-body"></div>
+                <div v-html="renderMarkdown(formatFillBlankAnswer(submit.question.answer))" class="markdown-body" v-highlight></div>
               </div>
 
               <!-- 简答题显示答案 -->
-              <div v-else-if="submit.question.type === 'essay'" class="answer-display">
+              <div v-else-if="submit.question.type === 'essay' || submit.question.type === 'subjective'" class="answer-display answer-info compact-answer-info">
                 <p><strong>{{ $t('m.Correct_Answer') }}:</strong></p>
-                <div v-html="renderMarkdown(submit.question.answer || '')" class="markdown-body"></div>
+                <div v-html="renderMarkdown(submit.question.answer || '')" class="markdown-body" v-highlight></div>
               </div>
 
               <!-- 未提交提示 -->
@@ -191,8 +228,8 @@
               <span class="question-score">{{ submit.question.score || 0 }}分</span>
             </div>
 
-            <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)"></div>
-            <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)"></div>
+            <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
+            <div v-if="submit.question.content" class="question-content markdown-body" v-html="renderMarkdown(submit.question.content)" v-highlight></div>
 
             <!-- 显示题目选项（单选、多选） -->
             <div v-if="submit.question.type === 'single_choice' || submit.question.type === 'multiple_choice'" class="question-options">
@@ -205,7 +242,7 @@
                   >
                     <span class="option-letter">{{ option.letter }}</span>
                   </el-tag>
-                  <span v-html="renderMarkdown(option.text)" class="markdown-body option-text"></span>
+                  <span v-html="renderMarkdown(option.text)" class="markdown-body option-text" v-highlight></span>
                   <!-- 正确答案标识 -->
                   <el-tag v-if="isCorrectAnswer(submit.question.answer, option.letter, submit.question.type)"
                     type="success"
@@ -274,6 +311,64 @@
               </div>
             </div>
 
+            <!-- 组合题子题（已提交） -->
+            <div v-if="submit.question.type === 'composite'" class="question-options composite-answer-area">
+              <div
+                v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(submit.question.options)"
+                :key="subQuestion.id || subIndex"
+                class="composite-sub-question-card"
+              >
+                <div class="composite-sub-header">
+                  <span>子题 {{ subIndex + 1 }}</span>
+                  <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                </div>
+                <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+
+                <div
+                  v-for="(option, optionIndex) in parseOptions(JSON.stringify(subQuestion.options || []))"
+                  :key="`${subQuestion.id || subIndex}_${optionIndex}`"
+                  class="option-item"
+                >
+                  <div class="option-display">
+                    <el-tag
+                      :type="getCompositeStudentAnswer(submit.answer, subQuestion.id, subIndex) === option.letter ? 'primary' : 'info'"
+                      size="small"
+                      effect="plain"
+                    >
+                      <span class="option-letter">{{ option.letter }}</span>
+                    </el-tag>
+                    <span v-html="renderMarkdown(option.text)" class="markdown-body option-text" v-highlight></span>
+                    <el-tag
+                      v-if="getCompositeCorrectAnswer(submit.question.answer, subQuestion.id, subIndex) === option.letter"
+                      type="success"
+                      size="mini"
+                      style="margin-left: 8px;"
+                    >
+                      ✓ {{ $t('m.Correct_Answer') }}
+                    </el-tag>
+                    <el-tag
+                      v-if="getCompositeStudentAnswer(submit.answer, subQuestion.id, subIndex) === option.letter"
+                      type="primary"
+                      size="mini"
+                      style="margin-left: 4px;"
+                    >
+                      {{ $t('m.Selected') }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <div class="answer-comparison answer-info compact-answer-info" style="margin-top: 10px;">
+                  <p><strong>{{ $t('m.Correct_Answer') }}:</strong> {{ getCompositeCorrectAnswer(submit.question.answer, subQuestion.id, subIndex) || '-' }}</p>
+                  <p><strong>{{ $t('m.Student_Answer') }}:</strong>
+                    <span v-if="getCompositeStudentAnswer(submit.answer, subQuestion.id, subIndex)">
+                      {{ getCompositeStudentAnswer(submit.answer, subQuestion.id, subIndex) }}
+                    </span>
+                    <span v-else>{{ $t('m.No_Answer') }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <!-- 主观题答案 -->
             <div v-if="submit.question.type === 'subjective'" class="subjective-answer">
               <!-- 显示学生上传的图片 -->
@@ -300,7 +395,7 @@
             </div>
 
             <!-- 答案对比 -->
-            <div class="answer-comparison">
+            <div class="answer-comparison answer-info compact-answer-info">
               <p><strong>{{ $t('m.Correct_Answer') }}:</strong>
                 <span v-if="submit.question.type === 'single_choice'">
                   {{ submit.question.answer }}
@@ -310,6 +405,12 @@
                 </span>
                 <span v-else-if="submit.question.type === 'multiple_choice'">
                   {{ parseMultipleChoiceAnswer(submit.question.answer) }}
+                </span>
+                <span v-else-if="submit.question.type === 'fill_blank'">
+                  {{ formatFillBlankAnswer(submit.question.answer) }}
+                </span>
+                <span v-else-if="submit.question.type === 'composite'">
+                  {{ formatCompositeAnswerSummary(submit.question.answer, submit.question.options, '-') }}
                 </span>
                 <span v-else-if="submit.question.type === 'subjective'">
                   {{ submit.question.answer || '-' }}
@@ -329,6 +430,14 @@
                 <span v-else-if="submit.question.type === 'multiple_choice'">
                   <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
                   <span v-else>{{ parseMultipleChoiceAnswer(submit.answer) }}</span>
+                </span>
+                <span v-else-if="submit.question.type === 'fill_blank'">
+                  <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
+                  <span v-else>{{ formatFillBlankAnswer(submit.answer) }}</span>
+                </span>
+                <span v-else-if="submit.question.type === 'composite'">
+                  <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
+                  <span v-else>{{ formatCompositeAnswerSummary(submit.answer, submit.question.options, $t('m.No_Answer')) }}</span>
                 </span>
                 <span v-else>
                   <span v-if="!submit.answer || submit.answer === ''">{{ $t('m.No_Answer') }}</span>
@@ -608,15 +717,19 @@ export default {
         }
       })
 
-      // 获取学生姓名
+      // 班级姓名只使用 realName；系统用户名只使用 student.username
       let studentName = studentUid
+      let studentRealName = this.$route.query.realName || ''
       if (studentSubmits.length > 0) {
-        studentName = studentSubmits[0].student?.username || studentSubmits[0].student?.realName || studentUid
+        const firstSubmit = studentSubmits[0]
+        studentName = firstSubmit.student?.username || studentUid
+        studentRealName = firstSubmit.realName || studentRealName
       }
 
       this.studentSubmission = {
         uid: studentUid,
         studentName: studentName,
+        realName: studentRealName,
         submitTime: latestSubmitTime,
         totalScore: totalScore,
         questions: questions
@@ -653,6 +766,78 @@ export default {
         return []
       }
     },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      try {
+        const parsed = Array.isArray(optionsInput)
+          ? optionsInput
+          : JSON.parse(optionsInput)
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((subQuestion, index) => ({
+          id: String(subQuestion.id || `sq_${index + 1}`),
+          content: subQuestion.content || '',
+          options: Array.isArray(subQuestion.options)
+            ? subQuestion.options
+            : (Array.isArray(subQuestion.choiceOptions) ? subQuestion.choiceOptions : []),
+          score: Number(subQuestion.score || subQuestion.subScore || 0)
+        }))
+      } catch (e) {
+        return []
+      }
+    },
+    parseCompositeAnswerMap(answerInput) {
+      if (!answerInput) return {}
+      try {
+        const parsed = typeof answerInput === 'string' ? JSON.parse(answerInput) : answerInput
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed
+        }
+      } catch (e) {
+        // ignore parse failure
+      }
+      return {}
+    },
+    getCompositeAnswerBySubQuestion(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`,
+        `sq_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (!key) continue
+        if (Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return ''
+    },
+    getCompositeCorrectAnswer(correctAnswerInput, subQuestionId, subIndex) {
+      return this.getCompositeAnswerBySubQuestion(correctAnswerInput, subQuestionId, subIndex)
+    },
+    getCompositeStudentAnswer(studentAnswerInput, subQuestionId, subIndex) {
+      return this.getCompositeAnswerBySubQuestion(studentAnswerInput, subQuestionId, subIndex)
+    },
+    formatCompositeAnswerSummary(answerInput, optionsInput, emptyText = '') {
+      const subQuestions = this.parseCompositeSubQuestions(optionsInput)
+      if (subQuestions.length === 0) {
+        const fallbackMap = this.parseCompositeAnswerMap(answerInput)
+        const fallbackEntries = Object.keys(fallbackMap).map(key => `${key}: ${String(fallbackMap[key] || '').trim()}`).filter(Boolean)
+        return fallbackEntries.length > 0 ? fallbackEntries.join('； ') : emptyText
+      }
+
+      const segments = []
+      subQuestions.forEach((subQuestion, index) => {
+        const value = this.getCompositeAnswerBySubQuestion(answerInput, subQuestion.id, index)
+        if (value) {
+          segments.push(`子题${index + 1}: ${value}`)
+        }
+      })
+      return segments.length > 0 ? segments.join('； ') : emptyText
+    },
     parseMultipleChoiceAnswer(answer) {
       if (!answer) return ''
       try {
@@ -677,6 +862,18 @@ export default {
       }
       // 未知格式，返回null表示未作答
       return null
+    },
+    formatFillBlankAnswer(answer) {
+      if (!answer) return ''
+      try {
+        const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => String(item || '').trim()).filter(Boolean).join(' / ')
+        }
+      } catch (e) {
+        // fall through
+      }
+      return String(answer || '').trim()
     },
     // 渲染 Markdown
     renderMarkdown(content) {
@@ -821,7 +1018,7 @@ export default {
       const questionType = submit.question?.type
 
       // 只有客观题才能重新计算
-      if (questionType !== 'single_choice' && questionType !== 'multiple_choice' && questionType !== 'judge') {
+      if (questionType !== 'single_choice' && questionType !== 'multiple_choice' && questionType !== 'judge' && questionType !== 'fill_blank' && questionType !== 'composite') {
         this.$message.warning(this.$t('m.Cannot_Recalculate_Subjective'))
         return
       }
@@ -868,6 +1065,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
@@ -879,6 +1077,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         composite: 'danger',
         subjective: 'info',
         programming: 'danger'
@@ -1092,6 +1291,10 @@ export default {
   margin-bottom: 15px;
 }
 
+.question-options.composite-answer-area {
+  display: block;
+}
+
 .option-item {
   margin-bottom: 5px;
 }
@@ -1199,6 +1402,22 @@ export default {
 /* 选项样式优化 */
 .option-item {
   margin-bottom: 12px;
+}
+
+.composite-sub-question-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+  margin-bottom: 14px;
+}
+
+.composite-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
 }
 
 .option-display {

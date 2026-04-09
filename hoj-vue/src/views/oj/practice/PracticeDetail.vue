@@ -134,6 +134,15 @@
             </el-radio-group>
           </div>
 
+          <div v-if="currentQuestion.question.type === 'fill_blank'" class="options">
+            <el-input
+              v-model="singleAnswers[currentQuestion.question.id]"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入你的填空答案"
+            ></el-input>
+          </div>
+
           <div v-if="currentQuestion.question.type === 'subjective'" class="options">
             <el-input
               v-model="singleAnswers[currentQuestion.question.id]"
@@ -182,7 +191,7 @@
             </div>
           </div>
 
-          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box">
+          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box answer-info compact-answer-info">
             <div class="answer-title">标准答案</div>
             <div
               class="answer-content markdown-body"
@@ -297,6 +306,7 @@ export default {
             if (
               (item.question.type === 'single_choice' ||
                 item.question.type === 'judge' ||
+                item.question.type === 'fill_blank' ||
                 item.question.type === 'subjective') &&
               this.singleAnswers[qid] === undefined
             ) {
@@ -460,6 +470,7 @@ export default {
         single_choice: 'success',
         multiple_choice: 'warning',
         judge: 'info',
+        fill_blank: 'success',
         composite: 'danger',
         subjective: 'primary',
         programming: 'danger'
@@ -471,6 +482,7 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: '主观题',
         programming: '编程题'
@@ -489,6 +501,17 @@ export default {
         const normalized = String(answer).toLowerCase()
         if (['true', '正确', '对', '1'].includes(normalized)) return '正确'
         if (['false', '错误', '错', '0'].includes(normalized)) return '错误'
+      }
+      if (questionType === 'fill_blank') {
+        try {
+          const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
+          if (Array.isArray(parsed)) {
+            const lines = parsed.map(item => String(item || '').trim()).filter(Boolean)
+            return lines.length ? lines.map(item => `- ${item}`).join('\n') : '暂无标准答案'
+          }
+        } catch (e) {
+          // fall through
+        }
       }
       if (questionType === 'composite') {
         try {

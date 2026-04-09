@@ -23,29 +23,11 @@
 
         <el-divider></el-divider>
 
-        <h4>{{ $t('m.Questions') }}</h4>
-        <el-table :data="homework.questions || []" stripe>
-          <el-table-column :label="$t('m.Question_Title')">
-            <template slot-scope="{ row }">
-              <div v-if="row.question" v-html="renderMarkdown(row.question.title)" class="markdown-body"></div>
-              <div v-else>BingOJ 编程题 - {{ row.problemId }}</div>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('m.Question_Type')" width="120">
-            <template slot-scope="{ row }">
-              <el-tag v-if="row.problemId" type="warning" size="small">编程题</el-tag>
-              <el-tag v-else-if="row.question" :type="getQuestionTypeTag(row.question.type)" size="small">
-                {{ getQuestionTypeText(row.question.type) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="score" :label="$t('m.Score')" width="80" />
-        </el-table>
-
-        <el-divider></el-divider>
-
         <h4>{{ $t('m.Student_Submissions') }}</h4>
         <div style="margin-bottom: 15px;">
+          <el-button type="primary" icon="el-icon-document" @click="showPaperContentDialog = true">
+            查看试卷内容
+          </el-button>
           <el-button type="success" icon="el-icon-download" @click="exportHomeworkScores">
             导出成绩
           </el-button>
@@ -111,6 +93,124 @@
       </div>
     </el-card>
 
+    <el-dialog
+      title="试卷内容"
+      :visible.sync="showPaperContentDialog"
+      width="900px"
+      top="5vh"
+    >
+      <div v-if="homework.questions && homework.questions.length > 0" class="paper-content-preview">
+        <div
+          v-for="(item, index) in homework.questions"
+          :key="item.id || item.problemId || index"
+          class="paper-question-item"
+        >
+          <div class="paper-question-header">
+            <span class="paper-question-index">{{ index + 1 }}.</span>
+            <el-tag
+              v-if="item.problemId"
+              type="warning"
+              size="small"
+            >
+              编程题
+            </el-tag>
+            <el-tag
+              v-else-if="item.question"
+              :type="getQuestionTypeTag(item.question.type)"
+              size="small"
+            >
+              {{ getQuestionTypeText(item.question.type) }}
+            </el-tag>
+            <span class="paper-question-score">{{ item.score || 0 }}分</span>
+          </div>
+
+          <template v-if="item.question">
+            <div class="markdown-body paper-question-title" v-html="renderMarkdown(item.question.title)" v-highlight></div>
+            <div
+              v-if="item.question.content"
+              class="markdown-body paper-question-content"
+              v-html="renderMarkdown(item.question.content)"
+              v-highlight
+            ></div>
+
+            <div v-if="item.question.type === 'single_choice' || item.question.type === 'multiple_choice'" class="paper-question-options">
+              <div v-for="(option, optionIndex) in parseOptions(item.question.options)" :key="optionIndex" class="paper-option-item">
+                <span class="paper-option-label">{{ option.letter }}.</span>
+                <span class="markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+              </div>
+            </div>
+
+            <div v-else-if="item.question.type === 'judge'" class="paper-question-options">
+              <div class="paper-option-item"><span class="paper-option-label">✓</span><span>正确</span></div>
+              <div class="paper-option-item"><span class="paper-option-label">✗</span><span>错误</span></div>
+            </div>
+
+            <div v-else-if="item.question.type === 'composite'" class="paper-composite-list">
+              <div
+                v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(item.question.options)"
+                :key="subQuestion.id || subIndex"
+                class="paper-composite-item"
+              >
+                <div class="paper-composite-header">
+                  <span>子题 {{ subIndex + 1 }}</span>
+                  <span>{{ Number(subQuestion.score || 0) }}分</span>
+                </div>
+                <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                <div class="paper-question-options">
+                  <div
+                    v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
+                    :key="optionIndex"
+                    class="paper-option-item"
+                  >
+                    <span class="paper-option-label">{{ option.letter }}.</span>
+                    <span class="markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                  </div>
+                </div>
+                <div class="paper-answer-box answer-info compact-answer-info">
+                  <span class="paper-answer-label">正确答案：</span>
+                  <span class="paper-answer-value">{{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id, subIndex) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="item.question.type === 'fill_blank'" class="paper-hint-box">
+              填空题，学生作答时填写文本答案
+            </div>
+            <div v-else-if="item.question.type === 'subjective'" class="paper-hint-box">
+              主观题，学生作答时输入文字答案
+            </div>
+
+            <div
+              v-if="['single_choice', 'multiple_choice', 'judge', 'fill_blank'].includes(item.question.type)"
+              class="paper-answer-box answer-info compact-answer-info"
+            >
+              <span class="paper-answer-label">正确答案：</span>
+              <span class="paper-answer-value">{{ formatAnswerForDisplay(item.question) }}</span>
+            </div>
+            <div v-else-if="item.question.type === 'subjective'" class="paper-answer-box answer-info compact-answer-info">
+              <span class="paper-answer-label">参考答案：</span>
+              <div
+                v-if="normalizeTextValue(item.question.answer)"
+                class="markdown-body paper-answer-markdown"
+                v-html="renderMarkdown(item.question.answer)"
+                v-highlight
+              ></div>
+              <span v-else class="paper-answer-value">暂无参考答案</span>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="paper-question-content">BingOJ 编程题 - {{ item.problemId }}</div>
+            <div class="paper-answer-box answer-info compact-answer-info">
+              <span class="paper-answer-label">参考答案：</span>
+              <span class="paper-answer-value">请在题库中查看标准答案与解析</span>
+            </div>
+          </template>
+        </div>
+      </div>
+      <el-empty v-else description="暂无试卷内容"></el-empty>
+    </el-dialog>
+
     <!-- 违规记录对话框 -->
     <el-dialog
       title="学生违规记录"
@@ -150,9 +250,24 @@
 <script>
 import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
-import { marked } from 'marked'
+import MarkdownIt from 'markdown-it'
+import katex from '@iktakahiro/markdown-it-katex'
+import 'katex/dist/katex.min.css'
 import realtimeSync from '@/mixins/realtimeSync'
 import UserName from '@/components/oj/common/UserName.vue'
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+})
+md.use(katex, {
+  throwOnError: false,
+  errorColor: '#cc0000',
+  strict: false,
+  enableSuperscript: false,
+  enableSubscript: false
+})
 
 export default {
   name: 'HomeworkDetail',
@@ -171,6 +286,7 @@ export default {
       currentStudent: null,
       currentStudentViolations: [],
       allViolationsMap: {}, // uid -> violations[]
+      showPaperContentDialog: false,
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -312,6 +428,9 @@ export default {
           params: {
             homeworkId: this.homeworkId,
             uid: submission.uid
+          },
+          query: {
+            realName: submission.realName || ''
           }
         })
       } else {
@@ -319,7 +438,10 @@ export default {
         this.$router.push({
           name: 'StudentSubmissionDetail',
           params: { homeworkId: this.homeworkId },
-          query: { uid: submission.uid }
+          query: {
+            uid: submission.uid,
+            realName: submission.realName || ''
+          }
         })
       }
     },
@@ -431,6 +553,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
@@ -442,19 +565,161 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         composite: 'danger',
         subjective: 'info'
       }
       return map[type] || ''
     },
+    parseMaybeSerializedJson(rawValue, maxDepth = 2) {
+      if (rawValue === null || rawValue === undefined) return rawValue
+      let current = rawValue
+      for (let i = 0; i < maxDepth; i++) {
+        if (typeof current !== 'string') break
+        const trimmed = current.trim()
+        if (!trimmed) return ''
+        const looksLikeJson = (
+          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+          (trimmed.startsWith('"') && trimmed.endsWith('"'))
+        )
+        if (!looksLikeJson) return trimmed
+        try {
+          current = JSON.parse(trimmed)
+        } catch (e) {
+          return trimmed
+        }
+      }
+      return current
+    },
+    normalizeTextValue(rawValue) {
+      const parsed = this.parseMaybeSerializedJson(rawValue)
+      if (parsed === null || parsed === undefined) return ''
+      if (typeof parsed === 'string') return parsed
+      if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed)
+      return ''
+    },
+    parseAnswerArray(answerInput, { allowCommaSplit = true } = {}) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => String(item || '').trim()).filter(Boolean)
+      }
+      const raw = String(parsed || '').trim()
+      if (!raw) return []
+      if (allowCommaSplit && (raw.includes(',') || raw.includes('，'))) {
+        return raw.split(/[，,]/).map(item => item.trim()).filter(Boolean)
+      }
+      return [raw]
+    },
+    parseCompositeAnswerMap(answerInput) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      return {}
+    },
+    stripOptionPrefix(optionText, letterHint = '') {
+      const normalizedText = String(optionText || '').trim()
+      if (!normalizedText) return ''
+      const escapedHint = letterHint ? letterHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[A-Za-z]'
+      const prefixRegex = new RegExp(`^\\s*(?:${escapedHint}|[A-Za-z])\\s*[\\.\\)、:：]\\s*`)
+      return normalizedText.replace(prefixRegex, '').trim()
+    },
+    getCompositeCorrectAnswer(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (key && Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return '-'
+    },
+    formatAnswerForDisplay(question) {
+      if (!question) return '-'
+      switch (question.type) {
+        case 'single_choice': {
+          const value = String(this.parseMaybeSerializedJson(question.answer) || '').trim()
+          return value || '-'
+        }
+        case 'multiple_choice': {
+          const values = this.parseAnswerArray(question.answer)
+          return values.length > 0 ? values.join('、') : '-'
+        }
+        case 'judge': {
+          const raw = String(this.parseMaybeSerializedJson(question.answer) || '').trim().toLowerCase()
+          if (['true', '1', 'yes', 'y', '正确'].includes(raw)) return '正确'
+          if (['false', '0', 'no', 'n', '错误'].includes(raw)) return '错误'
+          return '-'
+        }
+        case 'fill_blank': {
+          const values = this.parseAnswerArray(question.answer, { allowCommaSplit: false })
+          return values.length > 0 ? values.join(' / ') : '-'
+        }
+        default:
+          return '-'
+      }
+    },
     renderMarkdown(content) {
-      if (!content) return ''
+      const normalized = this.normalizeTextValue(content)
+      if (!normalized) return ''
       try {
-        return marked(content)
+        return md.render(normalized)
       } catch (e) {
         console.error('Markdown渲染失败:', e)
-        return content
+        return normalized
       }
+    },
+    parseOptions(optionsInput) {
+      if (!optionsInput) return []
+      const parsed = this.parseMaybeSerializedJson(optionsInput)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((option, index) => {
+        if (option && typeof option === 'object' && !Array.isArray(option)) {
+          const normalizedLetter = String(option.letter || option.label || String.fromCharCode(65 + index))
+            .trim()
+            .replace(/[^A-Za-z0-9]/g, '')
+            .toUpperCase()
+          const letter = normalizedLetter || String.fromCharCode(65 + index)
+          const rawText = option.text !== undefined
+            ? option.text
+            : (option.content !== undefined ? option.content : '')
+          const normalizedText = this.normalizeTextValue(rawText)
+          return {
+            letter,
+            text: this.stripOptionPrefix(normalizedText || String(rawText || ''), letter)
+          }
+        }
+        const letter = String.fromCharCode(65 + index)
+        const normalizedText = this.normalizeTextValue(option)
+        return {
+          letter,
+          text: this.stripOptionPrefix(normalizedText || String(option || ''), letter)
+        }
+      })
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      const parsed = this.parseMaybeSerializedJson(optionsInput)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((subQuestion, index) => {
+        const optionSource = subQuestion && subQuestion.options !== undefined
+          ? subQuestion.options
+          : (subQuestion && subQuestion.choiceOptions !== undefined ? subQuestion.choiceOptions : [])
+        const options = this.parseMaybeSerializedJson(optionSource)
+        return {
+          id: String((subQuestion && subQuestion.id) || `sq_${index + 1}`),
+          content: (subQuestion && subQuestion.content) || '',
+          options: Array.isArray(options) ? options : [],
+          score: Number((subQuestion && (subQuestion.score || subQuestion.subScore)) || 0)
+        }
+      })
     },
     isFullyGraded(studentSubmission) {
       // 检查是否所有已提交的题目都已评分
@@ -643,5 +908,135 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.paper-content-preview {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.paper-question-item {
+  padding: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.paper-question-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.paper-question-index {
+  font-weight: 700;
+  color: #409EFF;
+}
+
+.paper-question-score {
+  margin-left: auto;
+  color: #E6A23C;
+  font-weight: 600;
+}
+
+.paper-question-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.paper-question-content {
+  margin-bottom: 10px;
+}
+
+.paper-question-options {
+  margin-top: 8px;
+}
+
+.paper-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.paper-option-label {
+  min-width: 20px;
+  color: #409EFF;
+  font-weight: 700;
+}
+
+.paper-composite-list {
+  margin-top: 10px;
+}
+
+.paper-composite-item {
+  padding: 10px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.paper-composite-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.paper-hint-box {
+  margin-top: 8px;
+  padding: 10px;
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+  color: #8a6d3b;
+  border-radius: 4px;
+}
+
+.paper-answer-box {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 4px;
+}
+
+.paper-answer-label {
+  color: #409EFF;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.paper-answer-value {
+  color: #303133;
+}
+
+.paper-answer-markdown {
+  margin-top: 6px;
+}
+
+.paper-content-preview >>> .markdown-body pre {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding-left: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
+}
+
+.paper-content-preview >>> .markdown-body pre code,
+.paper-content-preview >>> .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.paper-content-preview >>> .markdown-body p {
+  text-indent: 0 !important;
 }
 </style>

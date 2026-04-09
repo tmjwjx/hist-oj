@@ -1809,7 +1809,7 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 
 	var req struct {
 		Title      string `json:"title" binding:"required"`
-		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective programming composite"`
+		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge fill_blank subjective programming composite"`
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"` // JSON string
 		Answer     string `json:"answer"`
@@ -1921,12 +1921,19 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	// 获取查询参数
 	questionType := c.Query("type")
 	isSharedStr := c.Query("isShared")
-	keyword := c.Query("keyword")
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	questionIDStr := strings.TrimSpace(c.Query("questionId"))
 	course := c.Query("course")         // 课程筛选
 	tag := c.Query("tag")               // 标签筛选
 	difficulty := c.Query("difficulty") // 难度筛选
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
 
 	db := client.GetDB()
 
@@ -1963,6 +1970,20 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 		if err == nil {
 			query = query.Where("difficulty = ?", difficultyInt)
 		}
+	}
+
+	if questionIDStr != "" {
+		questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+				"total":     0,
+				"page":      page,
+				"limit":     limit,
+				"questions": []model.QuestionBank{},
+			}))
+			return
+		}
+		query = query.Where("id = ?", questionID)
 	}
 
 	if keyword != "" {
@@ -2044,6 +2065,7 @@ func (h *Handler) UpdateQuestion(c *gin.Context) {
 			"single_choice":   true,
 			"multiple_choice": true,
 			"judge":           true,
+			"fill_blank":      true,
 			"subjective":      true,
 			"programming":     true,
 			"composite":       true,
@@ -2415,6 +2437,7 @@ func (h *Handler) AdminUpdateQuestion(c *gin.Context) {
 			"single_choice":   true,
 			"multiple_choice": true,
 			"judge":           true,
+			"fill_blank":      true,
 			"subjective":      true,
 			"programming":     true,
 			"composite":       true,
@@ -2617,7 +2640,7 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 
 	var req struct {
 		Title      string `json:"title" binding:"required"`
-		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge subjective composite"`
+		Type       string `json:"type" binding:"required,oneof=single_choice multiple_choice judge fill_blank subjective composite"`
 		Content    string `json:"content" binding:"required"`
 		Options    string `json:"options"`
 		Answer     string `json:"answer"`
@@ -2647,6 +2670,8 @@ func (h *Handler) AdminCreateQuestion(c *gin.Context) {
 			req.Score = 5
 		case "judge":
 			req.Score = 1
+		case "fill_blank":
+			req.Score = 2
 		case "subjective":
 			req.Score = 5
 		default:
@@ -3346,7 +3371,7 @@ func (h *Handler) CreateExamPaper(c *gin.Context) {
 type ExamPaperQuestionRequest struct {
 	QuestionID   *uint64 `json:"questionId"`   // 客观题ID
 	ProblemID    *string `json:"problemId"`    // 编程题ID
-	QuestionType string  `json:"questionType"` // single_choice, multiple_choice, judge, subjective, programming
+	QuestionType string  `json:"questionType"` // single_choice, multiple_choice, judge, fill_blank, subjective, programming
 	Score        int     `json:"score"`
 }
 

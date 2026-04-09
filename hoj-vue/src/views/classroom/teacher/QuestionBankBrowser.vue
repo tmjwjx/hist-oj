@@ -17,18 +17,19 @@
     <!-- 筛选条件 -->
     <el-card class="filter-card" shadow="hover">
       <el-row :gutter="15">
-        <el-col :span="5">
-          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="loadQuestions">
+        <el-col :span="4">
+          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="handleFilterChange">
             <el-option label="全部题型" value=""></el-option>
             <el-option label="单选题" value="single_choice"></el-option>
             <el-option label="多选题" value="multiple_choice"></el-option>
             <el-option label="判断题" value="judge"></el-option>
+            <el-option label="填空题" value="fill_blank"></el-option>
             <el-option label="主观题" value="subjective"></el-option>
             <el-option label="组合题" value="composite"></el-option>
           </el-select>
         </el-col>
-        <el-col :span="5">
-          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="loadQuestions">
+        <el-col :span="4">
+          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="handleFilterChange">
             <el-option label="全部课程" value=""></el-option>
             <el-option
               v-for="course in commonCourses"
@@ -38,8 +39,8 @@
             />
           </el-select>
         </el-col>
-        <el-col :span="5">
-          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="loadQuestions">
+        <el-col :span="4">
+          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="handleFilterChange">
             <el-option label="全部难度" value=""></el-option>
             <el-option label="简单" value="1"></el-option>
             <el-option label="中等" value="2"></el-option>
@@ -52,20 +53,31 @@
             placeholder="标签筛选"
             clearable
             size="small"
-            @keyup.enter.native="loadQuestions"
+            @keyup.enter.native="handleFilterChange"
           >
-            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
           </el-input>
         </el-col>
-        <el-col :span="5">
+        <el-col :span="4">
+          <el-input
+            v-model="filters.questionId"
+            placeholder="搜索题目ID"
+            clearable
+            size="small"
+            @keyup.enter.native="handleFilterChange"
+          >
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
+          </el-input>
+        </el-col>
+        <el-col :span="4">
           <el-input
             v-model="filters.keyword"
             placeholder="搜索标题"
             clearable
             size="small"
-            @keyup.enter.native="loadQuestions"
+            @keyup.enter.native="handleFilterChange"
           >
-            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
           </el-input>
         </el-col>
       </el-row>
@@ -80,6 +92,7 @@
         ref="questionTable"
       >
         <el-table-column type="selection" width="55"></el-table-column>
+        <el-table-column prop="id" label="ID" width="90" align="center"></el-table-column>
 
         <el-table-column type="expand">
           <template slot-scope="{ row }">
@@ -121,12 +134,20 @@
               <!-- 题目内容 -->
               <div class="detail-section">
                 <h4 class="detail-label">题目标题</h4>
-                <div v-html="renderMarkdown(row.title)" class="markdown-body detail-content"></div>
+                <div
+                  v-html="renderMarkdown(row.title)"
+                  class="markdown-body detail-content detail-markdown"
+                  v-highlight
+                ></div>
               </div>
 
               <div v-if="row.content" class="detail-section">
                 <h4 class="detail-label">题目描述</h4>
-                <div v-html="renderMarkdown(row.content)" class="markdown-body detail-content"></div>
+                <div
+                  v-html="renderMarkdown(row.content)"
+                  class="markdown-body detail-content detail-markdown"
+                  v-highlight
+                ></div>
               </div>
 
               <!-- 选择题选项 -->
@@ -136,17 +157,69 @@
                   <div v-if="parseQuestionOptions(row.options).length > 0">
                     <div v-for="(option, index) in parseQuestionOptions(row.options)" :key="index" class="option-item">
                       <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
-                      <span v-html="renderMarkdown(option)" class="option-text"></span>
+                      <span
+                        v-html="renderMarkdown(option)"
+                        class="option-text markdown-body detail-markdown"
+                        v-highlight
+                      ></span>
                     </div>
                   </div>
                   <el-alert v-else type="info" :closable="false">暂无选项数据</el-alert>
                 </div>
               </div>
 
+              <!-- 组合题子题 -->
+              <div v-if="row.type === 'composite'" class="detail-section">
+                <h4 class="detail-label">组合题子题</h4>
+                <div class="composite-list">
+                  <div
+                    v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(row.options)"
+                    :key="subQuestion.id || subIndex"
+                    class="composite-item"
+                  >
+                    <div class="composite-header">
+                      <span>子题 {{ subIndex + 1 }}</span>
+                      <span>{{ Number(subQuestion.score || 0) }}分</span>
+                    </div>
+                    <div
+                      v-html="renderMarkdown(subQuestion.content || '')"
+                      class="markdown-body detail-content detail-markdown"
+                      v-highlight
+                    ></div>
+                    <div class="options-display composite-options">
+                      <div v-if="parseQuestionOptions(subQuestion.options).length > 0">
+                        <div
+                          v-for="(option, optionIndex) in parseQuestionOptions(subQuestion.options)"
+                          :key="optionIndex"
+                          class="option-item"
+                        >
+                          <span class="option-label">{{ String.fromCharCode(65 + optionIndex) }}.</span>
+                          <span
+                            v-html="renderMarkdown(option)"
+                            class="option-text markdown-body detail-markdown"
+                            v-highlight
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="composite-answer answer-info compact-answer-info">
+                      <el-tag type="success" size="small">
+                        正确答案：{{ getCompositeCorrectAnswer(row.answer, subQuestion.id, subIndex) }}
+                      </el-tag>
+                    </div>
+                  </div>
+                  <el-empty
+                    v-if="parseCompositeSubQuestions(row.options).length === 0"
+                    description="暂无组合题子题数据"
+                    :image-size="90"
+                  />
+                </div>
+              </div>
+
               <!-- 正确答案 -->
               <div class="detail-section">
                 <h4 class="detail-label">正确答案</h4>
-                <div class="answer-display">
+                <div class="answer-display answer-info compact-answer-info">
                   <el-tag v-if="row.type === 'single_choice'" type="success" size="small">
                     {{ parseSingleChoiceAnswer(row) }}
                   </el-tag>
@@ -156,8 +229,19 @@
                   <el-tag v-else-if="row.type === 'judge'" :type="isJudgeTrue(row.answer) ? 'success' : 'danger'" size="small">
                     {{ isJudgeTrue(row.answer) ? '正确' : '错误' }}
                   </el-tag>
+                  <el-tag v-else-if="row.type === 'fill_blank'" type="success" size="small">
+                    {{ parseFillBlankAnswer(row.answer) }}
+                  </el-tag>
+                  <el-tag v-else-if="row.type === 'composite'" type="success" size="small">
+                    组合题答案见上方子题详情
+                  </el-tag>
                   <div v-else-if="row.type === 'subjective'" class="subjective-answer">
-                    <div v-if="row.answer" v-html="renderMarkdown(row.answer)" class="markdown-body"></div>
+                    <div
+                      v-if="row.answer"
+                      v-html="renderMarkdown(row.answer)"
+                      class="markdown-body detail-markdown"
+                      v-highlight
+                    ></div>
                     <span v-else style="color: #909399;">暂无参考答案</span>
                   </div>
                 </div>
@@ -169,7 +253,11 @@
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
                   <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
                 </el-divider>
-                <div v-html="renderMarkdown(row.analysis)" class="markdown-body detail-content"></div>
+                <div
+                  v-html="renderMarkdown(row.analysis)"
+                  class="markdown-body detail-content detail-markdown"
+                  v-highlight
+                ></div>
               </div>
 
               <!-- 创建时间 -->
@@ -285,6 +373,7 @@ export default {
         course: '',
         difficulty: '',
         tag: '',
+        questionId: '',
         keyword: ''
       },
       pagination: {
@@ -310,9 +399,16 @@ export default {
     this.loadQuestions()
   },
   methods: {
+    handleFilterChange() {
+      this.pagination.page = 1
+      this.loadQuestions()
+    },
     async loadQuestions() {
       this.loading = true
       try {
+        const questionId = String(this.filters.questionId || '').trim()
+        const keyword = String(this.filters.keyword || '').trim()
+
         const params = {
           classroomId: this.$route.params.classroomId,
           page: this.pagination.page,
@@ -323,7 +419,11 @@ export default {
         if (this.filters.course) params.course = this.filters.course;
         if (this.filters.difficulty) params.difficulty = this.filters.difficulty;
         if (this.filters.tag) params.tag = this.filters.tag;
-        if (this.filters.keyword) params.keyword = this.filters.keyword;
+        if (questionId) {
+          params.questionId = questionId
+        } else if (keyword) {
+          params.keyword = keyword
+        }
 
         const res = await this.$store.dispatch('classroom/getQuestionBank', params)
         if (res.code === 200) {
@@ -384,15 +484,52 @@ export default {
       this.pagination.page = 1
       this.loadQuestions()
     },
+    parseMaybeSerializedJson(rawValue, maxDepth = 2) {
+      if (rawValue === null || rawValue === undefined) return rawValue
+      let current = rawValue
+      for (let i = 0; i < maxDepth; i++) {
+        if (typeof current !== 'string') break
+        const trimmed = current.trim()
+        if (!trimmed) return ''
+        const looksLikeJson = (
+          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+          (trimmed.startsWith('"') && trimmed.endsWith('"'))
+        )
+        if (!looksLikeJson) return trimmed
+        try {
+          current = JSON.parse(trimmed)
+        } catch (e) {
+          return trimmed
+        }
+      }
+      return current
+    },
+    normalizeTextValue(rawValue) {
+      const parsed = this.parseMaybeSerializedJson(rawValue)
+      if (parsed === null || parsed === undefined) return ''
+      if (typeof parsed === 'string') return parsed
+      if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed)
+      return ''
+    },
+    stripOptionPrefix(optionText, letterHint = '') {
+      const normalizedText = String(optionText || '').trim()
+      if (!normalizedText) return ''
+      const escapedHint = letterHint ? letterHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[A-Za-z]'
+      const prefixRegex = new RegExp(`^\\s*(?:${escapedHint}|[A-Za-z])\\s*[\\.\\)、:：]\\s*`)
+      return normalizedText.replace(prefixRegex, '').trim()
+    },
     renderMarkdown(text) {
-      if (!text) return ''
-      return md.render(text)
+      const normalizedText = this.normalizeTextValue(text)
+      if (!normalizedText) return ''
+      return md.render(normalizedText)
     },
     getQuestionTypeName(type) {
       const typeMap = {
         'single_choice': '单选题',
         'multiple_choice': '多选题',
         'judge': '判断题',
+        'fill_blank': '填空题',
         'subjective': '主观题',
         'composite': '组合题'
       }
@@ -403,6 +540,7 @@ export default {
         'single_choice': 'primary',
         'multiple_choice': 'success',
         'judge': 'warning',
+        'fill_blank': 'success',
         'subjective': 'info',
         'composite': 'danger'
       }
@@ -412,53 +550,100 @@ export default {
       return parseInt(difficulty) || 1
     },
     parseQuestionTags(tags) {
-      if (!tags || tags === '[]') return []
-      try {
-        return JSON.parse(tags)
-      } catch (e) {
-        return typeof tags === 'string' ? [tags] : []
-      }
+      const parsed = this.parseMaybeSerializedJson(tags)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map(tag => String(tag || '').trim()).filter(Boolean)
     },
     parseQuestionOptions(options) {
       if (!options) return []
-      try {
-        // options 字段存储的是 JSON 字符串数组，格式如 ["A. 选项1", "B. 选项2", ...]
-        const optionsArray = typeof options === 'string' ? JSON.parse(options) : options
-        // 去掉 "A. "、"B. " 这样的前缀，只保留选项内容
-        return optionsArray.map(opt => {
-          if (typeof opt === 'string') {
-            return opt.replace(/^[A-D]\.\s*/, '').trim()
-          }
-          return opt
-        })
-      } catch (e) {
-        console.error('解析选项失败:', e, options)
-        return []
+      const optionsArray = this.parseMaybeSerializedJson(options)
+      if (!Array.isArray(optionsArray)) return []
+      return optionsArray.map((opt, idx) => {
+        if (opt && typeof opt === 'object' && !Array.isArray(opt)) {
+          const normalizedLetter = String(opt.letter || opt.label || String.fromCharCode(65 + idx))
+            .trim()
+            .replace(/[^A-Za-z0-9]/g, '')
+            .toUpperCase()
+          const letter = normalizedLetter || String.fromCharCode(65 + idx)
+          const rawText = opt.text !== undefined
+            ? opt.text
+            : (opt.content !== undefined ? opt.content : '')
+          return this.stripOptionPrefix(rawText, letter)
+        }
+        return this.stripOptionPrefix(opt, String.fromCharCode(65 + idx))
+      })
+    },
+    parseAnswerArray(answerInput, { allowCommaSplit = true } = {}) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => String(item || '').trim()).filter(Boolean)
       }
+      const raw = String(parsed || '').trim()
+      if (!raw) return []
+      if (allowCommaSplit && (raw.includes(',') || raw.includes('，'))) {
+        return raw.split(/[，,]/).map(item => item.trim()).filter(Boolean)
+      }
+      return [raw]
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      const parsed = this.parseMaybeSerializedJson(optionsInput)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((subQuestion, index) => {
+        const optionSource = subQuestion && subQuestion.options !== undefined
+          ? subQuestion.options
+          : (subQuestion && subQuestion.choiceOptions !== undefined ? subQuestion.choiceOptions : [])
+        return {
+          id: String((subQuestion && subQuestion.id) || `sq_${index + 1}`),
+          content: (subQuestion && subQuestion.content) || '',
+          options: this.parseQuestionOptions(optionSource),
+          score: Number((subQuestion && (subQuestion.score || subQuestion.subScore)) || 0)
+        }
+      })
+    },
+    parseCompositeAnswerMap(answerInput) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      return {}
+    },
+    getCompositeCorrectAnswer(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (key && Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return '-'
     },
     parseSingleChoiceAnswer(question) {
-      if (question.answer) {
-        return `答案：${question.answer}`
-      }
-      return '暂无答案'
+      const value = String(this.parseMaybeSerializedJson(question.answer) || '').trim()
+      return value ? `答案：${value}` : '暂无答案'
     },
     parseMultipleChoiceAnswer(question) {
-      if (question.answer) {
-        try {
-          const answers = typeof question.answer === 'string'
-            ? JSON.parse(question.answer)
-            : question.answer
-          return `答案：${answers.join('、')}`
-        } catch (e) {
-          return `答案：${question.answer}`
-        }
+      const answers = this.parseAnswerArray(question.answer)
+      if (answers.length > 0) {
+        return `答案：${answers.join('、')}`
       }
       return '暂无答案'
     },
     isJudgeTrue(answer) {
-      const raw = String(answer || '').trim()
-      const lowered = raw.toLowerCase()
-      return lowered === 'true'
+      const raw = String(this.parseMaybeSerializedJson(answer) || '').trim().toLowerCase()
+      return ['true', '1', 'yes', 'y', '正确'].includes(raw)
+    },
+    parseFillBlankAnswer(answer) {
+      const values = this.parseAnswerArray(answer, { allowCommaSplit: false })
+      if (values.length > 0) {
+        return `答案：${values.join(' / ')}`
+      }
+      return '暂无答案'
     },
     formatTime(time) {
       if (!time) return '--'
@@ -466,8 +651,9 @@ export default {
         const date = new Date(time)
         return date.toLocaleString('zh-CN')
       } catch (e) {
-        return '--'
+        return []
       }
+      return '--'
     }
   }
 }
@@ -551,6 +737,36 @@ export default {
   border: 1px solid #e0e6ed;
 }
 
+.composite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.composite-item {
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+
+.composite-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.composite-options {
+  margin-top: 8px;
+}
+
+.composite-answer {
+  margin-top: 8px;
+}
+
 .option-item {
   display: flex;
   align-items: flex-start;
@@ -632,5 +848,25 @@ export default {
   padding: 10px;
   border-radius: 4px;
   overflow-x: auto;
+}
+
+.question-detail-expand .detail-markdown pre {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
+}
+
+.question-detail-expand .detail-markdown pre code,
+.question-detail-expand .detail-markdown code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.question-detail-expand .detail-markdown p {
+  text-indent: 0 !important;
 }
 </style>

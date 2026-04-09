@@ -18,7 +18,11 @@
             <i class="el-icon-back"></i>
             返回
           </el-button>
-          <el-button type="primary" @click="saveHomework" :loading="submitting" size="medium">
+          <el-button v-if="isConfigPage" type="primary" @click="switchEditorPage('questions')" size="medium">
+            <i class="el-icon-right"></i>
+            下一步：题目管理
+          </el-button>
+          <el-button v-else type="primary" @click="saveHomework" :loading="submitting" size="medium">
             <i class="el-icon-check"></i>
             {{ isEditMode ? '保存' : '创建' }}
           </el-button>
@@ -27,9 +31,17 @@
     </div>
 
     <div class="create-homework-content">
+      <div class="editor-page-switch">
+        <el-button :type="isConfigPage ? 'primary' : 'default'" size="medium" @click="switchEditorPage('config')">
+          1. 作业配置
+        </el-button>
+        <el-button :type="isQuestionPage ? 'primary' : 'default'" size="medium" @click="switchEditorPage('questions')">
+          2. 题目管理
+        </el-button>
+      </div>
       <el-form :model="form" :rules="rules" ref="homeworkForm" label-width="100px" class="homework-form">
         <!-- 第一板块：基本信息 -->
-        <el-card class="form-section basic-info-card" shadow="hover">
+        <el-card v-if="isConfigPage" class="form-section basic-info-card" shadow="hover">
           <div slot="header" class="card-header">
             <span class="header-icon">
               <i class="el-icon-document"></i>
@@ -215,7 +227,6 @@
                 <div style="line-height: 1.8;">
                   <strong>考试模式说明：</strong>
                   <ul style="margin: 10px 0 0 20px; padding: 0;">
-                    <li>每位学生的题目顺序会随机打乱，防止作弊</li>
                     <li>超时未交卷将自动强制收卷</li>
                     <li>教师可以实时监控学生答题状态</li>
                     <li>所有违规行为（退出全屏、切换标签页等）都会被记录</li>
@@ -227,7 +238,7 @@
         </el-card>
 
       <!-- 第二板块：题目管理（题库 + 已选题目） -->
-      <el-card class="form-section questions-management-card" shadow="hover">
+      <el-card v-if="isQuestionPage" class="form-section questions-management-card" shadow="hover">
         <div slot="header" class="card-header">
           <span class="header-icon">
             <i class="el-icon-collection"></i>
@@ -238,6 +249,15 @@
             <el-tag size="small" type="success" style="margin-left: 8px;">总分: {{ getTotalScore() }} 分</el-tag>
           </div>
           <div class="header-actions">
+            <el-button
+              size="small"
+              icon="el-icon-back"
+              @click="switchEditorPage('config')"
+              plain
+              style="margin-right: 8px;"
+            >
+              返回作业配置
+            </el-button>
             <el-button
               type="primary"
               size="small"
@@ -283,83 +303,186 @@
                   :key="question.id || question.problemId"
                   class="question-item-card"
                 >
-                  <div class="question-index">
-                    <span class="index-number">{{ index + 1 }}</span>
-                  </div>
-
-                  <div class="question-content">
-                    <div class="question-title-row">
-                      <el-tag :type="getQuestionTypeColor(question.type)" size="mini">
-                        {{ getQuestionTypeText(question.type) }}
-                      </el-tag>
-                      <span class="question-title-text" :title="question.title">{{ question.title }}</span>
+                  <div class="question-item-main">
+                    <div class="question-index">
+                      <span class="index-number">{{ index + 1 }}</span>
                     </div>
 
-                    <div class="question-meta">
-                      <div class="score-editor">
-                        <span class="score-label">分值:</span>
-                        <el-input-number
-                          v-model="question.score"
-                          :min="1"
-                          :max="100"
-                          size="mini"
-                          controls-position="right"
-                        />
-                        <span class="score-unit">分</span>
+                    <div class="selected-question-content">
+                      <div class="question-title-row">
+                        <el-tag :type="getQuestionTypeColor(question.type)" size="mini">
+                          {{ getQuestionTypeText(question.type) }}
+                        </el-tag>
+                        <span class="question-title-text" :title="question.title">{{ question.title }}</span>
                       </div>
 
-                      <!-- 显示课程和标签 -->
-                      <div class="question-tags-course" style="margin-top: 5px;">
-                        <el-tag v-if="question.course" type="warning" size="mini" style="margin-right: 5px;">
-                          <i class="el-icon-collection"></i> {{ question.course }}
-                        </el-tag>
-                        <el-tag
-                          v-for="(tag, idx) in parseQuestionTags(question.tags)"
-                          :key="idx"
-                          size="mini"
-                          type="info"
-                          style="margin-right: 3px;"
-                        >
-                          {{ tag }}
-                        </el-tag>
+                      <div class="selected-question-meta">
+                        <div class="score-editor">
+                          <span class="score-label">分值:</span>
+                          <el-input-number
+                            v-model="question.score"
+                            :min="1"
+                            :max="100"
+                            size="mini"
+                            controls-position="right"
+                          />
+                          <span class="score-unit">分</span>
+                        </div>
+
+                        <div class="question-tags-course" style="margin-top: 5px;">
+                          <el-tag v-if="question.course" type="warning" size="mini" style="margin-right: 5px;">
+                            <i class="el-icon-collection"></i> {{ question.course }}
+                          </el-tag>
+                          <el-tag
+                            v-for="(tag, idx) in parseQuestionTags(question.tags)"
+                            :key="idx"
+                            size="mini"
+                            type="info"
+                            style="margin-right: 3px;"
+                          >
+                            {{ tag }}
+                          </el-tag>
+                        </div>
                       </div>
+                    </div>
+
+                    <div class="question-actions">
+                      <el-button-group>
+                        <el-tooltip content="查看详情" placement="top">
+                          <el-button
+                            size="mini"
+                            icon="el-icon-view"
+                            @click="viewQuestionDetail(question)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip content="上移" placement="top">
+                          <el-button
+                            size="mini"
+                            icon="el-icon-top"
+                            :disabled="index === 0"
+                            @click="moveUp(index)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip content="下移" placement="top">
+                          <el-button
+                            size="mini"
+                            icon="el-icon-bottom"
+                            :disabled="index === selectedQuestions.length - 1"
+                            @click="moveDown(index)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip content="移除" placement="top">
+                          <el-button
+                            size="mini"
+                            icon="el-icon-delete"
+                            type="danger"
+                            @click="removeQuestion(question)"
+                          />
+                        </el-tooltip>
+                      </el-button-group>
                     </div>
                   </div>
 
-                  <div class="question-actions">
-                    <el-button-group>
-                      <el-tooltip content="查看详情" placement="top">
-                        <el-button
-                          size="mini"
-                          icon="el-icon-view"
-                          @click="viewQuestionDetail(question)"
-                        />
-                      </el-tooltip>
-                      <el-tooltip content="上移" placement="top">
-                        <el-button
-                          size="mini"
-                          icon="el-icon-top"
-                          :disabled="index === 0"
-                          @click="moveUp(index)"
-                        />
-                      </el-tooltip>
-                      <el-tooltip content="下移" placement="top">
-                        <el-button
-                          size="mini"
-                          icon="el-icon-bottom"
-                          :disabled="index === selectedQuestions.length - 1"
-                          @click="moveDown(index)"
-                        />
-                      </el-tooltip>
-                      <el-tooltip content="移除" placement="top">
-                        <el-button
-                          size="mini"
-                          icon="el-icon-delete"
-                          type="danger"
-                          @click="removeQuestion(question)"
-                        />
-                      </el-tooltip>
-                    </el-button-group>
+                  <div class="selected-question-expanded">
+                    <div class="selected-question-block">
+                      <div class="markdown-body preview-markdown" v-html="renderMarkdown(question.title)" v-highlight></div>
+                      <div v-if="question.content" class="markdown-body preview-markdown" v-html="renderMarkdown(question.content)" v-highlight></div>
+                    </div>
+
+                    <div
+                      v-if="question.type === 'single_choice' || question.type === 'multiple_choice'"
+                      class="selected-question-options"
+                    >
+                      <div v-for="(option, idx) in parseOptions(question.options)" :key="idx" class="selected-question-option">
+                        <span class="option-letter">{{ option.letter }}.</span>
+                        <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                      </div>
+                    </div>
+
+                    <div v-if="question.type === 'judge'" class="selected-question-options">
+                      <div class="selected-question-option">
+                        <span class="option-letter">✓</span>
+                        <span class="option-text">正确</span>
+                      </div>
+                      <div class="selected-question-option">
+                        <span class="option-letter">✗</span>
+                        <span class="option-text">错误</span>
+                      </div>
+                    </div>
+
+                    <div v-if="question.type === 'composite'" class="selected-question-options composite-preview-list">
+                      <div
+                        v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(question.options)"
+                        :key="subQuestion.id || subIndex"
+                        class="composite-preview-item"
+                      >
+                        <div class="composite-preview-header">
+                          <span>子题 {{ subIndex + 1 }}</span>
+                          <span>{{ Number(subQuestion.score || 0) }}分</span>
+                        </div>
+                        <div class="markdown-body preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                        <div class="selected-question-options" style="padding-left: 0;">
+                          <div v-for="(option, idx) in parseOptions(subQuestion.options)" :key="idx" class="selected-question-option">
+                            <span class="option-letter">{{ option.letter }}.</span>
+                            <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                          </div>
+                        </div>
+                        <div class="selected-question-answer answer-info compact-answer-info">
+                          <el-tag size="mini" type="success">
+                            正确答案：{{ getCompositeCorrectAnswer(question.answer, subQuestion.id, subIndex) }}
+                          </el-tag>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-if="question.type === 'fill_blank'" class="selected-question-answer answer-info compact-answer-info">
+                      <el-tag type="success" size="mini">参考答案：{{ formatAnswerForDisplay(question) }}</el-tag>
+                    </div>
+                    <div v-if="question.type === 'subjective'" class="selected-question-answer answer-info compact-answer-info">
+                      <div
+                        class="markdown-body preview-markdown"
+                        v-html="renderMarkdown(formatAnswerForDisplay(question))"
+                        v-highlight
+                      ></div>
+                    </div>
+                    <div v-if="question.type === 'judge'" class="selected-question-answer answer-info compact-answer-info">
+                      <el-tag type="success" size="mini">参考答案：{{ formatAnswerForDisplay(question) }}</el-tag>
+                    </div>
+                    <div v-if="question.type === 'single_choice' || question.type === 'multiple_choice'" class="selected-question-answer answer-info compact-answer-info">
+                      <el-tag type="success" size="mini">参考答案：{{ formatAnswerForDisplay(question) }}</el-tag>
+                    </div>
+
+                    <div v-if="question.type === 'programming'" class="selected-programming-detail">
+                      <template v-if="getProgrammingProblemInfo(question.problemId)">
+                        <div class="content-section">
+                          <h4>题目描述</h4>
+                          <div
+                            class="markdown-body preview-markdown"
+                            v-html="renderMarkdown(getProgrammingProblemInfo(question.problemId).problem.description)"
+                            v-highlight
+                          ></div>
+                        </div>
+                        <div class="content-section" v-if="getProgrammingProblemInfo(question.problemId).problem.input">
+                          <h4>输入格式</h4>
+                          <div
+                            class="markdown-body preview-markdown"
+                            v-html="renderMarkdown(getProgrammingProblemInfo(question.problemId).problem.input)"
+                            v-highlight
+                          ></div>
+                        </div>
+                        <div class="content-section" v-if="getProgrammingProblemInfo(question.problemId).problem.output">
+                          <h4>输出格式</h4>
+                          <div
+                            class="markdown-body preview-markdown"
+                            v-html="renderMarkdown(getProgrammingProblemInfo(question.problemId).problem.output)"
+                            v-highlight
+                          ></div>
+                        </div>
+                      </template>
+                      <el-alert v-else type="info" :closable="false">
+                        已添加编程题：{{ question.problemId || question.title }}
+                      </el-alert>
+                    </div>
                   </div>
                 </div>
               </transition-group>
@@ -525,15 +648,15 @@
               <div class="problem-body">
                 <div class="content-section">
                   <h4>题目描述</h4>
-                  <div v-html="renderMarkdown(tagProblemDetail.description)"></div>
+                  <div class="markdown-body preview-markdown" v-html="renderMarkdown(tagProblemDetail.description)" v-highlight></div>
                 </div>
                 <div v-if="tagProblemDetail.input" class="content-section">
                   <h4>输入格式</h4>
-                  <div v-html="renderMarkdown(tagProblemDetail.input)"></div>
+                  <div class="markdown-body preview-markdown" v-html="renderMarkdown(tagProblemDetail.input)" v-highlight></div>
                 </div>
                 <div v-if="tagProblemDetail.output" class="content-section">
                   <h4>输出格式</h4>
-                  <div v-html="renderMarkdown(tagProblemDetail.output)"></div>
+                  <div class="markdown-body preview-markdown" v-html="renderMarkdown(tagProblemDetail.output)" v-highlight></div>
                 </div>
               </div>
               <div slot="footer" style="text-align: right;">
@@ -557,15 +680,15 @@
             <div class="problem-content">
               <div class="content-section">
                 <h4>题目描述</h4>
-                <div v-html="renderMarkdown(programmingProblemPreview.problem.description)"></div>
+                <div class="markdown-body preview-markdown" v-html="renderMarkdown(programmingProblemPreview.problem.description)" v-highlight></div>
               </div>
               <div class="content-section" v-if="programmingProblemPreview.problem.input">
                 <h4>输入格式</h4>
-                <div v-html="renderMarkdown(programmingProblemPreview.problem.input)"></div>
+                <div class="markdown-body preview-markdown" v-html="renderMarkdown(programmingProblemPreview.problem.input)" v-highlight></div>
               </div>
               <div class="content-section" v-if="programmingProblemPreview.problem.output">
                 <h4>输出格式</h4>
-                <div v-html="renderMarkdown(programmingProblemPreview.problem.output)"></div>
+                <div class="markdown-body preview-markdown" v-html="renderMarkdown(programmingProblemPreview.problem.output)" v-highlight></div>
               </div>
               <div class="content-section" v-if="programmingExamples.length > 0">
                 <h4>样例</h4>
@@ -725,15 +848,20 @@
               <span class="question-type">({{ getQuestionTypeText(item.type) }})</span>
               <span class="question-score">{{ item.score }}分</span>
             </div>
-            <div class="question-title markdown-body" v-html="renderMarkdown(item.title)"></div>
-            <div class="question-content markdown-body" v-html="renderMarkdown(item.content)"></div>
+            <div class="question-title markdown-body preview-markdown" v-html="renderMarkdown(item.title)" v-highlight></div>
+            <div
+              class="question-content markdown-body preview-markdown"
+              v-if="item.content"
+              v-html="renderMarkdown(item.content)"
+              v-highlight
+            ></div>
 
             <!-- 单选题选项（预览模式，不可作答） -->
             <div v-if="item.type === 'single_choice'" class="question-options">
               <div v-for="(option, idx) in parseOptions(item.options)" :key="idx" class="option-item">
                 <div class="option-preview">
                   <span class="option-letter">{{ option.letter }}.</span>
-                  <span class="option-text markdown-body" v-html="renderMarkdown(option.text)"></span>
+                  <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
                 </div>
               </div>
             </div>
@@ -743,7 +871,7 @@
               <div v-for="(option, idx) in parseOptions(item.options)" :key="idx" class="option-item">
                 <div class="option-preview">
                   <span class="option-letter">{{ option.letter }}.</span>
-                  <span class="option-text markdown-body" v-html="renderMarkdown(option.text)"></span>
+                  <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
                 </div>
               </div>
             </div>
@@ -758,6 +886,36 @@
                 <span class="option-letter">✗</span>
                 <span class="option-text">错误</span>
               </div>
+            </div>
+
+            <!-- 组合题 -->
+            <div v-if="item.type === 'composite'" class="question-options composite-preview-list">
+              <div
+                v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(item.options)"
+                :key="subQuestion.id || subIndex"
+                class="composite-preview-item"
+              >
+                <div class="composite-preview-header">
+                  <span>子题 {{ subIndex + 1 }}</span>
+                  <span>{{ Number(subQuestion.score || 0) }}分</span>
+                </div>
+                <div class="markdown-body preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                <div class="question-options" style="padding-left: 0;">
+                  <div v-for="(option, idx) in parseOptions(subQuestion.options)" :key="idx" class="option-item">
+                    <div class="option-preview">
+                      <span class="option-letter">{{ option.letter }}.</span>
+                      <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 填空题 -->
+            <div v-if="item.type === 'fill_blank'" class="subjective-preview">
+              <el-alert type="success" :closable="false">
+                <i class="el-icon-edit"></i> 填空题，学生需要在此处输入文本答案
+              </el-alert>
             </div>
 
             <!-- 主观题 -->
@@ -783,15 +941,15 @@
                     <div class="problem-content">
                       <div class="content-section">
                         <h4>题目描述</h4>
-                        <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.description)"></div>
+                        <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.description)" v-highlight></div>
                       </div>
                       <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.input">
                         <h4>输入格式</h4>
-                        <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.input)"></div>
+                        <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.input)" v-highlight></div>
                       </div>
                       <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.output">
                         <h4>输出格式</h4>
-                        <div v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.output)"></div>
+                        <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.output)" v-highlight></div>
                       </div>
                       <div class="content-section" v-if="getProgrammingExamplesForProblem(item.problemId).length > 0">
                         <h4>样例</h4>
@@ -846,13 +1004,13 @@
               {{ currentQuestion.problem.memoryLimit }} MB
             </el-descriptions-item>
             <el-descriptions-item label="题目描述" :span="2">
-              <div v-html="renderMarkdown(currentQuestion.problem.description)" class="markdown-body detail-content"></div>
+              <div v-html="renderMarkdown(currentQuestion.problem.description)" class="markdown-body detail-content preview-markdown" v-highlight></div>
             </el-descriptions-item>
             <el-descriptions-item label="输入格式" v-if="currentQuestion.problem.input">
-              <div v-html="renderMarkdown(currentQuestion.problem.input)" class="markdown-body detail-content"></div>
+              <div v-html="renderMarkdown(currentQuestion.problem.input)" class="markdown-body detail-content preview-markdown" v-highlight></div>
             </el-descriptions-item>
             <el-descriptions-item label="输出格式" v-if="currentQuestion.problem.output">
-              <div v-html="renderMarkdown(currentQuestion.problem.output)" class="markdown-body detail-content"></div>
+              <div v-html="renderMarkdown(currentQuestion.problem.output)" class="markdown-body detail-content preview-markdown" v-highlight></div>
             </el-descriptions-item>
             <el-descriptions-item label="样例" :span="2" v-if="currentQuestion.problem.examples">
               <div v-for="(example, idx) in parseExamples(currentQuestion.problem.examples)" :key="idx" class="example-box">
@@ -862,7 +1020,7 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="提示" v-if="currentQuestion.problem.hint">
-              <div v-html="renderMarkdown(currentQuestion.problem.hint)" class="markdown-body detail-content"></div>
+              <div v-html="renderMarkdown(currentQuestion.problem.hint)" class="markdown-body detail-content preview-markdown" v-highlight></div>
             </el-descriptions-item>
           </el-descriptions>
         </div>
@@ -873,16 +1031,53 @@
             {{ getQuestionTypeText(currentQuestion.type) }}
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Question_Title')">
-            <div v-html="renderMarkdown(currentQuestion.title)" class="markdown-body"></div>
+            <div v-html="renderMarkdown(currentQuestion.title)" class="markdown-body detail-content preview-markdown" v-highlight></div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Content')" v-if="currentQuestion.content">
-            <div v-html="renderMarkdown(currentQuestion.content)" class="markdown-body"></div>
+            <div v-html="renderMarkdown(currentQuestion.content)" class="markdown-body detail-content preview-markdown" v-highlight></div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Options')" v-if="currentQuestion.options">
-            <div v-html="renderOptions(currentQuestion.options)" class="markdown-body"></div>
+            <div v-if="currentQuestion.type !== 'composite'" v-html="renderOptions(currentQuestion.options)" class="markdown-body detail-content preview-markdown" v-highlight></div>
+            <div v-else class="composite-detail-list">
+              <div
+                v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(currentQuestion.options)"
+                :key="subQuestion.id || subIndex"
+                class="composite-detail-item"
+              >
+                <div class="composite-detail-header">
+                  <span>子题 {{ subIndex + 1 }}</span>
+                  <span>{{ Number(subQuestion.score || 0) }}分</span>
+                </div>
+                <div class="markdown-body detail-content preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                <div class="composite-detail-options">
+                  <div v-for="(option, optionIndex) in parseOptions(subQuestion.options)" :key="optionIndex" class="composite-detail-option">
+                    <span class="option-letter">{{ option.letter }}.</span>
+                    <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                  </div>
+                </div>
+                <div class="composite-detail-answer answer-info compact-answer-info">
+                  <el-tag size="mini" type="success">
+                    正确答案：{{ getCompositeCorrectAnswer(currentQuestion.answer, subQuestion.id, subIndex) }}
+                  </el-tag>
+                </div>
+              </div>
+              <el-empty
+                v-if="parseCompositeSubQuestions(currentQuestion.options).length === 0"
+                description="暂无组合题子题数据"
+                :image-size="100"
+              />
+            </div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Answer')">
-            {{ currentQuestion.answer }}
+            <div class="answer-info compact-answer-info">
+              <div
+                v-if="currentQuestion.type === 'subjective'"
+                class="markdown-body detail-content preview-markdown"
+                v-html="renderMarkdown(formatAnswerForDisplay(currentQuestion))"
+                v-highlight
+              ></div>
+              <span v-else>{{ formatAnswerForDisplay(currentQuestion) }}</span>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Difficulty')">
             <el-rate :value="getDifficultyStars(currentQuestion.difficulty)" :max="3" disabled />
@@ -1037,6 +1232,15 @@ export default {
     isAdminRoute() {
       return this.$route.path.startsWith('/admin/')
     },
+    currentEditorPage() {
+      return this.$route.query.page === 'questions' ? 'questions' : 'config'
+    },
+    isConfigPage() {
+      return this.currentEditorPage === 'config'
+    },
+    isQuestionPage() {
+      return this.currentEditorPage === 'questions'
+    },
     // 计算作业时间区间（分钟）
     timeRangeMinutes() {
       if (!this.form.startTime || !this.form.endTime) return 0
@@ -1061,6 +1265,16 @@ export default {
     this.loadSelectedQuestionsFromStore()
   },
   methods: {
+    switchEditorPage(page) {
+      const targetPage = page === 'questions' ? 'questions' : 'config'
+      this.$router.replace({
+        path: this.$route.path,
+        query: {
+          ...this.$route.query,
+          page: targetPage
+        }
+      })
+    },
     goToQuestionBank() {
       this.$router.push({
         name: 'QuestionBankBrowser',
@@ -1083,6 +1297,7 @@ export default {
         // 清空 store 中的临时题目
         this.$store.commit('classroom/SET_SELECTED_QUESTIONS', [])
         this.$message.success(`已从题库添加 ${storedQuestions.length} 道题目`)
+        this.switchEditorPage('questions')
       }
     },
     async loadQuestionBank() {
@@ -1160,6 +1375,7 @@ export default {
           single_choice: 2,      // 单选题默认2分
           multiple_choice: 5,    // 多选题默认5分
           judge: 1,              // 判断题默认1分
+          fill_blank: 2,         // 填空题默认2分
           composite: 10,         // 组合题默认10分
           subjective: 5,         // 主观题默认5分
           programming: 20        // 编程题默认20分
@@ -1250,6 +1466,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         composite: '组合题',
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
@@ -1261,6 +1478,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         composite: 'danger',
         subjective: 'info',
         programming: 'danger'
@@ -1270,25 +1488,129 @@ export default {
     getDifficultyStars(difficulty) {
       return parseInt(difficulty) || 1
     },
+    parseMaybeSerializedJson(rawValue, maxDepth = 2) {
+      if (rawValue === null || rawValue === undefined) return rawValue
+      let current = rawValue
+      for (let i = 0; i < maxDepth; i++) {
+        if (typeof current !== 'string') break
+        const trimmed = current.trim()
+        if (!trimmed) return ''
+        const looksLikeJson = (
+          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+          (trimmed.startsWith('"') && trimmed.endsWith('"'))
+        )
+        if (!looksLikeJson) return trimmed
+        try {
+          current = JSON.parse(trimmed)
+        } catch (e) {
+          return trimmed
+        }
+      }
+      return current
+    },
+    normalizeTextValue(rawValue) {
+      const parsed = this.parseMaybeSerializedJson(rawValue)
+      if (parsed === null || parsed === undefined) return ''
+      if (typeof parsed === 'string') return parsed
+      if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed)
+      return ''
+    },
+    normalizeQuestionImagePath(rawText) {
+      let content = String(rawText || '')
+      if (!content) return content
+      content = content.replace(
+        /(<img\b[^>]*\bsrc=["'])(uploads\/classroom\/[^"']+)(["'][^>]*>)/gi,
+        '$1/$2$3'
+      )
+      content = content.replace(
+        /(!\[[^\]]*]\()(uploads\/classroom\/[^)\s]+)(\))/gi,
+        '$1/$2$3'
+      )
+      return content
+    },
     // 解析题目标签
     parseQuestionTags(tags) {
-      if (!tags) return []
-      try {
-        return JSON.parse(tags)
-      } catch (e) {
-        return []
-      }
+      const parsed = this.parseMaybeSerializedJson(tags)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map(tag => String(tag || '').trim()).filter(Boolean)
     },
     renderOptions(options) {
       if (!options) return '-'
-      try {
-        const opts = JSON.parse(options)
-        return opts.map(opt => {
-          // Render each option with markdown
-          return this.renderMarkdown(opt)
-        }).join('<br>')
-      } catch (e) {
-        return options.replace(/\n/g, '<br>')
+      const parsedOptions = this.parseOptions(options)
+      if (parsedOptions.length > 0) {
+        return parsedOptions.map(opt => (
+          `<div class="option-line"><strong>${opt.letter}.</strong> ${this.renderMarkdown(opt.text)}</div>`
+        )).join('')
+      }
+      return this.renderMarkdown(this.normalizeTextValue(options))
+    },
+    parseAnswerArray(answerInput, { allowCommaSplit = true } = {}) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => String(item || '').trim()).filter(Boolean)
+      }
+      const raw = String(parsed || '').trim()
+      if (!raw) return []
+      if (allowCommaSplit && (raw.includes(',') || raw.includes('，'))) {
+        return raw.split(/[，,]/).map(item => item.trim()).filter(Boolean)
+      }
+      return [raw]
+    },
+    parseCompositeAnswerMap(answerInput) {
+      const parsed = this.parseMaybeSerializedJson(answerInput)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      return {}
+    },
+    getCompositeCorrectAnswer(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (key && Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return '-'
+    },
+    formatAnswerForDisplay(question) {
+      if (!question) return '-'
+      switch (question.type) {
+        case 'single_choice': {
+          const value = String(this.parseMaybeSerializedJson(question.answer) || '').trim()
+          return value || '-'
+        }
+        case 'multiple_choice': {
+          const answers = this.parseAnswerArray(question.answer)
+          return answers.length > 0 ? answers.join('、') : '-'
+        }
+        case 'judge': {
+          const normalized = String(this.parseMaybeSerializedJson(question.answer) || '').trim().toLowerCase()
+          if (['true', '1', 'yes', 'y', '正确'].includes(normalized)) return '正确'
+          if (['false', '0', 'no', 'n', '错误'].includes(normalized)) return '错误'
+          return '-'
+        }
+        case 'fill_blank': {
+          const answers = this.parseAnswerArray(question.answer, { allowCommaSplit: false })
+          return answers.length > 0 ? answers.join(' / ') : '教师未设置答案'
+        }
+        case 'subjective': {
+          const value = this.normalizeTextValue(question.answer).trim()
+          return value || '教师未设置参考答案'
+        }
+        case 'composite':
+          return '请查看上方各子题答案'
+        default: {
+          const value = this.normalizeTextValue(question.answer).trim()
+          return value || '-'
+        }
       }
     },
     // 解析编程题样例
@@ -1873,12 +2195,13 @@ export default {
     },
     // 渲染 Markdown
     renderMarkdown(text) {
-      if (!text) return ''
+      const normalizedText = this.normalizeTextValue(text)
+      if (!normalizedText) return ''
       try {
-        return md.render(text)
+        return md.render(this.normalizeQuestionImagePath(normalizedText))
       } catch (e) {
         console.error('Markdown渲染失败:', e)
-        return text
+        return normalizedText
       }
     },
     // 获取判题模式文本
@@ -1988,17 +2311,55 @@ export default {
     getTotalScore() {
       return this.selectedQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
     },
-    parseOptions(optionsStr) {
-      if (!optionsStr) return []
-      try {
-        const options = JSON.parse(optionsStr)
-        return options.map((opt, idx) => ({
-          letter: String.fromCharCode(65 + idx), // A, B, C, D...
-          text: opt
-        }))
-      } catch (e) {
-        return []
-      }
+    stripOptionPrefix(optionText, letterHint = '') {
+      const normalizedText = String(optionText || '').trim()
+      if (!normalizedText) return ''
+      const escapedHint = letterHint ? letterHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[A-Za-z]'
+      const prefixRegex = new RegExp(`^\\s*(?:${escapedHint}|[A-Za-z])\\s*[\\.\\)、:：]\\s*`)
+      return normalizedText.replace(prefixRegex, '').trim()
+    },
+    parseOptions(optionsInput) {
+      if (!optionsInput) return []
+      const options = this.parseMaybeSerializedJson(optionsInput)
+      if (!Array.isArray(options)) return []
+      return options.map((opt, idx) => {
+        if (opt && typeof opt === 'object' && !Array.isArray(opt)) {
+          const normalizedLetter = String(opt.letter || opt.label || String.fromCharCode(65 + idx))
+            .trim()
+            .replace(/[^A-Za-z0-9]/g, '')
+            .toUpperCase()
+          const letter = normalizedLetter || String.fromCharCode(65 + idx)
+          const rawText = opt.text !== undefined
+            ? opt.text
+            : (opt.content !== undefined ? opt.content : '')
+          return {
+            letter,
+            text: this.stripOptionPrefix(rawText, letter)
+          }
+        }
+        const letter = String.fromCharCode(65 + idx)
+        return {
+          letter,
+          text: this.stripOptionPrefix(opt, letter)
+        }
+      })
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      const parsed = this.parseMaybeSerializedJson(optionsInput)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((subQuestion, index) => {
+        const optionSource = subQuestion && subQuestion.options !== undefined
+          ? subQuestion.options
+          : (subQuestion && subQuestion.choiceOptions !== undefined ? subQuestion.choiceOptions : [])
+        const parsedOptionSource = this.parseMaybeSerializedJson(optionSource)
+        return {
+          id: String((subQuestion && subQuestion.id) || `sq_${index + 1}`),
+          content: (subQuestion && subQuestion.content) || '',
+          options: Array.isArray(parsedOptionSource) ? parsedOptionSource : [],
+          score: Number((subQuestion && (subQuestion.score || subQuestion.subScore)) || 0)
+        }
+      })
     },
     formatTime(time) {
       if (!time) return '-'
@@ -2277,6 +2638,13 @@ export default {
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px 24px 24px;
+}
+
+.editor-page-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .homework-form {
@@ -2669,8 +3037,9 @@ export default {
 
 .question-item-card {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   padding: 12px;
   background: #fff;
   border: 1px solid #e0e6ed;
@@ -2682,6 +3051,12 @@ export default {
   border-color: #5b9bd5;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
+}
+
+.question-item-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .question-index {
@@ -2701,7 +3076,7 @@ export default {
   font-size: 14px;
 }
 
-.question-content {
+.selected-question-content {
   flex: 1;
   min-width: 0;
 }
@@ -2723,10 +3098,11 @@ export default {
   white-space: nowrap;
 }
 
-.question-meta {
+.selected-question-meta {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .score-editor {
@@ -2754,6 +3130,49 @@ export default {
   flex-shrink: 0;
 }
 
+.selected-question-expanded {
+  border-top: 1px solid #eef2f6;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selected-question-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 0;
+}
+
+.selected-question-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.selected-question-answer {
+  display: flex;
+  align-items: center;
+}
+
+.selected-programming-detail {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fcfcfd;
+}
+
 /* 列表过渡动画 */
 .list-enter-active,
 .list-leave-active {
@@ -2778,6 +3197,49 @@ export default {
   line-height: 1.8;
   max-height: 400px;
   overflow-y: auto;
+}
+
+.composite-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.composite-detail-item {
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+
+.composite-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.composite-detail-options {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.composite-detail-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.composite-detail-answer {
+  margin-top: 10px;
 }
 
 .example-box {
@@ -2871,6 +3333,50 @@ export default {
   overflow: visible;
 }
 
+.full-preview-container >>> .preview-markdown pre,
+.question-detail >>> .preview-markdown pre,
+.problem-detail-content >>> .preview-markdown pre,
+.problem-preview >>> .preview-markdown pre,
+.selected-question-expanded >>> .preview-markdown pre {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
+}
+
+.full-preview-container >>> .preview-markdown pre code,
+.full-preview-container >>> .preview-markdown code.hljs,
+.question-detail >>> .preview-markdown pre code,
+.question-detail >>> .preview-markdown code.hljs,
+.problem-detail-content >>> .preview-markdown pre code,
+.problem-detail-content >>> .preview-markdown code.hljs,
+.problem-preview >>> .preview-markdown pre code,
+.problem-preview >>> .preview-markdown code.hljs,
+.selected-question-expanded >>> .preview-markdown pre code,
+.selected-question-expanded >>> .preview-markdown code.hljs {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.full-preview-container >>> .preview-markdown p,
+.question-detail >>> .preview-markdown p,
+.problem-detail-content >>> .preview-markdown p,
+.problem-preview >>> .preview-markdown p,
+.selected-question-expanded >>> .preview-markdown p {
+  text-indent: 0 !important;
+}
+
+.selected-question-expanded >>> .preview-markdown pre {
+  padding-left: 0 !important;
+}
+
+.selected-question-expanded >>> .preview-markdown pre code,
+.selected-question-expanded >>> .preview-markdown code.hljs {
+  padding-left: 0 !important;
+}
+
 .full-preview-container >>> .question-item {
   overflow: visible;
 }
@@ -2953,6 +3459,28 @@ export default {
 
 .option-item {
   margin-bottom: 10px;
+}
+
+.composite-preview-list {
+  margin-top: 12px;
+  padding-left: 0;
+}
+
+.composite-preview-item {
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.composite-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .option-preview {

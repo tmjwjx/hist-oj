@@ -21,6 +21,7 @@
               <el-option label="单选题" value="single_choice"></el-option>
               <el-option label="多选题" value="multiple_choice"></el-option>
               <el-option label="判断题" value="judge"></el-option>
+              <el-option label="填空题" value="fill_blank"></el-option>
               <el-option label="主观题" value="subjective"></el-option>
               <el-option label="组合题" value="composite"></el-option>
             </el-select>
@@ -85,146 +86,96 @@
         border
         style="width: 100%; margin-top: 20px"
       >
-        <el-table-column type="expand">
-          <template slot-scope="{ row }">
-            <div class="question-detail">
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <div class="detail-section">
-                    <h4>题目内容</h4>
-                    <div class="markdown-body" v-html="renderMarkdown(row.title)" v-highlight></div>
-                    <div class="markdown-body" v-html="renderMarkdown(row.content)" v-highlight></div>
-                  </div>
-                </el-col>
-                <el-col :span="12">
-                  <div class="detail-section">
-                    <h4>选项与答案</h4>
-                    <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'">
-                      <div v-if="row.options">
-                        <div v-for="(opt, idx) in parseOptions(row.options)" :key="idx" class="option-item detail-option-item">
-                          <div class="detail-option-head">
-                            <el-tag :type="isCorrectAnswer(row.answer, idx) ? 'success' : 'info'" size="small">
-                              {{ ['A', 'B', 'C', 'D'][idx] }}
-                            </el-tag>
-                          </div>
-                          <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt)" v-highlight></div>
-                        </div>
-                      </div>
-                      <div class="answer-info">
-                        <strong>正确答案：</strong>
-                        <el-tag type="success">{{ formatAnswer(row) }}</el-tag>
-                      </div>
-                    </div>
-                    <div v-else-if="row.type === 'judge'">
-                      <div class="answer-info">
-                        <strong>正确答案：</strong>
-                        <el-tag :type="isJudgeTrue(row.answer) ? 'success' : 'warning'">{{ isJudgeTrue(row.answer) ? '正确' : '错误' }}</el-tag>
-                      </div>
-                    </div>
-                    <div v-else-if="row.type === 'subjective'">
-                      <div class="answer-info">
-                        <strong>参考答案：</strong>
-                        <div class="markdown-body" v-html="renderMarkdown(row.answer)" v-highlight></div>
-                      </div>
-                    </div>
-                    <div v-else-if="row.type === 'composite'">
-                      <div
-                        v-for="(sub, subIndex) in parseCompositeSubQuestions(row.options)"
-                        :key="sub.id || subIndex"
-                        class="detail-option-item"
-                      >
-                        <div style="font-weight: 600; margin-bottom: 6px;">子题 {{ subIndex + 1 }}（{{ sub.score || 0 }} 分）</div>
-                        <div class="markdown-body" v-html="renderMarkdown(sub.content || '')" v-highlight></div>
-                        <div v-for="(opt, idx) in parseOptions(JSON.stringify(sub.options || []))" :key="idx" class="detail-option-item">
-                          <div class="detail-option-head">
-                            <el-tag :type="getCompositeAnswer(row.answer, sub.id) === ['A', 'B', 'C', 'D'][idx] ? 'success' : 'info'" size="small">
-                              {{ ['A', 'B', 'C', 'D'][idx] }}
-                            </el-tag>
-                          </div>
-                          <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt)" v-highlight></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 题目解析 -->
-                    <div v-if="row.analysis" class="analysis-info" style="margin-top: 15px;">
-                      <h4 style="color: #409EFF; margin-bottom: 8px;">题目解析</h4>
-                      <div class="markdown-body" v-html="renderMarkdown(row.analysis)" v-highlight></div>
-                    </div>
-
-                    <!-- 题目标签 -->
-                    <div v-if="row.tags" class="tags-info" style="margin-top: 10px;">
-                      <strong>标签：</strong>
-                      <el-tag
-                        v-for="(tag, index) in parseTags(row.tags)"
-                        :key="index"
-                        size="small"
-                        style="margin-right: 5px;"
-                      >
-                        {{ tag }}
-                      </el-tag>
-                    </div>
-
-                    <!-- 所属课程 -->
-                    <div v-if="row.course" class="course-info" style="margin-top: 10px;">
-                      <strong>所属课程：</strong>
-                      <el-tag type="warning" size="small">{{ row.course }}</el-tag>
-                    </div>
-                  </div>
-                </el-col>
-              </el-row>
-            </div>
-          </template>
-        </el-table-column>
         <el-table-column prop="id" label="ID" width="80"></el-table-column>
-        <el-table-column prop="title" label="题目标题" min-width="200">
+        <el-table-column prop="title" label="题目内容" min-width="680">
           <template slot-scope="{ row }">
-            <div v-html="renderMarkdown(row.title)" class="markdown-body" v-highlight></div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="题型" width="100">
-          <template slot-scope="{ row }">
-            <el-tag :type="getQuestionTypeColor(row.type)">
-              {{ getQuestionTypeName(row.type) }}
-            </el-tag>
+            <div class="inline-question-cell">
+              <div class="inline-meta-row">
+                <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
+                <el-tag v-if="row.course" type="warning" size="mini">{{ row.course }}</el-tag>
+                <el-tag
+                  v-for="(tag, idx) in parseTags(row.tags)"
+                  :key="`meta-tag-${row.id}-${idx}`"
+                  size="mini"
+                  type="info"
+                >
+                  {{ tag }}
+                </el-tag>
+                <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">{{ row.isShared ? '共享' : '个人' }}</el-tag>
+              </div>
+
+              <div class="markdown-body inline-question-title" v-html="renderMarkdown(row.title)" v-highlight></div>
+              <div
+                v-if="row.content"
+                class="markdown-body inline-question-content"
+                v-html="renderMarkdown(row.content)"
+                v-highlight
+              ></div>
+
+              <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="inline-options-list">
+                <div v-for="(opt, idx) in parseOptionEntries(row.options)" :key="`opt-${row.id}-${idx}`" class="inline-option-item">
+                  <span class="inline-option-label">{{ opt.letter }}.</span>
+                  <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></div>
+                </div>
+              </div>
+
+              <div v-else-if="row.type === 'judge'" class="inline-options-list">
+                <div class="inline-option-item">
+                  <span class="inline-option-label">A.</span>
+                  <span class="detail-option-content">正确</span>
+                </div>
+                <div class="inline-option-item">
+                  <span class="inline-option-label">B.</span>
+                  <span class="detail-option-content">错误</span>
+                </div>
+              </div>
+
+              <div v-else-if="row.type === 'composite'" class="inline-composite-list">
+                <div
+                  v-for="(sub, subIndex) in parseCompositeSubQuestions(row.options)"
+                  :key="`sub-${row.id}-${sub.id || subIndex}`"
+                  class="inline-composite-item"
+                >
+                  <div class="inline-composite-head">子题 {{ subIndex + 1 }}（{{ Number(sub.score || 0) }}分）</div>
+                  <div class="markdown-body inline-composite-content" v-html="renderMarkdown(sub.content || '')" v-highlight></div>
+                  <div class="inline-options-list">
+                    <div
+                      v-for="(opt, idx) in parseOptionEntries(sub.options)"
+                      :key="`subopt-${row.id}-${subIndex}-${idx}`"
+                      class="inline-option-item"
+                    >
+                      <span class="inline-option-label">{{ opt.letter }}.</span>
+                      <div class="detail-option-content markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></div>
+                    </div>
+                  </div>
+                  <div class="answer-info compact-answer-info">
+                    <strong>正确答案：</strong>
+                    <el-tag type="success">{{ getCompositeAnswer(row.answer, sub.id, subIndex) || '-' }}</el-tag>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="row.type !== 'composite'" class="inline-answer-row answer-info compact-answer-info">
+                <span class="inline-answer-label">{{ row.type === 'subjective' ? '参考答案：' : '正确答案：' }}</span>
+                <span
+                  v-if="row.type === 'subjective' && row.answer"
+                  class="markdown-body detail-option-content"
+                  v-html="renderMarkdown(row.answer)"
+                  v-highlight
+                ></span>
+                <span v-else class="inline-answer-text">{{ formatAnswer(row) }}</span>
+              </div>
+
+              <div v-if="row.analysis" class="inline-analysis">
+                <span class="inline-analysis-label">题目解析：</span>
+                <div class="markdown-body" v-html="renderMarkdown(row.analysis)" v-highlight></div>
+              </div>
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="creatorId" label="创建者" width="120">
           <template slot-scope="{ row }">
             {{ row.creator ? row.creator.username : row.creatorId }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="difficulty" label="难度" width="100">
-          <template slot-scope="{ row }">
-            <el-rate :value="getDifficultyStars(row.difficulty)" disabled />
-          </template>
-        </el-table-column>
-        <el-table-column prop="course" label="所属课程" width="120">
-          <template slot-scope="{ row }">
-            <el-tag v-if="row.course" type="warning" size="small">{{ row.course }}</el-tag>
-            <span v-else style="color: #909399;">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="tags" label="标签" width="180">
-          <template slot-scope="{ row }">
-            <el-tag
-              v-for="(tag, idx) in parseTags(row.tags)"
-              :key="idx"
-              size="mini"
-              type="info"
-              style="margin-right: 3px;"
-            >
-              {{ tag }}
-            </el-tag>
-            <span v-if="!row.tags || row.tags === '[]'" style="color: #909399;">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="score" label="默认分值" width="90"></el-table-column>
-        <el-table-column prop="isShared" label="共享状态" width="100">
-          <template slot-scope="{ row }">
-            <el-tag :type="row.isShared ? 'success' : 'info'">
-              {{ row.isShared ? '共享' : '个人' }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160">
@@ -270,6 +221,7 @@
                 <el-option label="单选题" value="single_choice"></el-option>
                 <el-option label="多选题" value="multiple_choice"></el-option>
                 <el-option label="判断题" value="judge"></el-option>
+                <el-option label="填空题" value="fill_blank"></el-option>
                 <el-option label="主观题" value="subjective"></el-option>
               </el-select>
             </el-form-item>
@@ -843,6 +795,44 @@ export default {
         this.$message.error('操作失败')
       }
     },
+    stripOptionPrefix(optionText, letterHint = '') {
+      const normalizedText = String(optionText || '').trim()
+      if (!normalizedText) return ''
+      const escapedHint = letterHint ? letterHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[A-Za-z]'
+      const prefixRegex = new RegExp(`^\\s*(?:${escapedHint}|[A-Za-z])\\s*[\\.\\)、:：]\\s*`)
+      return normalizedText.replace(prefixRegex, '').trim()
+    },
+    parseOptionEntries(optionsInput) {
+      if (!optionsInput) return []
+      let parsed = optionsInput
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch (e) {
+          return []
+        }
+      }
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((opt, idx) => {
+        if (opt && typeof opt === 'object' && !Array.isArray(opt)) {
+          const normalizedLetter = String(opt.letter || opt.label || String.fromCharCode(65 + idx))
+            .trim()
+            .replace(/[^A-Za-z0-9]/g, '')
+            .toUpperCase()
+          const letter = normalizedLetter || String.fromCharCode(65 + idx)
+          const rawText = opt.text !== undefined ? opt.text : (opt.content !== undefined ? opt.content : '')
+          return {
+            letter,
+            text: this.stripOptionPrefix(rawText, letter)
+          }
+        }
+        const letter = String.fromCharCode(65 + idx)
+        return {
+          letter,
+          text: this.stripOptionPrefix(opt, letter)
+        }
+      })
+    },
     parseOptions(optionsStr) {
       try {
         return JSON.parse(optionsStr)
@@ -880,10 +870,21 @@ export default {
         }
       } else if (row.type === 'judge') {
         return this.isJudgeTrue(row.answer) ? '正确' : '错误'
+      } else if (row.type === 'fill_blank') {
+        try {
+          const parsed = typeof row.answer === 'string' ? JSON.parse(row.answer) : row.answer
+          if (Array.isArray(parsed)) {
+            const values = parsed.map(item => String(item || '').trim()).filter(Boolean)
+            return values.length > 0 ? values.join(' / ') : '-'
+          }
+        } catch (e) {
+          // fall through
+        }
+        return row.answer || '-'
       } else if (row.type === 'subjective') {
         return '需人工评分'
       } else if (row.type === 'composite') {
-        return '组合题'
+        return '-'
       }
       return row.answer
     },
@@ -895,11 +896,24 @@ export default {
         return []
       }
     },
-    getCompositeAnswer(answerStr, subId) {
+    getCompositeAnswer(answerStr, subId, subIndex) {
       try {
         const parsed = JSON.parse(answerStr || '{}')
         if (parsed && typeof parsed === 'object') {
-          return parsed[subId] || ''
+          const candidates = [
+            String(subId || ''),
+            String((subIndex || 0) + 1),
+            String(subIndex || 0),
+            `sub_${(subIndex || 0) + 1}`,
+            `sq_${(subIndex || 0) + 1}`
+          ]
+          for (const key of candidates) {
+            if (!key) continue
+            if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+              const value = String(parsed[key] || '').trim()
+              if (value) return value
+            }
+          }
         }
       } catch (e) {
         return ''
@@ -916,6 +930,7 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        fill_blank: '填空题',
         subjective: '主观题',
         composite: '组合题'
       }
@@ -926,6 +941,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         subjective: 'info',
         composite: 'danger'
       }
@@ -997,6 +1013,138 @@ export default {
   margin-bottom: 10px;
 }
 
+.inline-question-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inline-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+
+.inline-meta-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.inline-meta-row::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 2px;
+}
+
+.inline-question-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.inline-question-content {
+  color: #606266;
+}
+
+.inline-options-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.inline-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.inline-option-label {
+  flex-shrink: 0;
+  width: 20px;
+  color: #409eff;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.inline-composite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-composite-item {
+  padding: 8px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+}
+
+.inline-composite-head {
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 6px;
+}
+
+.inline-composite-content {
+  margin-bottom: 6px;
+}
+
+.inline-answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #f0f9ff;
+  border: 1px solid #d9ecff;
+}
+
+.inline-answer-label {
+  flex-shrink: 0;
+  color: #409eff;
+  font-weight: 600;
+}
+
+.inline-answer-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.inline-analysis {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #fff9e6;
+  border: 1px solid #faecd8;
+}
+
+.inline-analysis-label {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.inline-question-cell >>> .detail-option-content p,
+.inline-question-cell >>> .inline-question-content p,
+.inline-question-cell >>> .inline-answer-text p {
+  margin: 0;
+}
+
+.inline-question-cell >>> .detail-option-content pre,
+.inline-question-cell >>> .inline-question-content pre,
+.inline-question-cell >>> .inline-answer-text pre {
+  margin: 4px 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .question-detail {
   padding: 20px;
   background-color: #f5f7fa;
@@ -1023,15 +1171,27 @@ export default {
 }
 
 .detail-option-item {
-  display: block;
-}
-
-.detail-option-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #fff;
   margin-bottom: 6px;
 }
 
+.detail-option-label {
+  flex-shrink: 0;
+  width: 20px;
+  color: #409eff;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .detail-option-content {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -1044,6 +1204,11 @@ export default {
   margin: 0;
   max-width: 100%;
   overflow-x: auto;
+}
+
+.compact-answer-info {
+  margin-top: 8px;
+  padding: 8px 10px;
 }
 
 .answer-info {
@@ -1152,8 +1317,16 @@ export default {
 }
 
 @media (max-width: 1280px) {
+  .inline-options-list {
+    grid-template-columns: 1fr;
+  }
+
   .options-container {
     grid-template-columns: 1fr;
+  }
+
+  .question-detail {
+    padding: 12px;
   }
 }
 </style>
@@ -1197,5 +1370,26 @@ export default {
   border: 1px dashed #e9eaec;
   border-radius: 3px;
   margin: 15px 0;
+}
+
+/* 管理员题库：代码块取消默认左缩进 */
+.question-bank-admin-container .markdown-body pre,
+.question-bank-admin-container .inline-question-cell .markdown-body pre {
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+.question-bank-admin-container .markdown-body pre ol.pre-numbering,
+.question-bank-admin-container .inline-question-cell .markdown-body pre ol.pre-numbering {
+  display: none !important;
+}
+
+.question-bank-admin-container .markdown-body pre code,
+.question-bank-admin-container .markdown-body code.hljs,
+.question-bank-admin-container .inline-question-cell .markdown-body pre code,
+.question-bank-admin-container .inline-question-cell .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
 }
 </style>

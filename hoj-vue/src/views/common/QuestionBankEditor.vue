@@ -20,6 +20,7 @@
                 <el-option label="单选题" value="single_choice"></el-option>
                 <el-option label="多选题" value="multiple_choice"></el-option>
                 <el-option label="判断题" value="judge"></el-option>
+                <el-option label="填空题" value="fill_blank"></el-option>
                 <el-option label="主观题" value="subjective"></el-option>
                 <el-option label="组合题" value="composite"></el-option>
               </el-select>
@@ -118,6 +119,44 @@
                   <el-radio label="true">正确</el-radio>
                   <el-radio label="false">错误</el-radio>
                 </el-radio-group>
+              </el-form-item>
+            </template>
+
+            <template v-if="form.type === 'fill_blank'">
+              <el-form-item label="正确答案" required>
+                <div class="fill-blank-answer-list">
+                  <div
+                    v-for="(answer, index) in form.fillBlankAnswers"
+                    :key="`fill-blank-${index}`"
+                    class="fill-blank-answer-item"
+                  >
+                    <el-input
+                      v-model="form.fillBlankAnswers[index]"
+                      placeholder="请输入一个可判对的答案"
+                    ></el-input>
+                    <el-button
+                      type="primary"
+                      icon="el-icon-plus"
+                      circle
+                      plain
+                      title="新增答案"
+                      @click="addFillBlankAnswer"
+                    ></el-button>
+                    <el-button
+                      v-if="form.fillBlankAnswers.length > 1"
+                      type="danger"
+                      icon="el-icon-minus"
+                      circle
+                      plain
+                      title="删除答案"
+                      @click="removeFillBlankAnswer(index)"
+                    ></el-button>
+                  </div>
+                </div>
+                <div class="form-tip">
+                  <i class="el-icon-info"></i>
+                  教师和管理员可设置多个标准答案，学生答案命中任意一个即判对。
+                </div>
               </el-form-item>
             </template>
 
@@ -314,6 +353,25 @@
               <div class="preview-option-item">
                 <el-tag :type="form.correctAnswer === 'false' ? 'success' : 'info'" size="small">✗</el-tag>
                 <span>错误</span>
+              </div>
+            </div>
+
+            <div v-if="form.type === 'fill_blank'" class="preview-subjective">
+              <el-alert type="success" :closable="false">
+                填空题，学生答案命中任意一个参考答案即判对
+              </el-alert>
+              <div class="fill-blank-preview-list">
+                <el-tag
+                  v-for="(answer, index) in getNormalizedFillBlankAnswers(form.fillBlankAnswers, true)"
+                  :key="`fill-blank-preview-${index}`"
+                  size="small"
+                  type="info"
+                >
+                  {{ answer }}
+                </el-tag>
+                <span v-if="getNormalizedFillBlankAnswers(form.fillBlankAnswers, true).length === 0" class="preview-placeholder">
+                  请至少填写一个标准答案
+                </span>
               </div>
             </div>
 
@@ -593,6 +651,7 @@ export default {
         choiceOptions: ['', '', '', ''],
         correctAnswer: 0,
         correctAnswers: [false, false, false, false],
+        fillBlankAnswers: [''],
         compositeQuestions: [this.getDefaultCompositeQuestion(1)],
         referenceAnswer: '',
         analysis: '',
@@ -782,6 +841,11 @@ export default {
         this.form.correctAnswer = 'true'
         this.form.correctAnswers = [false, false, false, false]
         this.form.score = 1
+      } else if (this.form.type === 'fill_blank') {
+        this.form.correctAnswer = ''
+        this.form.correctAnswers = [false, false, false, false]
+        this.form.fillBlankAnswers = ['']
+        this.form.score = 2
       } else if (this.form.type === 'subjective') {
         this.form.correctAnswer = ''
         this.form.correctAnswers = [false, false, false, false]
@@ -795,6 +859,44 @@ export default {
         this.recalculateCompositeTotalScore()
       }
       this.form.referenceAnswer = ''
+      if (this.form.type !== 'fill_blank') {
+        this.form.fillBlankAnswers = ['']
+      }
+    },
+    normalizeFillBlankStorageValue(raw) {
+      const trimmed = String(raw || '').trim()
+      if (!trimmed) return ''
+      return trimmed.split(/\s+/).join(' ')
+    },
+    getNormalizedFillBlankAnswers(rawList, allowEmpty = false) {
+      const source = Array.isArray(rawList) ? rawList : []
+      const normalized = []
+      const seen = new Set()
+      source.forEach((item) => {
+        const value = this.normalizeFillBlankStorageValue(item)
+        if (!value || seen.has(value)) return
+        seen.add(value)
+        normalized.push(value)
+      })
+      if (!allowEmpty && normalized.length === 0) {
+        return []
+      }
+      return normalized
+    },
+    addFillBlankAnswer() {
+      if (!Array.isArray(this.form.fillBlankAnswers)) {
+        this.$set(this.form, 'fillBlankAnswers', [''])
+        return
+      }
+      this.form.fillBlankAnswers.push('')
+    },
+    removeFillBlankAnswer(index) {
+      if (!Array.isArray(this.form.fillBlankAnswers)) return
+      if (this.form.fillBlankAnswers.length <= 1) {
+        this.$message.warning('填空题至少保留一个答案输入框')
+        return
+      }
+      this.form.fillBlankAnswers.splice(index, 1)
     },
     triggerContentImageUpload() {
       if (this.uploadingContentImage) {
@@ -1087,6 +1189,14 @@ export default {
         }
       }
 
+      if (this.form.type === 'fill_blank') {
+        const answers = this.getNormalizedFillBlankAnswers(this.form.fillBlankAnswers)
+        if (answers.length === 0) {
+          this.$message.warning('填空题至少需要填写一个有效答案')
+          return false
+        }
+      }
+
       if (this.form.type === 'composite') {
         if (!Array.isArray(this.form.compositeQuestions) || this.form.compositeQuestions.length === 0) {
           this.$message.warning('请至少添加一个子题')
@@ -1142,6 +1252,10 @@ export default {
         submitData.answer = JSON.stringify(selectedAnswers)
       } else if (this.form.type === 'judge') {
         submitData.answer = String(this.form.correctAnswer) === 'true' ? 'true' : 'false'
+        submitData.options = null
+      } else if (this.form.type === 'fill_blank') {
+        const normalizedAnswers = this.getNormalizedFillBlankAnswers(this.form.fillBlankAnswers)
+        submitData.answer = JSON.stringify(normalizedAnswers)
         submitData.options = null
       } else if (this.form.type === 'subjective') {
         submitData.answer = this.form.referenceAnswer || '需人工评分'
@@ -1243,6 +1357,22 @@ export default {
         }
       } else if (question.type === 'judge') {
         nextForm.correctAnswer = String(question.answer || '').toLowerCase() === 'true' ? 'true' : 'false'
+      } else if (question.type === 'fill_blank') {
+        let answers = []
+        try {
+          const parsed = typeof question.answer === 'string' ? JSON.parse(question.answer) : question.answer
+          if (Array.isArray(parsed)) {
+            answers = parsed
+          } else if (question.answer) {
+            answers = [question.answer]
+          }
+        } catch (e) {
+          if (question.answer) {
+            answers = [question.answer]
+          }
+        }
+        const normalizedAnswers = this.getNormalizedFillBlankAnswers(answers, true)
+        nextForm.fillBlankAnswers = normalizedAnswers.length > 0 ? normalizedAnswers : ['']
       } else if (question.type === 'subjective') {
         nextForm.referenceAnswer = question.answer || ''
       } else if (question.type === 'composite') {
@@ -1461,6 +1591,28 @@ export default {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.fill-blank-answer-list {
+  display: grid;
+  gap: 10px;
+}
+
+.fill-blank-answer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fill-blank-answer-item .el-input {
+  flex: 1;
+}
+
+.fill-blank-preview-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .composite-panel {

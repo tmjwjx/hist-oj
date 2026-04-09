@@ -13,18 +13,19 @@
     <!-- 筛选条件 -->
     <div class="filter-bar" style="margin-bottom: 20px;">
       <el-row :gutter="15">
-        <el-col :span="5">
-          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="loadQuestions">
+        <el-col :span="4">
+          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="handleFilterChange">
             <el-option label="全部题型" value=""></el-option>
             <el-option label="单选题" value="single_choice"></el-option>
             <el-option label="多选题" value="multiple_choice"></el-option>
             <el-option label="判断题" value="judge"></el-option>
+            <el-option label="填空题" value="fill_blank"></el-option>
             <el-option label="主观题" value="subjective"></el-option>
             <el-option label="组合题" value="composite"></el-option>
           </el-select>
         </el-col>
-        <el-col :span="5">
-          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="loadQuestions">
+        <el-col :span="4">
+          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="handleFilterChange">
             <el-option label="全部课程" value=""></el-option>
             <el-option
               v-for="course in commonCourses"
@@ -34,19 +35,19 @@
             />
           </el-select>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="4">
           <el-input
             v-model="filters.tag"
             placeholder="标签筛选"
             clearable
             size="small"
-            @keyup.enter.native="loadQuestions"
+            @keyup.enter.native="handleFilterChange"
           >
-            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
           </el-input>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="loadQuestions">
+          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="handleFilterChange">
             <el-option label="全部难度" value=""></el-option>
             <el-option label="简单" value="1"></el-option>
             <el-option label="中等" value="2"></el-option>
@@ -55,13 +56,24 @@
         </el-col>
         <el-col :span="4">
           <el-input
+            v-model="filters.questionId"
+            placeholder="搜索题目ID"
+            clearable
+            size="small"
+            @keyup.enter.native="handleFilterChange"
+          >
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
+          </el-input>
+        </el-col>
+        <el-col :span="4">
+          <el-input
             v-model="filters.keyword"
             placeholder="搜索标题"
             clearable
             size="small"
-            @keyup.enter.native="loadQuestions"
+            @keyup.enter.native="handleFilterChange"
           >
-            <el-button slot="append" icon="el-icon-search" @click="loadQuestions"></el-button>
+            <el-button slot="append" icon="el-icon-search" @click="handleFilterChange"></el-button>
           </el-input>
         </el-col>
       </el-row>
@@ -69,48 +81,96 @@
 
     <!-- 移除 v-loading 避免轮询时闪烁 -->
     <el-table :data="questions" stripe>
-      <el-table-column prop="title" :label="$t('m.Question_Title')">
+      <el-table-column prop="id" label="ID" width="90" align="center"></el-table-column>
+      <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="520">
         <template slot-scope="{ row }">
-          <div v-html="renderMarkdown(row.title)" class="markdown-body"></div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="type" :label="$t('m.Question_Type')" width="100">
-        <template slot-scope="{ row }">
-          <el-tag :type="getQuestionTypeColor(row.type)">
-            {{ getQuestionTypeName(row.type) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="100">
-        <template slot-scope="{ row }">
-          <el-rate :value="getDifficultyStars(row.difficulty)" :max="3" disabled />
-        </template>
-      </el-table-column>
-      <el-table-column prop="course" label="所属课程" width="120">
-        <template slot-scope="{ row }">
-          <el-tag v-if="row.course" type="warning" size="small">{{ row.course }}</el-tag>
-          <span v-else style="color: #909399;">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="tags" label="标签" width="180">
-        <template slot-scope="{ row }">
-          <el-tag
-            v-for="(tag, idx) in parseQuestionTags(row.tags)"
-            :key="idx"
-            size="mini"
-            type="info"
-            style="margin-right: 3px;"
-          >
-            {{ tag }}
-          </el-tag>
-          <span v-if="!row.tags || row.tags === '[]'" style="color: #909399;">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="isShared" :label="$t('m.Shared')" width="80">
-        <template slot-scope="{ row }">
-          <el-tag :type="row.isShared ? 'success' : 'info'">
-            {{ row.isShared ? $t('m.Yes') : $t('m.No') }}
-          </el-tag>
+          <div class="inline-question-cell">
+            <div class="inline-meta-row">
+              <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
+              <el-tag v-if="row.course" type="warning" size="mini">{{ row.course }}</el-tag>
+              <el-tag
+                v-for="(tag, idx) in parseQuestionTags(row.tags)"
+                :key="`meta-tag-${row.id}-${idx}`"
+                size="mini"
+                type="info"
+              >
+                {{ tag }}
+              </el-tag>
+              <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
+                {{ row.isShared ? $t('m.Yes') : $t('m.No') }}
+              </el-tag>
+            </div>
+            <div v-html="renderMarkdown(row.title)" class="markdown-body inline-question-title" v-highlight></div>
+            <div
+              v-if="row.content"
+              v-html="renderMarkdown(row.content)"
+              class="markdown-body inline-question-content"
+              v-highlight
+            ></div>
+
+            <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="inline-options-list">
+              <div
+                v-for="(option, index) in parseOptionEntries(row.options)"
+                :key="`opt-${row.id}-${index}`"
+                class="inline-option-item"
+              >
+                <span class="inline-option-label">{{ option.letter }}.</span>
+                <span class="markdown-body inline-option-text" v-html="renderMarkdown(option.text)" v-highlight></span>
+              </div>
+            </div>
+
+            <div v-else-if="row.type === 'judge'" class="inline-options-list">
+              <div class="inline-option-item">
+                <span class="inline-option-label">A.</span>
+                <span class="inline-option-text">正确</span>
+              </div>
+              <div class="inline-option-item">
+                <span class="inline-option-label">B.</span>
+                <span class="inline-option-text">错误</span>
+              </div>
+            </div>
+
+            <div v-else-if="row.type === 'composite'" class="inline-composite-list">
+              <div
+                v-for="(sub, subIndex) in parseCompositeSubQuestions(row.options)"
+                :key="`sub-${row.id}-${sub.id || subIndex}`"
+                class="inline-composite-item"
+              >
+                <div class="inline-composite-head">子题 {{ subIndex + 1 }}（{{ Number(sub.score || 0) }}分）</div>
+                <div
+                  class="markdown-body inline-composite-content"
+                  v-html="renderMarkdown(sub.content || '')"
+                  v-highlight
+                ></div>
+                <div class="inline-options-list">
+                  <div
+                    v-for="(option, optionIndex) in parseOptionEntries(sub.options)"
+                    :key="`subopt-${row.id}-${subIndex}-${optionIndex}`"
+                    class="inline-option-item"
+                  >
+                    <span class="inline-option-label">{{ option.letter }}.</span>
+                    <span class="markdown-body inline-option-text" v-html="renderMarkdown(option.text)" v-highlight></span>
+                  </div>
+                </div>
+                <div class="answer-info compact-answer-info">
+                  <strong>正确答案：</strong>
+                  <el-tag type="success">{{ getCompositeAnswerBySubQuestion(row.answer, sub.id, subIndex) || '-' }}</el-tag>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="row.type !== 'composite'" class="inline-answer-row answer-info compact-answer-info">
+              <span class="inline-answer-label">{{ row.type === 'subjective' ? '参考答案：' : '正确答案：' }}</span>
+              <span v-if="row.type !== 'subjective'" class="inline-answer-text">{{ formatInlineAnswer(row) }}</span>
+              <span
+                v-else-if="row.answer"
+                class="markdown-body inline-answer-text"
+                v-html="renderMarkdown(row.answer)"
+                v-highlight
+              ></span>
+              <span v-else class="inline-answer-text">暂无答案</span>
+            </div>
+          </div>
         </template>
       </el-table-column>
       <el-table-column :label="$t('m.Operation')" width="280">
@@ -125,6 +185,18 @@
         </template>
       </el-table-column>
     </el-table>
+    <div class="pagination-container">
+      <el-pagination
+        @size-change="handlePageSizeChange"
+        @current-change="handleCurrentPageChange"
+        :current-page="pagination.currentPage"
+        :page-sizes="[10, 20, 50, 100]"
+        :page-size="pagination.pageSize"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="pagination.total"
+      >
+      </el-pagination>
+    </div>
 
     <el-dialog :title="$t('m.Create_Question')" :visible.sync="showCreateDialog" width="1480px" class="question-edit-dialog">
       <el-row :gutter="20">
@@ -613,10 +685,10 @@
         <div v-if="viewQuestion.type === 'single_choice' || viewQuestion.type === 'multiple_choice'" class="detail-section">
           <h4 class="detail-label">选项：</h4>
           <div class="detail-content">
-            <div v-if="parseQuestionOptions(viewQuestion.options).length > 0">
-              <div v-for="(option, index) in parseQuestionOptions(viewQuestion.options)" :key="index" class="option-item-detail">
-                <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
-                <span v-html="renderMarkdown(option)" class="option-text markdown-body" v-highlight></span>
+            <div v-if="parseOptionEntries(viewQuestion.options).length > 0">
+              <div v-for="(option, index) in parseOptionEntries(viewQuestion.options)" :key="index" class="option-item-detail">
+                <span class="option-label">{{ option.letter }}.</span>
+                <span v-html="renderMarkdown(option.text)" class="option-text markdown-body" v-highlight></span>
               </div>
             </div>
             <div v-else class="no-options">
@@ -625,10 +697,53 @@
           </div>
         </div>
 
+        <!-- 组合题子题 -->
+        <div v-if="viewQuestion.type === 'composite'" class="detail-section">
+          <h4 class="detail-label">组合题子题：</h4>
+          <div class="composite-detail-list">
+            <div
+              v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(viewQuestion.options)"
+              :key="subQuestion.id || subIndex"
+              class="composite-detail-item"
+            >
+              <div class="composite-detail-header">
+                <span>子题 {{ subIndex + 1 }}</span>
+                <span>{{ Number(subQuestion.score || 0) }}分</span>
+              </div>
+              <div v-html="renderMarkdown(subQuestion.content || '')" class="markdown-body detail-content" v-highlight></div>
+              <div class="detail-content composite-detail-options">
+                <div v-if="parseOptionEntries(subQuestion.options).length > 0">
+                  <div
+                    v-for="(option, optionIndex) in parseOptionEntries(subQuestion.options)"
+                    :key="`sub-${subIndex}-${optionIndex}`"
+                    class="option-item-detail"
+                  >
+                    <span class="option-label">{{ option.letter }}.</span>
+                    <span v-html="renderMarkdown(option.text)" class="option-text markdown-body" v-highlight></span>
+                  </div>
+                </div>
+                <div v-else class="no-options">
+                  <el-alert type="info" :closable="false">暂无子题选项数据</el-alert>
+                </div>
+              </div>
+              <div class="composite-answer-row answer-info compact-answer-info">
+                <el-tag type="success">
+                  正确答案：{{ getCompositeAnswerBySubQuestion(viewQuestion.answer, subQuestion.id, subIndex) || '-' }}
+                </el-tag>
+              </div>
+            </div>
+            <el-empty
+              v-if="parseCompositeSubQuestions(viewQuestion.options).length === 0"
+              description="暂无组合题子题数据"
+              :image-size="90"
+            />
+          </div>
+        </div>
+
         <!-- 正确答案 -->
-        <div class="detail-section">
+        <div v-if="viewQuestion.type !== 'composite'" class="detail-section">
           <h4 class="detail-label">正确答案：</h4>
-          <div class="detail-content">
+          <div class="detail-content answer-info compact-answer-info">
             <el-tag v-if="viewQuestion.type === 'single_choice'" type="success">
               {{ parseSingleChoiceAnswer(viewQuestion) }}
             </el-tag>
@@ -637,6 +752,9 @@
             </el-tag>
             <el-tag v-else-if="viewQuestion.type === 'judge'" :type="isJudgeTrue(viewQuestion.answer) ? 'success' : 'danger'">
               {{ isJudgeTrue(viewQuestion.answer) ? $t('m.True') || '正确' : $t('m.False') || '错误' }}
+            </el-tag>
+            <el-tag v-else-if="viewQuestion.type === 'fill_blank'" type="success">
+              {{ parseFillBlankAnswer(viewQuestion.answer) }}
             </el-tag>
             <div v-else-if="viewQuestion.type === 'subjective'" class="subjective-answer">
               <div v-if="viewQuestion.answer" v-html="renderMarkdown(viewQuestion.answer)" class="markdown-body" v-highlight></div>
@@ -704,6 +822,7 @@ export default {
   data() {
     return {
       loading: false,
+      requesting: false,
       questions: [],
       showCreateDialog: false,
       showEditDialog: false,
@@ -715,7 +834,13 @@ export default {
         course: '',
         tag: '',
         difficulty: '',
+        questionId: '',
         keyword: ''
+      },
+      pagination: {
+        currentPage: 1,
+        pageSize: 20,
+        total: 0
       },
       createForm: {
         type: 'single_choice',
@@ -816,52 +941,48 @@ export default {
       }
       form.referenceAnswer = ''
     },
+    handleFilterChange() {
+      this.pagination.currentPage = 1
+      this.loadQuestions()
+    },
+    handlePageSizeChange(size) {
+      this.pagination.pageSize = size
+      this.pagination.currentPage = 1
+      this.loadQuestions()
+    },
+    handleCurrentPageChange(page) {
+      this.pagination.currentPage = page
+      this.loadQuestions()
+    },
     async loadQuestions() {
       // 避免重复请求
-      if (this.loading) return
+      if (this.requesting) return
 
       // 只在首次加载时显示 loading，轮询时不显示
-      const isFirstLoad = this.questions.length === 0
+      const isFirstLoad = this.questions.length === 0 && this.pagination.total === 0
       if (isFirstLoad) {
         this.loading = true
       }
+      this.requesting = true
 
       try {
+        const questionId = String(this.filters.questionId || '').trim()
+        const keyword = String(this.filters.keyword || '').trim()
+
         const res = await this.$store.dispatch('classroom/getQuestionBank', {
           classroomId: this.classroomId,
-          page: 1,
-          limit: 50
+          page: this.pagination.currentPage,
+          limit: this.pagination.pageSize,
+          type: this.filters.type || undefined,
+          course: this.filters.course || undefined,
+          tag: this.filters.tag || undefined,
+          difficulty: this.filters.difficulty || undefined,
+          questionId: questionId || undefined,
+          keyword: questionId ? undefined : keyword || undefined
         })
         if (res.code === 200) {
-          let newQuestions = res.data.questions || res.data || []
-
-          // 前端筛选
-          if (this.filters.type) {
-            newQuestions = newQuestions.filter(q => q.type === this.filters.type)
-          }
-          if (this.filters.course) {
-            newQuestions = newQuestions.filter(q => q.course === this.filters.course)
-          }
-          if (this.filters.tag) {
-            newQuestions = newQuestions.filter(q => {
-              if (!q.tags) return false
-              try {
-                const tags = JSON.parse(q.tags)
-                return tags.includes(this.filters.tag)
-              } catch (e) {
-                return false
-              }
-            })
-          }
-          if (this.filters.difficulty) {
-            newQuestions = newQuestions.filter(q => q.difficulty === parseInt(this.filters.difficulty))
-          }
-          if (this.filters.keyword) {
-            const keyword = this.filters.keyword.toLowerCase()
-            newQuestions = newQuestions.filter(q => {
-              return q.title && q.title.toLowerCase().includes(keyword)
-            })
-          }
+          const newQuestions = res.data.questions || res.data || []
+          const total = Number(res.data.total || 0)
 
           // 深度对比：使用 JSON.stringify 检查数据是否真的变化
           const currentDataString = JSON.stringify(this.questions)
@@ -871,12 +992,16 @@ export default {
             // 数据真的变化了，才更新
             this.questions = newQuestions
           }
+          if (this.pagination.total !== total) {
+            this.pagination.total = total
+          }
         }
       } catch (error) {
         if (isFirstLoad) {
           this.$message.error(this.$t('m.Load_Failed'))
         }
       } finally {
+        this.requesting = false
         if (isFirstLoad) {
           this.loading = false
         }
@@ -1170,6 +1295,9 @@ export default {
           const res = await this.$store.dispatch('classroom/deleteQuestion', question.id)
           if (res.code === 200) {
             this.$message.success(this.$t('m.Delete_Success'))
+            if (this.questions.length === 1 && this.pagination.currentPage > 1) {
+              this.pagination.currentPage -= 1
+            }
             this.loadQuestions()
           } else {
             this.$message.error(res.message || this.$t('m.Delete_Failed'))
@@ -1184,6 +1312,7 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         subjective: this.$t('m.Subjective'),
         composite: '组合题'
       }
@@ -1207,6 +1336,7 @@ export default {
         single_choice: 'primary',
         multiple_choice: 'success',
         judge: 'warning',
+        fill_blank: 'success',
         subjective: 'info',
         composite: 'danger'
       }
@@ -1222,6 +1352,163 @@ export default {
       } catch (e) {
         console.error('Markdown渲染失败:', e)
         return content
+      }
+    },
+    stripOptionPrefix(optionText, letterHint = '') {
+      const normalizedText = String(optionText || '').trim()
+      if (!normalizedText) return ''
+      const escapedHint = letterHint ? letterHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[A-Za-z]'
+      const prefixRegex = new RegExp(`^\\s*(?:${escapedHint}|[A-Za-z])\\s*[\\.\\)、:：]\\s*`)
+      return normalizedText.replace(prefixRegex, '').trim()
+    },
+    parseOptionEntries(optionsInput) {
+      if (!optionsInput) return []
+      let parsed = optionsInput
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch (e) {
+          return []
+        }
+      }
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((opt, idx) => {
+        if (opt && typeof opt === 'object' && !Array.isArray(opt)) {
+          const normalizedLetter = String(opt.letter || opt.label || String.fromCharCode(65 + idx))
+            .trim()
+            .replace(/[^A-Za-z0-9]/g, '')
+            .toUpperCase()
+          const letter = normalizedLetter || String.fromCharCode(65 + idx)
+          const rawText = opt.text !== undefined ? opt.text : (opt.content !== undefined ? opt.content : '')
+          return {
+            letter,
+            text: this.stripOptionPrefix(rawText, letter)
+          }
+        }
+        const letter = String.fromCharCode(65 + idx)
+        return {
+          letter,
+          text: this.stripOptionPrefix(opt, letter)
+        }
+      })
+    },
+    parseCompositeSubQuestions(optionsInput) {
+      if (!optionsInput) return []
+      let parsed = optionsInput
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch (e) {
+          return []
+        }
+      }
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((subQuestion, index) => {
+        const optionSource = subQuestion && subQuestion.options !== undefined
+          ? subQuestion.options
+          : (subQuestion && subQuestion.choiceOptions !== undefined ? subQuestion.choiceOptions : [])
+        return {
+          id: String((subQuestion && subQuestion.id) || `sq_${index + 1}`),
+          content: (subQuestion && subQuestion.content) || '',
+          options: optionSource,
+          score: Number((subQuestion && (subQuestion.score || subQuestion.subScore)) || 0)
+        }
+      })
+    },
+    parseAnswerArray(answerInput, { allowCommaSplit = true } = {}) {
+      if (!answerInput) return []
+      let parsed = answerInput
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch (e) {
+          parsed = answerInput
+        }
+      }
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => String(item || '').trim()).filter(Boolean)
+      }
+      const raw = String(parsed || '').trim()
+      if (!raw) return []
+      if (allowCommaSplit && (raw.includes(',') || raw.includes('，'))) {
+        return raw.split(/[，,]/).map(item => item.trim()).filter(Boolean)
+      }
+      return [raw]
+    },
+    parseCompositeAnswerMap(answerInput) {
+      if (!answerInput) return {}
+      let parsed = answerInput
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch (e) {
+          return {}
+        }
+      }
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    },
+    getCompositeAnswerBySubQuestion(answerInput, subQuestionId, subIndex) {
+      const answerMap = this.parseCompositeAnswerMap(answerInput)
+      const candidates = [
+        String(subQuestionId || ''),
+        String(subIndex + 1),
+        String(subIndex),
+        `sub_${subIndex + 1}`,
+        `sq_${subIndex + 1}`
+      ]
+      for (const key of candidates) {
+        if (!key) continue
+        if (Object.prototype.hasOwnProperty.call(answerMap, key)) {
+          const value = String(answerMap[key] || '').trim()
+          if (value) return value
+        }
+      }
+      return ''
+    },
+    formatCompositeAnswerSummary(answerInput, optionsInput, emptyText = '暂无答案') {
+      const subQuestions = this.parseCompositeSubQuestions(optionsInput)
+      if (subQuestions.length === 0) {
+        const answerMap = this.parseCompositeAnswerMap(answerInput)
+        const entries = Object.keys(answerMap)
+          .map(key => `${key}: ${String(answerMap[key] || '').trim()}`)
+          .filter(item => item && !item.endsWith(': '))
+        return entries.length > 0 ? entries.join('； ') : emptyText
+      }
+      const segments = []
+      subQuestions.forEach((subQuestion, index) => {
+        const value = this.getCompositeAnswerBySubQuestion(answerInput, subQuestion.id, index)
+        if (value) {
+          segments.push(`子题${index + 1}: ${value}`)
+        }
+      })
+      return segments.length > 0 ? segments.join('； ') : emptyText
+    },
+    formatInlineAnswer(question) {
+      if (!question) return '暂无答案'
+      switch (question.type) {
+        case 'single_choice': {
+          const value = String(question.answer || '').trim()
+          return value || '暂无答案'
+        }
+        case 'multiple_choice': {
+          const values = this.parseAnswerArray(question.answer)
+          return values.length > 0 ? values.join('、') : '暂无答案'
+        }
+        case 'judge': {
+          const raw = String(question.answer || '').trim()
+          if (!raw) return '暂无答案'
+          return this.isJudgeTrue(raw) ? '正确' : '错误'
+        }
+        case 'fill_blank': {
+          const values = this.parseAnswerArray(question.answer, { allowCommaSplit: false })
+          return values.length > 0 ? values.join(' / ') : '暂无答案'
+        }
+        case 'composite':
+          return this.formatCompositeAnswerSummary(question.answer, question.options)
+        default: {
+          const value = String(question.answer || '').trim()
+          return value || '暂无答案'
+        }
       }
     },
     // 解析选择题选项
@@ -1268,6 +1555,20 @@ export default {
       const lowered = raw.toLowerCase()
       return lowered === 'true'
     },
+    parseFillBlankAnswer(answer) {
+      if (!answer) return '暂无答案'
+      try {
+        const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
+        if (Array.isArray(parsed)) {
+          const values = parsed.map(item => String(item || '').trim()).filter(Boolean)
+          return values.length > 0 ? `答案：${values.join(' / ')}` : '暂无答案'
+        }
+      } catch (e) {
+        // fall through
+      }
+      const normalized = String(answer || '').trim()
+      return normalized ? `答案：${normalized}` : '暂无答案'
+    },
     // 格式化时间
     formatTime(time) {
       if (!time) return '--'
@@ -1302,6 +1603,151 @@ export default {
 
 .action-bar {
   margin-bottom: 20px;
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.inline-question-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inline-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+
+.inline-meta-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.inline-meta-row::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 2px;
+}
+
+.inline-question-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.inline-question-content {
+  color: #606266;
+}
+
+.inline-options-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.inline-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.inline-option-label {
+  flex-shrink: 0;
+  width: 20px;
+  color: #409eff;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.inline-option-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.inline-question-cell >>> .inline-option-text p,
+.inline-question-cell >>> .inline-question-content p,
+.inline-question-cell >>> .inline-answer-text p {
+  margin: 0;
+}
+
+.inline-question-cell >>> .inline-option-text pre,
+.inline-question-cell >>> .inline-question-content pre,
+.inline-question-cell >>> .inline-answer-text pre {
+  margin: 4px 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.inline-composite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-composite-item {
+  padding: 8px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+}
+
+.inline-composite-head {
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 6px;
+}
+
+.inline-composite-content {
+  margin-bottom: 6px;
+}
+
+.compact-answer-info {
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+
+.answer-info {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f0f9ff;
+  border-left: 3px solid #409eff;
+  border-radius: 4px;
+}
+
+.inline-answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #f0f9ff;
+  border: 1px solid #d9ecff;
+}
+
+.inline-answer-label {
+  flex-shrink: 0;
+  color: #409eff;
+  font-weight: 600;
+}
+
+.inline-answer-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .question-form-column,
@@ -1520,6 +1966,36 @@ export default {
   border-bottom: none;
 }
 
+.composite-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.composite-detail-item {
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+
+.composite-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #303133;
+  font-weight: 600;
+}
+
+.composite-detail-options {
+  margin-top: 8px;
+}
+
+.composite-answer-row {
+  margin-top: 8px;
+}
+
 .option-label {
   font-weight: bold;
   color: #409EFF;
@@ -1561,6 +2037,10 @@ export default {
 }
 
 @media (max-width: 1280px) {
+  .inline-options-list {
+    grid-template-columns: 1fr;
+  }
+
   .options-container {
     grid-template-columns: 1fr;
   }
@@ -1757,5 +2237,30 @@ export default {
   background: #f8f8f9 !important;
   border: 1px dashed #e9eaec !important;
   border-radius: 3px !important;
+}
+
+/* 教师题库：代码块取消默认左缩进 */
+.question-bank-panel .markdown-body pre,
+.question-bank-panel .inline-question-cell .markdown-body pre,
+.question-bank-panel .question-detail-content .markdown-body pre {
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+.question-bank-panel .markdown-body pre ol.pre-numbering,
+.question-bank-panel .inline-question-cell .markdown-body pre ol.pre-numbering,
+.question-bank-panel .question-detail-content .markdown-body pre ol.pre-numbering {
+  display: none !important;
+}
+
+.question-bank-panel .markdown-body pre code,
+.question-bank-panel .markdown-body code.hljs,
+.question-bank-panel .inline-question-cell .markdown-body pre code,
+.question-bank-panel .inline-question-cell .markdown-body code.hljs,
+.question-bank-panel .question-detail-content .markdown-body pre code,
+.question-bank-panel .question-detail-content .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
 }
 </style>

@@ -787,6 +787,22 @@ footer h1 {
   display: block;
 }
 
+/* 全局统一答案展示样式（与管理员题库组合题答案一致） */
+.answer-info {
+  margin-top: 10px !important;
+  padding: 10px 12px !important;
+  background: #f0f9ff !important;
+  border: none !important;
+  border-left: 3px solid #409eff !important;
+  border-radius: 4px !important;
+  box-sizing: border-box;
+}
+
+.compact-answer-info {
+  margin-top: 8px !important;
+  padding: 8px 10px !important;
+}
+
 .markdown-body blockquote {
   color: #666;
   border-left: 4px solid #8bc34a;

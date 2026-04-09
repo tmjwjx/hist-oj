@@ -51,6 +51,8 @@
         border
         style="width: 100%; margin-top: 20px"
       >
+        <el-table-column prop="id" label="试卷ID" width="90" align="center"></el-table-column>
+
         <el-table-column prop="title" label="试卷标题" min-width="200">
           <template slot-scope="{ row }">
             <div class="paper-title">
@@ -212,6 +214,7 @@
                 <el-option label="单选题" value="single_choice"></el-option>
                 <el-option label="多选题" value="multiple_choice"></el-option>
                 <el-option label="判断题" value="judge"></el-option>
+                <el-option label="填空题" value="fill_blank"></el-option>
                 <el-option label="主观题" value="subjective"></el-option>
                 <el-option label="组合题" value="composite"></el-option>
               </el-select>
@@ -266,7 +269,7 @@
                               <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                             </div>
                           </div>
-                          <div class="question-answer-meta">
+                          <div class="question-answer-meta answer-info compact-answer-info">
                             <span class="meta-label">正确答案：</span>
                             <span class="meta-value">{{ formatAnswer(row) }}</span>
                           </div>
@@ -399,13 +402,13 @@
                               <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                             </div>
                           </div>
-                          <div class="item-answer">
+                          <div class="item-answer answer-info compact-answer-info">
                             <span class="meta-label">答案：</span>
                             <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
                           </div>
                         </div>
                       </div>
-                      <div v-if="q.question.type !== 'composite'" class="item-answer">
+                      <div v-if="q.question.type !== 'composite'" class="item-answer answer-info compact-answer-info">
                         <span class="meta-label">答案：</span>
                         <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                       </div>
@@ -536,13 +539,13 @@
                             <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                           </div>
                         </div>
-                        <div class="question-meta">
+                        <div class="question-meta answer-info compact-answer-info">
                           <span class="meta-label">正确答案：</span>
                           <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
                         </div>
                       </div>
                     </div>
-                    <div v-if="q.question.type !== 'composite'" class="question-meta">
+                    <div v-if="q.question.type !== 'composite'" class="question-meta answer-info compact-answer-info">
                       <span class="meta-label">正确答案：</span>
                       <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                     </div>
@@ -1295,6 +1298,7 @@ export default {
         single_choice: 'success',
         multiple_choice: 'warning',
         judge: 'info',
+        fill_blank: 'success',
         subjective: 'primary',
         composite: 'danger',
         programming: 'danger'
@@ -1306,6 +1310,7 @@ export default {
         single_choice: '单选题',
         multiple_choice: '多选题',
         judge: '判断题',
+        fill_blank: '填空题',
         subjective: '主观题',
         composite: '组合题',
         programming: '编程题'
@@ -1346,6 +1351,19 @@ export default {
               return '错误'
             }
             return '-'
+
+          case 'fill_blank':
+            if (!question.answer) return '-'
+            try {
+              const parsed = typeof question.answer === 'string' ? JSON.parse(question.answer) : question.answer
+              if (Array.isArray(parsed)) {
+                const answers = parsed.map(item => String(item || '').trim()).filter(Boolean)
+                return answers.length > 0 ? answers.join(' / ') : '-'
+              }
+              return String(question.answer || '').trim() || '-'
+            } catch (e) {
+              return String(question.answer || '').trim() || '-'
+            }
 
           case 'subjective':
             return question.answer || '需人工评分'
@@ -1406,7 +1424,7 @@ export default {
       this.loadQuestionBank()
     },
     isObjectiveQuestionType(type) {
-      return ['single_choice', 'multiple_choice', 'judge', 'composite'].includes(type)
+      return ['single_choice', 'multiple_choice', 'judge', 'fill_blank', 'composite'].includes(type)
     },
     async quickAddObjectiveQuestion() {
       const questionId = String(this.quickAddQuestionId || '').trim()
@@ -1432,7 +1450,7 @@ export default {
         }
         const question = res.data.data
         if (!this.isObjectiveQuestionType(question.type)) {
-          this.$message.warning('该题不是客观题，仅支持单选/多选/判断/组合题')
+          this.$message.warning('该题不是客观题，仅支持单选/多选/判断/填空/组合题')
           return
         }
         this.addQuestion(question)
@@ -1479,6 +1497,7 @@ export default {
         single_choice: 2,
         multiple_choice: 5,
         judge: 1,
+        fill_blank: 2,
         subjective: 5,
         composite: 10
       }

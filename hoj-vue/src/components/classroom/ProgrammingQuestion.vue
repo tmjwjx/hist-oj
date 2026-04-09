@@ -151,8 +151,14 @@
           <!-- 判题结果列 - 根据 canViewScore 控制是否显示 -->
           <el-table-column v-if="canViewScore" label="结果" width="120">
             <template slot-scope="{ row }">
-              <el-tag :type="getResultType(row.result)" size="mini">
-                {{ row.result || '提交中' }}
+              <el-tag
+                :type="getResultType(row.result)"
+                size="mini"
+                effect="dark"
+                :class="['judge-result-tag', getResultClass(row.result)]"
+              >
+                <i :class="getResultIcon(row.result)" class="judge-result-icon"></i>
+                {{ formatJudgeResult(row.result) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -222,7 +228,7 @@ export default {
       type: String,
       required: true
     },
-    questionId: {
+    homeworkQuestionId: {
       type: [String, Number],
       required: true
     },
@@ -258,6 +264,11 @@ export default {
       },
       submitting: false,
       submitHistory: [],
+      submitHistoryLoading: false,
+      resultPollingTimer: null,
+      resultPollingInterval: 2000,
+      resultPollingStartedAt: 0,
+      resultPollingMaxDuration: 120000,
       showCodeDialog: false,
       currentCode: '',
       currentLanguage: ''
@@ -265,7 +276,10 @@ export default {
   },
   mounted() {
     this.loadProblemInfo()
-    this.loadSubmitHistory()
+    this.initSubmitHistory()
+  },
+  beforeDestroy() {
+    this.stopResultPolling()
   },
   watch: {
     showCodeDialog(newVal) {
@@ -279,6 +293,31 @@ export default {
     }
   },
   methods: {
+    async initSubmitHistory() {
+      const hasPending = await this.loadSubmitHistory()
+      if (hasPending) {
+        this.startResultPolling()
+      }
+    },
+    startResultPolling() {
+      if (this.resultPollingTimer) {
+        return
+      }
+      this.resultPollingStartedAt = Date.now()
+      this.resultPollingTimer = setInterval(async () => {
+        const hasPending = await this.loadSubmitHistory(true)
+        const timeout = Date.now() - this.resultPollingStartedAt >= this.resultPollingMaxDuration
+        if (!hasPending || timeout) {
+          this.stopResultPolling()
+        }
+      }, this.resultPollingInterval)
+    },
+    stopResultPolling() {
+      if (this.resultPollingTimer) {
+        clearInterval(this.resultPollingTimer)
+        this.resultPollingTimer = null
+      }
+    },
     async loadProblemInfo() {
       this.loading = true
       try {
@@ -366,10 +405,42 @@ export default {
 
         if (response.data && response.data.code === 200) {
           const submitId = response.data.data.submit_id
-          // 保存提交记录到作业提交表
-          await this.saveSubmissionRecord(submitId)
+          // 保存提交记录到作业提交表（失败时自动重试一次）
+          let saved = false
+          let saveError = null
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              await this.saveSubmissionRecord(submitId)
+              saved = true
+              break
+            } catch (err) {
+              saveError = err
+              if (attempt === 0) {
+                await new Promise(resolve => setTimeout(resolve, 800))
+              }
+            }
+          }
+
+          if (!saved) {
+            const msg = saveError && saveError.message
+              ? saveError.message
+              : '提交记录保存失败'
+            this.$message.error(`代码已提交到判题端，但作业记录保存失败：${msg}`)
+            return
+          }
+
+          this.$emit('programming-submitted', {
+            problemId: this.problemId,
+            homeworkQuestionId: this.homeworkQuestionId,
+            submitId
+          })
           this.$message.success('提交成功')
-          this.loadSubmitHistory()
+          const hasPending = await this.loadSubmitHistory(true)
+          if (hasPending) {
+            this.startResultPolling()
+          } else {
+            this.stopResultPolling()
+          }
         } else {
           this.$message.error(response.data?.message || '提交失败')
         }
@@ -381,33 +452,52 @@ export default {
       }
     },
     async saveSubmissionRecord(submitId) {
-      try {
-        // 从 localStorage 获取 token
-        const token = localStorage.getItem('token')
+      // 从 localStorage 获取 token
+      const token = localStorage.getItem('token')
 
-        await this.$store.dispatch('classroom/saveProgrammingSubmission', {
-          homeworkId: this.homeworkId,
-          problemId: this.problemId, // 修复：使用 problemId 而不是 questionId
-          submitId: submitId,
-          code: this.submitForm.code,
-          language: this.submitForm.language,
-          token: token
-        })
-      } catch (error) {
-        console.error('保存提交记录失败:', error)
+      const res = await this.$store.dispatch('classroom/saveProgrammingSubmission', {
+        homeworkId: this.homeworkId,
+        problemId: this.problemId,
+        submitId: submitId,
+        code: this.submitForm.code,
+        language: this.submitForm.language,
+        token: token
+      })
+
+      if (!res || res.code !== 200) {
+        throw new Error((res && res.message) || '保存提交记录失败')
       }
     },
-    async loadSubmitHistory() {
+    async loadSubmitHistory(forceRefresh = false) {
+      if (this.submitHistoryLoading) {
+        return this.submitHistory.some(item => this.isPendingResult(item.result))
+      }
+      this.submitHistoryLoading = true
       try {
         const res = await this.$store.dispatch('classroom/getProgrammingSubmissions', {
           homeworkId: this.homeworkId,
-          questionId: this.questionId
+          homeworkQuestionId: this.homeworkQuestionId,
+          forceRefresh: !!forceRefresh
         })
         if (res.code === 200) {
           this.submitHistory = res.data || []
+          if (this.submitHistory.length > 0) {
+            const latest = this.submitHistory[0]
+            this.$emit('programming-result-updated', {
+              problemId: this.problemId,
+              homeworkQuestionId: this.homeworkQuestionId,
+              result: latest.result || '',
+              isPending: this.isPendingResult(latest.result)
+            })
+          }
+          return this.submitHistory.some(item => this.isPendingResult(item.result))
         }
+        return false
       } catch (error) {
         console.error('加载提交历史失败:', error)
+        return false
+      } finally {
+        this.submitHistoryLoading = false
       }
     },
     submitToHOJDirectly() {
@@ -447,13 +537,64 @@ export default {
       if (language.includes('Python')) return 'Py3'
       return language
     },
-    getResultType(result) {
-      if (result === '答案正确') return 'success'
-      if (['答案错误', '时间超限', '内存超限', '运行错误', '编译错误', '格式错误'].some(s => result.includes(s))) {
-        return 'danger'
+    normalizeJudgeResultCode(result) {
+      if (!result || String(result).trim() === '') return 'PENDING'
+      const raw = String(result).trim()
+      const upper = raw.toUpperCase()
+
+      if (['AC', 'ACCEPTED', '答案正确'].includes(upper) || raw === '答案正确') return 'AC'
+      if (['WA', 'WRONG ANSWER', '答案错误'].includes(upper) || raw === '答案错误') return 'WA'
+      if (['CE', 'COMPILATION ERROR', '编译错误'].includes(upper) || raw === '编译错误') return 'CE'
+      if (['RE', 'RUNTIME ERROR', '运行错误'].includes(upper) || raw === '运行错误') return 'RE'
+      if (['TLE', 'TIME LIMIT EXCEEDED', '时间超限'].includes(upper) || raw === '时间超限') return 'TLE'
+      if (['MLE', 'MEMORY LIMIT EXCEEDED', '内存超限'].includes(upper) || raw === '内存超限') return 'MLE'
+      if (['PE', 'PRESENTATION ERROR', '格式错误'].includes(upper) || raw === '格式错误') return 'PE'
+      if (['PAC', 'PARTIAL ACCEPTED'].includes(upper)) return 'PAC'
+      if (['SE', 'SYSTEM ERROR'].includes(upper)) return 'SE'
+      if (['CA', 'CANCELLED'].includes(upper)) return 'CA'
+      if (['SNR', 'SUBMITTED UNKNOWN RESULT'].includes(upper)) return 'SNR'
+      if (['PENDING', 'JUDGING', 'SUBMITTING', 'COMPILING', '等待中', '判题中', '提交中', '评测中...'].includes(raw) ||
+          ['PENDING', 'JUDGING', 'SUBMITTING', 'COMPILING'].includes(upper)) {
+        return 'PENDING'
       }
-      if (['等待中', '判题中', '提交中'].includes(result)) return 'warning'
-      return 'info'
+      if (upper.startsWith('UNKNOWN(')) return 'UNKNOWN'
+      return upper
+    },
+    isPendingResult(result) {
+      return this.normalizeJudgeResultCode(result) === 'PENDING'
+    },
+    formatJudgeResult(result) {
+      const code = this.normalizeJudgeResultCode(result)
+      if (code === 'PENDING') return '评测中'
+      if (['AC', 'WA', 'CE', 'RE', 'TLE', 'MLE', 'PE', 'PAC', 'SE', 'CA', 'SNR'].includes(code)) {
+        return code
+      }
+      const raw = String(result || '').trim()
+      return raw || '评测中'
+    },
+    getResultType(result) {
+      const code = this.normalizeJudgeResultCode(result)
+      if (code === 'AC') return 'success'
+      if (code === 'PAC') return 'primary'
+      if (code === 'PENDING') return 'warning'
+      if (['SE', 'CA', 'SNR', 'UNKNOWN'].includes(code)) return 'info'
+      return 'danger'
+    },
+    getResultClass(result) {
+      const code = this.normalizeJudgeResultCode(result)
+      if (code === 'AC') return 'judge-result-ac'
+      if (code === 'PENDING') return 'judge-result-pending'
+      if (code === 'PAC') return 'judge-result-pac'
+      if (['WA', 'CE', 'RE', 'TLE', 'MLE', 'PE'].includes(code)) return 'judge-result-error'
+      return 'judge-result-neutral'
+    },
+    getResultIcon(result) {
+      const code = this.normalizeJudgeResultCode(result)
+      if (code === 'AC') return 'el-icon-success'
+      if (code === 'PENDING') return 'el-icon-loading'
+      if (code === 'PAC') return 'el-icon-star-on'
+      if (['WA', 'CE', 'RE', 'TLE', 'MLE', 'PE'].includes(code)) return 'el-icon-error'
+      return 'el-icon-info'
     },
     // 添加代码行号
     addCodeLineNumbers() {
@@ -627,6 +768,35 @@ export default {
   max-height: 600px;
   overflow: auto;
   margin-top: 10px;
+}
+
+.judge-result-tag {
+  min-width: 74px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.judge-result-icon {
+  margin-right: 4px;
+}
+
+.judge-result-tag.judge-result-ac {
+  box-shadow: 0 0 0 1px rgba(103, 194, 58, 0.35) inset;
+}
+
+.judge-result-tag.judge-result-pending {
+  box-shadow: 0 0 0 1px rgba(230, 162, 60, 0.35) inset;
+}
+
+.judge-result-tag.judge-result-pac {
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.35) inset;
+}
+
+.judge-result-tag.judge-result-error {
+  box-shadow: 0 0 0 1px rgba(245, 108, 108, 0.35) inset;
 }
 </style>
 

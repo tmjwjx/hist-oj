@@ -18,10 +18,12 @@
     <!-- 移除 v-loading 避免轮询时闪烁 -->
     <el-card>
       <div v-if="homework.id">
-        <p><strong>{{ $t('m.Homework_Title') }}:</strong> {{ homework.title }}</p>
-        <p><strong>{{ $t('m.Description') }}:</strong> {{ homework.description || '-' }}</p>
-        <p><strong>{{ $t('m.Start_Time') }}:</strong> {{ formatTime(homework.startTime) }}</p>
-        <p><strong>{{ $t('m.End_Time') }}:</strong> {{ formatTime(homework.endTime) }}</p>
+        <div class="homework-meta">
+          <p><strong>{{ $t('m.Homework_Title') }}:</strong> {{ homework.title }}</p>
+          <p><strong>{{ $t('m.Description') }}:</strong> {{ homework.description || '-' }}</p>
+          <p><strong>{{ $t('m.Start_Time') }}:</strong> {{ formatTime(homework.startTime) }}</p>
+          <p><strong>{{ $t('m.End_Time') }}:</strong> {{ formatTime(homework.endTime) }}</p>
+        </div>
 
         <el-divider></el-divider>
 
@@ -126,12 +128,12 @@
                 <!-- 编程题作答状态 -->
                 <el-tag
                   v-else
-                  :type="programmingStatus[item.problemId] === 'submitted' ? 'success' : 'info'"
+                  :type="programmingStatus[getProgrammingStatusKey(item)] === 'submitted' ? 'success' : 'info'"
                   size="small"
                   style="margin-left: 10px"
                 >
-                  <i v-if="programmingStatus[item.problemId] === 'checking'" class="el-icon-loading"></i>
-                  {{ programmingStatusText[item.problemId] || '未作答' }}
+                  <i v-if="programmingStatus[getProgrammingStatusKey(item)] === 'checking'" class="el-icon-loading"></i>
+                  {{ programmingStatusText[getProgrammingStatusKey(item)] || '未作答' }}
                 </el-tag>
                 <!-- 已提交后显示得分 -->
                 <span v-if="canViewScore && questionScores[item.problemId] !== undefined" class="question-score-earned">
@@ -141,12 +143,14 @@
               </div>
               <ProgrammingQuestion
                 :problem-id="item.problemId"
-                :question-id="item.id"
+                :homework-question-id="item.id"
                 :homework-id="homework.id"
                 :can-view-homework="canViewHomework"
                 :can-view-score="canViewScore"
                 :can-view-answer="canViewAnswer"
                 :is-submitted="isSubmitted"
+                @programming-submitted="handleProgrammingSubmitted"
+                @programming-result-updated="handleProgrammingResultUpdated"
               />
             </div>
 
@@ -195,7 +199,7 @@
                   <el-tag type="info">已选: {{ answers[item.question.id] }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
-                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
                   <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
@@ -233,7 +237,7 @@
                   <el-tag type="info">已选: {{ [...multipleAnswers[item.question.id]].sort().join(', ') }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
-                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
                   <el-tag type="success">正确答案: {{ formatMultipleChoiceAnswer(item.question.answer) }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
@@ -264,10 +268,34 @@
                   <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '正确' : '错误' }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
-                <div v-if="canViewAnswer && isSubmitted" class="correct-answer">
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
                   <el-tag type="success">正确答案: {{ isJudgeTrue(item.question.answer) ? '正确' : '错误' }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
+                <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
+                  <div class="analysis-title">
+                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                  </div>
+                  <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
+                </div>
+              </div>
+
+              <!-- 填空题 -->
+              <div v-if="item.question.type === 'fill_blank'" class="subjective-answer">
+                <el-input
+                  v-model="answers[item.question.id]"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="请输入你的填空答案"
+                  @blur="handleAnswerChange"
+                  :disabled="isSubmitted"
+                />
+                <div v-if="answers[item.question.id]" class="student-answer">
+                  <el-tag type="info">已答: {{ answers[item.question.id] }}</el-tag>
+                </div>
+                <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
+                  <el-tag type="success">正确答案: {{ formatFillBlankAnswer(item.question.answer) }}</el-tag>
+                </div>
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
                     <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
@@ -328,7 +356,7 @@
                   </div>
                 </div>
                 <!-- 显示参考答案（仅在已提交且允许查看答案时） -->
-                <div v-if="canViewAnswer && isSubmitted" class="reference-answer">
+                <div v-if="canViewAnswer && isSubmitted" class="reference-answer answer-info compact-answer-info">
                   <div class="reference-answer-title">
                     <i class="el-icon-document"></i> 参考答案：
                   </div>
@@ -377,7 +405,7 @@
                   <div class="student-answer" v-if="getCompositeSelectedAnswer(item.question.id, subQuestion.id)">
                     <el-tag type="info">已选: {{ getCompositeSelectedAnswer(item.question.id, subQuestion.id) }}</el-tag>
                   </div>
-                  <div class="correct-answer" v-if="canViewAnswer && isSubmitted">
+                  <div class="correct-answer answer-info compact-answer-info" v-if="canViewAnswer && isSubmitted">
                     <el-tag type="success">正确答案: {{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id) || '-' }}</el-tag>
                   </div>
                 </div>
@@ -559,13 +587,14 @@ export default {
       hasUnsavedChanges: false,
       autoSaveTimer: null,
       isSubmitted: false, // 是否已正式提交（区别于草稿）
-      answers: {}, // 单选题、判断题、主观题答案
+      answers: {}, // 单选题、判断题、填空题、主观题答案
       multipleAnswers: {}, // 多选题答案数组 { questionId: ['A', 'B'] }
       compositeAnswers: {}, // 组合题答案 { questionId: { subId: 'A' } }
       questionScores: {}, // 每题得分 { questionId: score }
       questionIsScored: {}, // 每题是否已评分 { questionId: boolean }
-      programmingStatus: {}, // 编程题状态 { problemId: 'not_started' | 'checking' | 'submitted' }
-      programmingStatusText: {}, // 编程题状态文本 { problemId: '未作答' | '检测中...' | '已作答' }
+      programmingStatus: {}, // 编程题状态 { statusKey: 'not_started' | 'checking' | 'submitted' }
+      programmingStatusText: {}, // 编程题状态文本 { statusKey: '未作答' | '评测中...' | '已作答' }
+      programmingAnsweredOnce: {}, // 编程题已作答锁定标记 { statusKey: true }
       pollingTimer: null, // 轮询定时器
       isPolling: false, // 是否正在进行轮询请求（防止重复请求）
       isPageVisible: true, // 页面是否可见
@@ -608,7 +637,8 @@ export default {
       fullscreenChangeTime: 0, // 全屏变化的时间戳，用于避免 visibilitychange 误报
       isFullscreenChanging: false, // 标志：是否正在处理全屏变化（用于过滤visibilitychange事件）
       isWindowFocused: true, // 窗口是否有焦点
-      lastFullscreenState: false // 记录上一次的全屏状态，用于判断是进入还是退出全屏
+      lastFullscreenState: false, // 记录上一次的全屏状态，用于判断是进入还是退出全屏
+      antiCheatInitialized: false // 防作弊监听是否已初始化
     }
   },
   computed: {
@@ -694,11 +724,11 @@ export default {
     this.loadHomeworkDetail()
 
     // 添加页面可见性监听
-    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    document.addEventListener('visibilitychange', this.handlePageVisibilityChange)
   },
   beforeDestroy() {
     // 移除页面可见性监听
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+    document.removeEventListener('visibilitychange', this.handlePageVisibilityChange)
 
     // 清除自动保存定时器
     if (this.autoSaveTimer) {
@@ -775,7 +805,7 @@ export default {
                 if (!item.question) return
 
                 const qid = item.question.id
-                if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+                if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'fill_blank' || item.question.type === 'subjective') {
                   // 使用 $set 确保响应式
                   this.$set(this.answers, qid, '')
                 } else if (item.question.type === 'multiple_choice') {
@@ -950,7 +980,7 @@ export default {
                 } else if (questionType === 'composite' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                   this.$set(this.compositeAnswers, qid, parsed)
                 } else {
-                  // 单选题、判断题、主观题
+                  // 单选题、判断题、填空题、主观题
                   this.$set(this.answers, qid, answersData[qid])
                 }
               } catch (e) {
@@ -1095,7 +1125,7 @@ export default {
           if (!item.question) return
 
           const qid = item.question.id
-          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'fill_blank' || item.question.type === 'subjective') {
             // 如果已有答案就用已有的，否则用空字符串
             answersData[qid] = this.answers[qid] || ''
           } else if (item.question.type === 'composite') {
@@ -1153,7 +1183,7 @@ export default {
         // 合并所有答案
         const answersData = {}
 
-        // 单选、判断、主观题答案（包括空值，确保保存所有题目的状态）
+        // 单选、判断、填空、主观题答案（包括空值，确保保存所有题目的状态）
         this.homework.questions.forEach(item => {
           // 编程题跳过
           if (item.problemId) return
@@ -1162,7 +1192,7 @@ export default {
           if (!item.question) return
 
           const qid = item.question.id
-          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'fill_blank' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
           } else if (item.question.type === 'composite') {
             answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
@@ -1206,7 +1236,7 @@ export default {
         // 合并所有答案
         const answersData = {}
 
-        // 单选、判断、主观题答案（包括空值）
+        // 单选、判断、填空、主观题答案（包括空值）
         this.homework.questions.forEach(item => {
           // 编程题跳过
           if (item.problemId) return
@@ -1215,7 +1245,7 @@ export default {
           if (!item.question) return
 
           const qid = item.question.id
-          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'fill_blank' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
           } else if (item.question.type === 'composite') {
             answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
@@ -1279,7 +1309,8 @@ export default {
         // 编程题处理
         if (item.problemId) {
           // 检查编程题是否已提交
-          const status = this.programmingStatus[item.problemId]
+          const statusKey = this.getProgrammingStatusKey(item)
+          const status = statusKey ? this.programmingStatus[statusKey] : undefined
           if (status !== 'submitted') {
             unanswered.push(`第${this.getQuestionIndex(item)}题 (编程题)`)
           }
@@ -1325,7 +1356,7 @@ export default {
         // 合并所有答案
         const answersData = {}
 
-        // 单选、判断、主观题答案
+        // 单选、判断、填空、主观题答案
         this.homework.questions.forEach(item => {
           // 编程题跳过
           if (item.problemId) return
@@ -1334,7 +1365,7 @@ export default {
           if (!item.question) return
 
           const qid = item.question.id
-          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'subjective') {
+          if (item.question.type === 'single_choice' || item.question.type === 'judge' || item.question.type === 'fill_blank' || item.question.type === 'subjective') {
             answersData[qid] = this.answers[qid] || ''
           } else if (item.question.type === 'composite') {
             answersData[qid] = JSON.stringify(this.compositeAnswers[qid] || {})
@@ -1434,6 +1465,20 @@ export default {
       }
       return answer
     },
+    formatFillBlankAnswer(answer) {
+      if (!answer) return '教师未设置答案'
+      try {
+        const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
+        if (Array.isArray(parsed)) {
+          const answers = parsed.map(item => String(item || '').trim()).filter(Boolean)
+          return answers.length > 0 ? answers.join(' / ') : '教师未设置答案'
+        }
+      } catch (e) {
+        // fall through
+      }
+      const value = String(answer || '').trim()
+      return value || '教师未设置答案'
+    },
     isJudgeTrue(answer) {
       const raw = String(answer || '').trim()
       const lowered = raw.toLowerCase()
@@ -1462,11 +1507,29 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
+        fill_blank: '填空题',
         subjective: this.$t('m.Subjective'),
         composite: '组合题',
         programming: this.$t('m.Programming')
       }
       return map[type] || type
+    },
+    // 编程题状态key（优先使用作业题目关联ID homework_question.id，回退到problemId）
+    getProgrammingStatusKey(item) {
+      if (!item) return ''
+
+      const rawHomeworkQuestionId = item.homeworkQuestionId !== undefined && item.homeworkQuestionId !== null
+        ? item.homeworkQuestionId
+        : item.id
+      if (rawHomeworkQuestionId !== undefined && rawHomeworkQuestionId !== null && rawHomeworkQuestionId !== '') {
+        return String(rawHomeworkQuestionId)
+      }
+
+      if (item.problemId !== undefined && item.problemId !== null && item.problemId !== '') {
+        return `problem_${String(item.problemId).trim()}`
+      }
+
+      return ''
     },
     // 检查是否需要轮询（有编程题正在评测中）
     needsPolling() {
@@ -1482,10 +1545,12 @@ export default {
       }
 
       // 检查是否至少有一个编程题还没有评测结果
-      // 条件：状态不是 'completed'（即还没有评测结果）
+      // 条件：状态不是 'submitted'（即还未完成一次有效作答）
       const hasJudgingQuestions = programmingQuestions.some(q => {
-        const status = this.programmingStatus[q.problemId]
-        return status !== 'completed'  // 不是完成状态，说明还在评测中或未提交
+        const statusKey = this.getProgrammingStatusKey(q)
+        if (!statusKey) return true
+        const status = this.programmingStatus[statusKey]
+        return status !== 'submitted'
       })
 
       return hasJudgingQuestions
@@ -1506,8 +1571,21 @@ export default {
       // 为所有编程题初始化状态
       this.homework.questions.forEach(item => {
         if (item.problemId) {
-          this.$set(this.programmingStatus, item.problemId, 'not_started')
-          this.$set(this.programmingStatusText, item.problemId, '未作答')
+          const statusKey = this.getProgrammingStatusKey(item)
+          if (!statusKey) return
+
+          // 已确认作答过的题目不允许回退到“未作答”
+          if (this.programmingAnsweredOnce[statusKey]) {
+            this.$set(this.programmingStatus, statusKey, 'submitted')
+            this.$set(this.programmingStatusText, statusKey, '已作答')
+            return
+          }
+
+          const currentStatus = this.programmingStatus[statusKey]
+          if (currentStatus !== 'checking' && currentStatus !== 'submitted') {
+            this.$set(this.programmingStatus, statusKey, 'not_started')
+            this.$set(this.programmingStatusText, statusKey, '未作答')
+          }
         }
       })
 
@@ -1603,14 +1681,22 @@ export default {
         // 逐个查询编程题提交状态
         for (const question of programmingQuestions) {
           try {
+            const statusKey = this.getProgrammingStatusKey(question)
+            if (!statusKey) {
+              allCompleted = false
+              continue
+            }
+
             // 调用后端API查询该题目的提交记录
+            // 这里的 question.id 是作业题目关联ID（homework_question.id）
             const res = await this.$store.dispatch('classroom/getProgrammingSubmissions', {
               homeworkId: homeworkId,
-              questionId: question.id
+              homeworkQuestionId: question.id,
+              forceRefresh: true
             })
 
             const hasSubmission = res.code === 200 && res.data && res.data.length > 0
-            const currentStatus = this.programmingStatus[question.problemId]
+            const currentStatus = this.programmingStatus[statusKey]
 
             if (hasSubmission) {
               // 有提交记录
@@ -1628,19 +1714,18 @@ export default {
 
               if (hasCompleted) {
                 // 评测完成，更新状态
-                if (currentStatus !== 'completed') {
-                  this.$set(this.programmingStatus, question.problemId, 'completed')
+                this.$set(this.programmingAnsweredOnce, statusKey, true)
+                if (currentStatus !== 'submitted') {
+                  this.$set(this.programmingStatus, statusKey, 'submitted')
                   statusChanged = true
                 }
-                // 状态文本显示"已完成"而不是具体的评测结果
-                // 具体的评测结果在下面的"提交历史"中显示
-                this.$set(this.programmingStatusText, question.problemId, '已完成')
+                this.$set(this.programmingStatusText, statusKey, '已作答')
               } else {
                 // 评测中，继续等待
                 // 始终更新为"评测中"状态，避免状态回退
-                if (currentStatus !== 'judging' && currentStatus !== 'completed') {
-                  this.$set(this.programmingStatus, question.problemId, 'judging')
-                  this.$set(this.programmingStatusText, question.problemId, '评测中...')
+                if (currentStatus !== 'checking' && currentStatus !== 'submitted') {
+                  this.$set(this.programmingStatus, statusKey, 'checking')
+                  this.$set(this.programmingStatusText, statusKey, '评测中...')
                   statusChanged = true
                 }
                 allCompleted = false
@@ -1649,14 +1734,21 @@ export default {
               // 没有提交记录
               // 重要：如果当前状态已经是"评测中"或"已完成"，不要回退到"未作答"
               // 这可能是后端数据延迟导致的，保持当前状态不变
-              const currentStatus = this.programmingStatus[question.problemId]
-              if (currentStatus === 'judging' || currentStatus === 'completed') {
+              const currentStatus = this.programmingStatus[statusKey]
+              if (currentStatus === 'checking' || currentStatus === 'submitted' || this.programmingAnsweredOnce[statusKey]) {
+                // 一旦判定为已作答，强制维持“已作答”
+                let stableStatus = currentStatus
+                if (this.programmingAnsweredOnce[statusKey] && currentStatus !== 'checking') {
+                  this.$set(this.programmingStatus, statusKey, 'submitted')
+                  this.$set(this.programmingStatusText, statusKey, '已作答')
+                  stableStatus = 'submitted'
+                }
                 // 保持当前状态，不回退
-                allCompleted = (currentStatus === 'completed') ? allCompleted : false
+                allCompleted = (stableStatus === 'submitted') ? allCompleted : false
               } else {
                 // 只有当前不是"评测中"或"已完成"时，才设置为"未作答"
-                this.$set(this.programmingStatus, question.problemId, 'not_started')
-                this.$set(this.programmingStatusText, question.problemId, '未作答')
+                this.$set(this.programmingStatus, statusKey, 'not_started')
+                this.$set(this.programmingStatusText, statusKey, '未作答')
                 allCompleted = false
               }
             }
@@ -1751,8 +1843,8 @@ export default {
       }
       this.isPolling = false
     },
-    // 处理页面可见性变化
-    handleVisibilityChange() {
+    // 处理页面可见性变化（轮询控制）
+    handlePageVisibilityChange() {
       if (document.hidden) {
         // 页面隐藏，暂停轮询
         this.isPageVisible = false
@@ -1767,6 +1859,35 @@ export default {
           }
         }
       }
+    },
+    async handleProgrammingSubmitted(payload) {
+      const statusKey = this.getProgrammingStatusKey(payload)
+      if (!statusKey) return
+
+      this.$set(this.programmingStatus, statusKey, 'checking')
+      this.$set(this.programmingStatusText, statusKey, '评测中...')
+
+      // 提交后尽快触发一次强制刷新，减少“未作答”误判窗口
+      setTimeout(() => {
+        this.checkProgrammingStatus(true)
+      }, 1200)
+    },
+    handleProgrammingResultUpdated(payload) {
+      const statusKey = this.getProgrammingStatusKey(payload)
+      if (!statusKey) return
+
+      if (payload && payload.isPending) {
+        const currentStatus = this.programmingStatus[statusKey]
+        if (currentStatus !== 'submitted') {
+          this.$set(this.programmingStatus, statusKey, 'checking')
+          this.$set(this.programmingStatusText, statusKey, '评测中...')
+        }
+        return
+      }
+
+      this.$set(this.programmingAnsweredOnce, statusKey, true)
+      this.$set(this.programmingStatus, statusKey, 'submitted')
+      this.$set(this.programmingStatusText, statusKey, '已作答')
     },
     // 图片上传成功回调
     handleUploadSuccess(response, file, fileList, questionId) {
@@ -2046,63 +2167,68 @@ export default {
     },
     // 初始化防作弊
     initAntiCheat() {
+      if (this.antiCheatInitialized || this.isSubmitted) {
+        return
+      }
+
       // 先清理旧的监听器，防止重复添加
       this.cleanupAntiCheat()
 
-      this.$nextTick(() => {
-        // 禁止右键
-        document.addEventListener('contextmenu', this.handleContextMenu)
+      // 禁止右键
+      document.addEventListener('contextmenu', this.handleContextMenu)
 
-        // 禁止复制粘贴
-        if (this.examConfig.disableCopyPaste) {
-          document.addEventListener('copy', this.handleCopy)
-          document.addEventListener('paste', this.handlePaste)
-          document.addEventListener('cut', this.handleCut)
-        }
+      // 禁止复制粘贴（capture 模式可提高拦截稳定性）
+      if (this.examConfig.disableCopyPaste) {
+        document.addEventListener('copy', this.handleCopy, true)
+        document.addEventListener('paste', this.handlePaste, true)
+        document.addEventListener('cut', this.handleCut, true)
+      }
 
-        // 监听全屏变化
-        if (this.examConfig.requireFullscreen) {
-          // 初始化全屏状态
-          this.lastFullscreenState = !!(document.fullscreenElement || document.webkitFullscreenElement)
-          document.addEventListener('fullscreenchange', this.handleFullscreenChange)
-          document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
-          // 进入全屏
-          this.enterFullscreen()
-          // 延迟检查全屏状态（给浏览器一点时间处理全屏请求）
-          setTimeout(() => {
-            this.checkFullscreenStatus()
-          }, 1000)
-        }
+      // 监听全屏变化
+      if (this.examConfig.requireFullscreen) {
+        // 初始化全屏状态
+        this.lastFullscreenState = !!(document.fullscreenElement || document.webkitFullscreenElement)
+        document.addEventListener('fullscreenchange', this.handleFullscreenChange)
+        document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+        // 进入全屏
+        this.enterFullscreen()
+        // 延迟检查全屏状态（给浏览器一点时间处理全屏请求）
+        setTimeout(() => {
+          this.checkFullscreenStatus()
+        }, 1000)
+      }
 
-        // 监听标签页切换
-        if (this.examConfig.disallowTabSwitch) {
-          document.addEventListener('visibilitychange', this.handleVisibilityChange)
-        }
+      // 监听标签页切换（考试防切屏）
+      if (this.examConfig.disallowTabSwitch) {
+        document.addEventListener('visibilitychange', this.handleExamVisibilityChange)
+      }
 
-        // 监听窗口焦点变化（检测切换到其他软件）
-        window.addEventListener('blur', this.handleWindowBlur)
-        window.addEventListener('focus', this.handleWindowFocus)
+      // 监听窗口焦点变化（检测切换到其他软件）
+      window.addEventListener('blur', this.handleWindowBlur)
+      window.addEventListener('focus', this.handleWindowFocus)
 
-        // 禁用常用快捷键
-        document.addEventListener('keydown', this.handleKeyDown)
+      // 禁用常用快捷键
+      document.addEventListener('keydown', this.handleKeyDown)
 
-        // 防止页面刷新或关闭
-        window.addEventListener('beforeunload', this.handleBeforeUnload)
-      })
+      // 防止页面刷新或关闭
+      window.addEventListener('beforeunload', this.handleBeforeUnload)
+
+      this.antiCheatInitialized = true
     },
     // 清理防作弊监听
     cleanupAntiCheat() {
       document.removeEventListener('contextmenu', this.handleContextMenu)
-      document.removeEventListener('copy', this.handleCopy)
-      document.removeEventListener('paste', this.handlePaste)
-      document.removeEventListener('cut', this.handleCut)
+      document.removeEventListener('copy', this.handleCopy, true)
+      document.removeEventListener('paste', this.handlePaste, true)
+      document.removeEventListener('cut', this.handleCut, true)
       document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
       document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)
-      document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+      document.removeEventListener('visibilitychange', this.handleExamVisibilityChange)
       window.removeEventListener('blur', this.handleWindowBlur)
       window.removeEventListener('focus', this.handleWindowFocus)
       document.removeEventListener('keydown', this.handleKeyDown)
       window.removeEventListener('beforeunload', this.handleBeforeUnload)
+      this.antiCheatInitialized = false
     },
     // 禁止右键
     handleContextMenu(e) {
@@ -2228,8 +2354,8 @@ export default {
         this.isFullscreenChanging = false
       }, 2000)
     },
-    // 标签页切换监听
-    handleVisibilityChange() {
+    // 标签页切换监听（考试防切屏）
+    handleExamVisibilityChange() {
       // 如果已经提交，不再检测标签页切换
       if (this.isSubmitted) {
         return
@@ -2406,7 +2532,8 @@ export default {
       let isAnswered = false
       if (question.problemId) {
         // 编程题
-        isAnswered = this.programmingStatus[question.problemId] === 'submitted'
+        const statusKey = this.getProgrammingStatusKey(question)
+        isAnswered = statusKey ? this.programmingStatus[statusKey] === 'submitted' : false
       } else if (question.question) {
         // 普通题目
         const qid = question.question.id
@@ -2478,6 +2605,18 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+.homework-meta {
+  font-size: 17px;
+  line-height: 1.9;
+  color: #303133;
+}
+.homework-meta p {
+  margin: 6px 0;
+}
+.homework-meta strong {
+  font-size: 18px;
+  color: #1f2d3d;
 }
 .questions-container {
   margin: 20px 0;

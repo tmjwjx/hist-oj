@@ -216,6 +216,8 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 				score = 5 // 多选题默认5分
 			case "judge":
 				score = 1 // 判断题默认1分
+			case "fill_blank":
+				score = 2 // 填空题默认2分
 			case "subjective":
 				score = 5 // 主观题默认5分
 			case "programming":
@@ -382,6 +384,8 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 				score = 5 // 多选题默认5分
 			case "judge":
 				score = 1 // 判断题默认1分
+			case "fill_blank":
+				score = 2 // 填空题默认2分
 			case "subjective":
 				score = 5 // 主观题默认5分
 			case "programming":
@@ -841,70 +845,34 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 			zap.String("questionId", questionIDStr),
 			zap.String("attachment", attachment))
 
-		// 计算分数（单选、多选、判断题自动判分）
+		// 计算分数（客观题自动判分）
 		score := 0.0
 		isScored := 0
-		if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
-			// 对于单选题，直接比较字符串
-			if question.Type == "single_choice" {
-				if answer == question.Answer {
-					// 获取该题在作业中的分值
-					var homeworkQuestion model.HomeworkQuestion
-					if err := tx.Where("homework_id = ? AND question_id = ?",
-						req.HomeworkID, questionID).First(&homeworkQuestion).Error; err == nil {
-						score = float64(homeworkQuestion.Score)
-					}
-				}
-			} else if question.Type == "judge" {
-				// 对于判断题，使用严格规范化比较（仅 true/false）
-				if compareJudgeAnswers(answer, question.Answer) {
-					// 获取该题在作业中的分值
-					var homeworkQuestion model.HomeworkQuestion
-					if err := tx.Where("homework_id = ? AND question_id = ?",
-						req.HomeworkID, questionID).First(&homeworkQuestion).Error; err == nil {
-						score = float64(homeworkQuestion.Score)
-					}
-				}
-			} else if question.Type == "multiple_choice" {
-				// 对于多选题，需要比较JSON数组或逗号分隔字符串
-				var studentAnswers, correctAnswers []string
-
-				// 解析学生答案（新格式：JSON数组）
-				if err := json.Unmarshal([]byte(answer), &studentAnswers); err != nil {
-					// 兼容旧格式：逗号分隔字符串
-					studentAnswers = strings.Split(answer, ",")
-					// 去除空格
-					for i := range studentAnswers {
-						studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
-					}
-				}
-
-				// 解析正确答案（新格式：JSON数组）
-				if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
-					// 兼容旧格式：逗号分隔字符串
-					correctAnswers = strings.Split(question.Answer, ",")
-					// 去除空格
-					for i := range correctAnswers {
-						correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
-					}
-				}
-
-				// 记录调试信息
-				logger.Info("多选题评分", zap.String("question_id", strconv.FormatUint(questionID, 10)),
-					zap.String("student_answer", answer), zap.String("correct_answer", question.Answer),
-					zap.Any("parsed_student", studentAnswers), zap.Any("parsed_correct", correctAnswers),
-					zap.Bool("match", compareArrays(studentAnswers, correctAnswers)))
-
-				// 比较答案
-				if compareArrays(studentAnswers, correctAnswers) {
-					var homeworkQuestion model.HomeworkQuestion
-					if err := tx.Where("homework_id = ? AND question_id = ?",
-						req.HomeworkID, questionID).First(&homeworkQuestion).Error; err == nil {
-						score = float64(homeworkQuestion.Score)
-					}
+		if isAutoScoredObjectiveQuestionType(question.Type) {
+			var homeworkQuestion model.HomeworkQuestion
+			if err := tx.Where("homework_id = ? AND question_id = ?", req.HomeworkID, questionID).
+				First(&homeworkQuestion).Error; err != nil {
+				logger.Warn("查询作业题目分值失败，按0分处理",
+					zap.Uint64("homework_id", req.HomeworkID),
+					zap.Uint64("question_id", questionID),
+					zap.Error(err))
+				isScored = 1
+			} else {
+				autoScore, autoScored, scoreErr := calculateAutoObjectiveScore(&question, answer, float64(homeworkQuestion.Score))
+				if scoreErr != nil {
+					logger.Warn("客观题自动判分失败，按0分处理",
+						zap.Uint64("homework_id", req.HomeworkID),
+						zap.Uint64("question_id", questionID),
+						zap.String("question_type", question.Type),
+						zap.String("student_answer", answer),
+						zap.Error(scoreErr))
+					score = 0
+					isScored = 1
+				} else if autoScored {
+					score = autoScore
+					isScored = 1
 				}
 			}
-			isScored = 1
 		}
 
 		// 查找是否已提交
@@ -991,49 +959,37 @@ func (h *Handler) SubmitHomework(c *gin.Context) {
 					var question model.QuestionBank
 					if err := tx.Where("id = ?", *hq.QuestionID).First(&question).Error; err == nil {
 						// 是客观题，自动评分（即使是空答案也算已评分）
-						if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
-							// 计算分数
-							score := 0.0
-							if question.Type == "single_choice" && existingSubmit.Answer == question.Answer {
-								score = float64(hq.Score)
-							} else if question.Type == "judge" && compareJudgeAnswers(existingSubmit.Answer, question.Answer) {
-								score = float64(hq.Score)
-							} else if question.Type == "multiple_choice" {
-								// 多选题比较
-								var studentAnswers, correctAnswers []string
-								if err := json.Unmarshal([]byte(existingSubmit.Answer), &studentAnswers); err != nil {
-									studentAnswers = strings.Split(existingSubmit.Answer, ",")
-									for i := range studentAnswers {
-										studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
-									}
-								}
-								if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
-									correctAnswers = strings.Split(question.Answer, ",")
-									for i := range correctAnswers {
-										correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
-									}
-								}
-								if compareArrays(studentAnswers, correctAnswers) {
-									score = float64(hq.Score)
-								}
-							}
-
-							// 更新为已评分
-							if err := tx.Model(&existingSubmit).
-								Updates(map[string]interface{}{
-									"score":     score,
-									"is_scored": 1,
-								}).Error; err != nil {
-								logger.Error("更新客观题评分失败",
-									zap.Error(err),
-									zap.Uint64("questionId", *hq.QuestionID),
-									zap.String("uid", uid.(string)))
-							} else {
-								logger.Info("自动评分未作答客观题",
+						if isAutoScoredObjectiveQuestionType(question.Type) {
+							score, autoScored, scoreErr := calculateAutoObjectiveScore(&question, existingSubmit.Answer, float64(hq.Score))
+							if scoreErr != nil {
+								logger.Warn("自动评分客观题失败，按0分处理",
 									zap.Uint64("questionId", *hq.QuestionID),
 									zap.String("uid", uid.(string)),
 									zap.String("questionType", question.Type),
-									zap.Float64("score", score))
+									zap.String("studentAnswer", existingSubmit.Answer),
+									zap.Error(scoreErr))
+								score = 0
+								autoScored = true
+							}
+
+							if autoScored {
+								// 更新为已评分
+								if err := tx.Model(&existingSubmit).
+									Updates(map[string]interface{}{
+										"score":     score,
+										"is_scored": 1,
+									}).Error; err != nil {
+									logger.Error("更新客观题评分失败",
+										zap.Error(err),
+										zap.Uint64("questionId", *hq.QuestionID),
+										zap.String("uid", uid.(string)))
+								} else {
+									logger.Info("自动评分未作答客观题",
+										zap.Uint64("questionId", *hq.QuestionID),
+										zap.String("uid", uid.(string)),
+										zap.String("questionType", question.Type),
+										zap.Float64("score", score))
+								}
 							}
 						}
 					}
@@ -1339,6 +1295,82 @@ func (h *Handler) GetStudentHomeworkDetail(c *gin.Context) {
 	if len(submissions) == 0 {
 		c.JSON(http.StatusOK, successResponse(nil))
 		return
+	}
+
+	// 自动修复历史数据中客观题未评分记录（如组合题）
+	questionCache := make(map[uint64]model.QuestionBank)
+	questionScoreCache := make(map[uint64]float64)
+	for i := range submissions {
+		submission := &submissions[i]
+		if submission.QuestionID == nil || submission.IsScored == 1 {
+			continue
+		}
+
+		questionID := *submission.QuestionID
+
+		question, ok := questionCache[questionID]
+		if !ok {
+			if err := db.Where("id = ?", questionID).First(&question).Error; err != nil {
+				logger.Warn("查询题目信息失败，跳过自动评分修复",
+					zap.Uint64("homework_id", homeworkID),
+					zap.String("uid", uid.(string)),
+					zap.Uint64("question_id", questionID),
+					zap.Error(err))
+				continue
+			}
+			questionCache[questionID] = question
+		}
+
+		if !isAutoScoredObjectiveQuestionType(question.Type) {
+			continue
+		}
+
+		questionFullScore, scoreCached := questionScoreCache[questionID]
+		if !scoreCached {
+			var homeworkQuestion model.HomeworkQuestion
+			if err := db.Where("homework_id = ? AND question_id = ?", homeworkID, questionID).
+				First(&homeworkQuestion).Error; err != nil {
+				logger.Warn("查询作业题目分值失败，跳过自动评分修复",
+					zap.Uint64("homework_id", homeworkID),
+					zap.String("uid", uid.(string)),
+					zap.Uint64("question_id", questionID),
+					zap.Error(err))
+				continue
+			}
+			questionFullScore = float64(homeworkQuestion.Score)
+			questionScoreCache[questionID] = questionFullScore
+		}
+
+		score, autoScored, scoreErr := calculateAutoObjectiveScore(&question, submission.Answer, questionFullScore)
+		if scoreErr != nil {
+			logger.Warn("自动评分修复失败，按0分处理",
+				zap.Uint64("homework_id", homeworkID),
+				zap.String("uid", uid.(string)),
+				zap.Uint64("question_id", questionID),
+				zap.String("question_type", question.Type),
+				zap.Error(scoreErr))
+			score = 0
+			autoScored = true
+		}
+		if !autoScored {
+			continue
+		}
+
+		submission.Score = score
+		submission.IsScored = 1
+		if err := db.Model(&model.HomeworkSubmit{}).
+			Where("id = ?", submission.ID).
+			Updates(map[string]interface{}{
+				"score":     score,
+				"is_scored": 1,
+			}).Error; err != nil {
+			logger.Warn("更新自动评分修复结果失败",
+				zap.Uint64("submit_id", submission.ID),
+				zap.Uint64("homework_id", homeworkID),
+				zap.String("uid", uid.(string)),
+				zap.Uint64("question_id", questionID),
+				zap.Error(err))
+		}
 	}
 
 	// 构建答案数据 map[questionID]answer
@@ -2556,7 +2588,7 @@ func (h *Handler) RecalculateScore(c *gin.Context) {
 	}
 
 	// 检查是否为客观题
-	if question.Type != "single_choice" && question.Type != "multiple_choice" && question.Type != "judge" {
+	if !isAutoScoredObjectiveQuestionType(question.Type) {
 		c.JSON(http.StatusOK, errorResponse(400, "只能重新计算客观题分数"))
 		return
 	}
@@ -2570,57 +2602,30 @@ func (h *Handler) RecalculateScore(c *gin.Context) {
 		return
 	}
 
-	// 重新计算分数
-	score := 0.0
-	if question.Type == "single_choice" {
-		if submit.Answer == question.Answer {
-			var homeworkQuestion model.HomeworkQuestion
-			if err := db.Where("homework_id = ? AND question_id = ?",
-				req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err == nil {
-				score = float64(homeworkQuestion.Score)
-			}
-		}
-	} else if question.Type == "judge" {
-		// 对于判断题，使用严格规范化比较（仅 true/false）
-		if compareJudgeAnswers(submit.Answer, question.Answer) {
-			var homeworkQuestion model.HomeworkQuestion
-			if err := db.Where("homework_id = ? AND question_id = ?",
-				req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err == nil {
-				score = float64(homeworkQuestion.Score)
-			}
-		}
-	} else if question.Type == "multiple_choice" {
-		// 对于多选题，需要比较JSON数组或逗号分隔字符串
-		var studentAnswers, correctAnswers []string
+	// 读取题目分值并重新计算
+	var homeworkQuestion model.HomeworkQuestion
+	if err := db.Where("homework_id = ? AND question_id = ?",
+		req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err != nil {
+		logger.Error("作业题目不存在", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(404, "作业题目不存在"))
+		return
+	}
 
-		// 解析学生答案（新格式：JSON数组）
-		if err := json.Unmarshal([]byte(submit.Answer), &studentAnswers); err != nil {
-			// 兼容旧格式：逗号分隔字符串
-			studentAnswers = strings.Split(submit.Answer, ",")
-			// 去除空格
-			for i := range studentAnswers {
-				studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
-			}
-		}
-
-		// 解析正确答案（新格式：JSON数组）
-		if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
-			// 兼容旧格式：逗号分隔字符串
-			correctAnswers = strings.Split(question.Answer, ",")
-			// 去除空格
-			for i := range correctAnswers {
-				correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
-			}
-		}
-
-		// 比较答案
-		if compareArrays(studentAnswers, correctAnswers) {
-			var homeworkQuestion model.HomeworkQuestion
-			if err := db.Where("homework_id = ? AND question_id = ?",
-				req.HomeworkID, req.QuestionID).First(&homeworkQuestion).Error; err == nil {
-				score = float64(homeworkQuestion.Score)
-			}
-		}
+	score, autoScored, scoreErr := calculateAutoObjectiveScore(&question, submit.Answer, float64(homeworkQuestion.Score))
+	if scoreErr != nil {
+		logger.Warn("重新计算客观题分数失败，按0分处理",
+			zap.Uint64("homework_id", req.HomeworkID),
+			zap.Uint64("question_id", req.QuestionID),
+			zap.String("uid", req.UID),
+			zap.String("question_type", question.Type),
+			zap.String("student_answer", submit.Answer),
+			zap.Error(scoreErr))
+		score = 0
+		autoScored = true
+	}
+	if !autoScored {
+		c.JSON(http.StatusOK, errorResponse(400, "只能重新计算客观题分数"))
+		return
 	}
 
 	// 更新分数
@@ -3154,7 +3159,11 @@ func (h *Handler) GetProgrammingSubmissions(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	homeworkIDStr := c.Query("homeworkId")
-	questionIDStr := c.Query("questionId")
+	homeworkQuestionIDStr := c.Query("homeworkQuestionId")
+	// 兼容旧参数名 questionId（历史前端请求）
+	if homeworkQuestionIDStr == "" {
+		homeworkQuestionIDStr = c.Query("questionId")
+	}
 
 	homeworkID, err := strconv.ParseUint(homeworkIDStr, 10, 64)
 	if err != nil {
@@ -3162,9 +3171,9 @@ func (h *Handler) GetProgrammingSubmissions(c *gin.Context) {
 		return
 	}
 
-	questionID, err := strconv.ParseUint(questionIDStr, 10, 64)
+	homeworkQuestionID, err := strconv.ParseUint(homeworkQuestionIDStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusOK, errorResponse(400, "questionId参数格式错误"))
+		c.JSON(http.StatusOK, errorResponse(400, "homeworkQuestionId参数格式错误"))
 		return
 	}
 
@@ -3179,8 +3188,8 @@ func (h *Handler) GetProgrammingSubmissions(c *gin.Context) {
 
 	// 先查询 homework_question 表，获取 problem_id
 	var homeworkQuestion model.HomeworkQuestion
-	if err := db.Where("id = ?", questionID).First(&homeworkQuestion).Error; err != nil {
-		logger.Error("查询作业题目失败", zap.Error(err), zap.Uint64("question_id", questionID))
+	if err := db.Where("id = ?", homeworkQuestionID).First(&homeworkQuestion).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err), zap.Uint64("homework_question_id", homeworkQuestionID))
 		c.JSON(http.StatusOK, errorResponse(404, "题目不存在"))
 		return
 	}
@@ -3486,27 +3495,81 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 		return
 	}
 
-	// 统计提交和未提交学生
+	// 统计提交和未提交学生，并按总分计算排名
 	submittedUIDs := make(map[string]bool)
+	studentTotalScores := make(map[string]float64)
 	for _, submit := range submissions {
 		submittedUIDs[submit.UID] = true
+		studentTotalScores[submit.UID] += submit.Score
 	}
 
-	var submittedStudents []interface{}
-	var unsubmittedStudents []interface{}
+	type studentRankItem struct {
+		UID       string
+		RealName  string
+		Username  string
+		Score     float64
+		Submitted bool
+	}
 
+	rankItems := make([]studentRankItem, 0, len(classroomStudents))
 	for _, cs := range classroomStudents {
 		username := ""
 		if cs.User != nil {
 			username = cs.User.Username
 		}
+		rankItems = append(rankItems, studentRankItem{
+			UID:       cs.UID,
+			RealName:  cs.RealName,
+			Username:  username,
+			Score:     studentTotalScores[cs.UID],
+			Submitted: submittedUIDs[cs.UID],
+		})
+	}
 
-		studentInfo := map[string]interface{}{
-			"uid":      cs.UID,
-			"realName": cs.RealName,
-			"username": username,
+	sort.SliceStable(rankItems, func(i, j int) bool {
+		if rankItems[i].Score != rankItems[j].Score {
+			return rankItems[i].Score > rankItems[j].Score
 		}
-		if submittedUIDs[cs.UID] {
+		if rankItems[i].Username != rankItems[j].Username {
+			return rankItems[i].Username < rankItems[j].Username
+		}
+		if rankItems[i].RealName != rankItems[j].RealName {
+			return rankItems[i].RealName < rankItems[j].RealName
+		}
+		return rankItems[i].UID < rankItems[j].UID
+	})
+
+		var submittedStudents []interface{}
+		var unsubmittedStudents []interface{}
+		studentRankings := make([]interface{}, 0, len(rankItems))
+		currentRank := 0
+		prevScore := 0.0
+
+		for i, item := range rankItems {
+			if i == 0 {
+				currentRank = 1
+			} else {
+				// 并列排名（竞赛排名）：同分同名次，后续名次按人数跳过
+				diff := item.Score - prevScore
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff > 1e-9 {
+					currentRank = i + 1
+				}
+			}
+			prevScore = item.Score
+
+			studentInfo := map[string]interface{}{
+				"uid":      item.UID,
+				"realName": item.RealName,
+				"username": item.Username,
+				"score":    item.Score,
+				"rank":     currentRank,
+			}
+
+		studentRankings = append(studentRankings, studentInfo)
+		if item.Submitted {
 			submittedStudents = append(submittedStudents, studentInfo)
 		} else {
 			unsubmittedStudents = append(unsubmittedStudents, studentInfo)
@@ -3684,7 +3747,79 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 			analysis["avgScore"] = avgScore
 
 			// 对所有题目类型生成扇形图数据
-			if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" {
+			if question.Type == "fill_blank" {
+				type fillBlankStat struct {
+					count      int
+					selectedBy []interface{}
+				}
+				answerStatMap := make(map[string]*fillBlankStat)
+
+				for _, s := range questionSubmissions {
+					answerLabel := "未作答"
+					studentAnswers, err := normalizeFillBlankAnswerList(s.Answer, true)
+					if err == nil && len(studentAnswers) > 0 {
+						answerLabel = studentAnswers[0]
+					}
+					answerLabel = strings.TrimSpace(answerLabel)
+					if answerLabel == "" {
+						answerLabel = "未作答"
+					}
+
+					stat, exists := answerStatMap[answerLabel]
+					if !exists {
+						stat = &fillBlankStat{
+							count:      0,
+							selectedBy: make([]interface{}, 0),
+						}
+						answerStatMap[answerLabel] = stat
+					}
+					stat.count++
+
+					if cs, ok := studentMap[s.UID]; ok {
+						username := ""
+						if cs.User != nil {
+							username = cs.User.Username
+						}
+						stat.selectedBy = append(stat.selectedBy, map[string]interface{}{
+							"uid":      s.UID,
+							"realName": cs.RealName,
+							"username": username,
+							"score":    s.Score,
+						})
+					}
+				}
+
+				answerLabels := make([]string, 0, len(answerStatMap))
+				for label := range answerStatMap {
+					answerLabels = append(answerLabels, label)
+				}
+				sort.Slice(answerLabels, func(i, j int) bool {
+					left := answerStatMap[answerLabels[i]]
+					right := answerStatMap[answerLabels[j]]
+					if left.count == right.count {
+						return answerLabels[i] < answerLabels[j]
+					}
+					return left.count > right.count
+				})
+
+				optionStats := make([]map[string]interface{}, 0, len(answerLabels))
+				for _, label := range answerLabels {
+					stat := answerStatMap[label]
+					percentage := 0.0
+					if count > 0 {
+						percentage = float64(stat.count) / float64(count) * 100
+					}
+					optionStats = append(optionStats, map[string]interface{}{
+						"label":         label,
+						"content":       label,
+						"selectedCount": stat.count,
+						"percentage":    percentage,
+						"selectedBy":    stat.selectedBy,
+					})
+				}
+
+				analysis["options"] = optionStats
+			} else if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" {
 				// 选择题：按选项分布
 				var options []map[string]interface{}
 
@@ -3899,22 +4034,34 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 					}
 
 					// 对于选择题，添加选择的选项
-					if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" {
+					if question.Type == "single_choice" || question.Type == "judge" || question.Type == "multiple_choice" || question.Type == "fill_blank" {
 						var studentAnswer []string
-						// 首先尝试解析为JSON数组
-						if err := json.Unmarshal([]byte(s.Answer), &studentAnswer); err == nil {
-							studentData["answer"] = studentAnswer
-							logger.Info("解析答案成功(JSON数组)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
-						} else {
-							// 如果解析失败，当作简单字符串处理
-							if s.Answer != "" {
-								studentAnswer = []string{s.Answer}
+						if question.Type == "fill_blank" {
+							normalizedFillBlankAnswers, err := normalizeFillBlankAnswerList(s.Answer, true)
+							if err == nil && len(normalizedFillBlankAnswers) > 0 {
+								studentAnswer = normalizedFillBlankAnswers
 								studentData["answer"] = studentAnswer
-								logger.Info("解析答案成功(简单字符串)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
+								logger.Info("解析填空题答案成功", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
 							} else {
-								// 答案为空（学生未作答），设置为空数组，以便前端显示"未作答"
 								studentData["answer"] = []string{}
-								logger.Info("答案为空（未作答）", zap.String("uid", s.UID))
+								logger.Info("填空题答案为空（未作答）", zap.String("uid", s.UID))
+							}
+						} else {
+							// 首先尝试解析为JSON数组
+							if err := json.Unmarshal([]byte(s.Answer), &studentAnswer); err == nil {
+								studentData["answer"] = studentAnswer
+								logger.Info("解析答案成功(JSON数组)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
+							} else {
+								// 如果解析失败，当作简单字符串处理
+								if s.Answer != "" {
+									studentAnswer = []string{s.Answer}
+									studentData["answer"] = studentAnswer
+									logger.Info("解析答案成功(简单字符串)", zap.String("uid", s.UID), zap.Any("answer", studentAnswer))
+								} else {
+									// 答案为空（学生未作答），设置为空数组，以便前端显示"未作答"
+									studentData["answer"] = []string{}
+									logger.Info("答案为空（未作答）", zap.String("uid", s.UID))
+								}
 							}
 						}
 					}
@@ -3958,6 +4105,7 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 		"unsubmittedCount":    len(unsubmittedStudents),
 		"submittedStudents":   submittedStudents,
 		"unsubmittedStudents": unsubmittedStudents,
+		"studentRankings":     studentRankings,
 		"questionAnalysis":    questionAnalysis,
 	}
 

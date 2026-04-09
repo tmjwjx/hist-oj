@@ -67,6 +67,16 @@ func normalizeQuestionAnswerForStorage(questionType string, rawAnswer string, ra
 		return normalized, nil, nil
 	case "subjective":
 		return strings.TrimSpace(rawAnswer), nil, nil
+	case "fill_blank":
+		normalizedAnswers, err := normalizeFillBlankAnswerList(rawAnswer, false)
+		if err != nil {
+			return "", nil, err
+		}
+		answerBytes, err := json.Marshal(normalizedAnswers)
+		if err != nil {
+			return "", nil, fmt.Errorf("序列化填空题答案失败")
+		}
+		return string(answerBytes), nil, nil
 	case "programming":
 		return "", nil, nil
 	default:
@@ -94,6 +104,8 @@ func normalizeStudentAnswerForStorage(question *model.QuestionBank, rawAnswer st
 		return normalized, nil
 	case "subjective":
 		return strings.TrimSpace(rawAnswer), nil
+	case "fill_blank":
+		return normalizeFillBlankStorageValue(rawAnswer), nil
 	case "composite":
 		subQuestions, _, err := parseCompositeSubQuestionsFromStored(question.Options)
 		if err != nil {
@@ -382,8 +394,108 @@ func calculateAutoObjectiveScore(question *model.QuestionBank, studentAnswer str
 			return 0, true, err
 		}
 		return score, true, nil
+	case "fill_blank":
+		if isFillBlankAnswerCorrect(studentAnswer, question.Answer) {
+			return questionFullScore, true, nil
+		}
+		return 0, true, nil
 	default:
 		return 0, false, nil
+	}
+}
+
+func normalizeFillBlankStorageValue(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(trimmed), " ")
+}
+
+func normalizeFillBlankAnswerList(raw string, allowEmpty bool) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		if allowEmpty {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("填空题至少需要一个有效答案")
+	}
+
+	values := make([]string, 0)
+	if strings.HasPrefix(trimmed, "[") {
+		var arr []interface{}
+		if err := json.Unmarshal([]byte(trimmed), &arr); err != nil {
+			return nil, fmt.Errorf("填空题答案格式错误")
+		}
+		for _, item := range arr {
+			normalized := normalizeFillBlankStorageValue(fmt.Sprintf("%v", item))
+			if normalized != "" {
+				values = append(values, normalized)
+			}
+		}
+	} else {
+		normalized := normalizeFillBlankStorageValue(trimmed)
+		if normalized != "" {
+			values = append(values, normalized)
+		}
+	}
+
+	unique := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+
+	if len(unique) == 0 {
+		if allowEmpty {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("填空题至少需要一个有效答案")
+	}
+
+	return unique, nil
+}
+
+func isFillBlankAnswerCorrect(studentAnswer string, correctAnswerRaw string) bool {
+	studentAnswers, err := normalizeFillBlankAnswerList(studentAnswer, true)
+	if err != nil || len(studentAnswers) == 0 {
+		return false
+	}
+
+	correctAnswers, err := normalizeFillBlankAnswerList(correctAnswerRaw, false)
+	if err != nil || len(correctAnswers) == 0 {
+		return false
+	}
+
+	correctExact := make(map[string]struct{}, len(correctAnswers))
+	correctFold := make(map[string]struct{}, len(correctAnswers))
+	for _, answer := range correctAnswers {
+		correctExact[answer] = struct{}{}
+		correctFold[strings.ToLower(answer)] = struct{}{}
+	}
+
+	for _, answer := range studentAnswers {
+		if _, ok := correctExact[answer]; ok {
+			return true
+		}
+		if _, ok := correctFold[strings.ToLower(answer)]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isAutoScoredObjectiveQuestionType(questionType string) bool {
+	switch questionType {
+	case "single_choice", "multiple_choice", "judge", "fill_blank", "composite":
+		return true
+	default:
+		return false
 	}
 }
 

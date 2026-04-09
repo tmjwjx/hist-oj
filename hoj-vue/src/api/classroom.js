@@ -181,10 +181,16 @@ export default {
     return axios.post(`${BASE_URL}/programming/submission`, data)
   },
   getProgrammingSubmissions(params) {
+    const query = { ...(params || {}) }
+    if (!query.homeworkQuestionId && query.questionId) {
+      query.homeworkQuestionId = query.questionId
+      delete query.questionId
+    }
+
     // 为编程题提交记录查询设置更长的超时时间（30秒）
     // 因为这个查询可能涉及判题系统，需要更长时间
     return axios.get(`${BASE_URL}/programming/submissions`, {
-      params,
+      params: query,
       timeout: 30000 // 30秒超时
     })
   },

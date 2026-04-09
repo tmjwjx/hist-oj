@@ -1,10 +1,8 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -815,72 +813,43 @@ func (h *Handler) ForceSubmit(c *gin.Context) {
 		if submit.QuestionID != nil {
 			var question model.QuestionBank
 			if err := db.Where("id = ?", *submit.QuestionID).First(&question).Error; err == nil {
-				// 客观题自动评分（单选、判断、多选）
-				if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
-					score := 0.0
-					isScored := 1 // 标记为已评分
-
-					// 单选题评分
-					if question.Type == "single_choice" {
-						if submit.Answer == question.Answer {
-							// 获取该题在作业中的分值
-							var homeworkQuestion model.HomeworkQuestion
-							if err := db.Where("homework_id = ? AND question_id = ?",
-								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-								score = float64(homeworkQuestion.Score)
+					// 客观题自动评分（单选、多选、判断、填空）
+					if isAutoScoredObjectiveQuestionType(question.Type) {
+						var homeworkQuestion model.HomeworkQuestion
+						if err := db.Where("homework_id = ? AND question_id = ?",
+							req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+							score, autoScored, scoreErr := calculateAutoObjectiveScore(&question, submit.Answer, float64(homeworkQuestion.Score))
+							if scoreErr != nil {
+								logger.Warn("强制收卷自动评分失败，按0分处理",
+									zap.String("uid", req.UID),
+									zap.Uint64("questionId", *submit.QuestionID),
+									zap.String("questionType", question.Type),
+									zap.String("studentAnswer", submit.Answer),
+									zap.Error(scoreErr))
+								score = 0
+								autoScored = true
 							}
-						}
-					} else if question.Type == "judge" {
-						// 判断题评分
-						if compareJudgeAnswers(submit.Answer, question.Answer) {
-							var homeworkQuestion model.HomeworkQuestion
-							if err := db.Where("homework_id = ? AND question_id = ?",
-								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-								score = float64(homeworkQuestion.Score)
+							if autoScored {
+								updates["score"] = score
+								updates["is_scored"] = 1
+								logger.Info("强制收卷 - 客观题自动评分",
+									zap.String("uid", req.UID),
+									zap.Uint64("questionId", *submit.QuestionID),
+									zap.String("questionType", question.Type),
+									zap.Float64("score", score))
 							}
+						} else {
+							updates["is_scored"] = 1
+							updates["score"] = 0
+							logger.Warn("强制收卷 - 获取客观题分值失败，按0分处理",
+								zap.String("uid", req.UID),
+								zap.Uint64("questionId", *submit.QuestionID),
+								zap.String("questionType", question.Type),
+								zap.Error(err))
 						}
-					} else if question.Type == "multiple_choice" {
-						// 多选题评分
-						var studentAnswers, correctAnswers []string
-
-						// 解析学生答案
-						if err := json.Unmarshal([]byte(submit.Answer), &studentAnswers); err != nil {
-							studentAnswers = strings.Split(submit.Answer, ",")
-							for i := range studentAnswers {
-								studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
-							}
-						}
-
-						// 解析正确答案
-						if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
-							correctAnswers = strings.Split(question.Answer, ",")
-							for i := range correctAnswers {
-								correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
-							}
-						}
-
-						// 比较答案
-						if compareArrays(studentAnswers, correctAnswers) {
-							var homeworkQuestion model.HomeworkQuestion
-							if err := db.Where("homework_id = ? AND question_id = ?",
-								req.HomeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-								score = float64(homeworkQuestion.Score)
-							}
-						}
-					}
-
-					// 更新分数和评分状态
-					updates["score"] = score
-					updates["is_scored"] = isScored
-
-					logger.Info("强制收卷 - 客观题自动评分",
-						zap.String("uid", req.UID),
-						zap.Uint64("questionId", *submit.QuestionID),
-						zap.String("questionType", question.Type),
-						zap.Float64("score", score))
-				} else {
-					// 主观题，标记为未评分，需要教师评分
-					updates["is_scored"] = 0
+					} else {
+						// 主观题，标记为未评分，需要教师评分
+						updates["is_scored"] = 0
 					updates["score"] = 0
 					logger.Info("强制收卷 - 主观题标记为未评分",
 						zap.String("uid", req.UID),
@@ -1044,62 +1013,35 @@ func (h *Handler) ForceSubmitAll(c *gin.Context) {
 			if submit.QuestionID != nil {
 				var question model.QuestionBank
 				if err := db.Where("id = ?", *submit.QuestionID).First(&question).Error; err == nil {
-					// 客观题自动评分
-					if question.Type == "single_choice" || question.Type == "multiple_choice" || question.Type == "judge" {
-						score := 0.0
-						isScored := 1 // 标记为已评分
-
-						// 单选题评分
-						if question.Type == "single_choice" {
-							if submit.Answer == question.Answer {
-								var homeworkQuestion model.HomeworkQuestion
-								if err := db.Where("homework_id = ? AND question_id = ?",
-									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-									score = float64(homeworkQuestion.Score)
-								}
+					// 客观题自动评分（单选、多选、判断、填空）
+					if isAutoScoredObjectiveQuestionType(question.Type) {
+						var homeworkQuestion model.HomeworkQuestion
+						if err := db.Where("homework_id = ? AND question_id = ?",
+							homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
+							score, autoScored, scoreErr := calculateAutoObjectiveScore(&question, submit.Answer, float64(homeworkQuestion.Score))
+							if scoreErr != nil {
+								logger.Warn("批量强制收卷自动评分失败，按0分处理",
+									zap.String("uid", student.UID),
+									zap.Uint64("questionId", *submit.QuestionID),
+									zap.String("questionType", question.Type),
+									zap.String("studentAnswer", submit.Answer),
+									zap.Error(scoreErr))
+								score = 0
+								autoScored = true
 							}
-						} else if question.Type == "judge" {
-							// 判断题评分
-							if compareJudgeAnswers(submit.Answer, question.Answer) {
-								var homeworkQuestion model.HomeworkQuestion
-								if err := db.Where("homework_id = ? AND question_id = ?",
-									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-									score = float64(homeworkQuestion.Score)
-								}
+							if autoScored {
+								updates["score"] = score
+								updates["is_scored"] = 1
 							}
-						} else if question.Type == "multiple_choice" {
-							// 多选题评分
-							var studentAnswers, correctAnswers []string
-
-							// 解析学生答案
-							if err := json.Unmarshal([]byte(submit.Answer), &studentAnswers); err != nil {
-								studentAnswers = strings.Split(submit.Answer, ",")
-								for i := range studentAnswers {
-									studentAnswers[i] = strings.TrimSpace(studentAnswers[i])
-								}
-							}
-
-							// 解析正确答案
-							if err := json.Unmarshal([]byte(question.Answer), &correctAnswers); err != nil {
-								correctAnswers = strings.Split(question.Answer, ",")
-								for i := range correctAnswers {
-									correctAnswers[i] = strings.TrimSpace(correctAnswers[i])
-								}
-							}
-
-							// 比较答案
-							if compareArrays(studentAnswers, correctAnswers) {
-								var homeworkQuestion model.HomeworkQuestion
-								if err := db.Where("homework_id = ? AND question_id = ?",
-									homeworkID, *submit.QuestionID).First(&homeworkQuestion).Error; err == nil {
-									score = float64(homeworkQuestion.Score)
-								}
-							}
+						} else {
+							updates["score"] = 0
+							updates["is_scored"] = 1
+							logger.Warn("批量强制收卷获取客观题分值失败，按0分处理",
+								zap.String("uid", student.UID),
+								zap.Uint64("questionId", *submit.QuestionID),
+								zap.String("questionType", question.Type),
+								zap.Error(err))
 						}
-
-						// 更新分数和评分状态
-						updates["score"] = score
-						updates["is_scored"] = isScored
 					}
 				}
 			}
