@@ -237,12 +237,19 @@
             </template>
 
             <el-form-item label="题目解析">
-              <el-input
-                type="textarea"
-                v-model="form.analysis"
-                :rows="3"
-                placeholder="请输入题目解析（可选）"
-              ></el-input>
+              <div class="analysis-editor-wrap">
+                <el-input
+                  type="textarea"
+                  v-model="form.analysis"
+                  :rows="3"
+                  placeholder="请输入题目解析（可选）"
+                ></el-input>
+                <el-button size="mini" @click="openAnalysisEditor">窗口编辑</el-button>
+              </div>
+              <div class="form-tip">
+                <i class="el-icon-info"></i>
+                既可直接输入，也可点击“窗口编辑”查看更大编辑区与实时 Markdown 预览
+              </div>
             </el-form-item>
 
             <el-form-item label="题目标签">
@@ -446,7 +453,7 @@
             type="textarea"
             :rows="18"
             v-model="optionEditor.content"
-            placeholder="请输入选项内容，支持 Markdown"
+            :placeholder="optionEditorInputPlaceholder"
             @input="syncOptionEditorContent"
           ></el-input>
         </el-col>
@@ -555,7 +562,7 @@ export default {
       uploadingContentImage: false,
       tagInput: '',
       optionLetters: ['A', 'B', 'C', 'D'],
-	      optionEditor: {
+      optionEditor: {
         visible: false,
         index: null,
         subIndex: null,
@@ -626,7 +633,16 @@ export default {
         const letter = this.optionLetters[this.optionEditor.index] || ''
         return `编辑子题 ${subIndex + 1} 选项 ${letter}`
       }
+      if (this.optionEditor.mode === 'analysis') {
+        return '编辑题目解析'
+      }
       return '编辑内容'
+    },
+    optionEditorInputPlaceholder() {
+      if (this.optionEditor.mode === 'analysis') {
+        return '请输入题目解析，支持 Markdown'
+      }
+      return '请输入选项内容，支持 Markdown'
     }
   },
   created() {
@@ -1121,6 +1137,13 @@ export default {
       this.optionEditor.subIndex = subIndex
       this.optionEditor.content = subQuestion.choiceOptions[optionIndex] || ''
     },
+    openAnalysisEditor() {
+      this.optionEditor.visible = true
+      this.optionEditor.mode = 'analysis'
+      this.optionEditor.index = null
+      this.optionEditor.subIndex = null
+      this.optionEditor.content = this.form.analysis || ''
+    },
     closeOptionEditor() {
       this.optionEditor.visible = false
       this.optionEditor.mode = ''
@@ -1145,6 +1168,10 @@ export default {
         const optionIndex = this.optionEditor.index
         if (subIndex === null || optionIndex === null || !this.form.compositeQuestions[subIndex]) return
         this.$set(this.form.compositeQuestions[subIndex].choiceOptions, optionIndex, value)
+        return
+      }
+      if (this.optionEditor.mode === 'analysis') {
+        this.$set(this.form, 'analysis', value)
       }
     },
     addCompositeQuestion() {
@@ -1688,6 +1715,12 @@ export default {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.analysis-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tags-input-container {

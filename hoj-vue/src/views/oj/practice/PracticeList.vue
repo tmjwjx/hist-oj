@@ -21,7 +21,7 @@
           <article
             v-for="paper in papers"
             :key="paper.id"
-            class="paper-row"
+            class="paper-row answer-info compact-answer-info"
           >
             <div class="paper-main" @click="goDetail(paper.id)">
               <div class="paper-topline">
@@ -149,6 +149,10 @@ export default {
   padding: 16px 8px;
   border-bottom: 1px solid #eceff3;
   transition: background-color 0.2s ease;
+}
+
+.paper-row:last-child {
+  border-bottom: none;
 }
 
 .paper-row:hover {

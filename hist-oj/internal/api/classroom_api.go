@@ -2243,7 +2243,15 @@ func (h *Handler) DeleteQuestion(c *gin.Context) {
 	}
 	imageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
-	if err := db.Model(&question).Update("status", 0).Error; err != nil {
+	var cleanupStats questionDeleteCleanupStats
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		stats, err := softDeleteQuestionAndCleanupRelations(tx, questionID)
+		if err != nil {
+			return err
+		}
+		cleanupStats = stats
+		return nil
+	}); err != nil {
 		logger.Error("删除题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -2258,8 +2266,80 @@ func (h *Handler) DeleteQuestion(c *gin.Context) {
 			zap.Int("skipped", skipped))
 	}
 
-	logger.Info("删除题目", zap.Uint64("question_id", questionID))
+	logger.Info("删除题目",
+		zap.Uint64("question_id", questionID),
+		zap.Int64("deleted_homework_questions", cleanupStats.HomeworkQuestionRows),
+		zap.Int64("deleted_homework_submits", cleanupStats.HomeworkSubmitRows),
+		zap.Int64("deleted_exam_paper_questions", cleanupStats.ExamPaperQuestionRows),
+		zap.Int("affected_exam_papers", cleanupStats.AffectedExamPaperCount))
 	c.JSON(http.StatusOK, successResponse(nil))
+}
+
+type questionDeleteCleanupStats struct {
+	HomeworkQuestionRows   int64
+	HomeworkSubmitRows     int64
+	ExamPaperQuestionRows  int64
+	AffectedExamPaperCount int
+}
+
+func softDeleteQuestionAndCleanupRelations(tx *gorm.DB, questionID uint64) (questionDeleteCleanupStats, error) {
+	stats := questionDeleteCleanupStats{}
+
+	if err := tx.Model(&model.QuestionBank{}).Where("id = ?", questionID).Update("status", 0).Error; err != nil {
+		return stats, err
+	}
+
+	homeworkSubmitResult := tx.Where("question_id = ?", questionID).Delete(&model.HomeworkSubmit{})
+	if homeworkSubmitResult.Error != nil {
+		return stats, homeworkSubmitResult.Error
+	}
+	stats.HomeworkSubmitRows = homeworkSubmitResult.RowsAffected
+
+	homeworkQuestionResult := tx.Where("question_id = ?", questionID).Delete(&model.HomeworkQuestion{})
+	if homeworkQuestionResult.Error != nil {
+		return stats, homeworkQuestionResult.Error
+	}
+	stats.HomeworkQuestionRows = homeworkQuestionResult.RowsAffected
+
+	var examPaperIDs []uint64
+	if err := tx.Model(&model.ExamPaperQuestion{}).
+		Where("question_id = ?", questionID).
+		Distinct().
+		Pluck("exam_paper_id", &examPaperIDs).Error; err != nil {
+		return stats, err
+	}
+
+	examPaperQuestionResult := tx.Where("question_id = ?", questionID).Delete(&model.ExamPaperQuestion{})
+	if examPaperQuestionResult.Error != nil {
+		return stats, examPaperQuestionResult.Error
+	}
+	stats.ExamPaperQuestionRows = examPaperQuestionResult.RowsAffected
+	stats.AffectedExamPaperCount = len(examPaperIDs)
+
+	for _, examPaperID := range examPaperIDs {
+		var aggregate struct {
+			TotalScore    int
+			QuestionCount int64
+		}
+
+		if err := tx.Model(&model.ExamPaperQuestion{}).
+			Select("COALESCE(SUM(score), 0) AS total_score, COUNT(*) AS question_count").
+			Where("exam_paper_id = ?", examPaperID).
+			Scan(&aggregate).Error; err != nil {
+			return stats, err
+		}
+
+		if err := tx.Model(&model.ExamPaper{}).
+			Where("id = ?", examPaperID).
+			Updates(map[string]interface{}{
+				"total_score":    aggregate.TotalScore,
+				"question_count": int(aggregate.QuestionCount),
+			}).Error; err != nil {
+			return stats, err
+		}
+	}
+
+	return stats, nil
 }
 
 // GetQuestionDetail 获取题目详情
@@ -2607,8 +2687,15 @@ func (h *Handler) AdminDeleteQuestion(c *gin.Context) {
 	}
 	imageURLs := extractQuestionImageURLsFromFields(question.Title, question.Content, question.Analysis, question.Options)
 
-	// 软删除：更新status为0
-	if err := db.Model(&question).Update("status", 0).Error; err != nil {
+	var cleanupStats questionDeleteCleanupStats
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		stats, err := softDeleteQuestionAndCleanupRelations(tx, questionID)
+		if err != nil {
+			return err
+		}
+		cleanupStats = stats
+		return nil
+	}); err != nil {
 		logger.Error("删除题目失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "删除失败"))
 		return
@@ -2623,7 +2710,12 @@ func (h *Handler) AdminDeleteQuestion(c *gin.Context) {
 			zap.Int("skipped", skipped))
 	}
 
-	logger.Info("管理员删除题目", zap.Uint64("id", questionID))
+	logger.Info("管理员删除题目",
+		zap.Uint64("id", questionID),
+		zap.Int64("deleted_homework_questions", cleanupStats.HomeworkQuestionRows),
+		zap.Int64("deleted_homework_submits", cleanupStats.HomeworkSubmitRows),
+		zap.Int64("deleted_exam_paper_questions", cleanupStats.ExamPaperQuestionRows),
+		zap.Int("affected_exam_papers", cleanupStats.AffectedExamPaperCount))
 	c.JSON(http.StatusOK, successResponse(nil))
 }
 
