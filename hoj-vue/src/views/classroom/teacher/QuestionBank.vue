@@ -80,24 +80,33 @@
     </div>
 
     <!-- 移除 v-loading 避免轮询时闪烁 -->
-    <el-table :data="questions" stripe>
-      <el-table-column prop="id" label="ID" width="90" align="center"></el-table-column>
+    <el-table
+      :data="questions"
+      class="question-bank-table"
+      :row-class-name="getQuestionRowClass"
+      stripe
+    >
       <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="520">
         <template slot-scope="{ row }">
           <div class="inline-question-cell">
             <div class="inline-meta-row">
+              <el-tag type="info" size="mini">ID:{{ row.id }}</el-tag>
               <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
-              <el-tag v-if="row.course" type="warning" size="mini">{{ row.course }}</el-tag>
+              <el-tag type="danger" size="mini">难度：{{ getDifficultyText(row.difficulty) }}</el-tag>
+              <el-tag type="primary" size="mini">分值：{{ Number(row.score || 0) }}分</el-tag>
+              <el-tag type="info" size="mini">创建者：{{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
+              <el-tag type="info" size="mini">创建时间：{{ formatTime(row.createTime || row.createdAt) }}</el-tag>
+              <el-tag v-if="row.course" type="warning" size="mini">所属课程：{{ row.course }}</el-tag>
               <el-tag
                 v-for="(tag, idx) in parseQuestionTags(row.tags)"
                 :key="`meta-tag-${row.id}-${idx}`"
                 size="mini"
                 type="info"
               >
-                {{ tag }}
+                标签：{{ tag }}
               </el-tag>
               <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
-                {{ row.isShared ? $t('m.Yes') : $t('m.No') }}
+                开放权限：{{ row.isShared ? '共享' : '个人' }}
               </el-tag>
             </div>
             <div v-html="renderMarkdown(row.title)" class="markdown-body inline-question-title" v-highlight></div>
@@ -954,6 +963,10 @@ export default {
       this.pagination.currentPage = page
       this.loadQuestions()
     },
+    getQuestionRowClass({ row }) {
+      const normalizedType = String(row && row.type ? row.type : '').replace(/_/g, '-')
+      return `question-bank-row type-${normalizedType}`
+    },
     async loadQuestions() {
       // 避免重复请求
       if (this.requesting) return
@@ -1321,6 +1334,13 @@ export default {
     getDifficultyStars(difficulty) {
       return parseInt(difficulty) || 1
     },
+    getDifficultyText(difficulty) {
+      const level = Number(difficulty)
+      if (level === 1) return '简单'
+      if (level === 2) return '中等'
+      if (level === 3) return '困难'
+      return `等级${difficulty}`
+    },
     // 解析题目标签
     parseQuestionTags(tags) {
       if (!tags) return []
@@ -1609,6 +1629,62 @@ export default {
   margin-top: 20px;
   display: flex;
   justify-content: center;
+}
+
+.question-bank-panel >>> .question-bank-table.el-table::before {
+  height: 0;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body-wrapper table {
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row > td {
+  background: #fff;
+  border-top: 1px solid #ebeef5;
+  border-bottom: 1px solid #ebeef5;
+  vertical-align: top;
+  transition: background-color 0.2s ease;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row > td:first-child {
+  border-left: 4px solid #dcdfe6;
+  border-radius: 10px 0 0 10px;
+  padding-left: 12px;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row > td:last-child {
+  border-right: 1px solid #ebeef5;
+  border-radius: 0 10px 10px 0;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row:hover > td {
+  background: #f8fbff;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-single-choice > td:first-child {
+  border-left-color: #409eff;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-multiple-choice > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-judge > td:first-child {
+  border-left-color: #e6a23c;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-fill-blank > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-subjective > td:first-child {
+  border-left-color: #909399;
+}
+
+.question-bank-panel >>> .question-bank-table .el-table__body tr.question-bank-row.type-composite > td:first-child {
+  border-left-color: #f56c6c;
 }
 
 .inline-question-cell {

@@ -7,10 +7,7 @@
         <h3>客观题题库</h3>
       </div>
       <div class="header-right">
-        <el-button type="primary" @click="addSelectedQuestions" :disabled="selectedQuestions.length === 0">
-          <i class="el-icon-check"></i>
-          已选 {{ selectedQuestions.length }} 题 - 添加到作业
-        </el-button>
+        <el-tag type="success" effect="dark">已添加 {{ selectedQuestions.length }} 题（自动同步）</el-tag>
       </div>
     </div>
 
@@ -83,247 +80,136 @@
       </el-row>
     </el-card>
 
-    <!-- 题目列表 - 使用 expandable table -->
+    <!-- 题目列表 -->
     <el-card class="questions-table-card" shadow="hover" v-loading="loading">
       <el-table
         :data="questions"
+        class="question-bank-table"
+        :row-class-name="getQuestionRowClass"
         stripe
-        @selection-change="handleSelectionChange"
-        ref="questionTable"
       >
-        <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="id" label="ID" width="90" align="center"></el-table-column>
-
-        <el-table-column type="expand">
+        <el-table-column prop="title" label="题目标题" min-width="300">
           <template slot-scope="{ row }">
-            <div class="question-detail-expand">
-              <!-- 基本信息 -->
-              <el-descriptions :column="2" border size="small" class="detail-descriptions">
-                <el-descriptions-item label="题型">
-                  <el-tag :type="getQuestionTypeColor(row.type)" size="small">
-                    {{ getQuestionTypeName(row.type) }}
-                  </el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="难度">
-                  <el-rate :value="getDifficultyStars(row.difficulty)" :max="3" disabled />
-                </el-descriptions-item>
-                <el-descriptions-item label="分值">{{ row.score }} 分</el-descriptions-item>
-                <el-descriptions-item label="共享">
-                  <el-tag :type="row.isShared ? 'success' : 'info'" size="small">
-                    {{ row.isShared ? '是' : '否' }}
-                  </el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="课程" :span="2">
-                  <el-tag v-if="row.course" type="warning" size="small">{{ row.course }}</el-tag>
-                  <span v-else style="color: #909399;">-</span>
-                </el-descriptions-item>
-                <el-descriptions-item label="标签" :span="2">
-                  <el-tag
-                    v-for="(tag, idx) in parseQuestionTags(row.tags)"
-                    :key="idx"
-                    size="mini"
-                    type="info"
-                    style="margin-right: 5px;"
-                  >
-                    {{ tag }}
-                  </el-tag>
-                  <span v-if="!row.tags || row.tags === '[]'" style="color: #909399;">-</span>
-                </el-descriptions-item>
-              </el-descriptions>
-
-              <!-- 题目内容 -->
-              <div class="detail-section">
-                <h4 class="detail-label">题目标题</h4>
-                <div
-                  v-html="renderMarkdown(row.title)"
-                  class="markdown-body detail-content detail-markdown"
-                  v-highlight
-                ></div>
+            <div class="inline-question-cell">
+              <div class="inline-meta-row">
+                <el-tag type="info" size="mini">ID:{{ row.id }}</el-tag>
+                <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
+                <el-tag type="danger" size="mini">难度：{{ getDifficultyText(row.difficulty) }}</el-tag>
+                <el-tag type="primary" size="mini">分值：{{ Number(row.score || 0) }}分</el-tag>
+                <el-tag type="info" size="mini">创建者：{{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
+                <el-tag type="info" size="mini">创建时间：{{ formatMetaTime(row.createTime || row.createdAt) }}</el-tag>
+                <el-tag v-if="row.course" type="warning" size="mini">所属课程：{{ row.course }}</el-tag>
+                <el-tag
+                  v-for="(tag, idx) in parseQuestionTags(row.tags)"
+                  :key="`meta-tag-${row.id}-${idx}`"
+                  size="mini"
+                  type="info"
+                >
+                  标签：{{ tag }}
+                </el-tag>
+                <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
+                  开放权限：{{ row.isShared ? '共享' : '个人' }}
+                </el-tag>
               </div>
+              <div v-html="renderMarkdown(row.title)" class="inline-question-title markdown-body" v-highlight></div>
+              <div
+                v-if="row.content"
+                v-html="renderMarkdown(row.content)"
+                class="inline-question-content markdown-body"
+                v-highlight
+              ></div>
 
-              <div v-if="row.content" class="detail-section">
-                <h4 class="detail-label">题目描述</h4>
+              <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="inline-options-list">
                 <div
-                  v-html="renderMarkdown(row.content)"
-                  class="markdown-body detail-content detail-markdown"
-                  v-highlight
-                ></div>
-              </div>
-
-              <!-- 选择题选项 -->
-              <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="detail-section">
-                <h4 class="detail-label">选项</h4>
-                <div class="options-display">
-                  <div v-if="parseQuestionOptions(row.options).length > 0">
-                    <div v-for="(option, index) in parseQuestionOptions(row.options)" :key="index" class="option-item">
-                      <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
-                      <span
-                        v-html="renderMarkdown(option)"
-                        class="option-text markdown-body detail-markdown"
-                        v-highlight
-                      ></span>
-                    </div>
-                  </div>
-                  <el-alert v-else type="info" :closable="false">暂无选项数据</el-alert>
+                  v-for="(option, index) in parseOptionEntries(row.options)"
+                  :key="`opt-${row.id}-${index}`"
+                  class="inline-option-item"
+                >
+                  <span class="inline-option-label">{{ option.letter }}.</span>
+                  <span class="inline-option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
                 </div>
               </div>
 
-              <!-- 组合题子题 -->
-              <div v-if="row.type === 'composite'" class="detail-section">
-                <h4 class="detail-label">组合题子题</h4>
-                <div class="composite-list">
+              <div v-else-if="row.type === 'judge'" class="inline-options-list">
+                <div class="inline-option-item">
+                  <span class="inline-option-label">A.</span>
+                  <span class="inline-option-text">正确</span>
+                </div>
+                <div class="inline-option-item">
+                  <span class="inline-option-label">B.</span>
+                  <span class="inline-option-text">错误</span>
+                </div>
+              </div>
+
+              <div v-else-if="row.type === 'composite'" class="inline-composite-list">
+                <div
+                  v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(row.options)"
+                  :key="subQuestion.id || subIndex"
+                  class="inline-composite-item"
+                >
+                  <div class="inline-composite-head">子题 {{ subIndex + 1 }}（{{ Number(subQuestion.score || 0) }}分）</div>
                   <div
-                    v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(row.options)"
-                    :key="subQuestion.id || subIndex"
-                    class="composite-item"
-                  >
-                    <div class="composite-header">
-                      <span>子题 {{ subIndex + 1 }}</span>
-                      <span>{{ Number(subQuestion.score || 0) }}分</span>
-                    </div>
+                    v-html="renderMarkdown(subQuestion.content || '')"
+                    class="markdown-body inline-composite-content"
+                    v-highlight
+                  ></div>
+                  <div class="inline-options-list">
                     <div
-                      v-html="renderMarkdown(subQuestion.content || '')"
-                      class="markdown-body detail-content detail-markdown"
-                      v-highlight
-                    ></div>
-                    <div class="options-display composite-options">
-                      <div v-if="parseQuestionOptions(subQuestion.options).length > 0">
-                        <div
-                          v-for="(option, optionIndex) in parseQuestionOptions(subQuestion.options)"
-                          :key="optionIndex"
-                          class="option-item"
-                        >
-                          <span class="option-label">{{ String.fromCharCode(65 + optionIndex) }}.</span>
-                          <span
-                            v-html="renderMarkdown(option)"
-                            class="option-text markdown-body detail-markdown"
-                            v-highlight
-                          ></span>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="composite-answer answer-info compact-answer-info">
-                      <el-tag type="success" size="small">
-                        正确答案：{{ getCompositeCorrectAnswer(row.answer, subQuestion.id, subIndex) }}
-                      </el-tag>
+                      v-for="(option, optionIndex) in subQuestion.options"
+                      :key="`subopt-${row.id}-${subIndex}-${optionIndex}`"
+                      class="inline-option-item"
+                    >
+                      <span class="inline-option-label">{{ String.fromCharCode(65 + optionIndex) }}.</span>
+                      <span class="inline-option-text markdown-body" v-html="renderMarkdown(option)" v-highlight></span>
                     </div>
                   </div>
-                  <el-empty
-                    v-if="parseCompositeSubQuestions(row.options).length === 0"
-                    description="暂无组合题子题数据"
-                    :image-size="90"
-                  />
-                </div>
-              </div>
-
-              <!-- 正确答案 -->
-              <div class="detail-section">
-                <h4 class="detail-label">正确答案</h4>
-                <div class="answer-display answer-info compact-answer-info">
-                  <el-tag v-if="row.type === 'single_choice'" type="success" size="small">
-                    {{ parseSingleChoiceAnswer(row) }}
-                  </el-tag>
-                  <el-tag v-else-if="row.type === 'multiple_choice'" type="success" size="small">
-                    {{ parseMultipleChoiceAnswer(row) }}
-                  </el-tag>
-                  <el-tag v-else-if="row.type === 'judge'" :type="isJudgeTrue(row.answer) ? 'success' : 'danger'" size="small">
-                    {{ isJudgeTrue(row.answer) ? '正确' : '错误' }}
-                  </el-tag>
-                  <el-tag v-else-if="row.type === 'fill_blank'" type="success" size="small">
-                    {{ parseFillBlankAnswer(row.answer) }}
-                  </el-tag>
-                  <el-tag v-else-if="row.type === 'composite'" type="success" size="small">
-                    组合题答案见上方子题详情
-                  </el-tag>
-                  <div v-else-if="row.type === 'subjective'" class="subjective-answer">
-                    <div
-                      v-if="row.answer"
-                      v-html="renderMarkdown(row.answer)"
-                      class="markdown-body detail-markdown"
-                      v-highlight
-                    ></div>
-                    <span v-else style="color: #909399;">暂无参考答案</span>
+                  <div class="answer-info compact-answer-info">
+                    <strong>正确答案：</strong>
+                    <el-tag type="success">{{ getCompositeCorrectAnswer(row.answer, subQuestion.id, subIndex) }}</el-tag>
                   </div>
                 </div>
               </div>
 
-              <!-- 题目解析 -->
-              <div v-if="row.analysis" class="detail-section">
-                <el-divider content-position="left">
-                  <i class="el-icon-document" style="color: #E6A23C;"></i>
-                  <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
-                </el-divider>
-                <div
-                  v-html="renderMarkdown(row.analysis)"
-                  class="markdown-body detail-content detail-markdown"
+              <div v-if="row.type !== 'composite'" class="inline-answer-row answer-info compact-answer-info">
+                <span class="inline-answer-label">{{ row.type === 'subjective' ? '参考答案：' : '正确答案：' }}</span>
+                <span v-if="row.type !== 'subjective'" class="inline-answer-text">{{ formatInlineAnswer(row) }}</span>
+                <span
+                  v-else-if="row.answer"
+                  class="inline-answer-text markdown-body"
+                  v-html="renderMarkdown(row.answer)"
                   v-highlight
-                ></div>
+                ></span>
+                <span v-else class="inline-answer-text">暂无答案</span>
               </div>
 
-              <!-- 创建时间 -->
-              <div class="detail-meta">
-                <el-tag size="mini" type="info">创建：{{ formatTime(row.createdAt) }}</el-tag>
-                <el-tag size="mini" type="info" style="margin-left: 10px;">更新：{{ formatTime(row.updatedAt) }}</el-tag>
+              <div v-if="row.analysis" class="inline-analysis">
+                <span class="inline-analysis-label">题目解析：</span>
+                <div class="markdown-body" v-html="renderMarkdown(row.analysis)" v-highlight></div>
+              </div>
+              <div class="inline-actions-row">
+                <el-button
+                  v-if="isQuestionAdded(row)"
+                  type="danger"
+                  size="mini"
+                  icon="el-icon-minus"
+                  @click="removeQuestion(row)"
+                >
+                  移除题目
+                </el-button>
+                <el-button
+                  v-else
+                  type="primary"
+                  size="mini"
+                  icon="el-icon-plus"
+                  @click="addQuestion(row)"
+                >
+                  添加题目
+                </el-button>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="title" label="题目标题" min-width="300">
-          <template slot-scope="{ row }">
-            <div v-html="renderMarkdown(row.title)" class="title-preview"></div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="type" label="题型" width="100">
-          <template slot-scope="{ row }">
-            <el-tag :type="getQuestionTypeColor(row.type)" size="small">
-              {{ getQuestionTypeName(row.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="difficulty" label="难度" width="120">
-          <template slot-scope="{ row }">
-            <el-rate :value="getDifficultyStars(row.difficulty)" :max="3" disabled />
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="course" label="课程" width="120">
-          <template slot-scope="{ row }">
-            <el-tag v-if="row.course" type="warning" size="small">{{ row.course }}</el-tag>
-            <span v-else style="color: #909399;">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="tags" label="标签" width="180">
-          <template slot-scope="{ row }">
-            <el-tag
-              v-for="(tag, idx) in parseQuestionTags(row.tags)"
-              :key="idx"
-              size="mini"
-              type="info"
-              style="margin-right: 3px;"
-            >
-              {{ tag }}
-            </el-tag>
-            <span v-if="!row.tags || row.tags === '[]'" style="color: #909399;">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="score" label="分值" width="80">
-          <template slot-scope="{ row }">
-            <span style="font-weight: bold; color: #409EFF;">{{ row.score }}分</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="120" fixed="right">
-          <template slot-scope="{ row }">
-            <el-button type="text" size="small" @click="toggleExpand(row)">
-              {{ isExpanded(row) ? '收起' : '查看详情' }}
-            </el-button>
-          </template>
-        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -391,14 +277,20 @@ export default {
         '线性代数',
         '政治',
         '英语'
-      ],
-      expandedRows: []
+      ]
     }
   },
   mounted() {
+    this.initSelectedQuestionsFromStore()
     this.loadQuestions()
   },
   methods: {
+    initSelectedQuestionsFromStore() {
+      const storedQuestions = this.$store.state.classroom.selectedQuestions || []
+      this.selectedQuestions = Array.isArray(storedQuestions)
+        ? storedQuestions.filter(question => question && question.id)
+        : []
+    },
     handleFilterChange() {
       this.pagination.page = 1
       this.loadQuestions()
@@ -441,36 +333,42 @@ export default {
         this.loading = false
       }
     },
-    handleSelectionChange(selection) {
-      this.selectedQuestions = selection
+    getQuestionIdentity(question) {
+      if (!question) return null
+      const rawId = question.questionId !== undefined && question.questionId !== null ? question.questionId : question.id
+      if (rawId === undefined || rawId === null || rawId === '') return null
+      return String(rawId)
     },
-    toggleExpand(row) {
-      const table = this.$refs.questionTable
-      table.toggleRowExpansion(row)
-
-      // 更新展开状态
-      const index = this.expandedRows.indexOf(row.id)
-      if (index > -1) {
-        this.expandedRows.splice(index, 1)
-      } else {
-        this.expandedRows.push(row.id)
-      }
+    isQuestionAdded(question) {
+      const identity = this.getQuestionIdentity(question)
+      if (!identity) return false
+      return this.selectedQuestions.some(item => this.getQuestionIdentity(item) === identity)
     },
-    isExpanded(row) {
-      return this.expandedRows.includes(row.id)
+    syncSelectedQuestionsToStore() {
+      this.$store.commit('classroom/SET_SELECTED_QUESTIONS', this.selectedQuestions)
     },
-    addSelectedQuestions() {
-      if (this.selectedQuestions.length === 0) {
-        this.$message.warning('请先选择题目')
+    addQuestion(question) {
+      if (this.isQuestionAdded(question)) {
+        this.$message.warning('该题目已添加')
         return
       }
 
-      // 通过 store 传递选中的题目
-      this.$store.commit('classroom/SET_SELECTED_QUESTIONS', this.selectedQuestions)
-      this.$message.success(`已添加 ${this.selectedQuestions.length} 道题目`)
-
-      // 返回上一页
-      this.goBack()
+      const nextQuestion = {
+        ...question,
+        difficulty: parseInt(question.difficulty) || 2
+      }
+      this.selectedQuestions.push(nextQuestion)
+      this.syncSelectedQuestionsToStore()
+      this.$message.success('添加成功')
+    },
+    removeQuestion(question) {
+      const identity = this.getQuestionIdentity(question)
+      if (!identity) return
+      const index = this.selectedQuestions.findIndex(item => this.getQuestionIdentity(item) === identity)
+      if (index === -1) return
+      this.selectedQuestions.splice(index, 1)
+      this.syncSelectedQuestionsToStore()
+      this.$message.success('已移除题目')
     },
     goBack() {
       this.$router.back()
@@ -483,6 +381,11 @@ export default {
       this.pagination.pageSize = size
       this.pagination.page = 1
       this.loadQuestions()
+    },
+    getQuestionRowClass({ row }) {
+      const normalizedType = String(row && row.type ? row.type : '').replace(/_/g, '-')
+      const selectedClass = this.isQuestionAdded(row) ? 'is-added' : ''
+      return `question-bank-row type-${normalizedType} ${selectedClass}`.trim()
     },
     parseMaybeSerializedJson(rawValue, maxDepth = 2) {
       if (rawValue === null || rawValue === undefined) return rawValue
@@ -549,6 +452,21 @@ export default {
     getDifficultyStars(difficulty) {
       return parseInt(difficulty) || 1
     },
+    getDifficultyText(difficulty) {
+      const level = Number(difficulty)
+      if (level === 1) return '简单'
+      if (level === 2) return '中等'
+      if (level === 3) return '困难'
+      return `等级${difficulty}`
+    },
+    formatMetaTime(value) {
+      if (!value) return '--'
+      try {
+        return new Date(value).toLocaleString('zh-CN')
+      } catch (e) {
+        return '--'
+      }
+    },
     parseQuestionTags(tags) {
       const parsed = this.parseMaybeSerializedJson(tags)
       if (!Array.isArray(parsed)) return []
@@ -572,6 +490,13 @@ export default {
         }
         return this.stripOptionPrefix(opt, String.fromCharCode(65 + idx))
       })
+    },
+    parseOptionEntries(optionsInput) {
+      const parsedOptions = this.parseQuestionOptions(optionsInput)
+      return parsedOptions.map((text, idx) => ({
+        letter: String.fromCharCode(65 + idx),
+        text
+      }))
     },
     parseAnswerArray(answerInput, { allowCommaSplit = true } = {}) {
       const parsed = this.parseMaybeSerializedJson(answerInput)
@@ -623,37 +548,27 @@ export default {
       }
       return '-'
     },
-    parseSingleChoiceAnswer(question) {
-      const value = String(this.parseMaybeSerializedJson(question.answer) || '').trim()
-      return value ? `答案：${value}` : '暂无答案'
-    },
-    parseMultipleChoiceAnswer(question) {
-      const answers = this.parseAnswerArray(question.answer)
-      if (answers.length > 0) {
-        return `答案：${answers.join('、')}`
-      }
-      return '暂无答案'
-    },
     isJudgeTrue(answer) {
       const raw = String(this.parseMaybeSerializedJson(answer) || '').trim().toLowerCase()
       return ['true', '1', 'yes', 'y', '正确'].includes(raw)
     },
-    parseFillBlankAnswer(answer) {
-      const values = this.parseAnswerArray(answer, { allowCommaSplit: false })
-      if (values.length > 0) {
-        return `答案：${values.join(' / ')}`
+    formatInlineAnswer(row) {
+      if (row.type === 'single_choice') {
+        const value = String(this.parseMaybeSerializedJson(row.answer) || '').trim()
+        return value || '-'
       }
-      return '暂无答案'
-    },
-    formatTime(time) {
-      if (!time) return '--'
-      try {
-        const date = new Date(time)
-        return date.toLocaleString('zh-CN')
-      } catch (e) {
-        return []
+      if (row.type === 'multiple_choice') {
+        const answers = this.parseAnswerArray(row.answer)
+        return answers.length > 0 ? answers.join('、') : '-'
       }
-      return '--'
+      if (row.type === 'judge') {
+        return this.isJudgeTrue(row.answer) ? '正确' : '错误'
+      }
+      if (row.type === 'fill_blank') {
+        const values = this.parseAnswerArray(row.answer, { allowCommaSplit: false })
+        return values.length > 0 ? values.join(' / ') : '-'
+      }
+      return '-'
     }
   }
 }
@@ -700,173 +615,226 @@ export default {
   justify-content: center;
 }
 
-/* 展开的题目详情样式 */
-.question-detail-expand {
-  padding: 20px;
-  background: #f5f7fa;
-  border-radius: 4px;
+.question-bank-browser >>> .question-bank-table.el-table::before {
+  height: 0;
 }
 
-.detail-descriptions {
-  margin-bottom: 20px;
+.question-bank-browser >>> .question-bank-table .el-table__body-wrapper table {
+  border-collapse: separate;
+  border-spacing: 0 10px;
 }
 
-.detail-section {
-  margin-bottom: 20px;
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row > td {
+  background: #fff;
+  border-top: 1px solid #ebeef5;
+  border-bottom: 1px solid #ebeef5;
+  vertical-align: top;
+  transition: background-color 0.2s ease;
 }
 
-.detail-label {
-  color: #409EFF;
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 10px;
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row > td:first-child {
+  border-left: 4px solid #dcdfe6;
+  border-radius: 10px 0 0 10px;
+  padding-left: 10px;
 }
 
-.detail-content {
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-  line-height: 1.8;
-  border: 1px solid #e0e6ed;
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row > td:last-child {
+  border-right: 1px solid #ebeef5;
+  border-radius: 0 10px 10px 0;
 }
 
-.options-display {
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-  border: 1px solid #e0e6ed;
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row:hover > td {
+  background: #f8fbff;
 }
 
-.composite-list {
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.is-added > td {
+  background: #f0f9eb;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-single-choice > td:first-child {
+  border-left-color: #409eff;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-multiple-choice > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-judge > td:first-child {
+  border-left-color: #e6a23c;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-fill-blank > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-subjective > td:first-child {
+  border-left-color: #909399;
+}
+
+.question-bank-browser >>> .question-bank-table .el-table__body tr.question-bank-row.type-composite > td:first-child {
+  border-left-color: #f56c6c;
+}
+
+.inline-question-cell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  min-width: 0;
 }
 
-.composite-item {
-  border: 1px dashed #dcdfe6;
-  border-radius: 6px;
-  padding: 12px;
-  background: #fff;
-}
-
-.composite-header {
+.inline-actions-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.inline-meta-row {
+  display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+
+.inline-meta-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.inline-meta-row::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 2px;
+}
+
+.inline-question-title {
   font-weight: 600;
   color: #303133;
 }
 
-.composite-options {
-  margin-top: 8px;
+.inline-question-content {
+  color: #606266;
 }
 
-.composite-answer {
-  margin-top: 8px;
+.inline-options-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
 }
 
-.option-item {
+.inline-option-item {
   display: flex;
   align-items: flex-start;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
 }
 
-.option-item:last-child {
-  border-bottom: none;
+.inline-option-label {
+  flex-shrink: 0;
+  width: 20px;
+  color: #409eff;
+  font-weight: 600;
+  line-height: 1.6;
 }
 
-.option-label {
-  font-weight: bold;
-  color: #409EFF;
-  margin-right: 10px;
-  min-width: 25px;
-}
-
-.option-text {
+.inline-option-text {
   flex: 1;
-  word-wrap: break-word;
+  min-width: 0;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-.answer-display {
-  padding: 12px;
-  background: #f0f9ff;
-  border-radius: 4px;
-  border: 1px solid #b3d8ff;
-}
-
-.subjective-answer {
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-}
-
-.detail-meta {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
+.inline-composite-list {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.title-preview {
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.inline-composite-item {
+  padding: 8px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
 }
-</style>
 
-<style>
-/* Markdown 样式 */
-.question-detail-expand .markdown-body h1,
-.question-detail-expand .markdown-body h2,
-.question-detail-expand .markdown-body h3 {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
+.inline-composite-head {
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 6px;
+}
+
+.inline-composite-content {
+  margin-bottom: 6px;
+}
+
+.inline-answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #f0f9ff;
+  border: 1px solid #d9ecff;
+}
+
+.inline-answer-label {
+  flex-shrink: 0;
+  color: #409eff;
   font-weight: 600;
 }
 
-.question-detail-expand .markdown-body p {
-  margin-bottom: 0.8em;
-  line-height: 1.8;
+.inline-answer-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-.question-detail-expand .markdown-body code {
-  background: #f8f8f9;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Consolas', monospace;
-}
-
-.question-detail-expand .markdown-body pre {
-  background: #f8f8f9;
-  padding: 10px;
+.inline-analysis {
+  padding: 6px 8px;
   border-radius: 4px;
+  background: #fff9e6;
+  border: 1px solid #faecd8;
+}
+
+.inline-analysis-label {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.inline-question-cell >>> .inline-option-text p,
+.inline-question-cell >>> .inline-question-content p,
+.inline-question-cell >>> .inline-answer-text p {
+  margin: 0;
+  text-indent: 0 !important;
+}
+
+.inline-question-cell >>> .inline-option-text pre,
+.inline-question-cell >>> .inline-question-content pre,
+.inline-question-cell >>> .inline-answer-text pre {
+  margin: 4px 0 0;
+  max-width: 100%;
   overflow-x: auto;
 }
 
-.question-detail-expand .detail-markdown pre {
+.inline-question-cell >>> .markdown-body pre {
   margin-left: 0 !important;
   text-indent: 0 !important;
   padding: 10px 12px !important;
   overflow-x: auto !important;
 }
 
-.question-detail-expand .detail-markdown pre code,
-.question-detail-expand .detail-markdown code.hljs {
+.inline-question-cell >>> .markdown-body pre code,
+.inline-question-cell >>> .markdown-body code.hljs {
   margin-left: 0 !important;
-  padding-left: 0 !important;
   text-indent: 0 !important;
+  padding-left: 0 !important;
   display: block;
   white-space: pre !important;
-}
-
-.question-detail-expand .detail-markdown p {
-  text-indent: 0 !important;
 }
 </style>

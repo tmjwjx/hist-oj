@@ -128,6 +128,7 @@ type ProblemDetail struct {
 	ID          int64  `json:"id"`        // 数据库主键ID（HOJ样例测试需要这个）
 	ProblemId   string `json:"problemId"` // 显示ID（如 "0001"）
 	Title       string `json:"title"`
+	Difficulty  int    `json:"difficulty"` // 难度（0-5）
 	Description string `json:"description"`
 	Input       string `json:"input"`
 	Output      string `json:"output"`

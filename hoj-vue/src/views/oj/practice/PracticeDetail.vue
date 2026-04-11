@@ -68,7 +68,13 @@
         </div>
       </el-card>
 
-      <el-card v-if="currentQuestion" :key="getQuestionKey(currentQuestion, currentQuestionIndex)" class="question-card" shadow="never">
+      <el-card
+        v-if="currentQuestion"
+        :key="getQuestionKey(currentQuestion, currentQuestionIndex)"
+        class="question-card"
+        :class="getQuestionCardClass(currentQuestion)"
+        shadow="never"
+      >
         <template v-if="currentQuestion">
         <div class="q-header">
           <div>
@@ -105,10 +111,19 @@
           <div class="q-title markdown-body" v-html="renderMarkdown(currentQuestion.question.title || '')" v-highlight></div>
           <div class="q-content markdown-body" v-html="renderMarkdown(currentQuestion.question.content || '')" v-highlight></div>
 
-          <div v-if="currentQuestion.question.type === 'single_choice'" class="options">
+          <div v-if="currentQuestion.question.type === 'single_choice'" class="options answer-info compact-answer-info practice-option-box">
             <el-radio-group v-model="singleAnswers[currentQuestion.question.id]">
-              <el-radio v-for="(opt, idx) in parseOptions(currentQuestion.question.options)" :key="idx" :label="opt.letter">
-                <span class="option-rich-text">
+              <el-radio
+                v-for="(opt, idx) in parseOptions(currentQuestion.question.options)"
+                :key="idx"
+                :label="opt.letter"
+                class="option-select-item"
+                :class="{ 'is-selected': isSingleChoiceOptionSelected(currentQuestion.question.id, opt.letter) }"
+              >
+                <span
+                  class="option-rich-text option-click-area"
+                  @click.prevent.stop="selectSingleChoiceOption(currentQuestion.question.id, opt.letter)"
+                >
                   <span class="option-letter option-head">{{ opt.letter }}.</span>
                   <span class="option-text markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></span>
                 </span>
@@ -116,10 +131,19 @@
             </el-radio-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'multiple_choice'" class="options">
+          <div v-if="currentQuestion.question.type === 'multiple_choice'" class="options answer-info compact-answer-info practice-option-box">
             <el-checkbox-group v-model="multipleAnswers[currentQuestion.question.id]">
-              <el-checkbox v-for="(opt, idx) in parseOptions(currentQuestion.question.options)" :key="idx" :label="opt.letter">
-                <span class="option-rich-text">
+              <el-checkbox
+                v-for="(opt, idx) in parseOptions(currentQuestion.question.options)"
+                :key="idx"
+                :label="opt.letter"
+                class="option-select-item"
+                :class="{ 'is-selected': isMultipleChoiceOptionSelected(currentQuestion.question.id, opt.letter) }"
+              >
+                <span
+                  class="option-rich-text option-click-area"
+                  @click.prevent.stop="toggleMultipleChoiceOption(currentQuestion.question.id, opt.letter)"
+                >
                   <span class="option-letter option-head">{{ opt.letter }}.</span>
                   <span class="option-text markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></span>
                 </span>
@@ -127,14 +151,14 @@
             </el-checkbox-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'judge'" class="options">
+          <div v-if="currentQuestion.question.type === 'judge'" class="options answer-info compact-answer-info practice-option-box">
             <el-radio-group v-model="singleAnswers[currentQuestion.question.id]">
               <el-radio label="true">正确</el-radio>
               <el-radio label="false">错误</el-radio>
             </el-radio-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'fill_blank'" class="options">
+          <div v-if="currentQuestion.question.type === 'fill_blank'" class="options answer-info compact-answer-info practice-option-box">
             <el-input
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
@@ -143,7 +167,7 @@
             ></el-input>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'subjective'" class="options">
+          <div v-if="currentQuestion.question.type === 'subjective'" class="options answer-info compact-answer-info practice-option-box">
             <el-input
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
@@ -152,7 +176,7 @@
             ></el-input>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'composite'" class="options composite-options">
+          <div v-if="currentQuestion.question.type === 'composite'" class="options composite-options answer-info compact-answer-info practice-option-box">
             <div
               v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(currentQuestion.question.options)"
               :key="subQuestion.id || subIndex"
@@ -181,8 +205,13 @@
                   v-for="(opt, idx) in normalizeCompositeOptions(subQuestion.options)"
                   :key="`${subQuestion.id || subIndex}_${idx}`"
                   :label="opt.letter"
+                  class="option-select-item"
+                  :class="{ 'is-selected': getCompositeSelectedAnswer(currentQuestion.question.id, subQuestion.id) === opt.letter }"
                 >
-                  <span class="option-rich-text">
+                  <span
+                    class="option-rich-text option-click-area"
+                    @click.prevent.stop="handleCompositeChoiceSelect(currentQuestion.question.id, subQuestion.id, opt.letter)"
+                  >
                     <span class="option-letter option-head">{{ opt.letter }}.</span>
                     <span class="option-text markdown-body" v-html="renderMarkdown(opt.text)" v-highlight></span>
                   </span>
@@ -191,7 +220,7 @@
             </div>
           </div>
 
-          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box answer-info compact-answer-info">
+          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box answer-info compact-answer-info practice-answer-box">
             <div class="answer-title">标准答案</div>
             <div
               class="answer-content markdown-body"
@@ -453,6 +482,27 @@ export default {
         }
       })
     },
+    isSingleChoiceOptionSelected(questionId, optionLetter) {
+      return this.singleAnswers[questionId] === optionLetter
+    },
+    selectSingleChoiceOption(questionId, optionLetter) {
+      this.$set(this.singleAnswers, questionId, optionLetter)
+    },
+    isMultipleChoiceOptionSelected(questionId, optionLetter) {
+      const selected = this.multipleAnswers[questionId]
+      return Array.isArray(selected) && selected.includes(optionLetter)
+    },
+    toggleMultipleChoiceOption(questionId, optionLetter) {
+      const selected = Array.isArray(this.multipleAnswers[questionId]) ? [...this.multipleAnswers[questionId]] : []
+      const index = selected.indexOf(optionLetter)
+      if (index >= 0) {
+        selected.splice(index, 1)
+      } else {
+        selected.push(optionLetter)
+        selected.sort()
+      }
+      this.$set(this.multipleAnswers, questionId, selected)
+    },
     getCompositeSelectedAnswer(questionId, subQuestionId) {
       const subAnswers = this.compositeAnswers[questionId]
       if (!subAnswers || typeof subAnswers !== 'object') return ''
@@ -464,6 +514,16 @@ export default {
         : {}
       current[String(subQuestionId)] = answerLetter
       this.$set(this.compositeAnswers, questionId, current)
+    },
+    getQuestionDisplayType(item) {
+      if (!item) return ''
+      if (item.questionType === 'programming') return 'programming'
+      if (item.question && item.question.type) return String(item.question.type)
+      return item.questionType ? String(item.questionType) : ''
+    },
+    getQuestionCardClass(item) {
+      const normalizedType = this.getQuestionDisplayType(item).replace(/_/g, '-')
+      return normalizedType ? `type-${normalizedType}` : ''
     },
     getTypeTag(type) {
       const map = {
@@ -608,7 +668,8 @@ export default {
 }
 
 .status-item {
-  background: #f5f7fa;
+  background: #ffffff;
+  border: 1px solid #ebeef5;
   border-radius: 8px;
   padding: 10px;
 }
@@ -649,6 +710,38 @@ export default {
 
 .question-card {
   margin-bottom: 12px;
+  border: 1px solid #ebeef5;
+  border-left: 4px solid #dcdfe6;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.question-card.type-single-choice {
+  border-left-color: #409eff;
+}
+
+.question-card.type-multiple-choice {
+  border-left-color: #67c23a;
+}
+
+.question-card.type-judge {
+  border-left-color: #e6a23c;
+}
+
+.question-card.type-fill-blank {
+  border-left-color: #67c23a;
+}
+
+.question-card.type-subjective {
+  border-left-color: #909399;
+}
+
+.question-card.type-composite {
+  border-left-color: #f56c6c;
+}
+
+.question-card.type-programming {
+  border-left-color: #f56c6c;
 }
 
 .q-header {
@@ -688,6 +781,43 @@ export default {
   margin-bottom: 12px;
 }
 
+.compact-answer-info {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
+.answer-info {
+  margin-top: 15px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #ebeef5;
+  border-left: 3px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.practice-option-box {
+  border-left-color: #dcdfe6;
+}
+
+.practice-option-box /deep/ .el-radio__label,
+.practice-option-box /deep/ .el-checkbox__label {
+  color: #303133;
+}
+
+.practice-option-box .option-letter {
+  color: #606266;
+}
+
+.practice-option-box /deep/ .el-textarea__inner {
+  border-color: #dcdfe6;
+  background: #ffffff;
+}
+
+.practice-option-box /deep/ .el-textarea__inner:focus {
+  border-color: #409eff;
+}
+
 .options /deep/ .el-radio-group,
 .options /deep/ .el-checkbox-group {
   display: block;
@@ -725,6 +855,10 @@ export default {
   width: 100%;
 }
 
+.option-click-area {
+  cursor: pointer;
+}
+
 .option-letter {
   color: #606266;
   font-weight: 600;
@@ -758,6 +892,24 @@ export default {
   overflow-x: auto;
 }
 
+.options /deep/ .option-select-item {
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 8px 10px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.options /deep/ .option-select-item:hover {
+  border-color: #c0c4cc;
+}
+
+.options /deep/ .option-select-item.is-selected {
+  border-color: #409eff;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.08);
+}
+
 .composite-options {
   display: flex;
   flex-direction: column;
@@ -766,9 +918,10 @@ export default {
 
 .composite-sub-question {
   border: 1px solid #ebeef5;
+  border-left: 3px solid #dcdfe6;
   border-radius: 8px;
   padding: 10px;
-  background: #fafbfd;
+  background: #ffffff;
 }
 
 .composite-sub-header {
@@ -808,9 +961,23 @@ export default {
 }
 
 .answer-box {
-  background: #f5f7fa;
   border-radius: 8px;
   padding: 12px;
+}
+
+.practice-answer-box {
+  background: #ffffff;
+  border: 1px solid #ebeef5;
+  border-left: 3px solid #67c23a;
+  box-shadow: none;
+}
+
+.practice-answer-box .answer-title {
+  color: #67c23a;
+}
+
+.practice-answer-box .analysis {
+  border-top-color: #d1e9c4;
 }
 
 .answer-title {
@@ -822,6 +989,14 @@ export default {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed #dcdfe6;
+}
+
+.practice-detail-page /deep/ .el-card {
+  background: #ffffff;
+}
+
+.practice-detail-page /deep/ .el-card__body {
+  background: #ffffff;
 }
 
 @media (max-width: 768px) {

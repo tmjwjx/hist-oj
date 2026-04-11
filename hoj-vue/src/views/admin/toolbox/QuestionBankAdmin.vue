@@ -82,26 +82,34 @@
       <el-table
         :data="questions"
         v-loading="loading"
+        class="question-bank-table"
+        :row-class-name="getQuestionRowClass"
         stripe
         border
         style="width: 100%; margin-top: 20px"
       >
-        <el-table-column prop="id" label="ID" width="80"></el-table-column>
         <el-table-column prop="title" label="题目内容" min-width="680">
           <template slot-scope="{ row }">
             <div class="inline-question-cell">
               <div class="inline-meta-row">
+                <el-tag type="info" size="mini">ID:{{ row.id }}</el-tag>
                 <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
-                <el-tag v-if="row.course" type="warning" size="mini">{{ row.course }}</el-tag>
+                <el-tag type="danger" size="mini">难度：{{ getDifficultyText(row.difficulty) }}</el-tag>
+                <el-tag type="primary" size="mini">分值：{{ Number(row.score || 0) }}分</el-tag>
+                <el-tag type="info" size="mini">创建者：{{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
+                <el-tag type="info" size="mini">创建时间：{{ formatMetaTime(row.createTime || row.createdAt) }}</el-tag>
+                <el-tag v-if="row.course" type="warning" size="mini">所属课程：{{ row.course }}</el-tag>
                 <el-tag
                   v-for="(tag, idx) in parseTags(row.tags)"
                   :key="`meta-tag-${row.id}-${idx}`"
                   size="mini"
                   type="info"
                 >
-                  {{ tag }}
+                  标签：{{ tag }}
                 </el-tag>
-                <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">{{ row.isShared ? '共享' : '个人' }}</el-tag>
+                <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
+                  开放权限：{{ row.isShared ? '共享' : '个人' }}
+                </el-tag>
               </div>
 
               <div class="markdown-body inline-question-title" v-html="renderMarkdown(row.title)" v-highlight></div>
@@ -173,17 +181,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="creatorId" label="创建者" width="120">
-          <template slot-scope="{ row }">
-            {{ row.creator ? row.creator.username : row.creatorId }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="160">
-          <template slot-scope="{ row }">
-            {{ row.createTime | localtime }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150">
           <template slot-scope="{ row }">
             <el-button size="mini" type="primary" @click="goEditPage(row)">编辑</el-button>
             <el-button size="mini" type="danger" @click="handleDelete(row)">删除</el-button>
@@ -567,6 +565,10 @@ export default {
     handleCurrentChange(val) {
       this.pagination.currentPage = val
       this.loadQuestions()
+    },
+    getQuestionRowClass({ row }) {
+      const normalizedType = String(row && row.type ? row.type : '').replace(/_/g, '-')
+      return `question-bank-row type-${normalizedType}`
     },
     goCreatePage() {
       this.$router.push({ name: 'admin-question-bank-create' })
@@ -955,6 +957,21 @@ export default {
       }
       return difficultyMap[difficulty] || 3
     },
+    getDifficultyText(difficulty) {
+      const level = Number(difficulty)
+      if (level === 1) return '简单'
+      if (level === 2) return '中等'
+      if (level === 3) return '困难'
+      return `等级${difficulty}`
+    },
+    formatMetaTime(value) {
+      if (!value) return '--'
+      try {
+        return new Date(value).toLocaleString('zh-CN')
+      } catch (e) {
+        return '--'
+      }
+    },
     renderMarkdown(content) {
       if (!content) return ''
       try {
@@ -1222,6 +1239,62 @@ export default {
 .pagination {
   margin-top: 20px;
   text-align: right;
+}
+
+.question-bank-admin-container >>> .question-bank-table.el-table::before {
+  height: 0;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body-wrapper table {
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row > td {
+  background: #fff;
+  border-top: 1px solid #ebeef5;
+  border-bottom: 1px solid #ebeef5;
+  vertical-align: top;
+  transition: background-color 0.2s ease;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row > td:first-child {
+  border-left: 4px solid #dcdfe6;
+  border-radius: 10px 0 0 10px;
+  padding-left: 14px;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row > td:last-child {
+  border-right: 1px solid #ebeef5;
+  border-radius: 0 10px 10px 0;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row:hover > td {
+  background: #f8fbff;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-single-choice > td:first-child {
+  border-left-color: #409eff;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-multiple-choice > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-judge > td:first-child {
+  border-left-color: #e6a23c;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-fill-blank > td:first-child {
+  border-left-color: #67c23a;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-subjective > td:first-child {
+  border-left-color: #909399;
+}
+
+.question-bank-admin-container >>> .question-bank-table .el-table__body tr.question-bank-row.type-composite > td:first-child {
+  border-left-color: #f56c6c;
 }
 
 .options-container {

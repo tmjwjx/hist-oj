@@ -3479,7 +3479,8 @@ func (h *Handler) GetExamPaperList(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	keyword := c.Query("keyword")
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	paperIDStr := strings.TrimSpace(c.Query("paperId"))
 	isSharedStr := c.Query("isShared")
 	isPublicStr := c.Query("isPublic")
 
@@ -3488,8 +3489,19 @@ func (h *Handler) GetExamPaperList(c *gin.Context) {
 	// 查询试卷：自己创建的 + 共享的
 	query := db.Model(&model.ExamPaper{}).Where("status = 1 AND (creator_id = ? OR is_shared = 1)", uid)
 
-	if keyword != "" {
-		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	if paperIDStr != "" {
+		if paperID, err := strconv.ParseUint(paperIDStr, 10, 64); err == nil {
+			query = query.Where("id = ?", paperID)
+		} else {
+			c.JSON(http.StatusOK, errorResponse(400, "paperId参数格式错误"))
+			return
+		}
+	} else if keyword != "" {
+		if keywordID, err := strconv.ParseUint(keyword, 10, 64); err == nil {
+			query = query.Where("(id = ? OR title LIKE ?)", keywordID, "%"+keyword+"%")
+		} else {
+			query = query.Where("title LIKE ?", "%"+keyword+"%")
+		}
 	}
 
 	if isSharedStr != "" {
@@ -3956,7 +3968,8 @@ func (h *Handler) AdminGetExamPaperList(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	keyword := c.Query("keyword")
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	paperIDStr := strings.TrimSpace(c.Query("paperId"))
 	isSharedStr := c.Query("isShared")
 	isPublicStr := c.Query("isPublic")
 
@@ -3965,8 +3978,19 @@ func (h *Handler) AdminGetExamPaperList(c *gin.Context) {
 	// 管理员可以看到所有试卷
 	query := db.Model(&model.ExamPaper{}).Where("status = 1")
 
-	if keyword != "" {
-		query = query.Where("title LIKE ?", "%"+keyword+"%")
+	if paperIDStr != "" {
+		if paperID, err := strconv.ParseUint(paperIDStr, 10, 64); err == nil {
+			query = query.Where("id = ?", paperID)
+		} else {
+			c.JSON(http.StatusOK, errorResponse(400, "paperId参数格式错误"))
+			return
+		}
+	} else if keyword != "" {
+		if keywordID, err := strconv.ParseUint(keyword, 10, 64); err == nil {
+			query = query.Where("(id = ? OR title LIKE ?)", keywordID, "%"+keyword+"%")
+		} else {
+			query = query.Where("title LIKE ?", "%"+keyword+"%")
+		}
 	}
 
 	if isSharedStr != "" {

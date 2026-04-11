@@ -732,7 +732,7 @@
           <el-form-item label="试卷筛选">
             <el-input
               v-model="paperSearchKeyword"
-              placeholder="搜索试卷名称"
+              placeholder="搜索试卷名称或试卷ID"
               prefix-icon="el-icon-search"
               clearable
               @clear="loadExamPaperList"
@@ -1276,6 +1276,21 @@ export default {
       })
     },
     goToQuestionBank() {
+      // 打开题库浏览器前，先把当前作业里的客观题同步到 store
+      // 题库浏览器会基于该列表显示“添加/移除”状态，并进行实时同步
+      const objectiveQuestions = this.selectedQuestions
+        .filter(question => {
+          if (!question) return false
+          if (question.type === 'programming') return false
+          return !!(question.questionId || question.id)
+        })
+        .map(question => ({
+          ...question,
+          id: question.questionId || question.id
+        }))
+      this.$store.commit('classroom/SET_SELECTED_QUESTIONS', objectiveQuestions)
+      this.$store.commit('classroom/SET_QUESTION_BANK_SYNC_ACTIVE', true)
+
       this.$router.push({
         name: 'QuestionBankBrowser',
         params: { classroomId: this.classroomId }
@@ -1283,21 +1298,58 @@ export default {
     },
     loadSelectedQuestionsFromStore() {
       const storedQuestions = this.$store.state.classroom.selectedQuestions || []
-      if (storedQuestions.length > 0) {
-        // 将题库浏览器选中的题目添加到已选题目列表
+      const shouldSyncFromQuestionBank = !!this.$store.state.classroom.questionBankSyncActive
+      if (shouldSyncFromQuestionBank) {
+        const getObjectiveIdentity = (question) => {
+          if (!question || question.type === 'programming') return null
+          const rawId = question.questionId !== undefined && question.questionId !== null ? question.questionId : question.id
+          if (rawId === undefined || rawId === null || rawId === '') return null
+          return String(rawId)
+        }
+
+        const storedMap = new Map()
         storedQuestions.forEach(question => {
-          if (!this.selectedQuestions.find(q => q.id === question.id)) {
+          const key = getObjectiveIdentity(question)
+          if (key) {
+            storedMap.set(key, question)
+          }
+        })
+
+        // 1) 移除题库浏览器里已取消选择的客观题
+        const beforeCount = this.selectedQuestions.length
+        this.selectedQuestions = this.selectedQuestions.filter(question => {
+          if (question.type === 'programming') return true
+          const key = getObjectiveIdentity(question)
+          if (!key) return true
+          return storedMap.has(key)
+        })
+        const removedCount = beforeCount - this.selectedQuestions.length
+
+        // 2) 添加题库浏览器中新选择的客观题
+        let addedCount = 0
+        storedQuestions.forEach(question => {
+          const key = getObjectiveIdentity(question)
+          if (!key) return
+
+          const exists = this.selectedQuestions.some(item => getObjectiveIdentity(item) === key)
+          if (!exists) {
             this.selectedQuestions.push({
               ...question,
+              id: question.questionId || question.id,
               questionOrder: this.selectedQuestions.length + 1,
               question: question // 保存完整的题目信息
             })
+            addedCount++
           }
         })
+
         // 清空 store 中的临时题目
         this.$store.commit('classroom/SET_SELECTED_QUESTIONS', [])
-        this.$message.success(`已从题库添加 ${storedQuestions.length} 道题目`)
-        this.switchEditorPage('questions')
+        this.$store.commit('classroom/SET_QUESTION_BANK_SYNC_ACTIVE', false)
+        if (addedCount > 0 || removedCount > 0) {
+          this.$message.success(`题库同步完成：新增 ${addedCount} 题，移除 ${removedCount} 题`)
+          this.switchEditorPage('questions')
+        }
       }
     },
     async loadQuestionBank() {
@@ -2148,7 +2200,7 @@ export default {
             problemId: this.programmingForm.problemId,
             title: problemData.problem.title,
             type: 'programming',
-            difficulty: 5,
+            difficulty: this.parseDifficultyLevel(problemData.problem.difficulty ?? problem.difficulty, 5),
             score: this.programmingForm.score,
             content: `BingOJ 题目 ID: ${this.programmingForm.problemId}`
           }
@@ -2171,6 +2223,7 @@ export default {
     },
     // 获取难度标签类型
     getDifficultyTagType(difficulty) {
+      const normalizedDifficulty = this.parseDifficultyLevel(difficulty, -1)
       const typeMap = {
         0: 'info',     // 入门
         1: 'success',  // 简单
@@ -2179,10 +2232,11 @@ export default {
         4: 'danger',   // 大师
         5: 'danger'    // 专家
       }
-      return typeMap[difficulty] || ''
+      return typeMap[normalizedDifficulty] || ''
     },
     // 获取难度名称（6个梯度）
     getDifficultyName(difficulty) {
+      const normalizedDifficulty = this.parseDifficultyLevel(difficulty, -1)
       const nameMap = {
         0: '入门',
         1: '简单',
@@ -2191,7 +2245,58 @@ export default {
         4: '大师',
         5: '专家'
       }
-      return nameMap[difficulty] || '未知'
+      if (nameMap[normalizedDifficulty]) {
+        return nameMap[normalizedDifficulty]
+      }
+
+      const raw = (difficulty === undefined || difficulty === null) ? '' : String(difficulty).trim()
+      const textMap = {
+        beginner: '入门',
+        easy: '简单',
+        medium: '中等',
+        hard: '困难',
+        master: '大师',
+        expert: '专家',
+        入门: '入门',
+        简单: '简单',
+        中等: '中等',
+        困难: '困难',
+        大师: '大师',
+        专家: '专家'
+      }
+      return textMap[raw.toLowerCase()] || textMap[raw] || '未知'
+    },
+    parseDifficultyLevel(difficulty, fallback = 2) {
+      if (difficulty === null || difficulty === undefined || difficulty === '') {
+        return fallback
+      }
+
+      const parsed = Number.parseInt(String(difficulty).trim(), 10)
+      if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 5) {
+        return parsed
+      }
+
+      const text = String(difficulty).trim().toLowerCase()
+      const textMap = {
+        beginner: 0,
+        easy: 1,
+        medium: 2,
+        hard: 3,
+        master: 4,
+        expert: 5,
+        入门: 0,
+        简单: 1,
+        中等: 2,
+        困难: 3,
+        大师: 4,
+        专家: 5
+      }
+
+      if (Object.prototype.hasOwnProperty.call(textMap, text)) {
+        return textMap[text]
+      }
+
+      return fallback
     },
     // 渲染 Markdown
     renderMarkdown(text) {
@@ -2430,12 +2535,17 @@ export default {
     async loadExamPaperList() {
       this.loadingPapers = true
       try {
+        const searchKeyword = (this.paperSearchKeyword || '').trim()
+        const paperIdCandidate = Number.parseInt(searchKeyword, 10)
         const params = {
           page: this.paperCurrentPage,
           limit: this.paperPageSize
         }
-        if (this.paperSearchKeyword) {
-          params.keyword = this.paperSearchKeyword
+        if (searchKeyword) {
+          params.keyword = searchKeyword
+          if (/^\d+$/.test(searchKeyword) && Number.isInteger(paperIdCandidate) && paperIdCandidate > 0) {
+            params.paperId = paperIdCandidate
+          }
         }
 
         const res = await this.$store.dispatch('classroom/getExamPaperList', params)

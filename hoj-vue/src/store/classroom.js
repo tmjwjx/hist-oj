@@ -12,6 +12,7 @@ const state = {
   folders: [],
   materials: [],
   selectedQuestions: [], // 临时保存从题库选中的题目
+  questionBankSyncActive: false, // 标记是否从题库浏览页返回并需要同步客观题
   messages: [],
   pickedStudent: null,
   userRoles: [], // 存储用户的班级角色
@@ -125,6 +126,9 @@ const mutations = {
   },
   SET_SELECTED_QUESTIONS(state, questions) {
     state.selectedQuestions = questions || []
+  },
+  SET_QUESTION_BANK_SYNC_ACTIVE(state, active) {
+    state.questionBankSyncActive = !!active
   }
 }
 
