@@ -282,7 +282,7 @@
               </div>
               <div class="toolbar-right">
                 <el-button-group>
-                  <el-button type="primary" icon="el-icon-collection" @click="goToQuestionBank">
+                  <el-button type="primary" icon="el-icon-collection" @click="openQuestionSelectorDialog">
                     客观题题库
                   </el-button>
                   <el-button type="success" icon="el-icon-document" @click="showAddProgrammingDialog = true">
@@ -500,6 +500,228 @@
       </el-form>
 
     </div>
+
+    <!-- 添加客观题对话框 -->
+    <el-dialog
+      title="添加题目"
+      :visible.sync="showQuestionSelectorDialog"
+      width="1200px"
+      append-to-body
+      class="question-selector-dialog-wrapper"
+    >
+      <div class="question-selector-dialog">
+        <div class="selector-filter-section">
+          <el-row :gutter="10">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-input
+                v-model="questionFilters.keyword"
+                placeholder="按题目标题搜索"
+                prefix-icon="el-icon-search"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              >
+                <el-button slot="append" icon="el-icon-search" @click="loadQuestionBank"></el-button>
+              </el-input>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6">
+              <el-input
+                v-model="questionFilters.questionId"
+                placeholder="按题目ID搜索"
+                prefix-icon="el-icon-ticket"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              ></el-input>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="5">
+              <el-select
+                v-model="questionFilters.type"
+                placeholder="题型筛选"
+                clearable
+                @change="loadQuestionBank"
+                style="width: 100%;"
+              >
+                <el-option label="全部题型" value=""></el-option>
+                <el-option label="单选题" value="single_choice"></el-option>
+                <el-option label="多选题" value="multiple_choice"></el-option>
+                <el-option label="判断题" value="judge"></el-option>
+                <el-option label="填空题" value="fill_blank"></el-option>
+                <el-option label="主观题" value="subjective"></el-option>
+                <el-option label="组合题" value="composite"></el-option>
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="5">
+              <el-select
+                v-model="questionFilters.course"
+                placeholder="课程筛选"
+                clearable
+                @change="loadQuestionBank"
+                style="width: 100%;"
+              >
+                <el-option label="全部课程" value=""></el-option>
+                <el-option
+                  v-for="course in commonCourses"
+                  :key="course"
+                  :label="course"
+                  :value="course"
+                />
+              </el-select>
+            </el-col>
+          </el-row>
+          <el-row :gutter="10" style="margin-top: 10px;">
+            <el-col :xs="24" :sm="10">
+              <el-input
+                v-model="questionFilters.tag"
+                placeholder="按标签筛选"
+                prefix-icon="el-icon-price-tag"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              ></el-input>
+            </el-col>
+            <el-col :xs="24" :sm="8">
+              <el-select
+                v-model="questionFilters.sortKey"
+                placeholder="排序方式"
+                @change="handleQuestionSortChange"
+                style="width: 100%;"
+              >
+                <el-option label="最新创建" value="create_desc"></el-option>
+                <el-option label="最早创建" value="create_asc"></el-option>
+                <el-option label="ID升序" value="id_asc"></el-option>
+                <el-option label="ID降序" value="id_desc"></el-option>
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="6" class="selector-tools">
+              <el-checkbox v-model="questionFilters.onlyUnselected">仅看未添加</el-checkbox>
+              <el-button
+                type="text"
+                icon="el-icon-refresh"
+                @click="loadQuestionBank"
+                :loading="questionsLoading"
+              >
+                刷新题库
+              </el-button>
+              <el-button type="text" @click="resetQuestionSelectorFilters(); loadQuestionBank()">重置筛选</el-button>
+            </el-col>
+          </el-row>
+        </div>
+
+        <div class="selector-summary">
+          <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
+          <el-tag size="small" type="success">已选 {{ selectedQuestions.length }} 题</el-tag>
+        </div>
+
+        <div class="question-selector-list" v-loading="questionsLoading">
+          <el-alert
+            v-if="questionBank.length === 0 && !questionsLoading"
+            title="题库为空"
+            type="info"
+            :closable="false"
+            style="margin-bottom: 10px;"
+          >
+            <template slot="default">
+              <div>当前题库没有可用的题目。</div>
+            </template>
+          </el-alert>
+          <el-empty
+            v-else-if="filteredQuestionBank.length === 0 && !questionsLoading"
+            description="当前页题目均已添加或被筛选条件过滤"
+          ></el-empty>
+
+          <div
+            v-for="row in filteredQuestionBank"
+            :key="'selector-question-' + row.id"
+            class="selector-question-item"
+          >
+            <div class="selector-question-header">
+              <div class="selector-header-main">
+                <el-tag size="mini" :type="getQuestionTypeColor(row.type)">
+                  {{ getQuestionTypeText(row.type) }}
+                </el-tag>
+                <el-tag size="mini" type="info">ID: {{ row.id }}</el-tag>
+                <el-tag size="mini" :type="getDifficultyTagType(row.difficulty)">
+                  难度: {{ getDifficultyName(row.difficulty) }}
+                </el-tag>
+                <span class="selector-question-title">{{ row.title }}</span>
+              </div>
+              <el-button
+                size="mini"
+                :type="isQuestionSelected(row) ? 'danger' : 'primary'"
+                plain
+                @click="toggleObjectiveQuestion(row)"
+              >
+                {{ isQuestionSelected(row) ? '移除' : '添加' }}
+              </el-button>
+            </div>
+
+            <div class="selector-question-desc markdown-body preview-markdown" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
+
+            <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="selector-question-options">
+              <div v-for="(option, idx) in parseOptions(row.options)" :key="idx" class="selector-option-item">
+                <span class="option-letter">{{ option.letter }}.</span>
+                <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+              </div>
+            </div>
+
+            <div v-if="row.type === 'composite'" class="selector-question-options">
+              <div
+                v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(row.options)"
+                :key="subQuestion.id || subIndex"
+                class="composite-preview-item"
+              >
+                <div class="composite-preview-header">
+                  <span>子题 {{ subIndex + 1 }}</span>
+                  <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                </div>
+                <div class="markdown-body preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                <div class="selected-question-options">
+                  <div v-for="(option, idx) in parseOptions(subQuestion.options)" :key="idx" class="selected-question-option">
+                    <span class="option-letter">{{ option.letter }}.</span>
+                    <span class="option-text markdown-body preview-markdown" v-html="renderMarkdown(option.text)" v-highlight></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="selector-question-meta">
+              <el-tag v-if="row.course" size="mini" type="warning">
+                <i class="el-icon-collection"></i> {{ row.course }}
+              </el-tag>
+              <el-tag
+                v-for="(tag, idx) in parseQuestionTags(row.tags)"
+                :key="'selector-tag-' + row.id + '-' + idx"
+                size="mini"
+                type="info"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <div class="selected-question-answer answer-info compact-answer-info" v-if="row && row.type">
+              <span class="meta-label">正确答案：</span>
+              <span class="meta-value">{{ formatAnswerForDisplay(row) }}</span>
+            </div>
+            <div v-if="row.analysis" class="selector-analysis markdown-body preview-markdown" v-html="renderMarkdown(row.analysis)" v-highlight></div>
+          </div>
+
+          <div v-if="questionBankTotal > 0" style="padding: 10px; text-align: center;">
+            <el-pagination
+              @current-change="handleQuestionPageChange"
+              :current-page="questionCurrentPage"
+              :page-size="questionPageSize"
+              small
+              layout="prev, pager, next"
+              :total="questionBankTotal"
+            >
+            </el-pagination>
+          </div>
+        </div>
+      </div>
+      <span slot="footer">
+        <el-button @click="showQuestionSelectorDialog = false">关闭</el-button>
+      </span>
+    </el-dialog>
 
     <!-- 添加 BingOJ 编程题对话框 -->
     <el-dialog title="添加 BingOJ 编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
@@ -1135,14 +1357,20 @@ export default {
       submitting: false,
       loadingData: false, // 编辑模式下加载数据的loading状态
       questionsLoading: false,
-      searchKeyword: '',
-      filterType: '',
-      filterCourse: '', // 课程筛选
-      filterTag: '', // 标签筛选
-      currentPage: 1,
-      pageSize: 10,
-      total: 0,
+      showQuestionSelectorDialog: false,
       questionBank: [],
+      questionFilters: {
+        keyword: '',
+        questionId: '',
+        type: '',
+        course: '',
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
+      },
+      questionCurrentPage: 1,
+      questionPageSize: 10,
+      questionBankTotal: 0,
       selectedQuestions: [],
       // 常用课程列表
       commonCourses: [
@@ -1253,6 +1481,15 @@ export default {
     // 时间区间和考试时长是否不匹配
     timeRangeMismatch() {
       return this.timeRangeMinutes > 0 && this.timeRangeMinutes !== this.form.examDuration
+    },
+    filteredQuestionBank() {
+      if (!Array.isArray(this.questionBank)) {
+        return []
+      }
+      if (!this.questionFilters.onlyUnselected) {
+        return this.questionBank
+      }
+      return this.questionBank.filter(question => !this.isQuestionSelected(question))
     }
   },
   mounted() {
@@ -1261,8 +1498,6 @@ export default {
     if (this.isEditMode) {
       this.loadHomeworkData()
     }
-    // 检查是否有从题库浏览器返回的题目
-    this.loadSelectedQuestionsFromStore()
   },
   methods: {
     switchEditorPage(page) {
@@ -1275,102 +1510,62 @@ export default {
         }
       })
     },
-    goToQuestionBank() {
-      // 打开题库浏览器前，先把当前作业里的客观题同步到 store
-      // 题库浏览器会基于该列表显示“添加/移除”状态，并进行实时同步
-      const objectiveQuestions = this.selectedQuestions
-        .filter(question => {
-          if (!question) return false
-          if (question.type === 'programming') return false
-          return !!(question.questionId || question.id)
-        })
-        .map(question => ({
-          ...question,
-          id: question.questionId || question.id
-        }))
-      this.$store.commit('classroom/SET_SELECTED_QUESTIONS', objectiveQuestions)
-      this.$store.commit('classroom/SET_QUESTION_BANK_SYNC_ACTIVE', true)
-
-      this.$router.push({
-        name: 'QuestionBankBrowser',
-        params: { classroomId: this.classroomId }
-      })
+    openQuestionSelectorDialog() {
+      this.showQuestionSelectorDialog = true
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
     },
-    loadSelectedQuestionsFromStore() {
-      const storedQuestions = this.$store.state.classroom.selectedQuestions || []
-      const shouldSyncFromQuestionBank = !!this.$store.state.classroom.questionBankSyncActive
-      if (shouldSyncFromQuestionBank) {
-        const getObjectiveIdentity = (question) => {
-          if (!question || question.type === 'programming') return null
-          const rawId = question.questionId !== undefined && question.questionId !== null ? question.questionId : question.id
-          if (rawId === undefined || rawId === null || rawId === '') return null
-          return String(rawId)
-        }
-
-        const storedMap = new Map()
-        storedQuestions.forEach(question => {
-          const key = getObjectiveIdentity(question)
-          if (key) {
-            storedMap.set(key, question)
-          }
-        })
-
-        // 1) 移除题库浏览器里已取消选择的客观题
-        const beforeCount = this.selectedQuestions.length
-        this.selectedQuestions = this.selectedQuestions.filter(question => {
-          if (question.type === 'programming') return true
-          const key = getObjectiveIdentity(question)
-          if (!key) return true
-          return storedMap.has(key)
-        })
-        const removedCount = beforeCount - this.selectedQuestions.length
-
-        // 2) 添加题库浏览器中新选择的客观题
-        let addedCount = 0
-        storedQuestions.forEach(question => {
-          const key = getObjectiveIdentity(question)
-          if (!key) return
-
-          const exists = this.selectedQuestions.some(item => getObjectiveIdentity(item) === key)
-          if (!exists) {
-            this.selectedQuestions.push({
-              ...question,
-              id: question.questionId || question.id,
-              questionOrder: this.selectedQuestions.length + 1,
-              question: question // 保存完整的题目信息
-            })
-            addedCount++
-          }
-        })
-
-        // 清空 store 中的临时题目
-        this.$store.commit('classroom/SET_SELECTED_QUESTIONS', [])
-        this.$store.commit('classroom/SET_QUESTION_BANK_SYNC_ACTIVE', false)
-        if (addedCount > 0 || removedCount > 0) {
-          this.$message.success(`题库同步完成：新增 ${addedCount} 题，移除 ${removedCount} 题`)
-          this.switchEditorPage('questions')
-        }
+    resetQuestionSelectorFilters() {
+      this.questionFilters = {
+        keyword: '',
+        questionId: '',
+        type: '',
+        course: '',
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
       }
+      this.questionCurrentPage = 1
+    },
+    getQuestionSortParams() {
+      const sortKey = this.questionFilters.sortKey || 'create_desc'
+      switch (sortKey) {
+        case 'id_asc':
+          return { sortBy: 'id', sortOrder: 'asc' }
+        case 'id_desc':
+          return { sortBy: 'id', sortOrder: 'desc' }
+        case 'create_asc':
+          return { sortBy: 'createTime', sortOrder: 'asc' }
+        case 'create_desc':
+        default:
+          return { sortBy: 'createTime', sortOrder: 'desc' }
+      }
+    },
+    handleQuestionSortChange() {
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
     },
     async loadQuestionBank() {
       this.questionsLoading = true
       try {
+        const questionId = String(this.questionFilters.questionId || '').trim()
+        const keyword = String(this.questionFilters.keyword || '').trim()
+        const sortParams = this.getQuestionSortParams()
         const params = {
           classroomId: this.classroomId,
-          page: this.currentPage,
-          limit: this.pageSize
+          page: this.questionCurrentPage,
+          limit: this.questionPageSize,
+          type: this.questionFilters.type || undefined,
+          course: this.questionFilters.course || undefined,
+          tag: this.questionFilters.tag || undefined,
+          sortBy: sortParams.sortBy,
+          sortOrder: sortParams.sortOrder
         }
-        if (this.searchKeyword) {
-          params.keyword = this.searchKeyword
-        }
-        if (this.filterType) {
-          params.type = this.filterType
-        }
-        if (this.filterCourse) {
-          params.course = this.filterCourse
-        }
-        if (this.filterTag) {
-          params.tag = this.filterTag
+
+        if (questionId) {
+          params.questionId = questionId
+        } else if (keyword) {
+          params.keyword = keyword
         }
 
         const res = await this.$store.dispatch('classroom/getQuestionBank', params)
@@ -1381,7 +1576,7 @@ export default {
             difficulty: parseInt(q.difficulty) || 2, // 确保是数字类型
             score: q.score || 10 // 默认分值
           }))
-          this.total = res.data.total || questions.length
+          this.questionBankTotal = res.data.total || questions.length
         }
       } catch (error) {
         this.$message.error(this.$t('m.Load_Failed'))
@@ -1389,8 +1584,20 @@ export default {
         this.questionsLoading = false
       }
     },
-    handleSelectionChange(selection) {
-      // 不再使用勾选框，此方法保留但不做任何操作
+    handleQuestionPageChange(page) {
+      this.questionCurrentPage = page
+      this.loadQuestionBank()
+    },
+    toggleObjectiveQuestion(question) {
+      if (!question || !question.id) {
+        return
+      }
+      if (this.isQuestionSelected(question)) {
+        this.removeQuestion(question)
+        this.$message.success('已移除题目')
+      } else {
+        this.addQuestion(question)
+      }
     },
     isQuestionSelected(question) {
       // 检查题目是否已添加（通过id或problemId）
@@ -1678,10 +1885,6 @@ export default {
         })
       }
       return result
-    },
-    handlePageChange(page) {
-      this.currentPage = page
-      this.loadQuestionBank()
     },
     async loadHomeworkData() {
       this.loadingData = true
@@ -3095,6 +3298,99 @@ export default {
   padding: 12px 0 0;
 }
 
+.question-selector-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.selector-filter-section {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.selector-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.selector-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-selector-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.selector-question-item {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.selector-question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.selector-header-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selector-question-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.selector-question-desc {
+  margin: 8px 0;
+}
+
+.selector-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selector-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.selector-question-meta {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selector-analysis {
+  margin-top: 8px;
+}
+
 /* 右侧已选题目面板 */
 .selected-questions-panel,
 .selected-questions-panel-full {
@@ -3728,6 +4024,19 @@ export default {
   .toolbar-right .el-button {
     flex: 1;
     min-width: 120px;
+  }
+
+  .selector-summary {
+    flex-wrap: wrap;
+  }
+
+  .selector-question-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .selector-tools {
+    justify-content: flex-start;
   }
 
   .filter-section {

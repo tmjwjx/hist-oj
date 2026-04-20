@@ -300,381 +300,180 @@
         </div>
       </el-form-item>
 
-      <el-divider>题目选择</el-divider>
+      <el-divider>题目列表</el-divider>
 
-      <!-- 题目选择区域 -->
-      <div class="questions-selector">
-        <!-- 左侧：题库面板 -->
-        <div class="question-bank-panel">
-          <div class="panel-header">
-            <span class="panel-title">题库 ({{ questionBank.length }}/{{ questionBankTotal }})</span>
-            <el-button
-              type="text"
-              icon="el-icon-refresh"
-              @click="loadQuestionBank"
-              :loading="questionsLoading"
-              size="small"
-            >
-              刷新
-            </el-button>
-          </div>
+      <div class="selected-questions-toolbar">
+        <el-button type="primary" icon="el-icon-plus" @click="openQuestionSelectorDialog">
+          添加题目
+        </el-button>
+        <el-button
+          type="success"
+          size="small"
+          icon="el-icon-plus"
+          @click="showAddProgrammingDialog = true"
+        >
+          添加编程题
+        </el-button>
+        <el-tag size="small" type="info">已选 {{ paperForm.questions.length }} 题</el-tag>
+        <el-tag size="small" type="success">总分: {{ getSelectedScore() }} 分</el-tag>
+      </div>
 
-          <div class="filter-section">
-            <el-input
-              v-model="questionFilters.keyword"
-              placeholder="搜索标题"
-              prefix-icon="el-icon-search"
-              clearable
-              @clear="loadQuestionBank"
-              @keyup.enter.native="loadQuestionBank"
-              size="small"
-              class="search-input"
-            >
-              <el-button
-                slot="append"
-                icon="el-icon-search"
-                @click="loadQuestionBank"
-              >
-                搜索
-              </el-button>
-            </el-input>
-
-            <el-input
-              v-model="questionFilters.questionId"
-              placeholder="题目ID"
-              prefix-icon="el-icon-ticket"
-              clearable
-              @clear="loadQuestionBank"
-              @keyup.enter.native="loadQuestionBank"
-              size="small"
-              class="filter-select"
-            ></el-input>
-
-            <el-select
-              v-model="questionFilters.type"
-              placeholder="题型"
-              clearable
-              @change="loadQuestionBank"
-              size="small"
-              class="filter-select"
-            >
-              <el-option label="全部" value=""></el-option>
-              <el-option label="单选题" value="single_choice"></el-option>
-              <el-option label="多选题" value="multiple_choice"></el-option>
-              <el-option label="判断题" value="judge"></el-option>
-              <el-option label="填空题" value="fill_blank"></el-option>
-              <el-option label="主观题" value="subjective"></el-option>
-              <el-option label="组合题" value="composite"></el-option>
-            </el-select>
-
-            <el-select
-              v-model="questionFilters.course"
-              placeholder="课程"
-              clearable
-              @change="loadQuestionBank"
-              size="small"
-              class="filter-select"
-            >
-              <el-option label="全部" value=""></el-option>
-              <el-option
-                v-for="course in commonCourses"
-                :key="course"
-                :label="course"
-                :value="course"
-              />
-            </el-select>
-
-            <el-input
-              v-model="questionFilters.tag"
-              placeholder="标签筛选"
-              prefix-icon="el-icon-price-tag"
-              clearable
-              @clear="loadQuestionBank"
-              @keyup.enter.native="loadQuestionBank"
-              size="small"
-              class="filter-select"
-            ></el-input>
-          </div>
-
-          <div class="quick-add-section">
-            <div class="quick-add-title">按 ID 快速添加客观题</div>
-            <div class="quick-add-row">
-              <el-input
-                v-model.trim="quickAddQuestionId"
-                size="small"
-                clearable
-                placeholder="输入客观题 ID，例如 1024"
-                @keyup.enter.native="quickAddObjectiveQuestion"
-              ></el-input>
-              <el-button
-                class="quick-add-btn"
-                type="primary"
-                size="small"
-                :loading="quickAddQuestionLoading"
-                @click="quickAddObjectiveQuestion"
-              >
-                添加
-              </el-button>
-            </div>
-          </div>
-
-          <div class="question-list" v-loading="questionsLoading">
-            <el-alert
-              v-if="questionBank.length === 0 && !questionsLoading"
-              title="题库为空"
-              type="info"
-              :closable="false"
-              style="margin-bottom: 10px;"
-            >
-              <template slot="default">
-                <div>当前题库没有可用的题目。</div>
-                <div style="font-size: 12px; margin-top: 5px; color: #909399;">
-                  提示：教师端只能看到自己创建的题目和共享的题目。如需查看所有题目，请使用管理员账户。
-                </div>
-              </template>
-            </el-alert>
-            <el-table
-              :data="questionBank"
-              size="small"
-              :show-header="false"
-              :empty-text="questionBank.length === 0 ? '暂无题目' : '搜索题目'"
-              style="font-size: 12px;"
-            >
-              <el-table-column>
-                <template slot-scope="{ row }">
-                  <div class="question-item" v-if="row && row.type">
-                    <div class="question-header" @click="toggleQuestionDetail(row)">
-                      <el-tag size="mini" :type="getQuestionTypeTag(row.type)">
-                        {{ getQuestionTypeLabel(row.type) }}
-                      </el-tag>
-                      <el-tag size="mini" type="info" style="margin-left: 6px;">
-                        ID: {{ row.id }}
-                      </el-tag>
-                      <span style="margin-left: 10px;">{{ row.title }}</span>
-                      <el-tag v-if="row.isShared === 1" size="mini" type="success" style="margin-left: 5px;">共享</el-tag>
-                      <el-tag v-else-if="row.creatorId === currentUserId" size="mini" type="info" style="margin-left: 5px;">私有</el-tag>
-                      <i :class="row.showDetail ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" style="margin-left: auto; color: #909399;"></i>
-                    </div>
-                    <el-collapse-transition>
-                      <div v-show="row.showDetail" class="question-detail-content">
-                        <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
-                        <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
-                          <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
-                            <span class="option-label">{{ option.label }}.</span>
-                            <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                          </div>
-                        </div>
-                        <div class="question-answer-meta answer-info compact-answer-info" v-if="row && row.type">
-                          <span class="meta-label">正确答案：</span>
-                          <span class="meta-value">{{ formatAnswer(row) }}</span>
-                        </div>
-                      </div>
-                    </el-collapse-transition>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column width="60" align="center">
-                <template slot-scope="{ row }">
-                  <el-button
-                    v-if="row && row.id"
-                    size="mini"
-                    :type="isQuestionSelected(row) ? 'info' : 'primary'"
-                    icon="el-icon-plus"
-                    :disabled="isQuestionSelected(row)"
-                    :title="isQuestionSelected(row) ? '已添加' : '添加题目'"
-                    style="padding: 5px 8px;"
-                    @click.stop="addQuestion(row)"
-                  >
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-
-            <div v-if="questionBankTotal > 0" style="padding: 10px; text-align: center;">
-              <el-pagination
-                @current-change="handleQuestionPageChange"
-                :current-page="questionCurrentPage"
-                :page-size="questionPageSize"
-                small
-                layout="prev, pager, next"
-                :total="questionBankTotal"
-              >
-              </el-pagination>
-            </div>
-          </div>
-
-          <div class="add-programming-section">
-            <el-button
-              type="success"
-              size="small"
-              icon="el-icon-plus"
-              @click="showAddProgrammingDialog = true"
-              style="width: 100%;"
-            >
-              添加编程题
-            </el-button>
-          </div>
+      <div class="selected-questions-panel selected-questions-panel--full">
+        <div class="panel-header">
+          <span class="panel-title">已选题目</span>
+          <el-tag size="small" type="info">{{ paperForm.questions.length }} 题</el-tag>
+          <el-tag size="small" type="success" style="margin-left: 8px;">
+            总分: {{ getSelectedScore() }} 分
+          </el-tag>
         </div>
 
-        <!-- 右侧：已选题目 -->
-        <div class="selected-questions-panel">
-          <div class="panel-header">
-            <span class="panel-title">已选题目</span>
-            <el-tag size="small" type="info">{{ paperForm.questions.length }} 题</el-tag>
-            <el-tag size="small" type="success" style="margin-left: 8px;">
-              总分: {{ getSelectedScore() }} 分
-            </el-tag>
-          </div>
-
-          <div class="selected-list" v-if="paperForm.questions.length > 0">
-            <transition-group name="list">
-              <template v-for="(q, index) in paperForm.questions">
-                <div
-                  v-if="q && (q.questionId || q.problemId)"
-                  :key="q.questionId || q.problemId || index"
-                  class="selected-item"
-                >
-                  <div class="item-header">
-                    <span class="item-order">{{ index + 1 }}.</span>
-                    <el-tag size="mini" :type="getQuestionTypeTag(q.questionType)">
-                      {{ getQuestionTypeLabel(q.questionType) }}
-                    </el-tag>
-                    <el-input-number
-                      v-model="q.score"
-                      :min="1"
-                      :max="100"
+        <div class="selected-list" v-if="paperForm.questions.length > 0">
+          <transition-group name="list">
+            <template v-for="(q, index) in paperForm.questions">
+              <div
+                v-if="q && (q.questionId || q.problemId)"
+                :key="q.questionId || q.problemId || index"
+                class="selected-item"
+              >
+                <div class="item-header">
+                  <span class="item-order">{{ index + 1 }}.</span>
+                  <el-tag size="mini" :type="getQuestionTypeTag(q.questionType)">
+                    {{ getQuestionTypeLabel(q.questionType) }}
+                  </el-tag>
+                  <el-input-number
+                    v-model="q.score"
+                    :min="1"
+                    :max="100"
+                    size="mini"
+                    style="margin-left: 10px;"
+                  ></el-input-number>
+                  <span style="margin-left: 5px;">分</span>
+                  <el-button-group style="margin-left: auto;">
+                    <el-button
                       size="mini"
-                      style="margin-left: 10px;"
-                    ></el-input-number>
-                    <span style="margin-left: 5px;">分</span>
-                    <el-button-group style="margin-left: auto;">
-                      <el-button
-                        size="mini"
-                        type="primary"
-                        icon="el-icon-top"
-                        :disabled="index === 0"
-                        @click="moveQuestionUp(index)"
-                      ></el-button>
-                      <el-button
-                        size="mini"
-                        type="primary"
-                        icon="el-icon-bottom"
-                        :disabled="index === paperForm.questions.length - 1"
-                        @click="moveQuestionDown(index)"
-                      ></el-button>
-                      <el-button
-                        size="mini"
-                        type="danger"
-                        icon="el-icon-delete"
-                        @click="removeQuestion(index)"
-                      ></el-button>
-                    </el-button-group>
+                      type="primary"
+                      icon="el-icon-top"
+                      :disabled="index === 0"
+                      @click="moveQuestionUp(index)"
+                    ></el-button>
+                    <el-button
+                      size="mini"
+                      type="primary"
+                      icon="el-icon-bottom"
+                      :disabled="index === paperForm.questions.length - 1"
+                      @click="moveQuestionDown(index)"
+                    ></el-button>
+                    <el-button
+                      size="mini"
+                      type="danger"
+                      icon="el-icon-delete"
+                      @click="removeQuestion(index)"
+                    ></el-button>
+                  </el-button-group>
+                </div>
+              </div>
+              <div v-if="q && (q.questionId || q.problemId)" class="item-title" :key="'title-' + (q.questionId || q.problemId || index)">{{ getQuestionTitle(q) }}</div>
+              <div v-if="q && (q.questionId || q.problemId)" class="item-content" :key="'content-' + (q.questionId || q.problemId || index)">
+                <!-- 客观题 -->
+                <div v-if="q.question && (q.question.title || q.question.content)">
+                  <div class="item-description markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
+                  <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="item-options">
+                    <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
+                      <span class="option-label">{{ option.label }}.</span>
+                      <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                    </div>
+                  </div>
+                  <div v-else-if="q.question.type === 'composite'" class="composite-question-block">
+                    <div
+                      v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
+                      :key="subQuestion.id || subIndex"
+                      class="composite-sub-question"
+                    >
+                      <div class="composite-sub-header">
+                        <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
+                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                      </div>
+                      <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
+                      <div class="item-options" v-if="subQuestion.options && subQuestion.options.length">
+                        <div
+                          v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
+                          :key="`${subQuestion.id || subIndex}_${optionIndex}`"
+                          class="option-item"
+                        >
+                          <span class="option-label">{{ option.label }}.</span>
+                          <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                        </div>
+                      </div>
+                      <div class="item-answer answer-info compact-answer-info">
+                        <span class="meta-label">答案：</span>
+                        <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="item-meta-tags" style="margin-top: 8px;">
+                    <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
+                      <i class="el-icon-collection"></i> {{ q.question.course }}
+                    </el-tag>
+                    <el-tag
+                      v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
+                      :key="idx"
+                      size="mini"
+                      type="info"
+                      style="margin-right: 3px;"
+                    >
+                      {{ tag }}
+                    </el-tag>
+                  </div>
+                  <div v-if="q.question.type !== 'composite'" class="item-answer answer-info compact-answer-info">
+                    <span class="meta-label">答案：</span>
+                    <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                   </div>
                 </div>
-                <div v-if="q && (q.questionId || q.problemId)" class="item-title" :key="'title-' + (q.questionId || q.problemId || index)">{{ getQuestionTitle(q) }}</div>
-                <div v-if="q && (q.questionId || q.problemId)" class="item-content" :key="'content-' + (q.questionId || q.problemId || index)">
-                  <!-- 客观题 -->
-                  <div v-if="q.question && (q.question.title || q.question.content)">
-                    <div class="item-description markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
-                    <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="item-options">
-                      <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
-                        <span class="option-label">{{ option.label }}.</span>
-                        <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                      </div>
-                    </div>
-                    <div v-else-if="q.question.type === 'composite'" class="composite-question-block">
-                      <div
-                        v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
-                        :key="subQuestion.id || subIndex"
-                        class="composite-sub-question"
-                      >
-                        <div class="composite-sub-header">
-                          <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
-                          <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
-                        </div>
-                        <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
-                        <div class="item-options" v-if="subQuestion.options && subQuestion.options.length">
-                          <div
-                            v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
-                            :key="`${subQuestion.id || subIndex}_${optionIndex}`"
-                            class="option-item"
-                          >
-                            <span class="option-label">{{ option.label }}.</span>
-                            <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                          </div>
-                        </div>
-                        <div class="item-answer answer-info compact-answer-info">
-                          <span class="meta-label">答案：</span>
-                          <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <!-- 显示课程和标签 -->
-                    <div class="item-meta-tags" style="margin-top: 8px;">
-                      <el-tag v-if="q.question.course" type="warning" size="mini" style="margin-right: 5px;">
-                        <i class="el-icon-collection"></i> {{ q.question.course }}
-                      </el-tag>
-                      <el-tag
-                        v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
-                        :key="idx"
-                        size="mini"
-                        type="info"
-                        style="margin-right: 3px;"
-                      >
-                        {{ tag }}
-                      </el-tag>
-                    </div>
-                    <div v-if="q.question.type !== 'composite'" class="item-answer answer-info compact-answer-info">
-                      <span class="meta-label">答案：</span>
-                      <span class="meta-value">{{ formatAnswer(q.question) }}</span>
-                    </div>
-                  </div>
-                  <!-- 编程题 -->
-                  <div v-else-if="q.problemId">
-                    <div v-if="q.problem && q.problem.title" class="programming-item">
-                      <div class="item-title">
-                        <strong>{{ q.problem.title }}</strong>
-                        <el-button
-                          size="mini"
-                          type="text"
-                          icon="el-icon-view"
-                          @click.stop="viewProblemDetail(q.problem)"
-                          style="margin-left: 10px;"
-                        >
-                          查看详情
-                        </el-button>
-                      </div>
-                      <div class="item-description" v-html="renderMarkdown(q.problem.description)"></div>
-                      <div class="problem-meta">
-                        <el-tag size="small">时间: {{ q.problem.timeLimit }}ms</el-tag>
-                        <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
-                        <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
-                        <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
-                      </div>
-                    </div>
-                    <div v-else class="item-description">
-                      BingOJ 编程题 - {{ q.problemId }}
+                <!-- 编程题 -->
+                <div v-else-if="q.problemId">
+                  <div v-if="q.problem && q.problem.title" class="programming-item">
+                    <div class="item-title">
+                      <strong>{{ q.problem.title }}</strong>
                       <el-button
                         size="mini"
                         type="text"
                         icon="el-icon-view"
-                        @click.stop="fetchAndviewProblemDetail(q.problemId)"
+                        @click.stop="viewProblemDetail(q.problem)"
                         style="margin-left: 10px;"
                       >
                         查看详情
                       </el-button>
                     </div>
+                    <div class="item-description" v-html="renderMarkdown(q.problem.description)"></div>
+                    <div class="problem-meta">
+                      <el-tag size="small">时间: {{ q.problem.timeLimit }}ms</el-tag>
+                      <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
+                      <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
+                      <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
+                    </div>
+                  </div>
+                  <div v-else class="item-description">
+                    BingOJ 编程题 - {{ q.problemId }}
+                    <el-button
+                      size="mini"
+                      type="text"
+                      icon="el-icon-view"
+                      @click.stop="fetchAndviewProblemDetail(q.problemId)"
+                      style="margin-left: 10px;"
+                    >
+                      查看详情
+                    </el-button>
                   </div>
                 </div>
-              </template>
-            </transition-group>
-          </div>
+              </div>
+            </template>
+          </transition-group>
+        </div>
 
-          <div v-else class="empty-selected">
-            <i class="el-icon-document"></i>
-            <p>暂未选择题目</p>
-            <p class="hint">从左侧题库中添加题目</p>
-          </div>
+        <div v-else class="empty-selected">
+          <i class="el-icon-document"></i>
+          <p>暂未选择题目</p>
+          <p class="hint">点击上方“添加题目”按钮</p>
         </div>
       </div>
       </el-form>
@@ -685,6 +484,206 @@
       </div>
     </el-card>
   </div>
+
+  <el-dialog
+    title="添加题目"
+    :visible.sync="showQuestionSelectorDialog"
+    width="1200px"
+    append-to-body
+    class="question-selector-dialog-wrapper"
+  >
+    <div class="question-selector-dialog">
+      <div class="filter-section selector-filter-section">
+        <el-row :gutter="10">
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-input
+              v-model="questionFilters.keyword"
+              placeholder="按题目标题搜索"
+              prefix-icon="el-icon-search"
+              clearable
+              @clear="loadQuestionBank"
+              @keyup.enter.native="loadQuestionBank"
+            >
+              <el-button slot="append" icon="el-icon-search" @click="loadQuestionBank"></el-button>
+            </el-input>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="6">
+            <el-input
+              v-model="questionFilters.questionId"
+              placeholder="按题目ID搜索"
+              prefix-icon="el-icon-ticket"
+              clearable
+              @clear="loadQuestionBank"
+              @keyup.enter.native="loadQuestionBank"
+            ></el-input>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="5">
+            <el-select
+              v-model="questionFilters.type"
+              placeholder="题型筛选"
+              clearable
+              @change="loadQuestionBank"
+              style="width: 100%;"
+            >
+              <el-option label="全部题型" value=""></el-option>
+              <el-option label="单选题" value="single_choice"></el-option>
+              <el-option label="多选题" value="multiple_choice"></el-option>
+              <el-option label="判断题" value="judge"></el-option>
+              <el-option label="填空题" value="fill_blank"></el-option>
+              <el-option label="主观题" value="subjective"></el-option>
+              <el-option label="组合题" value="composite"></el-option>
+            </el-select>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="5">
+            <el-select
+              v-model="questionFilters.course"
+              placeholder="课程筛选"
+              clearable
+              @change="loadQuestionBank"
+              style="width: 100%;"
+            >
+              <el-option label="全部课程" value=""></el-option>
+              <el-option
+                v-for="course in commonCourses"
+                :key="course"
+                :label="course"
+                :value="course"
+              />
+            </el-select>
+          </el-col>
+        </el-row>
+        <el-row :gutter="10" style="margin-top: 10px;">
+          <el-col :xs="24" :sm="10">
+            <el-input
+              v-model="questionFilters.tag"
+              placeholder="按标签筛选"
+              prefix-icon="el-icon-price-tag"
+              clearable
+              @clear="loadQuestionBank"
+              @keyup.enter.native="loadQuestionBank"
+            ></el-input>
+          </el-col>
+          <el-col :xs="24" :sm="8">
+            <el-select
+              v-model="questionFilters.sortKey"
+              placeholder="排序方式"
+              @change="handleQuestionSortChange"
+              style="width: 100%;"
+            >
+              <el-option label="最新创建" value="create_desc"></el-option>
+              <el-option label="最早创建" value="create_asc"></el-option>
+              <el-option label="ID升序" value="id_asc"></el-option>
+              <el-option label="ID降序" value="id_desc"></el-option>
+            </el-select>
+          </el-col>
+          <el-col :xs="24" :sm="6" class="selector-tools">
+            <el-checkbox v-model="questionFilters.onlyUnselected">仅看未添加</el-checkbox>
+            <el-button
+              type="text"
+              icon="el-icon-refresh"
+              @click="loadQuestionBank"
+              :loading="questionsLoading"
+            >
+              刷新题库
+            </el-button>
+            <el-button type="text" @click="resetQuestionSelectorFilters(); loadQuestionBank()">重置筛选</el-button>
+          </el-col>
+        </el-row>
+      </div>
+
+      <div class="selector-summary">
+        <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
+        <el-tag size="small" type="success">已选 {{ paperForm.questions.length }} 题</el-tag>
+      </div>
+
+      <div class="question-selector-list" v-loading="questionsLoading">
+        <el-alert
+          v-if="questionBank.length === 0 && !questionsLoading"
+          title="题库为空"
+          type="info"
+          :closable="false"
+          style="margin-bottom: 10px;"
+        >
+          <template slot="default">
+            <div>当前题库没有可用的题目。</div>
+            <div style="font-size: 12px; margin-top: 5px; color: #909399;">
+              提示：教师端只能看到自己创建的题目和共享题目。
+            </div>
+          </template>
+        </el-alert>
+        <el-empty
+          v-else-if="filteredQuestionBank.length === 0 && !questionsLoading"
+          description="当前页题目均已添加或被筛选条件过滤"
+        ></el-empty>
+
+        <div
+          v-for="row in filteredQuestionBank"
+          :key="'selector-question-' + row.id"
+          class="selector-question-item"
+        >
+          <div class="selector-question-header">
+            <div class="selector-header-main">
+              <el-tag size="mini" :type="getQuestionTypeTag(row.type)">
+                {{ getQuestionTypeLabel(row.type) }}
+              </el-tag>
+              <el-tag size="mini" type="info" style="margin-left: 6px;">ID: {{ row.id }}</el-tag>
+              <span class="selector-question-title">{{ row.title }}</span>
+              <el-tag v-if="row.isShared === 1" size="mini" type="success">共享</el-tag>
+              <el-tag v-else-if="row.creatorId === currentUserId" size="mini" type="info">私有</el-tag>
+            </div>
+            <el-button
+              size="mini"
+              :type="isQuestionSelected(row) ? 'danger' : 'primary'"
+              plain
+              @click="toggleObjectiveQuestion(row)"
+            >
+              {{ isQuestionSelected(row) ? '移除' : '添加' }}
+            </el-button>
+          </div>
+
+          <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
+          <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
+            <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
+              <span class="option-label">{{ option.label }}.</span>
+              <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+            </div>
+          </div>
+          <div class="selector-question-meta">
+            <el-tag v-if="row.course" size="mini" type="warning">
+              <i class="el-icon-collection"></i> {{ row.course }}
+            </el-tag>
+            <el-tag
+              v-for="(tag, idx) in parseQuestionTags(row.tags)"
+              :key="'selector-tag-' + row.id + '-' + idx"
+              size="mini"
+              type="info"
+            >
+              {{ tag }}
+            </el-tag>
+          </div>
+          <div class="question-answer-meta answer-info compact-answer-info" v-if="row && row.type">
+            <span class="meta-label">正确答案：</span>
+            <span class="meta-value">{{ formatAnswer(row) }}</span>
+          </div>
+        </div>
+
+        <div v-if="questionBankTotal > 0" style="padding: 10px; text-align: center;">
+          <el-pagination
+            @current-change="handleQuestionPageChange"
+            :current-page="questionCurrentPage"
+            :page-size="questionPageSize"
+            small
+            layout="prev, pager, next"
+            :total="questionBankTotal"
+          >
+          </el-pagination>
+        </div>
+      </div>
+    </div>
+    <span slot="footer">
+      <el-button @click="showQuestionSelectorDialog = false">关闭</el-button>
+    </span>
+  </el-dialog>
 
   <!-- 添加编程题对话框 -->
   <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
@@ -1044,6 +1043,7 @@ export default {
       },
       showCreateDialog: false,
       showViewDialog: false,
+      showQuestionSelectorDialog: false,
       showAddProgrammingDialog: false,
       isEditMode: false,
       saving: false,
@@ -1066,7 +1066,9 @@ export default {
         questionId: '',
         type: '',
         course: '',
-        tag: ''
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
       },
       questionCurrentPage: 1,
       questionPageSize: 10,
@@ -1130,6 +1132,15 @@ export default {
                q.questionType &&
                typeof q.score === 'number'
       })
+    },
+    filteredQuestionBank() {
+      if (!Array.isArray(this.questionBank)) {
+        return []
+      }
+      if (!this.questionFilters.onlyUnselected) {
+        return this.questionBank
+      }
+      return this.questionBank.filter(q => !this.isQuestionSelected(q))
     }
   },
   mounted() {
@@ -1150,6 +1161,8 @@ export default {
           isShared: false,
           questions: []
         }
+        this.resetQuestionSelectorFilters()
+        this.showQuestionSelectorDialog = false
         this.quickAddQuestionId = ''
         this.quickAddQuestionLoading = false
         if (this.$refs.paperForm) {
@@ -1206,10 +1219,12 @@ export default {
         isShared: false,
         questions: []
       }
+      this.resetQuestionSelectorFilters()
 
       // 清空题库，避免被之前的题目影响
       this.questionBank = []
       this.questionBankTotal = 0
+      this.showQuestionSelectorDialog = false
       this.quickAddQuestionId = ''
       this.quickAddQuestionLoading = false
 
@@ -1255,12 +1270,48 @@ export default {
       this.pagination.currentPage = val
       this.loadPapers()
     },
+    openQuestionSelectorDialog() {
+      this.showQuestionSelectorDialog = true
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
+    },
+    resetQuestionSelectorFilters() {
+      this.questionFilters = {
+        keyword: '',
+        questionId: '',
+        type: '',
+        course: '',
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
+      }
+      this.questionCurrentPage = 1
+    },
+    getQuestionSortParams() {
+      const sortKey = this.questionFilters.sortKey || 'create_desc'
+      switch (sortKey) {
+        case 'id_asc':
+          return { sortBy: 'id', sortOrder: 'asc' }
+        case 'id_desc':
+          return { sortBy: 'id', sortOrder: 'desc' }
+        case 'create_asc':
+          return { sortBy: 'createTime', sortOrder: 'asc' }
+        case 'create_desc':
+        default:
+          return { sortBy: 'createTime', sortOrder: 'desc' }
+      }
+    },
+    handleQuestionSortChange() {
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
+    },
     // 加载题库
     async loadQuestionBank() {
       this.questionsLoading = true
       try {
         const questionId = String(this.questionFilters.questionId || '').trim()
         const keyword = String(this.questionFilters.keyword || '').trim()
+        const sortParams = this.getQuestionSortParams()
         const res = await this.$store.dispatch('classroom/getQuestionBank', {
           classroomId: '0', // 不限制班级，获取所有题目
           page: this.questionCurrentPage,
@@ -1269,7 +1320,9 @@ export default {
           keyword: questionId ? undefined : keyword || undefined,
           type: this.questionFilters.type || undefined,
           course: this.questionFilters.course || undefined,
-          tag: this.questionFilters.tag || undefined
+          tag: this.questionFilters.tag || undefined,
+          sortBy: sortParams.sortBy,
+          sortOrder: sortParams.sortOrder
         })
         // Vuex action 返回的是 res.data，结构为 { code, message, data }
         if (res && res.code === 200) {
@@ -1289,6 +1342,25 @@ export default {
     handleQuestionPageChange(page) {
       this.questionCurrentPage = page
       this.loadQuestionBank()
+    },
+    toggleObjectiveQuestion(question) {
+      if (!question || !question.id) {
+        return
+      }
+      if (this.isQuestionSelected(question)) {
+        this.removeObjectiveQuestion(question.id)
+        this.$message.success('已移除题目')
+      } else {
+        this.addQuestion(question)
+      }
+    },
+    removeObjectiveQuestion(questionId) {
+      const index = this.paperForm.questions.findIndex(
+        q => q && q.questionId === questionId
+      )
+      if (index !== -1) {
+        this.paperForm.questions.splice(index, 1)
+      }
     },
     isObjectiveQuestionType(type) {
       return ['single_choice', 'multiple_choice', 'judge', 'fill_blank', 'composite'].includes(type)
@@ -2350,6 +2422,14 @@ export default {
   background: #fff;
 }
 
+.selected-questions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
 .pagination-container {
   margin-top: 20px;
   text-align: right;
@@ -2527,6 +2607,10 @@ export default {
   border-radius: 10px;
   border: 1px solid #ebeef5;
   overflow: hidden;
+}
+
+.selected-questions-panel--full .selected-list {
+  max-height: 62vh;
 }
 
 .selected-list {
@@ -2907,6 +2991,74 @@ export default {
   font-size: 14px;
 }
 
+.question-selector-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.selector-filter-section {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.selector-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.selector-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-selector-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.selector-question-item {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.selector-question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.selector-header-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selector-question-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.selector-question-meta {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 @media screen and (max-width: 768px) {
   .questions-selector {
     grid-template-columns: 1fr;
@@ -2938,6 +3090,15 @@ export default {
 
   .quick-add-btn {
     width: 100%;
+  }
+
+  .selector-question-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .selector-tools {
+    justify-content: flex-start;
   }
 
   .paper-detail .questions-layout {

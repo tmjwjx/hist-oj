@@ -157,307 +157,21 @@
 
         <el-divider>题目列表</el-divider>
 
-        <!-- 添加题目按钮 -->
-        <div v-if="isEditMode" style="margin-bottom: 15px;">
-          <el-button icon="el-icon-plus" type="primary" @click="showAddQuestionPanel = !showAddQuestionPanel">
-            {{ showAddQuestionPanel ? '收起题库' : '添加题目' }}
+        <div v-if="isEditMode" class="selected-questions-toolbar">
+          <el-button icon="el-icon-plus" type="primary" @click="openQuestionSelectorDialog">添加题目</el-button>
+          <el-button
+            type="success"
+            size="small"
+            icon="el-icon-plus"
+            @click="showAddProgrammingDialog = true"
+          >
+            添加编程题
           </el-button>
-          <el-tag style="margin-left: 10px;">已选 {{ editForm.questions.length }} 题，总分 {{ getTotalScore() }} 分</el-tag>
+          <el-tag size="small" type="info">已选 {{ editForm.questions.length }} 题</el-tag>
+          <el-tag size="small" type="success">总分 {{ getTotalScore() }} 分</el-tag>
         </div>
 
-        <!-- 题目选择面板（折叠） -->
-        <div v-if="isEditMode && showAddQuestionPanel" class="questions-selector">
-          <!-- 左侧：题库面板 -->
-          <div class="question-bank-panel">
-            <div class="panel-header">
-              <span class="panel-title">题库 ({{ questionBank.length }}/{{ questionBankTotal }})</span>
-              <el-button
-                type="text"
-                icon="el-icon-refresh"
-                @click="loadQuestionBank"
-                :loading="questionsLoading"
-                size="small"
-              >
-                刷新
-              </el-button>
-            </div>
-
-            <div class="filter-section">
-              <el-input
-                v-model="questionFilters.keyword"
-                placeholder="搜索题目"
-                prefix-icon="el-icon-search"
-                clearable
-                @clear="loadQuestionBank"
-                @keyup.enter.native="loadQuestionBank"
-                size="small"
-                class="search-input"
-              >
-                <el-button
-                  slot="append"
-                  icon="el-icon-search"
-                  @click="loadQuestionBank"
-                >
-                  搜索
-                </el-button>
-              </el-input>
-
-              <el-select
-                v-model="questionFilters.type"
-                placeholder="题型"
-                clearable
-                @change="loadQuestionBank"
-                size="small"
-                class="filter-select"
-              >
-                <el-option label="全部" value=""></el-option>
-                <el-option label="单选题" value="single_choice"></el-option>
-                <el-option label="多选题" value="multiple_choice"></el-option>
-                <el-option label="判断题" value="judge"></el-option>
-                <el-option label="填空题" value="fill_blank"></el-option>
-                <el-option label="主观题" value="subjective"></el-option>
-                <el-option label="组合题" value="composite"></el-option>
-              </el-select>
-            </div>
-
-            <div class="quick-add-section">
-              <div class="quick-add-title">按 ID 快速添加客观题</div>
-              <div class="quick-add-row">
-                <el-input
-                  v-model.trim="quickAddQuestionId"
-                  size="small"
-                  clearable
-                  placeholder="输入客观题 ID，例如 1024"
-                  @keyup.enter.native="quickAddObjectiveQuestion"
-                ></el-input>
-                <el-button
-                  class="quick-add-btn"
-                  type="primary"
-                  size="small"
-                  :loading="quickAddQuestionLoading"
-                  @click="quickAddObjectiveQuestion"
-                >
-                  添加
-                </el-button>
-              </div>
-            </div>
-
-            <div class="question-list" v-loading="questionsLoading">
-              <el-table
-                :data="questionBank"
-                size="small"
-                :show-header="false"
-                :empty-text="questionBank.length === 0 ? '暂无题目' : '搜索题目'"
-                style="font-size: 12px;"
-              >
-                <el-table-column>
-                  <template slot-scope="{ row }">
-                    <div class="question-item" v-if="row">
-                      <div class="question-header" @click="toggleQuestionDetail(row)">
-                        <el-tag size="mini" :type="getQuestionTypeTag(row.type)">
-                          {{ getQuestionTypeLabel(row.type) }}
-                        </el-tag>
-                        <span style="margin-left: 10px;">{{ row.title }}</span>
-                        <i :class="row.showDetail ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" style="margin-left: auto; color: #909399;"></i>
-                      </div>
-                      <el-collapse-transition>
-                        <div v-show="row.showDetail" class="question-detail-content">
-                          <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
-                          <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
-                            <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
-                              <span class="option-label">{{ option.label }}.</span>
-                              <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                            </div>
-                          </div>
-                          <div class="question-answer-meta answer-info compact-answer-info">
-                            <span class="meta-label">正确答案：</span>
-                            <span class="meta-value">{{ formatAnswer(row) }}</span>
-                          </div>
-                        </div>
-                      </el-collapse-transition>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column width="60" align="center">
-                  <template slot-scope="{ row }">
-                    <el-button
-                      size="mini"
-                      :type="isQuestionSelected(row) ? 'info' : 'primary'"
-                      icon="el-icon-plus"
-                      :disabled="isQuestionSelected(row)"
-                      :title="isQuestionSelected(row) ? '已添加' : '添加题目'"
-                      style="padding: 5px 8px;"
-                      @click.stop="addQuestion(row)"
-                    >
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-
-              <div v-if="questionBankTotal > 0" style="padding: 10px; text-align: center;">
-                <el-pagination
-                  @current-change="handleQuestionPageChange"
-                  :current-page="questionCurrentPage"
-                  :page-size="questionPageSize"
-                  small
-                  layout="prev, pager, next"
-                  :total="questionBankTotal"
-                >
-                </el-pagination>
-              </div>
-            </div>
-
-            <div class="add-programming-section">
-              <el-button
-                type="success"
-                size="small"
-                icon="el-icon-plus"
-                @click="showAddProgrammingDialog = true"
-                style="width: 100%;"
-              >
-                添加编程题
-              </el-button>
-            </div>
-          </div>
-
-          <!-- 右侧：已选题目（可编辑模式下显示） -->
-          <div class="selected-questions-panel">
-            <div class="panel-header">
-              <span class="panel-title">已选题目</span>
-            </div>
-
-            <div class="selected-list">
-              <transition-group name="list">
-                <template v-for="(q, index) in editForm.questions">
-                  <div
-                    v-if="q && (q.questionId || q.problemId)"
-                    :key="q.questionId || q.problemId || index"
-                    class="selected-item"
-                  >
-                    <div class="item-header">
-                      <span class="item-order">{{ index + 1 }}.</span>
-                      <el-tag size="mini" :type="getQuestionTypeTag(q.questionType)">
-                        {{ getQuestionTypeLabel(q.questionType) }}
-                      </el-tag>
-                      <el-input-number
-                        v-model="q.score"
-                        :min="1"
-                        :max="100"
-                        size="mini"
-                        style="margin-left: 10px;"
-                      ></el-input-number>
-                      <span style="margin-left: 5px;">分</span>
-                      <el-button-group style="margin-left: auto;">
-                        <el-button
-                          icon="el-icon-top"
-                          size="mini"
-                          type="primary"
-                          :disabled="index === 0"
-                          @click="moveQuestion(index, -1)"
-                        ></el-button>
-                        <el-button
-                          icon="el-icon-bottom"
-                          size="mini"
-                          type="primary"
-                          :disabled="index === editForm.questions.length - 1"
-                          @click="moveQuestion(index, 1)"
-                        ></el-button>
-                        <el-button
-                          type="danger"
-                          icon="el-icon-delete"
-                          size="mini"
-                          @click="removeQuestion(index)"
-                        ></el-button>
-                      </el-button-group>
-                    </div>
-                  </div>
-                  <div v-if="q && (q.questionId || q.problemId)" class="item-content" :key="'content-' + (q.questionId || q.problemId || index)">
-                    <!-- 客观题 -->
-                    <div v-if="q.question && (q.question.title || q.question.content)">
-                      <div class="item-description markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
-                      <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="item-options">
-                        <div v-for="(option, index) in parseOptions(q.question.options)" :key="index" class="option-item">
-                          <span class="option-label">{{ option.label }}.</span>
-                          <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                        </div>
-                      </div>
-                      <div v-else-if="q.question.type === 'composite'" class="composite-question-block">
-                        <div
-                          v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
-                          :key="subQuestion.id || subIndex"
-                          class="composite-sub-question"
-                        >
-                          <div class="composite-sub-header">
-                            <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
-                            <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
-                          </div>
-                          <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
-                          <div class="item-options" v-if="subQuestion.options && subQuestion.options.length">
-                            <div
-                              v-for="(option, optionIndex) in parseOptions(subQuestion.options)"
-                              :key="`${subQuestion.id || subIndex}_${optionIndex}`"
-                              class="option-item"
-                            >
-                              <span class="option-label">{{ option.label }}.</span>
-                              <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
-                            </div>
-                          </div>
-                          <div class="item-answer answer-info compact-answer-info">
-                            <span class="meta-label">答案：</span>
-                            <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div v-if="q.question.type !== 'composite'" class="item-answer answer-info compact-answer-info">
-                        <span class="meta-label">答案：</span>
-                        <span class="meta-value">{{ formatAnswer(q.question) }}</span>
-                      </div>
-                    </div>
-                    <!-- 编程题 -->
-                    <div v-else-if="q.problemId">
-                      <div v-if="q.problem && q.problem.title" class="programming-item">
-                        <div class="item-title">
-                          <strong>{{ q.problem.title }}</strong>
-                          <el-button
-                            size="mini"
-                            type="text"
-                            icon="el-icon-view"
-                            @click.stop="viewProblemDetail(q.problem)"
-                            style="margin-left: 10px;"
-                          >
-                            查看详情
-                          </el-button>
-                        </div>
-                        <div class="item-description" v-html="renderMarkdown(q.problem.description)"></div>
-                        <div class="problem-meta">
-                          <el-tag size="small">时间: {{ q.problem.timeLimit }}ms</el-tag>
-                          <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
-                          <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
-                          <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
-                        </div>
-                      </div>
-                      <div v-else class="item-description">
-                        BingOJ 编程题 - {{ q.problemId }}
-                        <el-button
-                          size="mini"
-                          type="text"
-                          icon="el-icon-view"
-                          @click.stop="fetchAndviewProblemDetail(q.problemId)"
-                          style="margin-left: 10px;"
-                        >
-                          查看详情
-                        </el-button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-              </transition-group>
-            </div>
-          </div>
-        </div>
-
-        <!-- 题目列表（查看模式或折叠编辑模式） -->
-        <div v-else class="questions-edit-layout">
+        <div v-if="editForm.questions.length > 0" class="questions-edit-layout">
           <div class="question-index-panel" v-if="editForm.questions.length > 1">
             <div class="question-index-title">题号导航</div>
             <el-button
@@ -518,6 +232,12 @@
                 <div class="question-edit-content" v-if="q && (q.questionId || q.problemId)">
                   <div v-if="q.question && (q.question.title || q.question.content)">
                     <div class="question-title markdown-body" v-html="renderMarkdown(q.question.content || q.question.title)" v-highlight></div>
+                    <div v-if="q.question.type === 'single_choice' || q.question.type === 'multiple_choice'" class="question-options">
+                      <div v-for="(option, optionIndex) in parseOptions(q.question.options)" :key="`question-option-${index}-${optionIndex}`" class="option-item">
+                        <span class="option-label">{{ option.label }}.</span>
+                        <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+                      </div>
+                    </div>
                     <div v-if="q.question.type === 'composite'" class="composite-question-block">
                       <div
                         v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(q.question.options)"
@@ -544,6 +264,19 @@
                           <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
                         </div>
                       </div>
+                    </div>
+                    <div class="selector-question-meta">
+                      <el-tag v-if="q.question.course" size="mini" type="warning">
+                        <i class="el-icon-collection"></i> {{ q.question.course }}
+                      </el-tag>
+                      <el-tag
+                        v-for="(tag, idx) in parseQuestionTags(q.question.tags)"
+                        :key="`question-tag-${index}-${idx}`"
+                        size="mini"
+                        type="info"
+                      >
+                        {{ tag }}
+                      </el-tag>
                     </div>
                     <div v-if="q.question.type !== 'composite'" class="question-meta answer-info compact-answer-info">
                       <span class="meta-label">正确答案：</span>
@@ -591,6 +324,12 @@
           </div>
         </div>
 
+        <div v-else class="empty-selected">
+          <i class="el-icon-document"></i>
+          <p>暂未选择题目</p>
+          <p class="hint">点击上方“添加题目”按钮</p>
+        </div>
+
         <el-form-item style="margin-top: 20px;">
           <el-alert
             v-if="isEditMode"
@@ -621,6 +360,194 @@
         </div>
       </el-card>
     </div>
+
+    <el-dialog
+      title="添加题目"
+      :visible.sync="showQuestionSelectorDialog"
+      width="1200px"
+      append-to-body
+      class="question-selector-dialog-wrapper"
+    >
+      <div class="question-selector-dialog">
+        <div class="filter-section selector-filter-section">
+          <el-row :gutter="10">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-input
+                v-model="questionFilters.keyword"
+                placeholder="按题目标题搜索"
+                prefix-icon="el-icon-search"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              >
+                <el-button slot="append" icon="el-icon-search" @click="loadQuestionBank"></el-button>
+              </el-input>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6">
+              <el-input
+                v-model="questionFilters.questionId"
+                placeholder="按题目ID搜索"
+                prefix-icon="el-icon-ticket"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              ></el-input>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="5">
+              <el-select
+                v-model="questionFilters.type"
+                placeholder="题型筛选"
+                clearable
+                @change="loadQuestionBank"
+                style="width: 100%;"
+              >
+                <el-option label="全部题型" value=""></el-option>
+                <el-option label="单选题" value="single_choice"></el-option>
+                <el-option label="多选题" value="multiple_choice"></el-option>
+                <el-option label="判断题" value="judge"></el-option>
+                <el-option label="填空题" value="fill_blank"></el-option>
+                <el-option label="主观题" value="subjective"></el-option>
+                <el-option label="组合题" value="composite"></el-option>
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="5">
+              <el-select
+                v-model="questionFilters.course"
+                placeholder="课程筛选"
+                clearable
+                @change="loadQuestionBank"
+                style="width: 100%;"
+              >
+                <el-option label="全部课程" value=""></el-option>
+                <el-option
+                  v-for="course in commonCourses"
+                  :key="course"
+                  :label="course"
+                  :value="course"
+                />
+              </el-select>
+            </el-col>
+          </el-row>
+          <el-row :gutter="10" style="margin-top: 10px;">
+            <el-col :xs="24" :sm="10">
+              <el-input
+                v-model="questionFilters.tag"
+                placeholder="按标签筛选"
+                prefix-icon="el-icon-price-tag"
+                clearable
+                @clear="loadQuestionBank"
+                @keyup.enter.native="loadQuestionBank"
+              ></el-input>
+            </el-col>
+            <el-col :xs="24" :sm="8">
+              <el-select
+                v-model="questionFilters.sortKey"
+                placeholder="排序方式"
+                @change="handleQuestionSortChange"
+                style="width: 100%;"
+              >
+                <el-option label="最新创建" value="create_desc"></el-option>
+                <el-option label="最早创建" value="create_asc"></el-option>
+                <el-option label="ID升序" value="id_asc"></el-option>
+                <el-option label="ID降序" value="id_desc"></el-option>
+              </el-select>
+            </el-col>
+            <el-col :xs="24" :sm="6" class="selector-tools">
+              <el-checkbox v-model="questionFilters.onlyUnselected">仅看未添加</el-checkbox>
+              <el-button
+                type="text"
+                icon="el-icon-refresh"
+                @click="loadQuestionBank"
+                :loading="questionsLoading"
+              >
+                刷新题库
+              </el-button>
+              <el-button type="text" @click="resetQuestionSelectorFilters(); loadQuestionBank()">重置筛选</el-button>
+            </el-col>
+          </el-row>
+        </div>
+
+        <div class="selector-summary">
+          <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
+          <el-tag size="small" type="success">已选 {{ editForm ? editForm.questions.length : 0 }} 题</el-tag>
+        </div>
+
+        <div class="question-selector-list" v-loading="questionsLoading">
+          <el-empty
+            v-if="!questionsLoading && questionBank.length > 0 && filteredQuestionBank.length === 0"
+            description="当前页题目均已添加或被筛选条件过滤"
+          ></el-empty>
+          <div
+            v-for="row in filteredQuestionBank"
+            :key="'selector-question-' + row.id"
+            class="selector-question-item"
+          >
+            <div class="selector-question-header">
+              <div class="selector-header-main">
+                <el-tag size="mini" :type="getQuestionTypeTag(row.type)">
+                  {{ getQuestionTypeLabel(row.type) }}
+                </el-tag>
+                <el-tag size="mini" type="info" style="margin-left: 6px;">ID: {{ row.id }}</el-tag>
+                <span class="selector-question-title">{{ row.title }}</span>
+                <el-tag v-if="row.isShared === 1" size="mini" type="success">共享</el-tag>
+                <el-tag v-else size="mini" type="info">私有</el-tag>
+                <el-tag v-if="row.creator && row.creator.username" size="mini" type="warning">
+                  创建者: {{ row.creator.username }}
+                </el-tag>
+              </div>
+              <el-button
+                size="mini"
+                :type="isQuestionSelected(row) ? 'danger' : 'primary'"
+                plain
+                @click="toggleObjectiveQuestion(row)"
+              >
+                {{ isQuestionSelected(row) ? '移除' : '添加' }}
+              </el-button>
+            </div>
+
+            <div class="question-description markdown-body" v-html="renderMarkdown(row.content || row.title)" v-highlight></div>
+            <div v-if="row.type === 'single_choice' || row.type === 'multiple_choice'" class="question-options">
+              <div v-for="(option, index) in parseOptions(row.options)" :key="index" class="option-item">
+                <span class="option-label">{{ option.label }}.</span>
+                <span class="option-text markdown-body" v-html="renderMarkdown(option.text)" v-highlight></span>
+              </div>
+            </div>
+            <div class="selector-question-meta">
+              <el-tag v-if="row.course" size="mini" type="warning">
+                <i class="el-icon-collection"></i> {{ row.course }}
+              </el-tag>
+              <el-tag
+                v-for="(tag, idx) in parseQuestionTags(row.tags)"
+                :key="'selector-tag-' + row.id + '-' + idx"
+                size="mini"
+                type="info"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
+            <div class="question-answer-meta answer-info compact-answer-info" v-if="row && row.type">
+              <span class="meta-label">正确答案：</span>
+              <span class="meta-value">{{ formatAnswer(row) }}</span>
+            </div>
+          </div>
+
+          <div v-if="questionBankTotal > 0" style="padding: 10px; text-align: center;">
+            <el-pagination
+              @current-change="handleQuestionPageChange"
+              :current-page="questionCurrentPage"
+              :page-size="questionPageSize"
+              small
+              layout="prev, pager, next"
+              :total="questionBankTotal"
+            >
+            </el-pagination>
+          </div>
+        </div>
+      </div>
+      <span slot="footer">
+        <el-button @click="showQuestionSelectorDialog = false">关闭</el-button>
+      </span>
+    </el-dialog>
 
     <!-- 添加编程题对话框 -->
     <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
@@ -993,17 +920,34 @@ export default {
       },
       // 题库相关
       showAddQuestionPanel: false,
+      showQuestionSelectorDialog: false,
       questionBank: [],
       questionsLoading: false,
       questionFilters: {
         keyword: '',
-        type: ''
+        questionId: '',
+        type: '',
+        course: '',
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
       },
       questionCurrentPage: 1,
       questionPageSize: 10,
       questionBankTotal: 0,
       quickAddQuestionId: '',
       quickAddQuestionLoading: false,
+      commonCourses: [
+        '数据结构',
+        '算法设计与分析',
+        '计算机网络',
+        '操作系统',
+        '计算机组成原理',
+        '高等数学',
+        '线性代数',
+        '政治',
+        '英语'
+      ],
       // 编程题相关
       showAddProgrammingDialog: false,
       programmingInputMode: 'manual', // 'manual' 或 'tag'
@@ -1042,6 +986,15 @@ export default {
         return '创建试卷'
       }
       return this.isEditMode ? '编辑试卷' : '查看试卷'
+    },
+    filteredQuestionBank() {
+      if (!Array.isArray(this.questionBank)) {
+        return []
+      }
+      if (!this.questionFilters.onlyUnselected || !this.editForm) {
+        return this.questionBank
+      }
+      return this.questionBank.filter(q => !this.isQuestionSelected(q))
     }
   },
   mounted() {
@@ -1084,10 +1037,50 @@ export default {
       this.pagination.currentPage = val
       this.loadPapers()
     },
+    openQuestionSelectorDialog() {
+      if (!this.isEditMode) {
+        return
+      }
+      this.showQuestionSelectorDialog = true
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
+    },
+    resetQuestionSelectorFilters() {
+      this.questionFilters = {
+        keyword: '',
+        questionId: '',
+        type: '',
+        course: '',
+        tag: '',
+        sortKey: 'create_desc',
+        onlyUnselected: false
+      }
+      this.questionCurrentPage = 1
+    },
+    getQuestionSortParams() {
+      const sortKey = this.questionFilters.sortKey || 'create_desc'
+      switch (sortKey) {
+        case 'id_asc':
+          return { sortBy: 'id', sortOrder: 'asc' }
+        case 'id_desc':
+          return { sortBy: 'id', sortOrder: 'desc' }
+        case 'create_asc':
+          return { sortBy: 'createTime', sortOrder: 'asc' }
+        case 'create_desc':
+        default:
+          return { sortBy: 'createTime', sortOrder: 'desc' }
+      }
+    },
+    handleQuestionSortChange() {
+      this.questionCurrentPage = 1
+      this.loadQuestionBank()
+    },
     openCreateDialog() {
       this.currentPaper = null
       this.isEditMode = true
-      this.showAddQuestionPanel = true
+      this.showAddQuestionPanel = false
+      this.showQuestionSelectorDialog = false
+      this.resetQuestionSelectorFilters()
       this.questionCurrentPage = 1
       this.quickAddQuestionId = ''
       this.quickAddQuestionLoading = false
@@ -1154,6 +1147,7 @@ export default {
           }
           this.isEditMode = true
           this.showEditDialog = true
+          this.showQuestionSelectorDialog = false
           // 加载题库数据
           this.loadQuestionBank()
           this.hydrateProgrammingProblemDetails(this.editForm.questions)
@@ -1167,6 +1161,8 @@ export default {
       this.currentPaper = null
       this.isEditMode = false
       this.showAddQuestionPanel = false
+      this.showQuestionSelectorDialog = false
+      this.resetQuestionSelectorFilters()
       this.quickAddQuestionId = ''
       this.quickAddQuestionLoading = false
       if (this.$refs.editForm) {
@@ -1253,8 +1249,6 @@ export default {
           this.loadPapers()
           if (isCreateOperation) {
             this.questionCurrentPage = 1
-          } else {
-            this.showAddQuestionPanel = false
           }
         } catch (error) {
           this.$message.error(isCreateOperation ? '创建失败' : '更新失败')
@@ -1399,11 +1393,21 @@ export default {
     async loadQuestionBank() {
       this.questionsLoading = true
       try {
+        const questionId = String(this.questionFilters.questionId || '').trim()
+        const keyword = String(this.questionFilters.keyword || '').trim()
+        const searchKeyword = questionId || keyword
+        const searchField = questionId ? 'id' : 'title'
+        const sortParams = this.getQuestionSortParams()
         const res = await api.adminGetQuestionBank({
           page: this.questionCurrentPage,
           limit: this.questionPageSize,
-          keyword: this.questionFilters.keyword || undefined,
-          type: this.questionFilters.type || undefined
+          keyword: searchKeyword || undefined,
+          searchField: searchKeyword ? searchField : undefined,
+          type: this.questionFilters.type || undefined,
+          course: this.questionFilters.course || undefined,
+          tag: this.questionFilters.tag || undefined,
+          sortBy: sortParams.sortBy,
+          sortOrder: sortParams.sortOrder
         })
         if (res && res.data && res.data.code === 200) {
           // 过滤掉 undefined 或 null 的题目
@@ -1422,6 +1426,28 @@ export default {
     handleQuestionPageChange(page) {
       this.questionCurrentPage = page
       this.loadQuestionBank()
+    },
+    toggleObjectiveQuestion(question) {
+      if (!question || !question.id || !this.editForm) {
+        return
+      }
+      if (this.isQuestionSelected(question)) {
+        this.removeObjectiveQuestion(question.id)
+        this.$message.success('已移除题目')
+      } else {
+        this.addQuestion(question)
+      }
+    },
+    removeObjectiveQuestion(questionId) {
+      if (!this.editForm || !Array.isArray(this.editForm.questions)) {
+        return
+      }
+      const index = this.editForm.questions.findIndex(
+        q => q && q.questionId === questionId
+      )
+      if (index !== -1) {
+        this.editForm.questions.splice(index, 1)
+      }
     },
     isObjectiveQuestionType(type) {
       return ['single_choice', 'multiple_choice', 'judge', 'fill_blank', 'composite'].includes(type)
@@ -1633,6 +1659,14 @@ export default {
         })
       if (tasks.length > 0) {
         await Promise.all(tasks)
+      }
+    },
+    parseQuestionTags(tags) {
+      if (!tags) return []
+      try {
+        return JSON.parse(tags)
+      } catch (e) {
+        return []
       }
     },
     // 编程题相关
@@ -2110,6 +2144,107 @@ export default {
   border-color: #285fdb;
 }
 
+.selected-questions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.empty-selected {
+  min-height: 220px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+}
+
+.empty-selected i {
+  font-size: 44px;
+  margin-bottom: 10px;
+}
+
+.empty-selected p {
+  margin: 4px 0;
+}
+
+.empty-selected .hint {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+
+.question-selector-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.selector-filter-section {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.selector-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.selector-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-selector-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.selector-question-item {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.selector-question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.selector-header-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selector-question-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.selector-question-meta {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .questions-edit-layout {
   display: flex;
   gap: 12px;
@@ -2583,6 +2718,15 @@ export default {
 
   .quick-add-btn {
     width: 100%;
+  }
+
+  .selector-question-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .selector-tools {
+    justify-content: flex-start;
   }
 
   .questions-edit-layout {

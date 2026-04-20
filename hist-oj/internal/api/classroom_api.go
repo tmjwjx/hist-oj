@@ -1926,6 +1926,8 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	course := c.Query("course")         // 课程筛选
 	tag := c.Query("tag")               // 标签筛选
 	difficulty := c.Query("difficulty") // 难度筛选
+	sortBy := strings.TrimSpace(c.Query("sortBy"))
+	sortOrder := strings.ToLower(strings.TrimSpace(c.DefaultQuery("sortOrder", "desc")))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	if page < 1 {
@@ -1933,6 +1935,9 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	}
 	if limit < 1 || limit > 100 {
 		limit = 20
+	}
+	if sortOrder != "asc" {
+		sortOrder = "desc"
 	}
 
 	db := client.GetDB()
@@ -1993,11 +1998,19 @@ func (h *Handler) GetQuestionBank(c *gin.Context) {
 	var total int64
 	query.Count(&total)
 
+	orderColumn := "create_time"
+	switch sortBy {
+	case "id":
+		orderColumn = "id"
+	case "create_time", "createTime":
+		orderColumn = "create_time"
+	}
+
 	var questions []model.QuestionBank
 	if err := query.Preload("Creator").
 		Offset((page - 1) * limit).
 		Limit(limit).
-		Order("create_time DESC").
+		Order(orderColumn + " " + strings.ToUpper(sortOrder)).
 		Find(&questions).Error; err != nil {
 		logger.Error("查询题库失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
@@ -2384,8 +2397,13 @@ func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
 	course := c.Query("course")         // 课程筛选
 	tag := c.Query("tag")               // 标签筛选
 	difficulty := c.Query("difficulty") // 难度筛选
+	sortBy := strings.TrimSpace(c.Query("sortBy"))
+	sortOrder := strings.ToLower(strings.TrimSpace(c.DefaultQuery("sortOrder", "desc")))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
 
 	db := client.GetDB()
 
@@ -2444,11 +2462,19 @@ func (h *Handler) AdminGetQuestionBank(c *gin.Context) {
 	var total int64
 	query.Count(&total)
 
+	orderColumn := "create_time"
+	switch sortBy {
+	case "id":
+		orderColumn = "id"
+	case "create_time", "createTime":
+		orderColumn = "create_time"
+	}
+
 	var questions []model.QuestionBank
 	if err := query.Preload("Creator").
 		Offset((page - 1) * limit).
 		Limit(limit).
-		Order("create_time DESC").
+		Order(orderColumn + " " + strings.ToUpper(sortOrder)).
 		Find(&questions).Error; err != nil {
 		logger.Error("查询题库失败", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
