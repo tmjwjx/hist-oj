@@ -113,7 +113,7 @@ export default {
         const day = String(date.getDate()).padStart(2, '0')
         return `${year}-${month}-${day}`
       })
-      const ratings = this.chartData.map(item => item.new_rating || item.newRating)
+      const ratings = this.chartData.map(item => item.new_rating ?? item.newRating)
 
       // 区分比赛记录、Skip 记录和手动调整记录
       const itemColors = this.chartData.map(item => {
@@ -136,8 +136,8 @@ export default {
             const isManual = data.is_manual || data.isManual
             const isSkip = data.is_skip || data.isSkip
             const skipReason = data.skip_reason || data.skipReason
-            const oldRating = data.old_rating || data.oldRating
-            const newRating = data.new_rating || data.newRating
+            const oldRating = data.old_rating ?? data.oldRating
+            const newRating = data.new_rating ?? data.newRating
             // 优先使用 rating_change 字段，如果不存在则从 newRating 和 oldRating 计算
             let ratingChange = data.rating_change ?? data.ratingChange ?? null
             if (ratingChange === null || ratingChange === undefined) {
@@ -151,6 +151,9 @@ export default {
             const rank = data.rank
             const participants = data.participants
             const createdAt = data.created_at || data.createdAt
+            const manualAdjustReason = data.manualAdjustReason || data.manual_adjust_reason
+            const manualAdjustDelta = data.manualAdjustDelta ?? data.manual_adjust_delta
+            const rankDisplay = rank && participants ? `${rank} / ${participants}` : '未排名'
 
             // 手动调整记录的 tooltip
             if (isManual) {
@@ -168,13 +171,20 @@ export default {
             const skipInfo = isSkip
               ? `<br/><strong style="color: #F56C6C;">⚠️ Skip: ${skipReason || '该比赛不计入 Rating'}</strong>`
               : ''
+            const manualInfo = manualAdjustReason
+              ? `<br/><strong style="color: #E6A23C;">📝 个人调整: ${manualAdjustReason}</strong>${
+                  manualAdjustDelta !== null && manualAdjustDelta !== undefined
+                    ? `<br/><span style="color: #E6A23C;">调整变化: ${manualAdjustDelta > 0 ? '+' : ''}${manualAdjustDelta}</span>`
+                    : ''
+                }`
+              : ''
 
             return `
               <div style="text-align: left;">
                 <strong>${contestTitle || '比赛'}</strong><br/>
                 Rating: ${oldRating} → ${newRating}<br/>
                 变化: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
-                排名: ${rank} / ${participants}${skipInfo}
+                排名: ${rankDisplay}${skipInfo}${manualInfo}
               </div>
             `
           }
@@ -227,7 +237,7 @@ export default {
                 const isManual = item.is_manual || item.isManual
                 const skipReason = item.skip_reason || item.skipReason
                 const reason = item.reason
-                const newRating = item.new_rating || item.newRating
+                const newRating = item.new_rating ?? item.newRating
 
                 // Skip 用户标记
                 if (isSkip) {

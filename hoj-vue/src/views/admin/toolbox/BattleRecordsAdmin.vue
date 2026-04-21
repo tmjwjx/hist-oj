@@ -217,18 +217,18 @@ export default {
     },
 
     getUserRatingColor(row) {
-      // 如果有用户的rating字段，使用它；NULL或undefined时使用默认1200分
+      // 如果有用户的rating字段，使用它；NULL或undefined时使用默认0分
       const rating = row.userRating !== null && row.userRating !== undefined
         ? row.userRating
-        : 1200; // 默认初始分数
+        : 0; // 默认初始分数
       return this.getRatingColor(rating);
     },
 
     getOpponentRatingColor(row) {
-      // 如果有对手的rating字段，使用它；NULL或undefined时使用默认1200分
+      // 如果有对手的rating字段，使用它；NULL或undefined时使用默认0分
       const rating = row.opponentRating !== null && row.opponentRating !== undefined
         ? row.opponentRating
-        : 1200; // 默认初始分数
+        : 0; // 默认初始分数
       return this.getRatingColor(rating);
     },
 

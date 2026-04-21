@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -235,6 +235,27 @@ func (h *JudgeHandler) GetCaseDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(result))
 }
 
+// GetContestTerminalCheckStatus 获取比赛题目判题终端检测状态（管理员）
+func (h *JudgeHandler) GetContestTerminalCheckStatus(c *gin.Context) {
+	contestIDStr := c.Param("contestId")
+	contestID, err := strconv.ParseUint(contestIDStr, 10, 64)
+	if err != nil || contestID == 0 {
+		c.JSON(http.StatusOK, errorResponse(400, "contestId参数格式错误"))
+		return
+	}
+
+	result, err := h.judgeService.CheckContestTerminalCheckStatus(contestID)
+	if err != nil {
+		h.logger.Error("查询比赛题目判题终端检测状态失败",
+			zap.Uint64("contest_id", contestID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
 // RunCombinedRequest 本地测试+远程提交请求
 type RunCombinedRequest struct {
 	PID      string `json:"pid" binding:"required"`
@@ -321,12 +342,10 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 	var err error
 	var displayID string
 	var dbCID string
-	var submitCID int
 
 	// 只支持普通模式
 	displayID = req.PID
 	dbCID = "0"
-	submitCID = 0
 
 	// 统一使用显示ID，先尝试普通API
 	sendSSE(c, "log", fmt.Sprintf("尝试获取题目: %s", req.PID))
@@ -366,41 +385,26 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		zap.Int64("dbID", problem.ID),
 		zap.String("title", problem.Title))
 
-	// 样例测试需要使用 HOJ 数据库的主键ID（problem.ID）
-	// 这个ID会被发送到HOJ后端的样例测试接口
-	pidForTest := fmt.Sprintf("%d", problem.ID)
-
-	// 重要：提交代码时使用 problem.ProblemId（从BingOJ返回的真实显示ID）
-	// 而不是 displayID（用户输入的值），因为两者可能不一致
-	submitDisplayID := problem.ProblemId
-	h.logger.Info("将使用显示ID提交代码", zap.String("用户输入", displayID), zap.String("实际使用", submitDisplayID))
-
-	h.logger.Info("样例测试将使用数据库ID", zap.String("dbID", pidForTest))
-
 	localInfo := "跳过 (无样例)"
+	var samples []service.SampleResult
 
 	// 3. 本地样例测试
 	if problem.Examples != "" {
-		samples, err := service.ExtractSamples(problem.Examples)
+		samples, err = service.ExtractSamples(problem.Examples)
 		if err == nil && len(samples) > 0 {
 			sendSSE(c, "log", fmt.Sprintf("开始自测 %d 组样例...", len(samples)))
-
-			// 使用 pidForTest（用户输入的 HOJ 数据库题目 ID）进行样例测试
-			pidInt, err := strconv.ParseInt(pidForTest, 10, 64)
-			if err != nil {
-				h.logger.Error("解析题目ID失败", zap.Error(err), zap.String("pidForTest", pidForTest))
-				sendSSE(c, "log", fmt.Sprintf("题目ID格式错误: %s", pidForTest))
-				return
-			}
-
-			h.logger.Info("开始本地样例测试",
-				zap.Int64("hojPid", pidInt),
-				zap.String("显示ID", req.PID),
-				zap.Int("样例数量", len(samples)))
-			results, err := h.judgeService.TestLocalSamples(pidInt, req.Language, req.Code, req.Username, req.Password, req.Token, samples)
+			results, err := h.judgeService.TestLocalSamplesNative(
+				req.Language,
+				req.Code,
+				samples,
+				problem.TimeLimit,
+				problem.MemoryLimit,
+				problem.ID,
+				problem.JudgeMode,
+			)
 			if err != nil {
 				sendSSE(c, "compile_error", map[string]string{"msg": err.Error()})
-				sendSSE(c, "log", "本地编译失败")
+				sendSSE(c, "log", fmt.Sprintf("样例自测失败: %s", err.Error()))
 				return
 			}
 
@@ -424,107 +428,114 @@ func (h *JudgeHandler) RunCombined(c *gin.Context) {
 		}
 	}
 
-	// 4. 提交远程 OJ
-	sendSSE(c, "log", "正在提交远程 OJ...")
-	sendSSE(c, "remote_status", map[string]string{"status": "提交中"})
+	// 4. 判题终端独立判题（Go + 沙箱，不依赖 Java 远程判题结果）
+	sendSSE(c, "log", "启动判题终端独立判题引擎（Go Sandbox）...")
+	sendSSE(c, "remote_status", map[string]string{"status": "编译中"})
 
-	// 提交代码：使用从BingOJ返回的真实显示ID
-	submitID, err := bingoJClient.SubmitCode(submitDisplayID, submitCID, req.Language, req.Code)
-	if err != nil {
-		sendSSE(c, "log", fmt.Sprintf("提交失败: %s", err.Error()))
-		sendSSE(c, "remote_status", map[string]string{"status": "提交失败"})
-		return
-	}
-
-	h.logger.Info("远程提交成功", zap.String("submit_id", submitID))
-	sendSSE(c, "log", fmt.Sprintf("提交ID: %s，等待 2 秒后查询结果...", submitID))
+	submitID := service.GenerateLocalSubmitID()
 	sendSSE(c, "remote_submit", map[string]string{"submit_id": submitID})
-	sendSSE(c, "remote_status", map[string]string{"status": "提交中", "submit_id": submitID})
+	sendSSE(c, "remote_status", map[string]string{"status": "判题中", "submit_id": submitID})
 
-	// 等待 2 秒后再查询结果，避免提交过快导致查询失败
-	time.Sleep(2 * time.Second)
+	casesForJudge, caseSource, caseErr := h.judgeService.BuildTerminalJudgeCases(problem.ID, samples)
+	if caseErr != nil {
+		h.logger.Warn("构建判题测试点时发生回退", zap.Error(caseErr), zap.Int64("pid", problem.ID))
+		sendSSE(c, "log", fmt.Sprintf("测试点准备提示: %s", caseErr.Error()))
+	}
+	sendSSE(c, "log", fmt.Sprintf("测试点来源: %s", caseSource))
 
-	// 轮询判题结果（最多等待 120 秒）
-	for i := 0; i < 120; i++ {
-		h.logger.Debug("查询判题结果", zap.Int("次数", i+1), zap.String("submit_id", submitID))
-		result, err := bingoJClient.GetSubmissionResult(submitID)
-		if err != nil {
-			h.logger.Warn("查询判题结果失败，继续重试", zap.Error(err), zap.Int("次数", i+1))
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		statusText := client.GetStatusText(result.Status)
-		h.logger.Info("判题结果", zap.Int("status", result.Status), zap.String("status_text", statusText), zap.String("error_message", result.ErrorMessage))
-
-		// 判题中
-		if result.Status == 6 || result.Status == 7 || result.Status == 9 {
-			sendSSE(c, "remote_status", map[string]string{
-				"status":    statusText,
-				"submit_id": submitID,
-			})
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		// 判题完成
+	if len(casesForJudge) == 0 {
+		msg := "未找到可用测试点，无法独立判题"
+		sendSSE(c, "log", msg)
 		sendSSE(c, "remote_status", map[string]string{
-			"status":       statusText,
+			"status":       "系统错误",
 			"submit_id":    submitID,
-			"errorMessage": result.ErrorMessage, // 新增：传递错误信息
+			"errorMessage": msg,
 		})
-		sendSSE(c, "log", fmt.Sprintf("最终结果: %s", statusText))
-
-		// 发送测试点详情（可能存在短暂写库延迟，最多重试 5 次）
-		var (
-			cases   []*service.JudgeCaseDetail
-			caseErr error
-		)
-		for attempt := 1; attempt <= 5; attempt++ {
-			cases, caseErr = h.judgeService.GetJudgeCaseDetails(submitID)
-			if caseErr == nil && len(cases) > 0 {
-				break
-			}
-			if attempt < 5 {
-				time.Sleep(500 * time.Millisecond)
-			}
-		}
-
-		if caseErr != nil {
-			h.logger.Warn("获取测试点详情失败", zap.String("submit_id", submitID), zap.Error(caseErr))
-			sendSSE(c, "log", fmt.Sprintf("警告: 获取测试点详情失败: %s", caseErr.Error()))
-		} else if len(cases) > 0 {
-			sendSSE(c, "case_details", map[string]interface{}{
-				"submit_id": submitID,
-				"cases":     cases,
-			})
-			sendSSE(c, "log", fmt.Sprintf("测试点详情已返回，共 %d 个测试点", len(cases)))
-		} else {
-			sendSSE(c, "log", "未查询到测试点详情")
-		}
-
-		// 保存到数据库
-		if err := h.judgeService.SaveSubmissionHistory(
-			submitID,
-			displayID,
-			dbCID,
-			req.Username,
-			statusText,
-			fmt.Sprintf("%dms", result.Time),
-			fmt.Sprintf("%dKB", result.Memory),
-			req.Language,
-			req.Code,
-			localInfo,
-		); err != nil {
-			h.logger.Error("保存提交历史失败", zap.Error(err))
-			sendSSE(c, "log", fmt.Sprintf("警告: 保存历史记录失败: %s", err.Error()))
-		} else {
-			sendSSE(c, "log", "提交历史已保存")
-		}
-
 		return
 	}
 
-	sendSSE(c, "log", "查询超时")
-	sendSSE(c, "remote_status", map[string]string{"status": "超时"})
+	judgeResult, err := h.judgeService.RunTerminalJudge(
+		req.Language,
+		req.Code,
+		casesForJudge,
+		problem.TimeLimit,
+		problem.MemoryLimit,
+		problem.JudgeMode,
+		problem.JudgeCaseMode,
+		func(done, total, seq, status int) {
+			sendSSE(c, "case_progress", map[string]interface{}{
+				"done":   done,
+				"total":  total,
+				"seq":    seq,
+				"status": status,
+			})
+		},
+	)
+	if err != nil {
+		if service.IsNativeJudgeUnavailable(err) {
+			sendSSE(c, "log", fmt.Sprintf("独立判题环境缺失: %s", err.Error()))
+			sendSSE(c, "remote_status", map[string]string{
+				"status":       "系统错误",
+				"submit_id":    submitID,
+				"errorMessage": err.Error(),
+			})
+			return
+		}
+		sendSSE(c, "compile_error", map[string]string{"msg": err.Error()})
+		sendSSE(c, "remote_status", map[string]string{
+			"status":       "编译错误",
+			"submit_id":    submitID,
+			"errorMessage": err.Error(),
+		})
+		sendSSE(c, "log", fmt.Sprintf("独立判题失败: %s", err.Error()))
+		return
+	}
+
+	if err := h.judgeService.SaveLocalJudgeCaseDetails(submitID, judgeResult.CaseRecords); err != nil {
+		h.logger.Warn("保存本地判题测试点详情失败", zap.String("submit_id", submitID), zap.Error(err))
+		sendSSE(c, "log", fmt.Sprintf("警告: 保存测试点详情失败: %s", err.Error()))
+	}
+
+	if len(judgeResult.CaseDetails) > 0 {
+		sendSSE(c, "case_details", map[string]interface{}{
+			"submit_id": submitID,
+			"cases":     judgeResult.CaseDetails,
+		})
+		sendSSE(c, "log", fmt.Sprintf("测试点详情已返回，共 %d 个测试点", len(judgeResult.CaseDetails)))
+	}
+
+	statusText := client.GetStatusText(judgeResult.FinalStatus)
+	statusPayload := map[string]interface{}{
+		"status":    statusText,
+		"submit_id": submitID,
+	}
+	if strings.TrimSpace(judgeResult.ErrorMessage) != "" {
+		statusPayload["errorMessage"] = judgeResult.ErrorMessage
+	}
+	if judgeResult.FirstFailedSeq > 0 {
+		statusPayload["failed_seq"] = judgeResult.FirstFailedSeq
+	}
+	if judgeResult.FirstFailedStatus != 0 {
+		statusPayload["failed_status"] = judgeResult.FirstFailedStatus
+	}
+	sendSSE(c, "remote_status", statusPayload)
+	sendSSE(c, "log", fmt.Sprintf("独立判题完成: %s", statusText))
+
+	if err := h.judgeService.SaveSubmissionHistory(
+		submitID,
+		displayID,
+		dbCID,
+		req.Username,
+		statusText,
+		fmt.Sprintf("%dms", judgeResult.MaxTime),
+		fmt.Sprintf("%dKB", judgeResult.MaxMemory),
+		req.Language,
+		req.Code,
+		localInfo,
+	); err != nil {
+		h.logger.Error("保存提交历史失败", zap.Error(err))
+		sendSSE(c, "log", fmt.Sprintf("警告: 保存历史记录失败: %s", err.Error()))
+	} else {
+		sendSSE(c, "log", "提交历史已保存")
+	}
 }

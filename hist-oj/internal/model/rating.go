@@ -8,22 +8,25 @@ import (
 
 // RatingHistory Rating历史记录
 type RatingHistory struct {
-	ID           uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	UID          string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
-	ContestID    *uint64    `gorm:"type:bigint unsigned;default:0;index:idx_contest_id" json:"contest_id"` // 改为指针，0 表示不关联比赛（手动调整）
-	ContestTitle string     `gorm:"-" json:"contest_title"` // 不映射到数据库，仅用于返回
-	ContestTime  *time.Time `gorm:"-" json:"contest_time"` // 比赛时间，从Contest表关联查询
-	OldRating    *int       `gorm:"type:int" json:"old_rating"`
-	NewRating    int        `gorm:"type:int;not null" json:"new_rating"`
-	RatingChange int        `gorm:"type:int;not null" json:"rating_change"`
-	Rank         int        `gorm:"type:int;not null" json:"rank"`
-	Participants int        `gorm:"type:int;not null" json:"participants"`
-	Reason       string     `gorm:"type:varchar(255);default:''" json:"reason"` // 操作原因（手动调整时的备注）
-	IsManual     bool       `gorm:"type:tinyint(1);default:0;index:idx_is_manual" json:"is_manual"` // 是否为手动调整
-	IsSkip       bool       `gorm:"type:tinyint(1);default:0" json:"isSkip"` // 是否被skip
-	SkipReason   string     `gorm:"type:varchar(500);default:''" json:"skipReason"` // skip原因
-	OperatorUID  string     `gorm:"type:varchar(32);default:''" json:"operator_uid"` // 操作人UID
-	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"` // 记录创建时间
+	ID                 uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UID                string     `gorm:"type:varchar(32);not null;index:idx_uid" json:"uid"`
+	ContestID          *uint64    `gorm:"type:bigint unsigned;index:idx_contest_id" json:"contest_id"`                                         // 比赛ID；手动调整应为NULL
+	RelatedContestID   *uint64    `gorm:"type:bigint unsigned;column:related_contest_id;index:idx_related_contest_id" json:"relatedContestId"` // 手动调整关联的比赛ID（用于重算时按比赛顺序回放）
+	ContestTitle       string     `gorm:"-" json:"contest_title"`                                                                              // 不映射到数据库，仅用于返回
+	ContestTime        *time.Time `gorm:"-" json:"contest_time"`                                                                               // 比赛时间，从Contest表关联查询
+	ManualAdjustReason string     `gorm:"-" json:"manualAdjustReason"`                                                                         // 关联到该比赛节点的手动调整原因
+	ManualAdjustDelta  int        `gorm:"-" json:"manualAdjustDelta"`                                                                          // 关联到该比赛节点的手动调整总变化
+	OldRating          *int       `gorm:"type:int" json:"old_rating"`
+	NewRating          int        `gorm:"type:int;not null" json:"new_rating"`
+	RatingChange       int        `gorm:"type:int;not null" json:"rating_change"`
+	Rank               int        `gorm:"type:int;not null" json:"rank"`
+	Participants       int        `gorm:"type:int;not null" json:"participants"`
+	Reason             string     `gorm:"type:varchar(255);default:''" json:"reason"`                     // 操作原因（手动调整时的备注）
+	IsManual           bool       `gorm:"type:tinyint(1);default:0;index:idx_is_manual" json:"is_manual"` // 是否为手动调整
+	IsSkip             bool       `gorm:"type:tinyint(1);default:0" json:"isSkip"`                        // 是否被skip
+	SkipReason         string     `gorm:"type:varchar(500);default:''" json:"skipReason"`                 // skip原因
+	OperatorUID        string     `gorm:"type:varchar(32);default:''" json:"operator_uid"`                // 操作人UID
+	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"created_at"`                               // 记录创建时间
 }
 
 // TableName 指定表名
@@ -37,12 +40,12 @@ type ContestRatingStatus struct {
 	IsRated           bool       `gorm:"type:tinyint(1);default:0;column:is_rated" json:"isRated"`
 	RatingCalculated  bool       `gorm:"type:tinyint(1);default:0;index:idx_rating_calculated;column:rating_calculated" json:"ratingCalculated"`
 	CalculatedAt      *time.Time `gorm:"type:datetime;column:calculated_at" json:"calculatedAt"`
-	SkipCount         int        `gorm:"type:int;default:0;column:skip_count" json:"skipCount"` // Skip用户数量
-	HasPendingSkip    bool       `gorm:"type:tinyint(1);default:0;column:has_pending_skip" json:"hasPendingSkip"` // 是否有待处理的skip
+	SkipCount         int        `gorm:"type:int;default:0;column:skip_count" json:"skipCount"`                              // Skip用户数量
+	HasPendingSkip    bool       `gorm:"type:tinyint(1);default:0;column:has_pending_skip" json:"hasPendingSkip"`            // 是否有待处理的skip
 	RecalculateStatus string     `gorm:"type:varchar(20);default:'none';column:recalculate_status" json:"recalculateStatus"` // 重算状态: none/pending/calculating/completed/failed
-	LastRecalculateAt *time.Time `gorm:"type:datetime;column:last_recalculate_at" json:"lastRecalculateAt"` // 最后重算时间
-	RecalculateLock   bool       `gorm:"type:tinyint(1);default:0;column:recalculate_lock" json:"recalculateLock"` // 重算锁（防止并发）
-	SkipDataChangedAt *time.Time `gorm:"type:datetime;column:skip_data_changed_at" json:"skipDataChangedAt"` // Skip数据最后修改时间（用于判断是否需要重算）
+	LastRecalculateAt *time.Time `gorm:"type:datetime;column:last_recalculate_at" json:"lastRecalculateAt"`                  // 最后重算时间
+	RecalculateLock   bool       `gorm:"type:tinyint(1);default:0;column:recalculate_lock" json:"recalculateLock"`           // 重算锁（防止并发）
+	SkipDataChangedAt *time.Time `gorm:"type:datetime;column:skip_data_changed_at" json:"skipDataChangedAt"`                 // Skip数据最后修改时间（用于判断是否需要重算）
 	CreatedAt         time.Time  `gorm:"type:datetime(3);column:created_at;autoCreateTime:milli" json:"createdAt"`
 	UpdatedAt         time.Time  `gorm:"type:datetime(3);column:updated_at;autoUpdateTime:milli" json:"updatedAt"`
 }
@@ -56,7 +59,7 @@ func (ContestRatingStatus) TableName() string {
 type UserRecord struct {
 	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	UID         string    `gorm:"type:varchar(32);not null;uniqueIndex" json:"uid"`
-	Rating      *int      `gorm:"type:int" json:"rating"`           // HOJ 原有的 rating 字段
+	Rating      *int      `gorm:"type:int" json:"rating"`                        // HOJ 原有的 rating 字段
 	HistRating  *int      `gorm:"type:int;column:hist_rating" json:"histRating"` // 新增的 hist_rating 字段
 	GmtCreate   time.Time `gorm:"type:datetime;column:gmt_create" json:"gmtCreate"`
 	GmtModified time.Time `gorm:"type:datetime;column:gmt_modified;autoUpdateTime" json:"gmtModified"`
@@ -69,16 +72,16 @@ func (UserRecord) TableName() string {
 
 // UserInfo 用户信息（对应HOJ的user_info表）
 type UserInfo struct {
-	UUID      string    `gorm:"primaryKey;type:varchar(32)" json:"uuid"`
-	Username  string    `gorm:"type:varchar(100);uniqueIndex" json:"username"`
-	Password  string    `gorm:"type:varchar(255)" json:"password"`
-	Nickname  string    `gorm:"type:varchar(255)" json:"nickname"`
-	Realname  string    `gorm:"type:varchar(255)" json:"realname"` // 真实姓名
-	Rating    int       `gorm:"type:int;default:1200" json:"rating"` // 当前 Rating（已废弃，使用HistRating）
-	HistRating int      `gorm:"-" json:"histRating"` // Hist Rating（从user_record表获取）
-	Status    int       `gorm:"type:int;default:0" json:"status"` // 0: 正常, 1: 禁用
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	UUID       string    `gorm:"primaryKey;type:varchar(32)" json:"uuid"`
+	Username   string    `gorm:"type:varchar(100);uniqueIndex" json:"username"`
+	Password   string    `gorm:"type:varchar(255)" json:"password"`
+	Nickname   string    `gorm:"type:varchar(255)" json:"nickname"`
+	Realname   string    `gorm:"type:varchar(255)" json:"realname"` // 真实姓名
+	Rating     int       `gorm:"type:int;default:0" json:"rating"`  // 当前 Rating（已废弃，使用HistRating）
+	HistRating int       `gorm:"-" json:"histRating"`               // Hist Rating（从user_record表获取）
+	Status     int       `gorm:"type:int;default:0" json:"status"`  // 0: 正常, 1: 禁用
+	CreatedAt  time.Time `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt  time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 // TableName 指定表名
@@ -89,9 +92,9 @@ func (UserInfo) TableName() string {
 // Contest 比赛信息（对应HOJ的contest表）
 type Contest struct {
 	ID        uint64    `gorm:"primaryKey;type:bigint unsigned" json:"id"`
-	UID       string    `gorm:"type:varchar(32);not null;column:uid" json:"uid"` // 创建者ID
-	Author    string    `gorm:"type:varchar(255);column:author" json:"author"` // 创建者用户名
-	Type      int       `gorm:"type:int;not null;default:0" json:"type"` // 0: ACM, 1: OI
+	UID       string    `gorm:"type:varchar(32);not null;column:uid" json:"uid"`                     // 创建者ID
+	Author    string    `gorm:"type:varchar(255);column:author" json:"author"`                       // 创建者用户名
+	Type      int       `gorm:"type:int;not null;default:0" json:"type"`                             // 0: ACM, 1: OI
 	IsRating  bool      `gorm:"type:tinyint(1);not null;default:0;column:is_rating" json:"isRating"` // 0: unrated, 1: rated
 	Title     string    `gorm:"type:varchar(255)" json:"title"`
 	StartTime time.Time `gorm:"type:datetime;column:start_time" json:"startTime"`
@@ -152,6 +155,10 @@ func InitTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&SubmissionHistory{}); err != nil {
 		return err
 	}
+	// 创建判题终端本地测试点详情表
+	if err := db.AutoMigrate(&SubmissionHistoryCase{}); err != nil {
+		return err
+	}
 	// 创建班级相关表
 	if err := InitClassroomTables(db); err != nil {
 		return err
@@ -205,16 +212,16 @@ func (ContestSkipUser) TableName() string {
 
 // RatingRecalculateQueue Rating重算任务队列
 type RatingRecalculateQueue struct {
-	ID               uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	ContestID        uint64    `gorm:"type:bigint unsigned;not null;index:idx_contest" json:"contestId"` // 起始比赛ID
-	Status           string    `gorm:"type:varchar(20);default:'pending';index:idx_status" json:"status"` // 状态: pending/running/completed/failed
-	TotalContests    int       `gorm:"type:int;default:0" json:"totalContests"`    // 需要重算的比赛总数
-	ProcessedContests int       `gorm:"type:int;default:0" json:"processedContests"` // 已处理的比赛数
-	ErrorMessage     string    `gorm:"type:text" json:"errorMessage"`             // 错误信息
-	CreatedBy        string    `gorm:"type:varchar(32)" json:"createdBy"`         // 创建人UID
-	CreatedAt        time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	StartedAt        *time.Time `json:"startedAt"`
-	CompletedAt      *time.Time `json:"completedAt"`
+	ID                uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ContestID         uint64     `gorm:"type:bigint unsigned;not null;index:idx_contest" json:"contestId"`  // 起始比赛ID
+	Status            string     `gorm:"type:varchar(20);default:'pending';index:idx_status" json:"status"` // 状态: pending/running/completed/failed
+	TotalContests     int        `gorm:"type:int;default:0" json:"totalContests"`                           // 需要重算的比赛总数
+	ProcessedContests int        `gorm:"type:int;default:0" json:"processedContests"`                       // 已处理的比赛数
+	ErrorMessage      string     `gorm:"type:text" json:"errorMessage"`                                     // 错误信息
+	CreatedBy         string     `gorm:"type:varchar(32)" json:"createdBy"`                                 // 创建人UID
+	CreatedAt         time.Time  `gorm:"autoCreateTime" json:"createdAt"`
+	StartedAt         *time.Time `json:"startedAt"`
+	CompletedAt       *time.Time `json:"completedAt"`
 }
 
 // TableName 指定表名
@@ -224,15 +231,15 @@ func (RatingRecalculateQueue) TableName() string {
 
 // RatingOperationLog Rating操作日志
 type RatingOperationLog struct {
-	ID              uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	OperatorUID     string    `gorm:"type:varchar(32);not null;index:idx_operator" json:"operatorUid"`
+	ID               uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	OperatorUID      string    `gorm:"type:varchar(32);not null;index:idx_operator" json:"operatorUid"`
 	OperatorUsername string    `gorm:"type:varchar(100)" json:"operatorUsername"`
-	OperationType   string    `gorm:"type:varchar(50);not null;index:idx_type" json:"operationType"` // 操作类型: personal_adjust/skip_user/cancel_skip/recalculate
-	TargetType      string    `gorm:"type:varchar(50)" json:"targetType"` // 目标类型: user/contest
-	TargetID        string    `gorm:"type:varchar(100)" json:"targetId"` // 目标ID: 用户名或比赛ID
-	OperationDetail string    `gorm:"type:json" json:"operationDetail"` // 操作详情（JSON格式）
-	IP              string    `gorm:"type:varchar(50)" json:"ip"` // 操作IP
-	CreatedAt       time.Time `gorm:"autoCreateTime;index:idx_created" json:"createdAt"`
+	OperationType    string    `gorm:"type:varchar(50);not null;index:idx_type" json:"operationType"` // 操作类型: personal_adjust/skip_user/cancel_skip/recalculate
+	TargetType       string    `gorm:"type:varchar(50)" json:"targetType"`                            // 目标类型: user/contest
+	TargetID         string    `gorm:"type:varchar(100)" json:"targetId"`                             // 目标ID: 用户名或比赛ID
+	OperationDetail  string    `gorm:"type:json" json:"operationDetail"`                              // 操作详情（JSON格式）
+	IP               string    `gorm:"type:varchar(50)" json:"ip"`                                    // 操作IP
+	CreatedAt        time.Time `gorm:"autoCreateTime;index:idx_created" json:"createdAt"`
 }
 
 // TableName 指定表名
@@ -253,4 +260,3 @@ func InitRatingTables(db *gorm.DB) error {
 	}
 	return nil
 }
-

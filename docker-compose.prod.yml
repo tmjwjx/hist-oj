@@ -10,9 +10,14 @@ services:
       - "9527:9527"
     environment:
       - TZ=Asia/Shanghai
+      # Go Sandbox 地址（可通过环境变量覆盖，避免回退到 127.0.0.1）
+      - HISTOJ_SANDBOX_URL=${HISTOJ_SANDBOX_URL:-http://172.19.0.1:5050}
+      - HISTOJ_TESTCASE_DIR=/hoj/testcase
     volumes:
       - ./hist-oj/configs:/app/configs:ro
       - ./hist-oj/uploads:/app/uploads  # 持久化上传文件(班级作业图片、消息图片、报名Logo等)
+      # 评测测试点目录（默认与 hoj-backend 保持一致，可通过 HISTOJ_TESTCASE_HOST_DIR 覆盖）
+      - ${HISTOJ_TESTCASE_HOST_DIR:-/workspace/hoj-deploy/distributed/main/hoj/testcase}:/hoj/testcase:ro
     networks:
       - hoj-network
     healthcheck:

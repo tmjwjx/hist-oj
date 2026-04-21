@@ -139,13 +139,117 @@ func (s *JudgeService) GetInfo(req *GetInfoRequest) (*GetInfoResponse, error) {
 
 // SampleResult 样例测试结果
 type SampleResult struct {
-	ID       int    `json:"id"`
-	IsOK     bool   `json:"is_ok"`
-	Input    string `json:"input"`
-	Expected string `json:"expected"`
-	Output   string `json:"output"`
-	Stderr   string `json:"stderr"` // HOJ 返回的错误信息
-	Status   int    `json:"status"` // 判题状态码
+	ID             int    `json:"id"`
+	IsOK           bool   `json:"is_ok"`
+	Input          string `json:"input"`
+	Expected       string `json:"expected"`
+	Output         string `json:"output"`
+	Stderr         string `json:"stderr"`                    // 错误输出
+	DetailedStderr string `json:"detailed_stderr,omitempty"` // 额外错误详情（如退出码、信号等）
+	Status         int    `json:"status"`                    // 判题状态码
+}
+
+// ContestTerminalCheckProblemStatus 比赛题目判题终端检测状态
+type ContestTerminalCheckProblemStatus struct {
+	PID          uint64 `json:"pid"`
+	DisplayID    string `json:"displayId"`
+	DisplayTitle string `json:"displayTitle"`
+	Checked      bool   `json:"checked"`
+	Reason       string `json:"reason,omitempty"`
+}
+
+// CheckContestTerminalCheckStatus 查询比赛题目是否完成判题终端检测
+// 判定标准：至少存在一次 submission_history_case 记录，且覆盖该题全部有效 problem_case。
+func (s *JudgeService) CheckContestTerminalCheckStatus(contestID uint64) (map[string]interface{}, error) {
+	var contestProblems []model.ContestProblem
+	if err := s.db.Where("cid = ?", contestID).Order("display_id ASC").Find(&contestProblems).Error; err != nil {
+		return nil, fmt.Errorf("查询比赛题目失败: %w", err)
+	}
+
+	if len(contestProblems) == 0 {
+		return map[string]interface{}{
+			"contestId":         contestID,
+			"totalProblems":     0,
+			"checkedProblems":   0,
+			"allChecked":        false,
+			"uncheckedProblems": []ContestTerminalCheckProblemStatus{},
+		}, nil
+	}
+
+	pids := make([]uint64, 0, len(contestProblems))
+	for _, item := range contestProblems {
+		pids = append(pids, item.PID)
+	}
+
+	type caseTotalRow struct {
+		PID   uint64 `gorm:"column:pid"`
+		Total int64  `gorm:"column:total"`
+	}
+	var caseTotals []caseTotalRow
+	if err := s.db.Table("problem_case").
+		Select("pid, COUNT(*) as total").
+		Where("status = 0 AND pid IN ?", pids).
+		Group("pid").
+		Scan(&caseTotals).Error; err != nil {
+		return nil, fmt.Errorf("查询测试点统计失败: %w", err)
+	}
+
+	totalCaseMap := make(map[uint64]int64, len(caseTotals))
+	for _, row := range caseTotals {
+		totalCaseMap[row.PID] = row.Total
+	}
+
+	checkedProblems := 0
+	unchecked := make([]ContestTerminalCheckProblemStatus, 0)
+
+	for _, cp := range contestProblems {
+		totalCases := totalCaseMap[cp.PID]
+		if totalCases <= 0 {
+			unchecked = append(unchecked, ContestTerminalCheckProblemStatus{
+				PID:          cp.PID,
+				DisplayID:    cp.DisplayID,
+				DisplayTitle: cp.DisplayTitle,
+				Checked:      false,
+				Reason:       "题目缺少有效测试点(problem_case)",
+			})
+			continue
+		}
+
+		var matched []string
+		if err := s.db.Table("submission_history_case shc").
+			Select("shc.submit_id").
+			Joins("JOIN problem_case pc ON pc.id = shc.case_id").
+			Where("pc.pid = ? AND pc.status = 0", cp.PID).
+			Group("shc.submit_id").
+			Having("COUNT(DISTINCT shc.case_id) >= ?", totalCases).
+			Order("MAX(shc.create_time) DESC").
+			Limit(1).
+			Pluck("shc.submit_id", &matched).Error; err != nil {
+			return nil, fmt.Errorf("查询题目检测记录失败(pid=%d): %w", cp.PID, err)
+		}
+
+		if len(matched) == 0 {
+			unchecked = append(unchecked, ContestTerminalCheckProblemStatus{
+				PID:          cp.PID,
+				DisplayID:    cp.DisplayID,
+				DisplayTitle: cp.DisplayTitle,
+				Checked:      false,
+				Reason:       fmt.Sprintf("未发现覆盖全部 %d 个测试点的判题终端检测记录", totalCases),
+			})
+			continue
+		}
+
+		checkedProblems++
+	}
+
+	result := map[string]interface{}{
+		"contestId":         contestID,
+		"totalProblems":     len(contestProblems),
+		"checkedProblems":   checkedProblems,
+		"allChecked":        checkedProblems == len(contestProblems),
+		"uncheckedProblems": unchecked,
+	}
+	return result, nil
 }
 
 // ExtractSamples 从题目样例中提取输入输出
@@ -376,6 +480,7 @@ type JudgeCaseDetail struct {
 	GroupNum *int   `json:"group_num" gorm:"column:group_num"`
 	Seq      *int   `json:"seq" gorm:"column:seq"`
 	Mode     string `json:"mode" gorm:"column:mode"`
+	Stderr   string `json:"stderr,omitempty" gorm:"column:stderr"`
 }
 
 // GetJudgeCaseDetails 获取判题测试点详情
@@ -394,6 +499,30 @@ func (s *JudgeService) GetJudgeCaseDetails(submitID string) ([]*JudgeCaseDetail,
 			zap.String("submit_id", submitID),
 			zap.Error(err))
 		return nil, fmt.Errorf("查询判题测试点详情失败: %w", err)
+	}
+
+	if len(details) > 0 {
+		return details, nil
+	}
+
+	// 判题终端本地独立判题详情（submission_history_case）
+	var localDetails []*JudgeCaseDetail
+	err = s.db.Table("submission_history_case").
+		Select("case_id, status, time, memory, score, group_num, seq, mode, stderr").
+		Where("submit_id = ?", submitID).
+		Order("CASE WHEN seq IS NULL THEN 1 ELSE 0 END").
+		Order("seq ASC").
+		Order("case_id ASC").
+		Scan(&localDetails).Error
+	if err != nil {
+		s.logger.Error("查询本地判题测试点详情失败",
+			zap.String("submit_id", submitID),
+			zap.Error(err))
+		return nil, fmt.Errorf("查询本地判题测试点详情失败: %w", err)
+	}
+
+	if len(localDetails) > 0 {
+		return localDetails, nil
 	}
 
 	return details, nil

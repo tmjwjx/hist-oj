@@ -668,6 +668,7 @@ export default {
         rankShowName: "username",
         openAccountLimit: false,
         allowEndSubmit: false,
+        visible: false,
         accountLimitRule: "",
         starAccount: [],
         oiRankScoreType: "Recent",

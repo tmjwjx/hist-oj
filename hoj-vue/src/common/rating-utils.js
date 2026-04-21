@@ -1,6 +1,6 @@
 // Rating 等级配置（参考 Codeforces）
 export const RATING_LEVELS = [
-  { min: 0, max: 1199, name: 'Newbie', color: '#808080', title: '新手' },
+  { min: 1, max: 1199, name: 'Newbie', color: '#808080', title: '新手' },
   { min: 1200, max: 1399, name: 'Pupil', color: '#008000', title: '学徒' },
   { min: 1400, max: 1599, name: 'Specialist', color: '#03A89E', title: '专家' },
   { min: 1600, max: 1899, name: 'Expert', color: '#0000FF', title: '大师' },
@@ -9,8 +9,11 @@ export const RATING_LEVELS = [
   { min: 2300, max: 2399, name: 'International Master', color: '#FF8C00', title: '国际大师' },
   { min: 2400, max: 2599, name: 'Grandmaster', color: '#FF0000', title: '特级大师' },
   { min: 2600, max: 2999, name: 'International Grandmaster', color: '#FF0000', title: '国际特级大师' },
-  { min: 3000, max: 9999, name: 'Legendary Grandmaster', color: '#FF0000', title: '传奇大师' }
+  { min: 3000, max: 3999, name: 'Legendary Grandmaster', color: '#FF0000', title: '传奇大师' },
+  { min: 4000, max: 9999, name: 'Tourist', color: '#FF0000', title: 'Tourist' }
 ]
+
+const UNRATED_LEVEL = { name: 'Unrated', color: '#000000', title: '未评级' }
 
 /**
  * 根据 Rating 获取等级信息
@@ -18,8 +21,8 @@ export const RATING_LEVELS = [
  * @returns {object} 等级信息对象
  */
 export function getRatingLevel(rating) {
-  if (rating === null || rating === undefined) {
-    return RATING_LEVELS[0]
+  if (rating === null || rating === undefined || rating <= 0) {
+    return UNRATED_LEVEL
   }
 
   for (let level of RATING_LEVELS) {
@@ -27,7 +30,7 @@ export function getRatingLevel(rating) {
       return level
     }
   }
-  return RATING_LEVELS[0]
+  return UNRATED_LEVEL
 }
 
 /**
@@ -37,7 +40,7 @@ export function getRatingLevel(rating) {
  */
 export function getRatingColor(rating) {
   if (rating === null || rating === undefined) {
-    return '#808080'
+    return '#000000'
   }
   return getRatingLevel(rating).color
 }
@@ -49,7 +52,7 @@ export function getRatingColor(rating) {
  */
 export function getRatingTitle(rating) {
   if (rating === null || rating === undefined) {
-    return '未定级'
+    return '未评级'
   }
   return getRatingLevel(rating).title
 }

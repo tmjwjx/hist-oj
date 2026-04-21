@@ -20,7 +20,6 @@ jwt:
   secret: hoj-secret-init  # 修改为实际的 JWT secret
 
 rating:
-  initial_rating: 1500  # 新用户初始 Rating
+  initial_rating: 0  # 新用户初始 Rating
   k_factor: 32          # K 值，控制波动幅度
   check_interval: 5     # 定时检查间隔（分钟）
-

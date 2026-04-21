@@ -326,7 +326,7 @@ export default {
       return this.profile.uuid || this.profile.uid || this.$route.query.uid || this.$route.query.username;
     },
     ratingColor() {
-      if (this.userRating === null) return '#808080';
+      if (this.userRating === null) return '#000000';
       return getRatingColor(this.userRating);
     },
     ratingTitle() {

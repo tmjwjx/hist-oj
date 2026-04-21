@@ -14,39 +14,39 @@ import (
 )
 
 const (
-	BaseURL              = "https://bingoj.cn"
-	APILogin             = BaseURL + "/api/login"
-	APISubmit            = BaseURL + "/api/submit-problem-judge"
-	APIResult            = BaseURL + "/api/get-submission-detail"
-	APISubmissionList    = BaseURL + "/api/get-submission-list"
-	APIProblemNormal     = BaseURL + "/api/get-problem-detail"
-	APIProblemContest    = BaseURL + "/api/get-contest-problem-details"
-	APIProblemAdmin      = BaseURL + "/api/admin/problem"
-	APIProblemAdminList  = BaseURL + "/api/admin/problem/get-problem-list"
+	BaseURL             = "https://bingoj.cn"
+	APILogin            = BaseURL + "/api/login"
+	APISubmit           = BaseURL + "/api/submit-problem-judge"
+	APIResult           = BaseURL + "/api/get-submission-detail"
+	APISubmissionList   = BaseURL + "/api/get-submission-list"
+	APIProblemNormal    = BaseURL + "/api/get-problem-detail"
+	APIProblemContest   = BaseURL + "/api/get-contest-problem-details"
+	APIProblemAdmin     = BaseURL + "/api/admin/problem"
+	APIProblemAdminList = BaseURL + "/api/admin/problem/get-problem-list"
 )
 
 // StatusMap 状态映射表（与 HOJ 官方标准一致）
 // 参考：hoj-vue/src/common/constants.js - JUDGE_STATUS
 var StatusMap = map[int]string{
 	// HOJ 标准状态码
-	-10: "未提交",           // NS - Not Submitted
-	-5:  "结果未知",         // SNR - Submitted Unknown Result
-	-4:  "已取消",           // CA - Cancelled
-	-3:  "格式错误",         // PE - Presentation Error
-	-2:  "编译错误",         // CE - Compile Error
-	-1:  "答案错误",         // WA - Wrong Answer
-	0:   "答案正确",         // AC - Accepted
-	1:   "时间超限",         // TLE - Time Limit Exceeded
-	2:   "内存超限",         // MLE - Memory Limit Exceeded
-	3:   "运行错误",         // RE - Runtime Error
-	4:   "系统错误",         // SE - System Error（修正：原来是 "NO"）
-	8:   "部分正确",         // PAC - Partial Accepted
-	10:  "提交失败",         // SF - Submitted Failed
+	-10: "未提交",  // NS - Not Submitted
+	-5:  "结果未知", // SNR - Submitted Unknown Result
+	-4:  "已取消",  // CA - Cancelled
+	-3:  "格式错误", // PE - Presentation Error
+	-2:  "编译错误", // CE - Compile Error
+	-1:  "答案错误", // WA - Wrong Answer
+	0:   "答案正确", // AC - Accepted
+	1:   "时间超限", // TLE - Time Limit Exceeded
+	2:   "内存超限", // MLE - Memory Limit Exceeded
+	3:   "运行错误", // RE - Runtime Error
+	4:   "系统错误", // SE - System Error（修正：原来是 "NO"）
+	8:   "部分正确", // PAC - Partial Accepted
+	10:  "提交失败", // SF - Submitted Failed
 
 	// BingOJ 特有状态码（判题中状态）
-	6:   "等待中",           // Pending
-	7:   "判题中",           // Judging
-	9:   "提交中",           // Submitting
+	6: "等待中", // Pending
+	7: "判题中", // Judging
+	9: "提交中", // Submitting
 }
 
 // BingoJClient BingoJ OJ 客户端
@@ -125,18 +125,19 @@ func (c *BingoJClient) Login(username, password string) error {
 
 // ProblemDetail 题目详情
 type ProblemDetail struct {
-	ID          int64  `json:"id"`        // 数据库主键ID（HOJ样例测试需要这个）
-	ProblemId   string `json:"problemId"` // 显示ID（如 "0001"）
-	Title       string `json:"title"`
-	Difficulty  int    `json:"difficulty"` // 难度（0-5）
-	Description string `json:"description"`
-	Input       string `json:"input"`
-	Output      string `json:"output"`
-	Examples    string `json:"examples"`
-	Hint        string `json:"hint"`
-	JudgeMode   string `json:"judgeMode"`   // 判题模式
-	TimeLimit   int64  `json:"timeLimit"`   // 时间限制（ms）
-	MemoryLimit int64  `json:"memoryLimit"` // 内存限制（MB）
+	ID            int64  `json:"id"`        // 数据库主键ID（HOJ样例测试需要这个）
+	ProblemId     string `json:"problemId"` // 显示ID（如 "0001"）
+	Title         string `json:"title"`
+	Difficulty    int    `json:"difficulty"` // 难度（0-5）
+	Description   string `json:"description"`
+	Input         string `json:"input"`
+	Output        string `json:"output"`
+	Examples      string `json:"examples"`
+	Hint          string `json:"hint"`
+	JudgeMode     string `json:"judgeMode"`     // 判题模式
+	JudgeCaseMode string `json:"judgeCaseMode"` // 测试点评测模式（default/ergodic_without_error/...）
+	TimeLimit     int64  `json:"timeLimit"`     // 时间限制（ms）
+	MemoryLimit   int64  `json:"memoryLimit"`   // 内存限制（MB）
 }
 
 // GetProblemDetail 获取题目详情（普通模式）
@@ -349,22 +350,22 @@ type SubmissionResult struct {
 
 // SubmissionListItem 提交列表项
 type SubmissionListItem struct {
-	SubmitID      interface{} `json:"submitId"`      // 可能是 string 或 number
-	ProblemID     string      `json:"problemId"`    // 题目ID
-	DisplayID     string      `json:"displayId"`    // 显示ID
-	ProblemTitle  string      `json:"problemTitle"` // 题目标题
-	Result        int         `json:"result"`       // 评测结果: 0=AC, -1=WA, -2=CE等
-	Status        int         `json:"status"`       // 状态: 0=失败, 1=成功
-	Username      string      `json:"username"`     // 用户名
-	UID           string      `json:"uid"`          // 用户ID
-	SubmitTime    string      `json:"submitTime"`   // 提交时间
-	Language      string      `json:"language"`     // 编程语言
-	JudgeTime     string      `json:"judgeTime"`    // 判题时间
-	Time          int         `json:"time"`         // 运行时间(ms)
-	Memory        int         `json:"memory"`       // 内存占用(KB)
-	CELInfo       string      `json:"celInfo"`      // 编译错误信息
-	Score         int         `json:"score"`        // 得分
-	Code          string      `json:"code"`         // 提交的代码
+	SubmitID     interface{} `json:"submitId"`     // 可能是 string 或 number
+	ProblemID    string      `json:"problemId"`    // 题目ID
+	DisplayID    string      `json:"displayId"`    // 显示ID
+	ProblemTitle string      `json:"problemTitle"` // 题目标题
+	Result       int         `json:"result"`       // 评测结果: 0=AC, -1=WA, -2=CE等
+	Status       int         `json:"status"`       // 状态: 0=失败, 1=成功
+	Username     string      `json:"username"`     // 用户名
+	UID          string      `json:"uid"`          // 用户ID
+	SubmitTime   string      `json:"submitTime"`   // 提交时间
+	Language     string      `json:"language"`     // 编程语言
+	JudgeTime    string      `json:"judgeTime"`    // 判题时间
+	Time         int         `json:"time"`         // 运行时间(ms)
+	Memory       int         `json:"memory"`       // 内存占用(KB)
+	CELInfo      string      `json:"celInfo"`      // 编译错误信息
+	Score        int         `json:"score"`        // 得分
+	Code         string      `json:"code"`         // 提交的代码
 }
 
 // GetSubmissionList 获取提交列表
@@ -578,4 +579,3 @@ func (c *BingoJClient) SearchProblemByDisplayID(displayID string) (int64, error)
 
 	return 0, fmt.Errorf("未找到匹配的题目")
 }
-

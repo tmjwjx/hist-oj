@@ -176,8 +176,8 @@ export default {
         return ratingInfo.color;
       }
 
-      // 默认颜色（灰色，表示未定级）
-      return '#808080';
+      // 默认颜色（黑色，表示未评级）
+      return '#000000';
     }
   },
   computed: {

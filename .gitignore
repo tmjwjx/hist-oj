@@ -55,6 +55,7 @@ bin/
 vendor/
 go.work
 go.work.sum
+**/.gocache/
 
 # Logs
 *.log

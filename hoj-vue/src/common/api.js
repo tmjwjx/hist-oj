@@ -1877,6 +1877,9 @@ const adminApi = {
       }
     })
   },
+  admin_getContestTerminalCheckStatus(cid) {
+    return ajax(`/api/judge/admin/contest/${cid}/terminal-check-status`, 'get', {})
+  },
   admin_getContestList(currentPage, limit, keyword) {
     let params = { currentPage, limit }
     if (keyword) {

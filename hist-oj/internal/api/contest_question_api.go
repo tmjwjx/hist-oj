@@ -95,7 +95,7 @@ func (h *Handler) GetContestQuestions(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	status := c.Query("status")      // 可选筛选条件
+	status := c.Query("status")              // 可选筛选条件
 	allQuestions := c.Query("all") == "true" // 是否查看所有问题（用于管理员答疑列表）
 
 	// 获取当前用户ID
@@ -594,7 +594,7 @@ func fillUserHistRatings(db *gorm.DB, users []*model.UserInfo) {
 			if histRating, ok := ratingMap[user.UUID]; ok {
 				user.HistRating = histRating
 			} else {
-				user.HistRating = 1200 // 默认值
+				user.HistRating = 0 // 默认值
 			}
 		}
 	}

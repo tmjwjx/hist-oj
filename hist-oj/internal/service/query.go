@@ -1,7 +1,9 @@
 package service
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -10,7 +12,6 @@ import (
 	"github.com/hoj/hist-oj/internal/model"
 	"github.com/hoj/hist-oj/internal/utils"
 )
-
 
 type QueryService struct {
 	db *gorm.DB
@@ -31,7 +32,7 @@ func (s *QueryService) GetUserRating(uidOrUsername string) (map[string]interface
 	var userRecord model.UserRecord
 
 	// 默认 Rating 值
-	defaultRating := 1200
+	defaultRating := 0
 
 	// 先尝试通过 UID 查询
 	actualUID := uidOrUsername
@@ -102,12 +103,12 @@ func (s *QueryService) GetUserRating(uidOrUsername string) (map[string]interface
 	colorInfo := utils.GetRatingColorInfo(rating)
 
 	result := map[string]interface{}{
-		"uid":      actualUID,
-		"rating":   rating,
+		"uid":       actualUID,
+		"rating":    rating,
 		"maxRating": finalMaxRating,
-		"color":    colorInfo.Color,
-		"level":    colorInfo.Name,
-		"levelZh":  colorInfo.NameZh,
+		"color":     colorInfo.Color,
+		"level":     colorInfo.Name,
+		"levelZh":   colorInfo.NameZh,
 	}
 
 	return result, nil
@@ -123,8 +124,6 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 	if limit < 1 {
 		limit = 20
 	}
-
-	offset := (page - 1) * limit
 
 	// 先尝试获取真实的 UID（支持用户名查询）
 	actualUID := uidOrUsername
@@ -153,21 +152,10 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 	}
 
 	var histories []model.RatingHistory
-	var total int64
 
-	// 查询rating历史总数
-	if err := s.db.Model(&model.RatingHistory{}).Where("uid = ?", actualUID).Count(&total).Error; err != nil {
-		logger.Error("查询rating历史总数失败",
-			zap.String("uid", actualUID),
-			zap.Error(err))
-		return nil, err
-	}
-
-	// 查询rating历史记录
+	// 先全量查询，再进行“关联比赛手调合并”后分页，避免额外节点
 	if err := s.db.Where("uid = ?", actualUID).
 		Order("created_at DESC").
-		Offset(offset).
-		Limit(limit).
 		Find(&histories).Error; err != nil {
 		logger.Error("查询rating历史失败",
 			zap.String("uid", actualUID),
@@ -185,11 +173,12 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 		}
 	}
 
-	// 查询该用户被标记为skip但还没有rating历史的比赛（待应用状态的skip）
+	// 查询该用户被标记为skip但还没有rating历史的比赛
+	// 注意：重算流程会将 is_applied 置为 true；若历史版本未落库比赛节点，也需要在个人主页补出该节点
 	var pendingSkipUsers []model.ContestSkipUser
 	if err := s.db.Where("uid = ?", actualUID).Find(&pendingSkipUsers).Error; err == nil {
 		// 获取用户当前rating
-		currentRating := 1500 // 默认初始rating
+		currentRating := 0 // 默认初始rating
 		if userRecord.HistRating != nil {
 			currentRating = *userRecord.HistRating
 		}
@@ -229,7 +218,6 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 			}
 
 			histories = append(histories, skipHistory)
-			total++ // 增加总数
 		}
 	}
 
@@ -240,21 +228,124 @@ func (s *QueryService) GetRatingHistory(uidOrUsername string, page, limit int) (
 			continue
 		}
 
+		// 优先使用 contest_id；手动调整（contest_id 为空）时，尝试使用 related_contest_id
+		var contestRefID *uint64
+		if histories[i].ContestID != nil {
+			contestRefID = histories[i].ContestID
+		} else if histories[i].RelatedContestID != nil {
+			contestRefID = histories[i].RelatedContestID
+		}
+		if contestRefID == nil {
+			continue
+		}
+
 		var contest model.Contest
-		if err := s.db.Where("id = ?", histories[i].ContestID).First(&contest).Error; err == nil {
+		if err := s.db.Where("id = ?", *contestRefID).First(&contest).Error; err == nil {
 			histories[i].ContestTitle = contest.Title
 			histories[i].ContestTime = &contest.EndTime // 使用比赛结束时间
 		}
 	}
 
+	// 合并“关联比赛”的手动调整，避免在个人主页生成额外节点
+	histories = mergeRelatedManualAdjustments(histories)
+
+	total := int64(len(histories))
+	offset := (page - 1) * limit
+	if offset > len(histories) {
+		offset = len(histories)
+	}
+	end := offset + limit
+	if end > len(histories) {
+		end = len(histories)
+	}
+	pagedHistories := histories[offset:end]
+
 	result := map[string]interface{}{
 		"total":   total,
 		"page":    page,
 		"limit":   limit,
-		"records": histories,
+		"records": pagedHistories,
 	}
 
 	return result, nil
+}
+
+// mergeRelatedManualAdjustments 将“关联比赛”的手动调整合并到比赛节点，避免额外节点
+func mergeRelatedManualAdjustments(histories []model.RatingHistory) []model.RatingHistory {
+	if len(histories) == 0 {
+		return histories
+	}
+
+	contestIndex := make(map[uint64]int)
+	manualByContest := make(map[uint64][]model.RatingHistory)
+
+	for idx, h := range histories {
+		if h.ContestID != nil && !h.IsManual {
+			contestIndex[*h.ContestID] = idx
+			continue
+		}
+		if h.IsManual && h.RelatedContestID != nil {
+			manualByContest[*h.RelatedContestID] = append(manualByContest[*h.RelatedContestID], h)
+		}
+	}
+
+	mergedManualIDs := make(map[uint64]bool)
+
+	for contestID, manualList := range manualByContest {
+		targetIdx, ok := contestIndex[contestID]
+		if !ok {
+			// 没找到比赛节点，保留原始手动记录，避免丢失信息
+			continue
+		}
+
+		// 按创建时间升序回放，保持与重算流程一致
+		sort.SliceStable(manualList, func(i, j int) bool {
+			if manualList[i].CreatedAt.Equal(manualList[j].CreatedAt) {
+				return manualList[i].ID < manualList[j].ID
+			}
+			return manualList[i].CreatedAt.Before(manualList[j].CreatedAt)
+		})
+
+		curRating := histories[targetIdx].NewRating
+		reasons := make([]string, 0, len(manualList))
+		totalManualDelta := 0
+		for _, m := range manualList {
+			curRating = utils.CalculateNewRating(curRating, m.RatingChange)
+			totalManualDelta += m.RatingChange
+			if strings.TrimSpace(m.Reason) != "" {
+				reasons = append(reasons, strings.TrimSpace(m.Reason))
+			}
+			mergedManualIDs[m.ID] = true
+		}
+		histories[targetIdx].NewRating = curRating
+		histories[targetIdx].ManualAdjustDelta = totalManualDelta
+		if len(reasons) > 0 {
+			// 去重并保持顺序
+			seen := make(map[string]bool)
+			uniqReasons := make([]string, 0, len(reasons))
+			for _, reason := range reasons {
+				if seen[reason] {
+					continue
+				}
+				seen[reason] = true
+				uniqReasons = append(uniqReasons, reason)
+			}
+			histories[targetIdx].ManualAdjustReason = strings.Join(uniqReasons, "；")
+		}
+		if histories[targetIdx].OldRating != nil {
+			histories[targetIdx].RatingChange = histories[targetIdx].NewRating - *histories[targetIdx].OldRating
+		}
+	}
+
+	result := make([]model.RatingHistory, 0, len(histories))
+	for _, h := range histories {
+		if h.IsManual && mergedManualIDs[h.ID] {
+			continue
+		}
+		result = append(result, h)
+	}
+
+	return result
 }
 
 // GetRatingColor 获取rating颜色信息
@@ -337,7 +428,7 @@ func (s *QueryService) GetContestParticipantsRating(contestID int64) ([]map[stri
 
 		// 获取用户当前rating
 		var userRecord model.UserRecord
-		currentRating := 1500 // 默认初始rating
+		currentRating := 0 // 默认初始rating
 		if err := s.db.Where("uid = ?", skipUser.UID).First(&userRecord).Error; err == nil {
 			if userRecord.HistRating != nil {
 				currentRating = *userRecord.HistRating
@@ -383,16 +474,16 @@ func (s *QueryService) GetBatchUserRating(uids []string) (map[string]interface{}
 		if record.HistRating != nil {
 			ratingMap[record.UID] = *record.HistRating
 		} else {
-			ratingMap[record.UID] = 1200
+			ratingMap[record.UID] = 0
 		}
 	}
 
-	// 对于没有记录的用户，返回默认值 1200
+	// 对于没有记录的用户，返回默认值 0
 	results := make(map[string]interface{})
 	for _, uid := range uids {
 		rating, exists := ratingMap[uid]
 		if !exists {
-			rating = 1200
+			rating = 0
 		}
 
 		colorInfo := utils.GetRatingColorInfo(rating)
@@ -529,15 +620,15 @@ func (s *QueryService) GetContestInfo(contestID uint64) (map[string]interface{},
 	s.db.Where("contest_id = ?", contestID).First(&ratingStatus)
 
 	result := map[string]interface{}{
-		"id":                 contest.ID,
-		"title":              contest.Title,
-		"type":               contest.Type,
-		"isRating":           contest.IsRating,
-		"startTime":          contest.StartTime,
-		"endTime":            contest.EndTime,
-		"status":             contest.Status,
-		"calculatedAt":       ratingStatus.CalculatedAt,
-		"skipDataChangedAt":  ratingStatus.SkipDataChangedAt,
+		"id":                contest.ID,
+		"title":             contest.Title,
+		"type":              contest.Type,
+		"isRating":          contest.IsRating,
+		"startTime":         contest.StartTime,
+		"endTime":           contest.EndTime,
+		"status":            contest.Status,
+		"calculatedAt":      ratingStatus.CalculatedAt,
+		"skipDataChangedAt": ratingStatus.SkipDataChangedAt,
 	}
 
 	return result, nil
@@ -599,7 +690,7 @@ func (s *QueryService) GetRatingRank(page, limit int, keyword string) (map[strin
 	// 构建主查询 - 使用 user_info 作为主表
 	// 这样可以显示所有用户，即使他们没有 rating 记录
 	query := s.db.Table("user_info").
-		Select("user_info.uuid as uid, COALESCE(latest_rating.new_rating, 1200) as hist_rating, user_info.username, user_info.avatar, user_info.nickname, user_info.school, user_info.title_name, user_info.title_color").
+		Select("user_info.uuid as uid, COALESCE(latest_rating.new_rating, 0) as hist_rating, user_info.username, user_info.avatar, user_info.nickname, user_info.school, user_info.title_name, user_info.title_color").
 		Joins("LEFT JOIN (?) as latest_rating ON user_info.uuid = latest_rating.uid", subQuery)
 
 	// 如果有关键词搜索
@@ -726,22 +817,70 @@ func (s *QueryService) GetManualAdjustmentHistory(page, limit int) (map[string]i
 	// 查询每个记录的用户名
 	type HistoryWithUsername struct {
 		model.RatingHistory
-		Username string `json:"username"`
+		Username   string     `json:"username"`
+		IsCanceled bool       `json:"isCanceled"`
+		CanceledAt *time.Time `json:"canceledAt,omitempty"`
+	}
+
+	// 批量查询“已撤销”状态
+	historyIDs := make([]string, 0, len(histories))
+	for _, history := range histories {
+		historyIDs = append(historyIDs, strconv.FormatUint(history.ID, 10))
+	}
+
+	type CancelLog struct {
+		TargetID  string    `gorm:"column:target_id"`
+		CreatedAt time.Time `gorm:"column:created_at"`
+	}
+	cancelLogMap := make(map[string]time.Time)
+	if len(historyIDs) > 0 {
+		var cancelLogs []CancelLog
+		if err := s.db.Table("rating_operation_logs").
+			Select("target_id, created_at").
+			Where("operation_type = ? AND target_type = ? AND target_id IN ?",
+				"cancel_personal_adjust", "manual_adjustment", historyIDs).
+			Order("created_at DESC").
+			Find(&cancelLogs).Error; err == nil {
+			for _, log := range cancelLogs {
+				if _, exists := cancelLogMap[log.TargetID]; !exists {
+					cancelLogMap[log.TargetID] = log.CreatedAt
+				}
+			}
+		}
 	}
 
 	results := make([]HistoryWithUsername, 0, len(histories))
 	for _, history := range histories {
+		historyKey := strconv.FormatUint(history.ID, 10)
+		cancelAt, isCanceled := cancelLogMap[historyKey]
+
 		var userInfo model.UserInfo
 		if err := s.db.Where("uuid = ?", history.UID).First(&userInfo).Error; err == nil {
 			results = append(results, HistoryWithUsername{
 				RatingHistory: history,
 				Username:      userInfo.Username,
+				IsCanceled:    isCanceled,
+				CanceledAt: func() *time.Time {
+					if !isCanceled {
+						return nil
+					}
+					t := cancelAt
+					return &t
+				}(),
 			})
 		} else {
 			// 如果找不到用户信息，使用 UID 作为用户名
 			results = append(results, HistoryWithUsername{
 				RatingHistory: history,
 				Username:      history.UID,
+				IsCanceled:    isCanceled,
+				CanceledAt: func() *time.Time {
+					if !isCanceled {
+						return nil
+					}
+					t := cancelAt
+					return &t
+				}(),
 			})
 		}
 	}
@@ -759,4 +898,3 @@ func (s *QueryService) GetManualAdjustmentHistory(page, limit int) (map[string]i
 
 	return result, nil
 }
-

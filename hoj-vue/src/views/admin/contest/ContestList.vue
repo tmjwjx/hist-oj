@@ -75,7 +75,7 @@
             <el-switch
               v-model="row.visible"
               :disabled="!isSuperAdmin && userInfo.uid != row.uid"
-              @change="changeContestVisible(row.id, row.visible, row.uid)"
+              @change="changeContestVisible(row)"
             >
             </el-switch>
           </template>
@@ -326,7 +326,11 @@ export default {
         (res) => {
           this.loading = false;
           this.total = res.data.data.total;
-          this.contestList = res.data.data.records;
+          this.contestList = (res.data.data.records || []).map((item) => ({
+            ...item,
+            // 默认按不可见处理，避免后端未返回 visible 时误显示
+            visible: !!item.visible,
+          }));
           // 批量查询比赛的 Rating 状态
           this.loadContestsRatingStatus();
         },
@@ -392,10 +396,69 @@ export default {
         });
       });
     },
-    changeContestVisible(contestId, visible, uid) {
-      api.admin_changeContestVisible(contestId, visible, uid).then((res) => {
+    async changeContestVisible(row) {
+      const contestId = row.id;
+      const visible = row.visible;
+      const uid = row.uid;
+      const rollbackVisible = () => {
+        this.$set(row, 'visible', !visible);
+      };
+
+      // 仅“设为可见”时进行前置检测
+      if (visible) {
+        let checkData = null;
+        try {
+          const res = await api.admin_getContestTerminalCheckStatus(contestId);
+          checkData = (res && res.data && res.data.data) ? res.data.data : {};
+        } catch (e) {
+          rollbackVisible();
+          myMessage.error('查询题目检测状态失败，已取消设为可见');
+          return;
+        }
+
+        if (!checkData.allChecked) {
+          const unchecked = checkData.uncheckedProblems || [];
+          const messageLines = [];
+
+          if ((checkData.totalProblems || 0) === 0) {
+            messageLines.push('该比赛暂无题目，尚未进行判题终端检测。');
+            messageLines.push('是否仍然设置为可见？');
+          } else {
+            const lines = unchecked.slice(0, 8).map((item) => {
+              const label = item.displayId ? `[${item.displayId}]` : `[#${item.pid}]`;
+              const title = item.displayTitle || '未命名题目';
+              return `${label}${title}`;
+            });
+            if (unchecked.length > 8) {
+              lines.push(`... 其余 ${unchecked.length - 8} 题未展示`);
+            }
+            messageLines.push(`该比赛有 ${unchecked.length} 道题未完成判题终端检测。`);
+            messageLines.push('是否仍然设置为可见？');
+            if (lines.length > 0) {
+              messageLines.push('');
+              messageLines.push(...lines);
+            }
+          }
+
+          try {
+            await this.$confirm(messageLines.join('\n'), '检测提醒', {
+              confirmButtonText: '仍然设置可见',
+              cancelButtonText: '取消',
+              type: 'warning',
+            });
+          } catch (e) {
+            rollbackVisible();
+            return;
+          }
+        }
+      }
+
+      try {
+        await api.admin_changeContestVisible(contestId, visible, uid);
         myMessage.success(this.$i18n.t('m.Update_Successfully'));
-      });
+      } catch (e) {
+        rollbackVisible();
+      }
     },
     filterByKeyword() {
       this.currentChange(1);

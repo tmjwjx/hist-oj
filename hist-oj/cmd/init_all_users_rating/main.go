@@ -65,7 +65,7 @@ func main() {
 	fmt.Printf("📊 已有 %d 个用户有 rating 记录\n", len(existingRecords))
 
 	// 初始化没有 rating 记录的用户
-	defaultRating := 1200
+	defaultRating := 0
 	successCount := 0
 	skipCount := 0
 

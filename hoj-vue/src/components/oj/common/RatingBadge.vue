@@ -26,7 +26,7 @@ export default {
   },
   computed: {
     ratingColor() {
-      if (this.rating === null) return '#808080'
+      if (this.rating === null) return '#000000'
       return getRatingColor(this.rating)
     },
     displayText() {

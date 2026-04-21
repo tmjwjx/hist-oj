@@ -58,7 +58,7 @@ var GlobalConfig *Config
 
 func LoadConfig(configPath string) (*Config, error) {
 	viper.SetConfigType("yaml")
-	
+
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
 	} else {
@@ -93,7 +93,7 @@ func setDefaults() {
 
 	viper.SetDefault("database.port", 3306)
 	viper.SetDefault("jwt.secret", "default")
-	viper.SetDefault("rating.initial_rating", 1200)
+	viper.SetDefault("rating.initial_rating", 0)
 	viper.SetDefault("rating.k_factor", 32)
 	viper.SetDefault("rating.check_interval", 5)
 }
@@ -102,4 +102,3 @@ func (c *DatabaseConfig) DSN() string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s&readTimeout=30s&writeTimeout=30s&interpolateParams=true",
 		c.User, c.Password, c.Host, c.Port, c.DBName)
 }
-

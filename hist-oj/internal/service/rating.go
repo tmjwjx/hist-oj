@@ -22,11 +22,45 @@ type RatingService struct {
 	config *config.RatingConfig
 }
 
+var cfNewbieDisplayPromotions = []int{500, 350, 250, 150, 100, 50}
+
 func NewRatingService(db *gorm.DB, cfg *config.RatingConfig) *RatingService {
 	return &RatingService{
 		db:     db,
 		config: cfg,
 	}
+}
+
+func getCFNewbieDisplayBonus(completedContests int64) int {
+	if completedContests < 0 {
+		return 0
+	}
+	if completedContests >= int64(len(cfNewbieDisplayPromotions)) {
+		return 0
+	}
+	return cfNewbieDisplayPromotions[completedContests]
+}
+
+func getCFNewbieRemainingBonus(completedContests int64) int {
+	if completedContests < 0 {
+		completedContests = 0
+	}
+	if completedContests >= int64(len(cfNewbieDisplayPromotions)) {
+		return 0
+	}
+
+	total := 0
+	for i := completedContests; i < int64(len(cfNewbieDisplayPromotions)); i++ {
+		total += cfNewbieDisplayPromotions[i]
+	}
+	return total
+}
+
+func buildCFNewbieBonusReason(bonus int) string {
+	if bonus <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("cf_newbie_bonus:+%d", bonus)
 }
 
 // CalculateContestRating 计算比赛的rating变化
@@ -106,7 +140,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		logger.Error("获取比赛信息失败", zap.Int64("contest_id", contestID), zap.Error(err))
 		return nil, fmt.Errorf("获取比赛信息失败: %w", err)
 	}
-	logger.Info("获取比赛信息成功", 
+	logger.Info("获取比赛信息成功",
 		zap.Int64("contest_id", contestID),
 		zap.String("title", contestInfo.Title),
 		zap.Int("type", contestInfo.Type))
@@ -118,22 +152,16 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		zap.Time("start_time", contestInfo.StartTime),
 		zap.Time("end_time", contestInfo.EndTime))
 
-	// 【重要】排除被 Skip 的用户，只参与 Rating 计算的应该是未 Skip 的用户
-	// 使用 NOT EXISTS 子查询排除 Skip 用户
+	// 【重要】先获取全部比赛提交记录，再基于 skipUIDs 在内存中分流
+	// 这样可以保留 Skip 用户的比赛节点（rating_history），便于重算链路与前端展示
 	var contestRecords []model.ContestRecord
 	query := `
-		SELECT DISTINCT cr.*
-		FROM contest_record cr
-		WHERE cr.cid = ?
-			AND cr.submit_time >= ?
-			AND cr.submit_time <= ?
-			AND NOT EXISTS (
-				SELECT 1
-				FROM contest_skip_users csu
-				WHERE csu.contest_id = cr.cid
-					AND csu.uid = cr.uid
-			)
-	`
+			SELECT DISTINCT cr.*
+			FROM contest_record cr
+			WHERE cr.cid = ?
+				AND cr.submit_time >= ?
+				AND cr.submit_time <= ?
+		`
 	if err := tx.Raw(query, contestID, contestInfo.StartTime, contestInfo.EndTime).
 		Scan(&contestRecords).Error; err != nil {
 		tx.Rollback()
@@ -147,14 +175,14 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 
 	// 聚合每个用户的比赛成绩
 	type UserScore struct {
-		UID        string
-		Username   string
-		ACProblems map[string]bool      // 记录已AC的题目（按 DisplayID）
+		UID         string
+		Username    string
+		ACProblems  map[string]bool      // 记录已AC的题目（按 DisplayID）
 		ProblemInfo map[string]*struct { // 每道题的详细信息（按 DisplayID）
 			ACTime     uint64 // AC时间
 			ErrorCount int    // AC前的错误次数
 		}
-		TotalTime  int64 // 总用时（秒，包含罚时）
+		TotalTime int64 // 总用时（秒，包含罚时）
 	}
 
 	userScores := make(map[string]*UserScore)
@@ -178,7 +206,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 					ACTime     uint64
 					ErrorCount int
 				}),
-				TotalTime:  0,
+				TotalTime: 0,
 			}
 		}
 
@@ -262,14 +290,26 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		return rankResp.Records[i].TotalTime < rankResp.Records[j].TotalTime
 	})
 
-	// 设置排名
+	// 设置排名（并列名次保持一致）
+	currentRank := 1
 	for i := range rankResp.Records {
-		rankResp.Records[i].Rank = i + 1
+		if i == 0 {
+			rankResp.Records[i].Rank = currentRank
+			continue
+		}
+		prev := rankResp.Records[i-1]
+		curr := rankResp.Records[i]
+		if curr.AC == prev.AC && curr.TotalTime == prev.TotalTime {
+			rankResp.Records[i].Rank = currentRank
+		} else {
+			currentRank = i + 1
+			rankResp.Records[i].Rank = currentRank
+		}
 	}
 
-	// 【新增】获取skip用户列表（只获取已应用的）
+	// 【新增】获取skip用户列表（重算过程中 is_applied 可能尚未置位，需全部读取）
 	var skipUsers []model.ContestSkipUser
-	tx.Where("contest_id = ? AND is_applied = ?", contestID, true).Find(&skipUsers)
+	tx.Where("contest_id = ?", contestID).Find(&skipUsers)
 
 	skipUIDs := make(map[string]bool)
 	skipUserInfo := make(map[string]*model.ContestSkipUser) // 存储skip用户信息
@@ -286,13 +326,27 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	// 但需要保留所有记录用于最终展示
 	filteredRecords := make([]client.ContestRankRecord, 0)
 	skippedRecords := make([]client.ContestRankRecord, 0) // 被skip的记录
+	rankUIDSet := make(map[string]bool, len(rankResp.Records))
 
 	for _, record := range rankResp.Records {
+		rankUIDSet[record.UID] = true
 		if !skipUIDs[record.UID] {
 			filteredRecords = append(filteredRecords, record)
 		} else {
 			skippedRecords = append(skippedRecords, record)
 		}
+	}
+
+	// 无提交但被 skip 的用户不在 rankResp 中，需要补一个 skip 节点用于个人主页展示
+	for _, skipUser := range skipUsers {
+		if rankUIDSet[skipUser.UID] {
+			continue
+		}
+		skippedRecords = append(skippedRecords, client.ContestRankRecord{
+			UID:      skipUser.UID,
+			Username: skipUser.Username,
+			Rank:     0, // 无提交，按未排名处理
+		})
 	}
 
 	// 【重要】使用原始排名计算rating，不要重新排名
@@ -328,10 +382,22 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		return nil, nil
 	}
 
-	// 获取所有参赛者的当前rating
-	uids := make([]string, 0, len(rankResp.Records))
+	// 获取所有需要处理用户（有效参赛者 + skip用户）的当前rating
+	uids := make([]string, 0, len(rankResp.Records)+len(skipUsers))
+	uidSeen := make(map[string]bool, len(rankResp.Records)+len(skipUsers))
 	for _, record := range rankResp.Records {
+		if uidSeen[record.UID] {
+			continue
+		}
 		uids = append(uids, record.UID)
+		uidSeen[record.UID] = true
+	}
+	for _, skipUser := range skipUsers {
+		if uidSeen[skipUser.UID] {
+			continue
+		}
+		uids = append(uids, skipUser.UID)
+		uidSeen[skipUser.UID] = true
 	}
 
 	var userRecords []model.UserRecord
@@ -358,28 +424,60 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		}
 	}
 
-	// 【关键】为非skip用户创建rating信息列表（重新排名）
-	// 过滤掉skip用户后，重新计算排名，而不是使用原始排名
+	// 查询每个用户历史已计分比赛次数（不含手动调整，不含 skip）
+	contestCountMap := make(map[string]int64, len(uids))
+	for _, uid := range uids {
+		contestCountMap[uid] = 0
+	}
+
+	type userContestCountRow struct {
+		UID   string `gorm:"column:uid"`
+		Count int64  `gorm:"column:count"`
+	}
+	var contestCountRows []userContestCountRow
+	if err := tx.Model(&model.RatingHistory{}).
+		Select("uid, COUNT(*) as count").
+		Where("uid IN ? AND contest_id IS NOT NULL AND is_manual = 0 AND is_skip = 0", uids).
+		Group("uid").
+		Scan(&contestCountRows).Error; err != nil {
+		tx.Rollback()
+		logger.Error("查询用户历史比赛次数失败",
+			zap.Int64("contest_id", contestID),
+			zap.Error(err))
+		return nil, fmt.Errorf("查询用户历史比赛次数失败: %w", err)
+	}
+	for _, row := range contestCountRows {
+		contestCountMap[row.UID] = row.Count
+	}
+
+	// 为非 skip 用户创建 rating 计算输入
+	// 过滤掉 skip 用户后，按有效参赛者重新编号排名（1..N）
 	userInfos := make([]utils.UserRatingInfo, 0, len(filteredRecords))
+	displayRatingMap := make(map[string]int, len(filteredRecords))
 	for i, record := range filteredRecords {
-		rating, ok := ratingMap[record.UID]
+		displayRating, ok := ratingMap[record.UID]
 		if !ok {
-			rating = s.config.InitialRating
+			displayRating = s.config.InitialRating
 		}
+
+		completedContests := contestCountMap[record.UID]
+
+		calculationRating := displayRating + getCFNewbieRemainingBonus(completedContests)
+		displayRatingMap[record.UID] = displayRating
+
 		// 判断用户是否至少AC了一道题（AC数量 > 0）
 		hasSolved := record.AC > 0
-		// 【关键】使用新的排名（从1开始），而不是原始排名
 		newRank := i + 1
 		userInfos = append(userInfos, utils.UserRatingInfo{
 			UID:       record.UID,
 			Rank:      newRank, // 重新排名：1, 2, 3, ...
-			Rating:    rating,
+			Rating:    calculationRating,
 			HasSolved: hasSolved,
 		})
 	}
 
 	// 输出前10名的 Rating 信息（用于调试）
-	logger.Info("========== Rating 计算输入（前10名，使用原始排名）==========")
+	logger.Info("========== Rating 计算输入（前10名，有效参赛者重排后）==========")
 	for i := 0; i < len(userInfos) && i < 10; i++ {
 		info := userInfos[i]
 		logger.Info("用户 Rating 信息",
@@ -390,7 +488,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	}
 	logger.Info("==========================================")
 
-	// 计算所有rating变化（使用原始排名）
+	// 计算所有 rating 变化（CF 规则）
 	changesMap := utils.CalculateAllRatingChangesByUID(userInfos, s.config.KFactor)
 	logger.Info("rating变化计算完成",
 		zap.Int64("contest_id", contestID),
@@ -401,28 +499,25 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	logger.Info("========== Rating 变化详情（前10名）==========")
 	for i := 0; i < len(filteredRecords) && i < 10; i++ {
 		record := filteredRecords[i]
-		oldRating := s.config.InitialRating
-		if r, ok := ratingMap[record.UID]; ok {
-			oldRating = r
+		oldDisplayRating := s.config.InitialRating
+		if r, ok := displayRatingMap[record.UID]; ok {
+			oldDisplayRating = r
 		}
-		change := changesMap[record.UID]
-		newRating := utils.CalculateNewRating(oldRating, change)
+		baseChange := changesMap[record.UID]
+		completedContests := contestCountMap[record.UID]
+		newbieBonus := getCFNewbieDisplayBonus(completedContests)
+		finalChange := baseChange + newbieBonus
+		newDisplayRating := utils.CalculateNewRating(oldDisplayRating, finalChange)
 		logger.Info("Rating 变化",
 			zap.Int("rank", record.Rank),
 			zap.String("username", record.Username),
-			zap.Int("old_rating", oldRating),
-			zap.Int("rating_change", change),
-			zap.Int("new_rating", newRating))
+			zap.Int("old_display_rating", oldDisplayRating),
+			zap.Int("base_change", baseChange),
+			zap.Int("newbie_bonus", newbieBonus),
+			zap.Int("rating_change", finalChange),
+			zap.Int("new_display_rating", newDisplayRating))
 	}
 	logger.Info("==========================================")
-
-	// 查询每个用户的历史参赛次数（用于新手保护）
-	contestCountMap := make(map[string]int64)
-	for _, uid := range uids {
-		var count int64
-		tx.Model(&model.RatingHistory{}).Where("uid = ?", uid).Count(&count)
-		contestCountMap[uid] = count
-	}
 
 	// 保存rating历史记录并更新用户rating
 	histories := make([]model.RatingHistory, 0, len(filteredRecords)+len(skippedRecords))
@@ -432,13 +527,13 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 	updateCount := 0
 	for _, record := range filteredRecords {
 		// 通过UID获取oldRating和change，确保强关联
-		oldRating, ok := ratingMap[record.UID]
+		oldDisplayRating, ok := displayRatingMap[record.UID]
 		if !ok {
-			oldRating = s.config.InitialRating
+			oldDisplayRating = s.config.InitialRating
 		}
-		
+
 		// 通过UID从changesMap中获取rating变化（强关联绑定）
-		change, exists := changesMap[record.UID]
+		baseChange, exists := changesMap[record.UID]
 		if !exists {
 			logger.Error("找不到用户的rating变化",
 				zap.String("uid", record.UID),
@@ -447,32 +542,34 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 			return nil, fmt.Errorf("找不到用户 %s 的rating变化", record.UID)
 		}
 
-		// 新人奖励：前4场比赛，如果AC了至少一道题，额外+30分
 		contestCount := contestCountMap[record.UID]
-		if contestCount < 4 && record.AC > 0 {
-			change += 30
-			logger.Debug("新人奖励生效（AC题目+30分）",
+		newbieBonus := getCFNewbieDisplayBonus(contestCount)
+
+		finalDisplayChange := baseChange + newbieBonus
+		if newbieBonus > 0 {
+			logger.Debug("新手保护加分生效",
 				zap.String("uid", record.UID),
-				zap.Int64("contest_count", contestCount),
-				zap.Int("ac_count", record.AC),
-				zap.Int("bonus", 30),
-				zap.Int("final_change", change))
+				zap.Int64("completed_contests", contestCount),
+				zap.Int("base_change", baseChange),
+				zap.Int("bonus", newbieBonus),
+				zap.Int("final_change", finalDisplayChange))
 		}
 
-		newRating := utils.CalculateNewRating(oldRating, change)
+		newRating := utils.CalculateNewRating(oldDisplayRating, finalDisplayChange)
 		rank := record.Rank // 使用record.Rank，确保使用正确的排名
 
 		// 创建 oldRating 的副本，避免指针问题
-		oldRatingCopy := oldRating
+		oldRatingCopy := oldDisplayRating
 		contestIDCopy := uint64(contestID) // 转换为 uint64
 		history := model.RatingHistory{
 			UID:          record.UID,
 			ContestID:    &contestIDCopy, // 使用指针
 			OldRating:    &oldRatingCopy,
 			NewRating:    newRating,
-			RatingChange: change,
+			RatingChange: finalDisplayChange,
 			Rank:         rank,
 			Participants: len(filteredRecords), // 只计算实际参与 Rating 的人数（不包括 Skip 用户）
+			Reason:       buildCFNewbieBonusReason(newbieBonus),
 			CreatedAt:    now,
 		}
 		histories = append(histories, history)
@@ -485,7 +582,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 			})
 		if result.Error != nil {
 			tx.Rollback()
-			logger.Error("更新用户rating失败", 
+			logger.Error("更新用户rating失败",
 				zap.Int64("contest_id", contestID),
 				zap.String("uid", record.UID),
 				zap.Error(result.Error))
@@ -499,7 +596,7 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 			}
 			if err := tx.Create(&userRecord).Error; err != nil {
 				// 创建失败可能是用户已存在（并发情况），记录警告但继续
-				logger.Warn("创建用户rating记录失败，可能已存在", 
+				logger.Warn("创建用户rating记录失败，可能已存在",
 					zap.String("uid", record.UID),
 					zap.Error(err))
 			} else {
@@ -537,12 +634,12 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 				UID:          skipRecord.UID,
 				ContestID:    &contestIDCopy,
 				OldRating:    &oldRatingCopy,
-				NewRating:    oldRating,  // rating不变
-				RatingChange: 0,          // 变化为0
-				Rank:         skipRecord.Rank, // 保留原排名
+				NewRating:    oldRating,            // rating不变
+				RatingChange: 0,                    // 变化为0
+				Rank:         skipRecord.Rank,      // 保留原排名
 				Participants: len(filteredRecords), // 只计算实际参与 Rating 的人数（不包括 Skip 用户）
 				Reason:       skipInfo.Reason,
-				IsSkip:       true,        // 标记为skip
+				IsSkip:       true, // 标记为skip
 				SkipReason:   skipInfo.Reason,
 				CreatedAt:    now,
 			}
@@ -553,28 +650,28 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 			zap.Int64("contest_id", contestID),
 			zap.Int("skip_histories", len(skippedRecords)))
 
-	// 更新skip用户的hist_rating字段（修复bug：确保hist_rating与rating_history一致）
-	for _, skipRecord := range skippedRecords {
-		oldRating := s.config.InitialRating
-		if r, ok := ratingMap[skipRecord.UID]; ok {
-			oldRating = r
-		}
+		// 更新skip用户的hist_rating字段（修复bug：确保hist_rating与rating_history一致）
+		for _, skipRecord := range skippedRecords {
+			oldRating := s.config.InitialRating
+			if r, ok := ratingMap[skipRecord.UID]; ok {
+				oldRating = r
+			}
 
-		// 更新hist_rating为重置后的rating（比赛前的rating）
-		if err := tx.Model(&model.UserRecord{}).
-			Where("uid = ?", skipRecord.UID).
-			Update("hist_rating", oldRating).Error; err != nil {
-			logger.Error("更新skip用户hist_rating失败",
-				zap.String("uid", skipRecord.UID),
-				zap.Int("rating", oldRating),
-				zap.Error(err))
-		} else {
-			logger.Debug("更新skip用户hist_rating成功",
-				zap.String("uid", skipRecord.UID),
-				zap.Int("rating", oldRating))
+			// 更新hist_rating为重置后的rating（比赛前的rating）
+			if err := tx.Model(&model.UserRecord{}).
+				Where("uid = ?", skipRecord.UID).
+				Update("hist_rating", oldRating).Error; err != nil {
+				logger.Error("更新skip用户hist_rating失败",
+					zap.String("uid", skipRecord.UID),
+					zap.Int("rating", oldRating),
+					zap.Error(err))
+			} else {
+				logger.Debug("更新skip用户hist_rating成功",
+					zap.String("uid", skipRecord.UID),
+					zap.Int("rating", oldRating))
+			}
 		}
 	}
-}
 
 	// 批量保存历史记录（使用 ON DUPLICATE KEY UPDATE 处理重复）
 	// 由于有唯一约束 (uid, contest_id)，重复记录会被忽略而不是报错
@@ -613,6 +710,16 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		Where("contest_id = ?", contestID).
 		Update("calculated_at", completedAt)
 
+	// 回放关联到本场比赛的手动调整（必须在本场比赛rating计算之后）
+	appliedManualCount, err := s.applyRelatedManualAdjustments(tx, uint64(contestID))
+	if err != nil {
+		tx.Rollback()
+		logger.Error("回放关联手动调整失败",
+			zap.Int64("contest_id", contestID),
+			zap.Error(err))
+		return nil, fmt.Errorf("回放关联手动调整失败: %w", err)
+	}
+
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
 		logger.Error("提交事务失败",
@@ -621,12 +728,109 @@ func (s *RatingService) CalculateContestRating(contestID int64) ([]model.RatingH
 		return nil, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	logger.Info("比赛rating计算完成", 
+	logger.Info("比赛rating计算完成",
 		zap.Int64("contest_id", contestID),
 		zap.Int("participants", len(histories)),
-		zap.Int("updated_users", updateCount))
+		zap.Int("updated_users", updateCount),
+		zap.Int("applied_manual_adjustments", appliedManualCount))
 
 	return histories, nil
+}
+
+// applyRelatedManualAdjustments 回放关联到指定比赛的手动调整
+// 调用时机：某场比赛rating计算完成后，进入下一场比赛前
+func (s *RatingService) applyRelatedManualAdjustments(tx *gorm.DB, contestID uint64) (int, error) {
+	logger := utils.GetLogger()
+
+	var adjustments []model.RatingHistory
+	if err := tx.Where("is_manual = ? AND related_contest_id = ?", true, contestID).
+		Order("created_at ASC, id ASC").
+		Find(&adjustments).Error; err != nil {
+		return 0, fmt.Errorf("查询关联手动调整失败: %w", err)
+	}
+
+	if len(adjustments) == 0 {
+		return 0, nil
+	}
+
+	appliedCount := 0
+	for _, adj := range adjustments {
+		oldRating := s.config.InitialRating
+		var userRecord model.UserRecord
+		err := tx.Where("uid = ?", adj.UID).First(&userRecord).Error
+		if err != nil {
+			if err != gorm.ErrRecordNotFound {
+				return appliedCount, fmt.Errorf("查询用户当前rating失败(uid=%s): %w", adj.UID, err)
+			}
+		} else if userRecord.HistRating != nil {
+			oldRating = *userRecord.HistRating
+		}
+
+		newRating := utils.CalculateNewRating(oldRating, adj.RatingChange)
+
+		// 更新 user_record
+		if err == gorm.ErrRecordNotFound {
+			newRatingCopy := newRating
+			createRecord := model.UserRecord{
+				UID:        adj.UID,
+				HistRating: &newRatingCopy,
+			}
+			if err := tx.Create(&createRecord).Error; err != nil {
+				return appliedCount, fmt.Errorf("创建用户rating记录失败(uid=%s): %w", adj.UID, err)
+			}
+		} else {
+			if err := tx.Model(&model.UserRecord{}).
+				Where("uid = ?", adj.UID).
+				Update("hist_rating", newRating).Error; err != nil {
+				return appliedCount, fmt.Errorf("更新用户rating失败(uid=%s): %w", adj.UID, err)
+			}
+		}
+
+		// 回写手动调整记录中的 old/new rating，使历史与重算结果一致
+		oldRatingCopy := oldRating
+		if err := tx.Model(&model.RatingHistory{}).
+			Where("id = ?", adj.ID).
+			Updates(map[string]interface{}{
+				"old_rating": oldRatingCopy,
+				"new_rating": newRating,
+			}).Error; err != nil {
+			return appliedCount, fmt.Errorf("更新手动调整历史失败(id=%d): %w", adj.ID, err)
+		}
+
+		appliedCount++
+	}
+
+	logger.Info("已回放关联手动调整",
+		zap.Uint64("contest_id", contestID),
+		zap.Int("count", appliedCount))
+	return appliedCount, nil
+}
+
+// applyManualAdjustmentsBeforeContest 回放起始比赛之前的关联手动调整，用于重算基线修正
+func (s *RatingService) applyManualAdjustmentsBeforeContest(tx *gorm.DB, startContestID uint64, ratingResetMap map[string]int) (int, error) {
+	if len(ratingResetMap) == 0 {
+		return 0, nil
+	}
+
+	var adjustments []model.RatingHistory
+	if err := tx.Where("is_manual = ? AND related_contest_id IS NOT NULL AND related_contest_id < ?", true, startContestID).
+		Order("related_contest_id ASC, created_at ASC, id ASC").
+		Find(&adjustments).Error; err != nil {
+		return 0, fmt.Errorf("查询起点前手动调整失败: %w", err)
+	}
+
+	applied := 0
+	for _, adj := range adjustments {
+		currentRating, exists := ratingResetMap[adj.UID]
+		if !exists {
+			// 非本次重算涉及用户，跳过
+			continue
+		}
+		ratingResetMap[adj.UID] = utils.CalculateNewRating(currentRating, adj.RatingChange)
+		applied++
+	}
+
+	return applied, nil
 }
 
 // CanCalculateRating 检查是否可以计算rating
@@ -652,11 +856,12 @@ func (s *RatingService) CanCalculateRating(contestID int64) bool {
 //   - delta: rating变化值（正数=增加，负数=减少）
 //   - reason: 操作原因（必填，如"AI作弊"、"账号违规"等）
 //   - operatorUID: 操作人UID（管理员）
+//
 // 返回:
 //   - oldRating: 调整前的rating
 //   - newRating: 调整后的rating
 //   - ratingChange: 实际rating变化
-func (s *RatingService) AdjustUserRating(username string, delta int, reason string, operatorUID string, operatorUsername string) (int, int, int, error) {
+func (s *RatingService) AdjustUserRating(username string, delta int, reason string, relatedContestID *uint64, operatorUID string, operatorUsername string) (int, int, int, error) {
 	logger := utils.GetLogger()
 
 	// 参数验证
@@ -672,6 +877,9 @@ func (s *RatingService) AdjustUserRating(username string, delta int, reason stri
 		logger.Error("rating变化值不能为0")
 		return 0, 0, 0, fmt.Errorf("rating变化值不能为0")
 	}
+	if relatedContestID != nil && *relatedContestID == 0 {
+		return 0, 0, 0, fmt.Errorf("关联比赛ID必须大于0")
+	}
 
 	// 查询用户信息（获取真实UID）
 	var userInfo model.UserInfo
@@ -682,6 +890,23 @@ func (s *RatingService) AdjustUserRating(username string, delta int, reason stri
 		}
 		logger.Error("查询用户信息失败", zap.String("username", username), zap.Error(err))
 		return 0, 0, 0, fmt.Errorf("查询用户信息失败: %w", err)
+	}
+
+	// 校验关联比赛（如果指定）
+	if relatedContestID != nil {
+		var status model.ContestRatingStatus
+		if err := s.db.Where("contest_id = ?", *relatedContestID).First(&status).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return 0, 0, 0, fmt.Errorf("关联比赛不存在或未开启Rating")
+			}
+			return 0, 0, 0, fmt.Errorf("查询关联比赛状态失败: %w", err)
+		}
+		if !status.IsRated {
+			return 0, 0, 0, fmt.Errorf("关联比赛不是Rating比赛")
+		}
+		if !status.RatingCalculated {
+			return 0, 0, 0, fmt.Errorf("关联比赛尚未完成Rating计算，暂不支持绑定")
+		}
 	}
 
 	// 开启事务
@@ -743,23 +968,26 @@ func (s *RatingService) AdjustUserRating(username string, delta int, reason stri
 	}
 
 	// 插入rating历史记录
+	// 这里使用 map 明确写入 contest_id = NULL，避免数据库默认值或历史约束导致落成 0，
+	// 从而触发 (uid, contest_id) 唯一键冲突（如 Duplicate entry 'uid-0'）。
 	now := time.Now()
 	oldRatingCopy := oldRating
-	history := model.RatingHistory{
-		UID:          userInfo.UUID,
-		ContestID:    nil, // 手动调整不关联比赛
-		OldRating:    &oldRatingCopy,
-		NewRating:    newRating,
-		RatingChange: ratingChange,
-		Rank:         0,         // 手动调整没有排名
-		Participants: 0,         // 手动调整没有参赛人数
-		Reason:       reason,
-		IsManual:     true,
-		OperatorUID:  operatorUID,
-		CreatedAt:    now,
+	historyValues := map[string]interface{}{
+		"uid":                userInfo.UUID,
+		"contest_id":         nil, // 手动调整不占用比赛节点，必须显式NULL
+		"related_contest_id": relatedContestID,
+		"old_rating":         oldRatingCopy,
+		"new_rating":         newRating,
+		"rating_change":      ratingChange,
+		"rank":               0, // 手动调整没有排名
+		"participants":       0, // 手动调整没有参赛人数
+		"reason":             reason,
+		"is_manual":          true,
+		"operator_uid":       operatorUID,
+		"created_at":         now,
 	}
 
-	if err := tx.Create(&history).Error; err != nil {
+	if err := tx.Table("rating_history").Create(historyValues).Error; err != nil {
 		tx.Rollback()
 		logger.Error("创建rating历史记录失败",
 			zap.String("uid", userInfo.UUID),
@@ -786,25 +1014,134 @@ func (s *RatingService) AdjustUserRating(username string, delta int, reason stri
 
 	// 记录操作日志
 	detailJSON, _ := json.Marshal(map[string]interface{}{
-		"username":      username,
-		"oldRating":     oldRating,
-		"newRating":     newRating,
-		"ratingChange":  ratingChange,
-		"reason":        reason,
+		"username":         username,
+		"oldRating":        oldRating,
+		"newRating":        newRating,
+		"ratingChange":     ratingChange,
+		"reason":           reason,
+		"relatedContestId": relatedContestID,
 	})
 	s.LogOperation(operatorUID, operatorUsername, "personal_adjust", "user", username, string(detailJSON), "")
 
 	return oldRating, newRating, ratingChange, nil
 }
 
+// CancelManualAdjustment 撤销一条手动调整（管理员）
+// 实现方式：删除原手动调整记录，并直接回滚用户当前 hist_rating（不新增反向历史记录）
+func (s *RatingService) CancelManualAdjustment(adjustmentID uint64, operatorUID string, operatorUsername string) (map[string]interface{}, error) {
+	logger := utils.GetLogger()
+	if adjustmentID == 0 {
+		return nil, fmt.Errorf("调整记录ID不能为空")
+	}
+
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			logger.Error("撤销手动调整时发生panic",
+				zap.Uint64("adjustment_id", adjustmentID),
+				zap.Any("panic", r))
+		}
+	}()
+
+	// 1. 查询并锁定原调整记录
+	var adjustment model.RatingHistory
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("id = ? AND is_manual = ?", adjustmentID, true).
+		First(&adjustment).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("手动调整记录不存在")
+		}
+		return nil, fmt.Errorf("查询手动调整记录失败: %w", err)
+	}
+	if adjustment.RatingChange == 0 {
+		return nil, fmt.Errorf("该记录变化值为0，无需撤销")
+	}
+
+	// 2. 获取用户信息
+	var userInfo model.UserInfo
+	if err := tx.Where("uuid = ?", adjustment.UID).First(&userInfo).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("被调整用户不存在")
+		}
+		return nil, fmt.Errorf("查询被调整用户失败: %w", err)
+	}
+
+	// 3. 锁定并回滚当前用户 rating（不新增 rating_history 记录）
+	var userRecord model.UserRecord
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("uid = ?", adjustment.UID).
+		First(&userRecord).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("用户rating记录不存在")
+		}
+		return nil, fmt.Errorf("查询用户rating失败: %w", err)
+	}
+
+	oldRating := s.config.InitialRating
+	if userRecord.HistRating != nil {
+		oldRating = *userRecord.HistRating
+	}
+
+	reverseDelta := -adjustment.RatingChange
+	newRating := utils.CalculateNewRating(oldRating, reverseDelta)
+	if err := tx.Model(&model.UserRecord{}).
+		Where("uid = ?", adjustment.UID).
+		Update("hist_rating", newRating).Error; err != nil {
+		return nil, fmt.Errorf("回滚用户rating失败: %w", err)
+	}
+
+	// 4. 删除原手动调整记录
+	if err := tx.Delete(&model.RatingHistory{}, adjustmentID).Error; err != nil {
+		return nil, fmt.Errorf("删除手动调整记录失败: %w", err)
+	}
+
+	// 5. 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("提交撤销事务失败: %w", err)
+	}
+
+	// 6. 记录“撤销操作”日志（用于审计）
+	targetID := fmt.Sprintf("%d", adjustmentID)
+	detailJSON, _ := json.Marshal(map[string]interface{}{
+		"adjustmentId":     adjustmentID,
+		"uid":              adjustment.UID,
+		"username":         userInfo.Username,
+		"originalChange":   adjustment.RatingChange,
+		"reverseChange":    reverseDelta,
+		"oldRating":        oldRating,
+		"newRating":        newRating,
+		"relatedContestId": adjustment.RelatedContestID,
+		"deleted":          true,
+	})
+	s.LogOperation(operatorUID, operatorUsername, "cancel_personal_adjust", "manual_adjustment", targetID, string(detailJSON), "")
+
+	logger.Info("撤销手动调整成功",
+		zap.Uint64("adjustment_id", adjustmentID),
+		zap.String("username", userInfo.Username),
+		zap.Int("reverse_delta", reverseDelta),
+		zap.Int("old_rating", oldRating),
+		zap.Int("new_rating", newRating))
+
+	return map[string]interface{}{
+		"adjustmentId":     adjustmentID,
+		"username":         userInfo.Username,
+		"oldRating":        oldRating,
+		"newRating":        newRating,
+		"ratingChange":     reverseDelta,
+		"relatedContestId": adjustment.RelatedContestID,
+		"deleted":          true,
+	}, nil
+}
+
 // SkipResult Skip操作结果
 type SkipResult struct {
-	SuccessUsers      []string `json:"successUsers"`
-	FailedUsers       []string `json:"failedUsers"`
-	DuplicatedUsers   []string `json:"duplicatedUsers"`
-	PendingRecalculate bool    `json:"pendingRecalculate"`
-	TaskID            uint64   `json:"taskId"`
-	NextContestIDs    []uint64 `json:"nextContestIds"`
+	SuccessUsers       []string `json:"successUsers"`
+	FailedUsers        []string `json:"failedUsers"`
+	DuplicatedUsers    []string `json:"duplicatedUsers"`
+	PendingRecalculate bool     `json:"pendingRecalculate"`
+	TaskID             uint64   `json:"taskId"`
+	NextContestIDs     []uint64 `json:"nextContestIds"`
 }
 
 // BatchSkipContestUsers 批量Skip用户（支持延迟重算）
@@ -920,8 +1257,8 @@ func (s *RatingService) BatchSkipContestUsers(
 		tx.Model(&model.ContestRatingStatus{}).
 			Where("contest_id = ?", contestID).
 			Updates(map[string]interface{}{
-				"has_pending_skip":    true,
-				"skip_count":          status.SkipCount + len(result.SuccessUsers),
+				"has_pending_skip":     true,
+				"skip_count":           status.SkipCount + len(result.SuccessUsers),
 				"skip_data_changed_at": &now,
 			})
 	}
@@ -1220,10 +1557,26 @@ func (s *RatingService) ExecuteRecalculateTask(taskID uint64) error {
 	}
 	var usersInContests []UserInRecalculatingContests
 	tx.Raw(`
-		SELECT DISTINCT uid
-		FROM rating_history
-		WHERE contest_id IN ?
-	`, contestIDs).Scan(&usersInContests)
+			SELECT DISTINCT uid
+			FROM (
+				-- 1) 比赛rating历史中的用户
+				SELECT uid
+				FROM rating_history
+				WHERE contest_id IN ?
+					AND is_manual = 0
+				UNION
+				-- 2) 被 skip 的用户（某些历史版本中可能没有生成比赛节点）
+				SELECT uid
+				FROM contest_skip_users
+				WHERE contest_id IN ?
+				UNION
+				-- 3) 关联到这些比赛的手动调整用户（防止手调被重复应用）
+				SELECT uid
+				FROM rating_history
+				WHERE is_manual = 1
+					AND related_contest_id IN ?
+			) t
+		`, contestIDs, contestIDs, contestIDs).Scan(&usersInContests)
 
 	logger.Info("找到待重算比赛中的有rating的用户",
 		zap.Uint64("task_id", taskID),
@@ -1260,13 +1613,18 @@ func (s *RatingService) ExecuteRecalculateTask(taskID uint64) error {
 	var lastRatings []LastRatingBeforeStart
 	if len(usersInContests) > 0 {
 		tx.Raw(`
-			SELECT r1.uid, r1.new_rating
-			FROM rating_history r1
-			WHERE r1.contest_id = (
-				SELECT MAX(r2.contest_id)
-				FROM rating_history r2
-				WHERE r2.uid = r1.uid AND r2.contest_id < ?
-			)
+				SELECT r1.uid, r1.new_rating
+				FROM rating_history r1
+				WHERE r1.contest_id = (
+					SELECT MAX(r2.contest_id)
+					FROM rating_history r2
+					WHERE r2.uid = r1.uid
+						AND r2.is_manual = 0
+						AND r2.contest_id > 0
+						AND r2.contest_id < ?
+				)
+				AND r1.is_manual = 0
+				AND r1.contest_id > 0
 		`, task.ContestID).Scan(&lastRatings)
 	}
 
@@ -1285,10 +1643,19 @@ func (s *RatingService) ExecuteRecalculateTask(taskID uint64) error {
 		}
 	}
 
+	// 5.4.1 回放起始比赛之前的关联手动调整，确保重算基线正确
+	appliedPreStartManual, err := s.applyManualAdjustmentsBeforeContest(tx, task.ContestID, ratingResetMap)
+	if err != nil {
+		tx.Rollback()
+		logger.Error("回放起点前手动调整失败", zap.Error(err))
+		return fmt.Errorf("回放起点前手动调整失败: %w", err)
+	}
+
 	logger.Info("构建用户rating映射完成",
 		zap.Uint64("task_id", taskID),
 		zap.Int("total_users", len(ratingResetMap)),
 		zap.Int("new_users", len(usersInContests)-len(lastRatings)),
+		zap.Int("manual_adjustments_applied", appliedPreStartManual),
 		zap.Int("initial_rating", s.config.InitialRating))
 
 	// 5.5 重置所有用户的 hist_rating
@@ -1364,8 +1731,8 @@ func (s *RatingService) ExecuteRecalculateTask(taskID uint64) error {
 	s.db.Model(&model.ContestRatingStatus{}).
 		Where("contest_id >= ?", task.ContestID).
 		Updates(map[string]interface{}{
-			"recalculate_lock":   false,
-			"recalculate_status": "completed",
+			"recalculate_lock":    false,
+			"recalculate_status":  "completed",
 			"last_recalculate_at": &completedAt,
 		})
 
@@ -1406,10 +1773,10 @@ func (s *RatingService) ExecuteRecalculateTask(taskID uint64) error {
 
 	// 记录操作日志
 	detailJSON, _ := json.Marshal(map[string]interface{}{
-		"taskId":        taskID,
-		"contestId":     task.ContestID,
-		"contestCount":  len(contests),
-		"contestIds":    contestIDs,
+		"taskId":       taskID,
+		"contestId":    task.ContestID,
+		"contestCount": len(contests),
+		"contestIds":   contestIDs,
 	})
 	s.LogOperation(task.CreatedBy, operatorUsername, "recalculate", "contest", fmt.Sprintf("%d", task.ContestID), string(detailJSON), "")
 
@@ -1485,8 +1852,8 @@ func (s *RatingService) ResetRecalculateLock(contestID int64, operatorUID string
 			if err == gorm.ErrRecordNotFound {
 				// 如果记录不存在，创建新记录
 				status = model.ContestRatingStatus{
-					ContestID:        uint64(contestID),
-					RecalculateLock:  false,
+					ContestID:         uint64(contestID),
+					RecalculateLock:   false,
 					RecalculateStatus: "none",
 				}
 				if err := tx.Create(&status).Error; err != nil {
@@ -1605,13 +1972,13 @@ func (s *RatingService) LogOperation(operatorUID, operatorUsername, operationTyp
 	logger := utils.GetLogger()
 
 	log := model.RatingOperationLog{
-		OperatorUID:     operatorUID,
+		OperatorUID:      operatorUID,
 		OperatorUsername: operatorUsername,
-		OperationType:   operationType,
-		TargetType:      targetType,
-			TargetID:        targetID,
-		OperationDetail: operationDetail,
-		IP:              ip,
+		OperationType:    operationType,
+		TargetType:       targetType,
+		TargetID:         targetID,
+		OperationDetail:  operationDetail,
+		IP:               ip,
 	}
 
 	if err := s.db.Create(&log).Error; err != nil {
@@ -1697,15 +2064,15 @@ func (s *RatingService) MigrateOperationLogs() (int, []string, error) {
 	logger.Info("开始迁移 Skip 用户操作日志...")
 
 	type ContestSkipUser struct {
-		ID                uint64    `gorm:"primaryKey"`
-		ContestID         uint64    `gorm:"type:bigint unsigned"`
-		UID               string    `gorm:"type:varchar(32)"`
-		Username          string    `gorm:"type:varchar(100)"`
-		Reason            string    `gorm:"type:varchar(500)"`
-		OperatorUID       string    `gorm:"type:varchar(32)"`
-		OperatorUsername  string    `gorm:"type:varchar(100)"`
-		IsApplied         bool      `gorm:"type:tinyint(1)"`
-		CreatedAt         time.Time `gorm:"autoCreateTime"`
+		ID               uint64    `gorm:"primaryKey"`
+		ContestID        uint64    `gorm:"type:bigint unsigned"`
+		UID              string    `gorm:"type:varchar(32)"`
+		Username         string    `gorm:"type:varchar(100)"`
+		Reason           string    `gorm:"type:varchar(500)"`
+		OperatorUID      string    `gorm:"type:varchar(32)"`
+		OperatorUsername string    `gorm:"type:varchar(100)"`
+		IsApplied        bool      `gorm:"type:tinyint(1)"`
+		CreatedAt        time.Time `gorm:"autoCreateTime"`
 	}
 
 	var skipUsers []ContestSkipUser
@@ -1805,16 +2172,16 @@ func (s *RatingService) MigrateOperationLogs() (int, []string, error) {
 	}
 
 	type RatingHistory struct {
-		ID           uint64     `gorm:"primaryKey"`
-		UID          string     `gorm:"type:varchar(32)"`
-		ContestID    *uint64    `gorm:"type:bigint unsigned"`
-		OldRating    *int       `gorm:"type:int"`
-		NewRating    int        `gorm:"type:int"`
-		RatingChange int        `gorm:"type:int"`
-		Reason       string     `gorm:"type:varchar(500)"`
-		IsManual     bool       `gorm:"type:tinyint(1)"`
-		OperatorUID  string     `gorm:"type:varchar(32)"`
-		CreatedAt    time.Time  `gorm:"autoCreateTime"`
+		ID           uint64    `gorm:"primaryKey"`
+		UID          string    `gorm:"type:varchar(32)"`
+		ContestID    *uint64   `gorm:"type:bigint unsigned"`
+		OldRating    *int      `gorm:"type:int"`
+		NewRating    int       `gorm:"type:int"`
+		RatingChange int       `gorm:"type:int"`
+		Reason       string    `gorm:"type:varchar(500)"`
+		IsManual     bool      `gorm:"type:tinyint(1)"`
+		OperatorUID  string    `gorm:"type:varchar(32)"`
+		CreatedAt    time.Time `gorm:"autoCreateTime"`
 	}
 
 	var manualAdjustments []RatingHistory
@@ -1867,4 +2234,3 @@ func (s *RatingService) MigrateOperationLogs() (int, []string, error) {
 
 	return migratedCount, errors, nil
 }
-

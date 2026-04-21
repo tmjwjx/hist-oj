@@ -90,7 +90,7 @@ func main() {
 			// 检查用户的最终 rating
 			var user model.UserRecord
 			if err := db.Where("uid = ?", uid).First(&user).Error; err == nil {
-				finalRating := 1200 // 默认值
+				finalRating := 0 // 默认值
 				if user.HistRating != nil {
 					finalRating = *user.HistRating
 				}

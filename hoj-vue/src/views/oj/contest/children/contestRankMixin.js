@@ -260,8 +260,8 @@ export default {
         return ratingInfo.color;
       }
 
-      // 默认颜色（灰色，表示未定级）
-      return '#808080';
+      // 默认颜色（黑色，表示未评级）
+      return '#000000';
     },
     getRatingChange(uid) {
       // Skip 用户没有 Rating 变化，返回 null
@@ -319,7 +319,7 @@ export default {
         this.ratingCache[cacheKey] = color;
         return color;
       }
-      return '#808080'; // 默认灰色
+      return '#000000'; // 默认黑色（未评级）
     },
     // 检查用户是否被 Skip
     isUserSkipped(uid) {

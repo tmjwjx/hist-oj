@@ -46,12 +46,12 @@ func (RatingHistory) TableName() string {
 }
 
 type ContestRatingStatus struct {
-	ContestID         uint64     `gorm:"column:contest_id;primaryKey"`
-	IsRated           bool       `gorm:"column:is_rated;default:0"`
-	RatingCalculated  bool       `gorm:"column:rating_calculated;default:0"`
-	CalculatedAt      *time.Time `gorm:"column:calculated_at"`
-	CreatedAt         time.Time  `gorm:"column:created_at"`
-	UpdatedAt         time.Time  `gorm:"column:updated_at"`
+	ContestID        uint64     `gorm:"column:contest_id;primaryKey"`
+	IsRated          bool       `gorm:"column:is_rated;default:0"`
+	RatingCalculated bool       `gorm:"column:rating_calculated;default:0"`
+	CalculatedAt     *time.Time `gorm:"column:calculated_at"`
+	CreatedAt        time.Time  `gorm:"column:created_at"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at"`
 }
 
 func (ContestRatingStatus) TableName() string {
@@ -69,7 +69,7 @@ func main() {
 
 	fmt.Println("✅ 数据库连接成功")
 	fmt.Println()
-	fmt.Println("⚠️  警告：此操作将清理所有 Rating 数据并重置为 1200")
+	fmt.Println("⚠️  警告：此操作将清理所有 Rating 数据并重置为 0")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println()
 
@@ -139,8 +139,8 @@ func main() {
 	}
 	fmt.Println()
 
-	// 4. 初始化所有用户的 Rating 为 1200
-	fmt.Println("🔄 步骤 4: 初始化所有用户 Rating 为 1200...")
+	// 4. 初始化所有用户的 Rating 为 0
+	fmt.Println("🔄 步骤 4: 初始化所有用户 Rating 为 0...")
 	var users []UserInfo
 	if err := db.Find(&users).Error; err != nil {
 		fmt.Printf("❌ 查询用户失败: %v\n", err)
@@ -149,7 +149,7 @@ func main() {
 
 	fmt.Printf("   找到 %d 个用户\n", len(users))
 
-	defaultRating := 1200
+	defaultRating := 0
 	successCount := 0
 	failCount := 0
 
@@ -184,15 +184,8 @@ func main() {
 	fmt.Printf("   - 清理历史记录: %d 条\n", historyCount)
 	fmt.Printf("   - 重置比赛状态: %d 条\n", statusCount)
 	fmt.Printf("   - 清理用户记录: %d 条\n", recordCount)
-	fmt.Printf("   - 初始化用户: %d 个 (Rating = 1200)\n", successCount)
+	fmt.Printf("   - 初始化用户: %d 个 (Rating = 0)\n", successCount)
 	fmt.Printf("   - 失败: %d 个\n", failCount)
 	fmt.Println()
-	fmt.Println("💡 提示: 所有用户的 Rating 已重置为 1200，历史记录已清空，比赛状态已重置")
+	fmt.Println("💡 提示: 所有用户的 Rating 已重置为 0，历史记录已清空，比赛状态已重置")
 }
-
-
-
-
-
-
-

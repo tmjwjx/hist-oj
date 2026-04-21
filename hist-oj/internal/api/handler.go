@@ -70,7 +70,7 @@ func errorResponse(code int, message string) Response {
 func (h *Handler) GetUserRating(c *gin.Context) {
 	logger := utils.GetLogger()
 	uid := c.Param("uid")
-	
+
 	if uid == "" {
 		logger.Warn("请求参数错误", zap.String("param", "uid"), zap.String("value", uid))
 		c.JSON(http.StatusOK, errorResponse(400, "uid参数不能为空"))
@@ -79,10 +79,10 @@ func (h *Handler) GetUserRating(c *gin.Context) {
 
 	// 检查是否有认证信息（可选认证）
 	currentUserId, _ := c.Get("userId")
-	logger.Info("获取用户rating", 
+	logger.Info("获取用户rating",
 		zap.String("uid", uid),
 		zap.Any("current_user_id", currentUserId))
-	
+
 	result, err := h.queryService.GetUserRating(uid)
 	if err != nil {
 		logger.Error("查询用户rating失败", zap.String("uid", uid), zap.Error(err))
@@ -104,7 +104,7 @@ func (h *Handler) GetUserRating(c *gin.Context) {
 func (h *Handler) GetRatingHistory(c *gin.Context) {
 	logger := utils.GetLogger()
 	uid := c.Param("uid")
-	
+
 	if uid == "" {
 		logger.Warn("请求参数错误", zap.String("param", "uid"))
 		c.JSON(http.StatusOK, errorResponse(400, "uid参数不能为空"))
@@ -115,20 +115,20 @@ func (h *Handler) GetRatingHistory(c *gin.Context) {
 	if err != nil || page < 1 {
 		page = 1
 	}
-	
+
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	if err != nil || limit < 1 || limit > 100 {
 		limit = 20
 	}
 
-	logger.Info("获取用户rating历史", 
+	logger.Info("获取用户rating历史",
 		zap.String("uid", uid),
 		zap.Int("page", page),
 		zap.Int("limit", limit))
-	
+
 	result, err := h.queryService.GetRatingHistory(uid, page, limit)
 	if err != nil {
-		logger.Error("查询rating历史失败", 
+		logger.Error("查询rating历史失败",
 			zap.String("uid", uid),
 			zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "查询失败: "+err.Error()))
@@ -144,7 +144,7 @@ func (h *Handler) GetRatingColor(c *gin.Context) {
 	ratingStr := c.Param("rating")
 	rating, err := strconv.Atoi(ratingStr)
 	if err != nil {
-		logger.Warn("请求参数错误", 
+		logger.Warn("请求参数错误",
 			zap.String("param", "rating"),
 			zap.String("value", ratingStr),
 			zap.Error(err))
@@ -162,7 +162,7 @@ func (h *Handler) CalculateRating(c *gin.Context) {
 	contestIDStr := c.Param("contestId")
 	contestID, err := strconv.ParseInt(contestIDStr, 10, 64)
 	if err != nil || contestID <= 0 {
-		logger.Warn("请求参数错误", 
+		logger.Warn("请求参数错误",
 			zap.String("param", "contestId"),
 			zap.String("value", contestIDStr),
 			zap.Error(err))
@@ -171,7 +171,7 @@ func (h *Handler) CalculateRating(c *gin.Context) {
 	}
 
 	logger.Info("手动触发rating计算", zap.Int64("contest_id", contestID))
-	
+
 	if !h.ratingService.CanCalculateRating(contestID) {
 		logger.Warn("比赛不能计算rating", zap.Int64("contest_id", contestID))
 		c.JSON(http.StatusOK, errorResponse(400, "该比赛不能计算rating或已经计算过"))
@@ -180,7 +180,7 @@ func (h *Handler) CalculateRating(c *gin.Context) {
 
 	histories, err := h.ratingService.CalculateContestRating(contestID)
 	if err != nil {
-		logger.Error("计算rating失败", 
+		logger.Error("计算rating失败",
 			zap.Int64("contest_id", contestID),
 			zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(500, "计算失败: "+err.Error()))
@@ -188,11 +188,11 @@ func (h *Handler) CalculateRating(c *gin.Context) {
 	}
 
 	result := map[string]interface{}{
-		"contestId":   contestID,
+		"contestId":    contestID,
 		"participants": len(histories),
 	}
 
-	logger.Info("手动触发rating计算完成", 
+	logger.Info("手动触发rating计算完成",
 		zap.Int64("contest_id", contestID),
 		zap.Int("participants", len(histories)))
 	c.JSON(http.StatusOK, successResponse(result))
@@ -274,11 +274,6 @@ func (h *Handler) InitializeUserRating(c *gin.Context) {
 		logger.Warn("请求参数错误", zap.Error(err))
 		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
 		return
-	}
-
-	// 如果没有指定初始rating，使用默认值1200
-	if req.InitialRating == 0 {
-		req.InitialRating = 1200
 	}
 
 	err := h.queryService.InitializeUserRating(req.UID, req.InitialRating)
@@ -397,7 +392,6 @@ func (h *Handler) GetBatchContestInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, successResponse(results))
 }
 
-
 // GetRatingRank 获取Rating排名列表
 func (h *Handler) GetRatingRank(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -464,9 +458,10 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	var req struct {
-		Username     string `json:"username" binding:"required"`
-		RatingChange int    `json:"ratingChange" binding:"required"`
-		Reason       string `json:"reason" binding:"required"`
+		Username         string  `json:"username" binding:"required"`
+		RatingChange     int     `json:"ratingChange" binding:"required"`
+		Reason           string  `json:"reason" binding:"required"`
+		RelatedContestID *uint64 `json:"relatedContestId"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -492,12 +487,14 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 		zap.String("username", req.Username),
 		zap.Int("rating_change", req.RatingChange),
 		zap.String("reason", req.Reason),
+		zap.Any("related_contest_id", req.RelatedContestID),
 		zap.String("operator_uid", operatorUID.(string)))
 
 	oldRating, newRating, ratingChange, err := h.ratingService.AdjustUserRating(
 		req.Username,
 		req.RatingChange,
 		req.Reason,
+		req.RelatedContestID,
 		operatorUID.(string),
 		operatorUsername,
 	)
@@ -511,12 +508,13 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 	}
 
 	result := map[string]interface{}{
-		"username":      req.Username,
-		"oldRating":     oldRating,
-		"newRating":     newRating,
-		"ratingChange":  ratingChange,
-		"reason":        req.Reason,
-		"operatorUID":   operatorUID.(string),
+		"username":         req.Username,
+		"oldRating":        oldRating,
+		"newRating":        newRating,
+		"ratingChange":     ratingChange,
+		"reason":           req.Reason,
+		"relatedContestId": req.RelatedContestID,
+		"operatorUID":      operatorUID.(string),
 	}
 
 	logger.Info("手动调整用户rating成功",
@@ -524,6 +522,41 @@ func (h *Handler) AdjustUserRating(c *gin.Context) {
 		zap.Int("old_rating", oldRating),
 		zap.Int("new_rating", newRating),
 		zap.Int("rating_change", ratingChange))
+
+	c.JSON(http.StatusOK, successResponse(result))
+}
+
+// CancelManualAdjustment 撤销手动调整（管理员）
+func (h *Handler) CancelManualAdjustment(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	var req struct {
+		AdjustmentID uint64 `json:"adjustmentId" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("请求参数错误", zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(400, "参数格式错误"))
+		return
+	}
+
+	operatorUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未授权"))
+		return
+	}
+	operatorUsername := ""
+	if username, exists := c.Get("username"); exists {
+		operatorUsername = username.(string)
+	}
+
+	result, err := h.ratingService.CancelManualAdjustment(req.AdjustmentID, operatorUID.(string), operatorUsername)
+	if err != nil {
+		logger.Error("撤销手动调整失败",
+			zap.Uint64("adjustment_id", req.AdjustmentID),
+			zap.Error(err))
+		c.JSON(http.StatusOK, errorResponse(500, "撤销失败: "+err.Error()))
+		return
+	}
 
 	c.JSON(http.StatusOK, successResponse(result))
 }
@@ -890,10 +923,8 @@ func (h *Handler) GetOperationLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, successResponse(gin.H{
 		"records": logs,
-		"total":    total,
-		"page":     page,
-		"limit":    limit,
+		"total":   total,
+		"page":    page,
+		"limit":   limit,
 	}))
 }
-
-

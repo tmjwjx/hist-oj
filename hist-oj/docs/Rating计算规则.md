@@ -150,7 +150,7 @@ VALUES (1001, 1, 0);
 
 ```yaml
 rating:
-  initial_rating: 1500  # 初始 Rating
+  initial_rating: 0  # 初始 Rating
   k_factor: 32          # K 值
   check_interval: 5     # 定时检查间隔（分钟）
 ```
@@ -174,4 +174,3 @@ if record.AC > 0 {
     change += 5
 }
 ```
-

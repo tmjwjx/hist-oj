@@ -19,7 +19,7 @@
       <!-- 用户信息预览 -->
       <el-alert
         v-if="userInfo"
-        :title="`当前用户: ${form.username} | Rating: ${userInfo.rating || 'N/A'}`"
+        :title="`当前用户: ${form.username} | Rating: ${displayCurrentRating}`"
         type="info"
         :closable="false"
         style="margin-bottom: 20px"
@@ -77,6 +77,25 @@
         </el-select>
       </el-form-item>
 
+      <el-form-item label="关联比赛（可选）">
+        <el-select
+          v-model="form.relatedContestId"
+          filterable
+          clearable
+          placeholder="选择要关联的 Rating 比赛"
+          style="width: 100%"
+          :loading="loadingContests"
+        >
+          <el-option
+            v-for="contest in contests"
+            :key="contest.id"
+            :label="`#${contest.id} ${contest.title}`"
+            :value="contest.id"
+          />
+        </el-select>
+        <div class="form-tip">关联后，重算时会在该场比赛计算完成后自动回放本次调整</div>
+      </el-form-item>
+
       <el-form-item>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
           <i class="el-icon-edit"></i> 确认调整
@@ -105,10 +124,36 @@
         </template>
       </el-table-column>
       <el-table-column prop="reason" label="操作原因" />
+      <el-table-column label="关联比赛" width="140">
+        <template slot-scope="{ row }">
+          <span v-if="row.relatedContestId">#{{ row.relatedContestId }}</span>
+          <span v-else style="color: #909399">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="110">
+        <template slot-scope="{ row }">
+          <el-tag v-if="row.isCanceled" type="info" size="small">已撤销</el-tag>
+          <el-tag v-else type="success" size="small">生效中</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="operator_uid" label="操作人" width="120" />
       <el-table-column label="操作时间" width="180">
         <template slot-scope="{ row }">
           {{ formatDate(row.created_at) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="130">
+        <template slot-scope="{ row }">
+          <el-button
+            type="danger"
+            size="mini"
+            plain
+            :disabled="row.isCanceled || cancelingId === row.id"
+            :loading="cancelingId === row.id"
+            @click="handleCancelAdjust(row)"
+          >
+            取消调整
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -121,6 +166,7 @@
 <script>
 import axios from 'axios'
 import { getRatingColor, getRatingName } from '@/common/rating-utils'
+import ratingApi from '@/common/rating-api'
 
 export default {
   name: 'PersonalAdjust',
@@ -129,7 +175,8 @@ export default {
       form: {
         username: '',
         ratingChange: 0,
-        reason: ''
+        reason: '',
+        relatedContestId: null
       },
       rules: {
         username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -152,24 +199,74 @@ export default {
       loadingUserInfo: false,
       submitting: false,
       history: [],
-      loadingHistory: false
+      loadingHistory: false,
+      contests: [],
+      loadingContests: false,
+      cancelingId: null
     }
   },
   computed: {
+    currentRating() {
+      if (!this.userInfo || this.userInfo.rating === undefined || this.userInfo.rating === null) {
+        return null
+      }
+      const rating = Number(this.userInfo.rating)
+      return Number.isNaN(rating) ? null : rating
+    },
+    displayCurrentRating() {
+      if (this.currentRating === null) {
+        return 'N/A'
+      }
+      return this.currentRating
+    },
     expectedRating() {
-      if (!this.userInfo || this.userInfo.rating === undefined) {
+      if (this.currentRating === null) {
         return 0
       }
-      const newRating = this.userInfo.rating + this.form.ratingChange
-      return Math.max(800, newRating) // 最低800分
+      const newRating = this.currentRating + this.form.ratingChange
+      return Math.max(0, newRating) // 最低0分
     }
   },
   mounted() {
+    this.loadRatedContests()
     this.fetchHistory()
   },
   methods: {
     getRatingColor,
     getRatingName,
+
+    async loadRatedContests() {
+      this.loadingContests = true
+      try {
+        const response = await axios.get('/api/admin/contest/get-contest-list', {
+          params: { limit: 100 }
+        })
+        const allContests = response.data?.data?.records || []
+        if (allContests.length === 0) {
+          this.contests = []
+          return
+        }
+
+        const contestIds = allContests
+          .map(c => Number(c.id))
+          .filter(id => Number.isInteger(id) && id > 0)
+
+        const ratingMap = await ratingApi.getBatchContestInfo(contestIds)
+        this.contests = allContests
+          .filter(contest => {
+            const ratingInfo = ratingMap[contest.id] || ratingMap[String(contest.id)]
+            return ratingInfo && ratingInfo.isRating === true
+          })
+          .map(contest => ({
+            id: Number(contest.id),
+            title: contest.title || contest.name || '未命名比赛'
+          }))
+      } catch (error) {
+        this.$message.warning('加载比赛列表失败，仍可不关联比赛进行调整')
+      } finally {
+        this.loadingContests = false
+      }
+    },
 
     // 查询用户信息
     async fetchUserInfo() {
@@ -225,16 +322,25 @@ export default {
 
         this.submitting = true
         try {
-          await axios.post('/api/rating/admin/adjust', {
+          const payload = {
             username: this.form.username,
             ratingChange: this.form.ratingChange,
             reason: this.form.reason
-          })
+          }
+          if (this.form.relatedContestId) {
+            payload.relatedContestId = this.form.relatedContestId
+          }
+
+          const adjustResponse = await axios.post('/api/rating/admin/adjust', payload)
+          const adjustResult = adjustResponse?.data?.data || adjustResponse?.data || adjustResponse || {}
+          const oldRating = adjustResult.oldRating ?? this.currentRating ?? 0
+          const newRating = adjustResult.newRating ?? this.expectedRating
+          const realChange = adjustResult.ratingChange ?? this.form.ratingChange
 
           this.$message.success('调整成功！')
           this.$notify({
             title: 'Rating 调整成功',
-            message: `${this.form.username}: ${this.userInfo.rating} → ${this.expectedRating} (${this.form.ratingChange > 0 ? '+' : ''}${this.form.ratingChange})`,
+            message: `${this.form.username}: ${oldRating} → ${newRating} (${realChange > 0 ? '+' : ''}${realChange})`,
             type: 'success',
             duration: 5000
           })
@@ -272,6 +378,45 @@ export default {
         this.$message.warning('查询历史记录失败')
       } finally {
         this.loadingHistory = false
+      }
+    },
+
+    // 取消一条手动调整
+    async handleCancelAdjust(row) {
+      if (!row || !row.id) return
+      if (row.isCanceled) {
+        this.$message.info('该调整已撤销')
+        return
+      }
+
+      try {
+        await this.$confirm(
+          `确定要取消这条调整吗？\n用户：${row.username}\n变化：${row.rating_change > 0 ? '+' : ''}${row.rating_change}\n原因：${row.reason}`,
+          '确认取消调整',
+          {
+            confirmButtonText: '确定取消',
+            cancelButtonText: '我再想想',
+            type: 'warning'
+          }
+        )
+      } catch (e) {
+        return
+      }
+
+      this.cancelingId = row.id
+      try {
+        await axios.post('/api/rating/admin/adjust/cancel', {
+          adjustmentId: row.id
+        })
+        this.$message.success('取消调整成功')
+        await this.fetchHistory()
+        if (this.form.username && this.form.username === row.username) {
+          await this.fetchUserInfo()
+        }
+      } catch (error) {
+        this.$message.error('取消调整失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+      } finally {
+        this.cancelingId = null
       }
     },
 

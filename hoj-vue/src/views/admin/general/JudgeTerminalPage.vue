@@ -7,215 +7,235 @@
             <i class="el-icon-monitor"></i> BingoJ 判题终端
           </h3>
 
-          <!-- 配置区 -->
-          <el-card class="config-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <i class="el-icon-setting"></i> 配置
-            </div>
-            <el-form :model="form" size="small" label-width="80px">
-              <el-alert
-                title="系统说明"
-                type="success"
-                :closable="false"
-                style="margin-bottom: 15px; padding: 8px 12px;">
-                已自动使用 BingOJ 账号登录，无需手动输入
-              </el-alert>
-              <el-form-item label="模式">
-                <el-radio-group v-model="form.mode" size="small" disabled>
-                  <el-radio label="normal">普通模式</el-radio>
-                </el-radio-group>
-                <el-button type="primary" size="mini" style="margin-left: 10px" @click="fetchProblemInfo">
-                  获取题目
-                </el-button>
-              </el-form-item>
-            </el-form>
-          </el-card>
+          <el-tabs v-model="leftPanelTab" class="panel-tabs">
+            <el-tab-pane label="编辑" name="editor">
+              <!-- 配置区 -->
+              <el-card class="config-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <i class="el-icon-setting"></i> 配置
+                </div>
+                <el-form :model="form" size="small" label-width="80px">
+                  <el-alert
+                    title="系统说明"
+                    type="success"
+                    :closable="false"
+                    style="margin-bottom: 15px; padding: 8px 12px;">
+                    已自动使用 BingOJ 账号登录，无需手动输入
+                  </el-alert>
+                  <el-form-item label="模式">
+                    <el-radio-group v-model="form.mode" size="small" disabled>
+                      <el-radio label="normal">普通模式</el-radio>
+                    </el-radio-group>
+                    <el-button type="primary" size="mini" style="margin-left: 10px" @click="fetchProblemInfo">
+                      获取题目
+                    </el-button>
+                  </el-form-item>
+                </el-form>
+              </el-card>
 
-          <!-- 代码编辑器 -->
-          <el-card class="code-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <i class="el-icon-edit"></i> 代码编辑器
-            </div>
-            <el-form :model="form" size="small">
-              <el-row :gutter="10">
-                <el-col :span="12">
-                  <el-input v-model="form.pid" placeholder="题目ID (如 0001)" size="small"></el-input>
-                </el-col>
-                <el-col :span="12">
-                  <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
-                    <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
-                    <el-option label="C" value="C With O2"></el-option>
-                    <el-option label="Python3" value="Python3"></el-option>
-                    <el-option label="Java" value="Java"></el-option>
-                  </el-select>
-                </el-col>
-              </el-row>
-              <el-input
-                type="textarea"
-                v-model="form.code"
-                :rows="12"
-                placeholder="// 在此粘贴代码..."
-                style="margin-top: 10px; font-family: 'Consolas', monospace; font-size: 13px"
-              ></el-input>
-              <el-button
-                type="primary"
-                :loading="isRunning"
-                @click="runCode"
-                style="width: 100%; margin-top: 10px"
-              >
-                <i class="el-icon-video-play"></i> {{ isRunning ? '运行中...' : '运行自测并提交' }}
-              </el-button>
-            </el-form>
-          </el-card>
-
-          <!-- 日志区 -->
-          <el-card class="log-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <i class="el-icon-document"></i> 系统日志
-            </div>
-            <div class="log-area" ref="logArea">
-              <div v-for="(log, index) in logs" :key="index" class="log-line">
-                <span class="log-time">[{{ log.time }}]</span> {{ log.msg }}
-              </div>
-            </div>
-          </el-card>
-
-          <!-- 历史记录 -->
-          <el-card class="history-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <i class="el-icon-time"></i> 本地记录
-            </div>
-            <el-table :data="historyList" size="small" stripe style="width: 100%">
-              <el-table-column prop="username" label="用户" width="80"></el-table-column>
-              <el-table-column label="远程结果" width="100">
-                <template slot-scope="scope">
-                  <el-tag
-                    :type="getResultType(scope.row.result)"
-                    size="mini"
-                    class="clickable-result-tag"
-                    @click.native="showHistoryCaseDetails(scope.row)">
-                    {{ scope.row.result }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="本地自测" width="100">
-                <template slot-scope="scope">
-                  <el-tag :type="getLocalResultType(scope.row.local_info)" size="mini">
-                    {{ scope.row.local_info || '-' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="耗时/内存" width="100">
-                <template slot-scope="scope">
-                  <span style="font-size: 11px; color: #909399">
-                    {{ scope.row.time_used || '--' }} / {{ scope.row.memory_used || '--' }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="language" label="语言" width="60">
-                <template slot-scope="scope">
-                  {{ simplifyLanguage(scope.row.language) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="提交时间" width="120">
-                <template slot-scope="scope">
-                  {{ formatTime(scope.row.submit_time) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="代码" width="60" align="center">
-                <template slot-scope="scope">
-                  <el-button type="text" size="mini" @click="showCode(scope.row)">
-                    <i class="el-icon-view"></i>
+              <!-- 代码编辑器 -->
+              <el-card class="code-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <i class="el-icon-edit"></i> 代码编辑器
+                </div>
+                <el-form :model="form" size="small">
+                  <el-row :gutter="10">
+                    <el-col :span="12">
+                      <el-input v-model="form.pid" placeholder="题目ID (如 0001)" size="small"></el-input>
+                    </el-col>
+                    <el-col :span="12">
+                      <el-select v-model="form.language" placeholder="选择语言" size="small" style="width: 100%">
+                        <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
+                        <el-option label="C" value="C With O2"></el-option>
+                        <el-option label="Python3" value="Python3"></el-option>
+                        <el-option label="Java" value="Java"></el-option>
+                      </el-select>
+                    </el-col>
+                  </el-row>
+                  <div class="code-editor-wrap">
+                    <CodeMirror
+                      v-model="form.code"
+                      :mode="getCodeEditorMode(form.language)">
+                    </CodeMirror>
+                  </div>
+                  <el-button
+                    type="primary"
+                    :loading="isRunning"
+                    @click="runCode"
+                    style="width: 100%; margin-top: 10px"
+                  >
+                    <i class="el-icon-video-play"></i> {{ isRunning ? '运行中...' : '运行自测并提交' }}
                   </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div style="margin-top: 10px; text-align: center">
-              <el-pagination
-                @current-change="handleHistoryPageChange"
-                :current-page="historyPagination.currentPage"
-                :page-size="historyPagination.pageSize"
-                :total="historyPagination.total"
-                layout="prev, pager, next, total"
-                small
-              >
-              </el-pagination>
-            </div>
-          </el-card>
+                </el-form>
+              </el-card>
+            </el-tab-pane>
+
+            <el-tab-pane label="日志" name="logs">
+              <!-- 日志区 -->
+              <el-card class="log-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <i class="el-icon-document"></i> 系统日志
+                </div>
+                <div class="log-area" ref="logArea">
+                  <div v-for="(log, index) in logs" :key="index" class="log-line">
+                    <span class="log-time">[{{ log.time }}]</span> {{ log.msg }}
+                  </div>
+                </div>
+              </el-card>
+            </el-tab-pane>
+
+            <el-tab-pane label="历史" name="history">
+              <!-- 历史记录 -->
+              <el-card class="history-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <i class="el-icon-time"></i> 本地记录
+                </div>
+                <el-table :data="historyList" size="small" stripe style="width: 100%">
+                  <el-table-column prop="username" label="用户" width="80"></el-table-column>
+                  <el-table-column label="远程结果" width="100">
+                    <template slot-scope="scope">
+                      <el-tag
+                        :type="getResultType(scope.row.result)"
+                        size="mini"
+                        class="clickable-result-tag"
+                        @click.native="showHistoryCaseDetails(scope.row)">
+                        {{ scope.row.result }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="本地自测" width="100">
+                    <template slot-scope="scope">
+                      <el-tag :type="getLocalResultType(scope.row.local_info)" size="mini">
+                        {{ scope.row.local_info || '-' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="耗时/内存" width="100">
+                    <template slot-scope="scope">
+                      <span style="font-size: 11px; color: #909399">
+                        {{ scope.row.time_used || '--' }} / {{ scope.row.memory_used || '--' }}
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="language" label="语言" width="60">
+                    <template slot-scope="scope">
+                      {{ simplifyLanguage(scope.row.language) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="提交时间" width="120">
+                    <template slot-scope="scope">
+                      {{ formatTime(scope.row.submit_time) }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="代码" width="60" align="center">
+                    <template slot-scope="scope">
+                      <el-button type="text" size="mini" @click="showCode(scope.row)">
+                        <i class="el-icon-view"></i>
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div style="margin-top: 10px; text-align: center">
+                  <el-pagination
+                    @current-change="handleHistoryPageChange"
+                    :current-page="historyPagination.currentPage"
+                    :page-size="historyPagination.pageSize"
+                    :total="historyPagination.total"
+                    layout="prev, pager, next, total"
+                    small
+                  >
+                  </el-pagination>
+                </div>
+              </el-card>
+            </el-tab-pane>
+          </el-tabs>
         </el-col>
 
         <!-- 右侧栏 -->
         <el-col :span="14">
-          <!-- 题目详情 -->
-          <el-card class="problem-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <span><i class="el-icon-document"></i> 题目详情</span>
-              <el-tag v-if="problemInfo.displayId" type="primary" size="small">
-                {{ problemInfo.displayId }}
-              </el-tag>
-            </div>
-            <div class="problem-content" v-if="problemInfo.problem">
-              <h3 class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</h3>
-              <!-- 判题模式显示 -->
-              <div class="problem-info-bar">
-                <el-tag size="small" type="primary">
-                  判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
-                </el-tag>
-                <el-tag size="small" type="primary" style="margin-left: 10px">
-                  时间限制: {{ problemInfo.problem.timeLimit }}ms
-                </el-tag>
-                <el-tag size="small" type="primary" style="margin-left: 10px">
-                  内存限制: {{ problemInfo.problem.memoryLimit }}MB
-                </el-tag>
-              </div>
-              <div v-if="problemInfo.problem.description" class="problem-section">
-                <h4><i class="el-icon-tickets"></i> 描述</h4>
-                <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
-              </div>
-              <div v-if="problemInfo.problem.input" class="problem-section">
-                <h4><i class="el-icon-download"></i> 输入</h4>
-                <div v-html="renderMarkdown(problemInfo.problem.input)"></div>
-              </div>
-              <div v-if="problemInfo.problem.output" class="problem-section">
-                <h4><i class="el-icon-upload2"></i> 输出</h4>
-                <div v-html="renderMarkdown(problemInfo.problem.output)"></div>
-              </div>
-              <div v-if="problemInfo.problem.hint" class="problem-section">
-                <h4><i class="el-icon-info"></i> 提示</h4>
-                <div v-html="renderMarkdown(problemInfo.problem.hint)"></div>
-              </div>
-              <div v-if="examples.length > 0" class="problem-section">
-                <h4><i class="el-icon-document-copy"></i> 样例</h4>
-                <el-row :gutter="10" v-for="(example, index) in examples" :key="index" style="margin-bottom: 10px">
-                  <el-col :span="12">
-                    <div class="example-box">
-                      <div class="example-title">样例 {{ index + 1 }} 输入:</div>
-                      <pre>{{ example.input }}</pre>
-                    </div>
-                  </el-col>
-                  <el-col :span="12">
-                    <div class="example-box">
-                      <div class="example-title">样例 {{ index + 1 }} 输出:</div>
-                      <pre>{{ example.output }}</pre>
-                    </div>
-                  </el-col>
-                </el-row>
-              </div>
-            </div>
-            <div v-else class="empty-state">
-              <i class="el-icon-arrow-left"></i> 请先在左侧输入ID并获取题目
-            </div>
-          </el-card>
+          <el-tabs v-model="rightPanelTab" class="panel-tabs">
+            <el-tab-pane label="题目" name="problem">
+              <!-- 题目详情 -->
+              <el-card class="problem-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <span><i class="el-icon-document"></i> 题目详情</span>
+                  <el-tag v-if="problemInfo.displayId" type="primary" size="small">
+                    {{ problemInfo.displayId }}
+                  </el-tag>
+                </div>
+                <div class="problem-content" v-if="problemInfo.problem">
+                  <h3 class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</h3>
+                  <!-- 判题模式显示 -->
+                  <div class="problem-info-bar">
+                    <el-tag size="small" type="primary">
+                      判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
+                    </el-tag>
+                    <el-tag size="small" type="primary" style="margin-left: 10px">
+                      时间限制: {{ problemInfo.problem.timeLimit }}ms
+                    </el-tag>
+                    <el-tag size="small" type="primary" style="margin-left: 10px">
+                      内存限制: {{ problemInfo.problem.memoryLimit }}MB
+                    </el-tag>
+                  </div>
+                  <div v-if="problemInfo.problem.description" class="problem-section">
+                    <h4><i class="el-icon-tickets"></i> 描述</h4>
+                    <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
+                  </div>
+                  <div v-if="problemInfo.problem.input" class="problem-section">
+                    <h4><i class="el-icon-download"></i> 输入</h4>
+                    <div v-html="renderMarkdown(problemInfo.problem.input)"></div>
+                  </div>
+                  <div v-if="problemInfo.problem.output" class="problem-section">
+                    <h4><i class="el-icon-upload2"></i> 输出</h4>
+                    <div v-html="renderMarkdown(problemInfo.problem.output)"></div>
+                  </div>
+                  <div v-if="problemInfo.problem.hint" class="problem-section">
+                    <h4><i class="el-icon-info"></i> 提示</h4>
+                    <div v-html="renderMarkdown(problemInfo.problem.hint)"></div>
+                  </div>
+                  <div v-if="examples.length > 0" class="problem-section">
+                    <h4><i class="el-icon-document-copy"></i> 样例</h4>
+                    <el-row :gutter="10" v-for="(example, index) in examples" :key="index" style="margin-bottom: 10px">
+                      <el-col :span="12">
+                        <div class="example-box">
+                          <div class="example-title">样例 {{ index + 1 }} 输入:</div>
+                          <pre>{{ example.input }}</pre>
+                        </div>
+                      </el-col>
+                      <el-col :span="12">
+                        <div class="example-box">
+                          <div class="example-title">样例 {{ index + 1 }} 输出:</div>
+                          <pre>{{ example.output }}</pre>
+                        </div>
+                      </el-col>
+                    </el-row>
+                  </div>
+                </div>
+                <div v-else class="empty-state">
+                  <i class="el-icon-arrow-left"></i> 请先在左侧输入ID并获取题目
+                </div>
+              </el-card>
+            </el-tab-pane>
 
-          <!-- 结果面板 -->
-          <el-card v-if="showResult" class="result-card" shadow="hover">
-            <div slot="header" class="card-header">
-              <i class="el-icon-data-analysis"></i> 判题结果报告
-            </div>
+            <el-tab-pane :label="showResult ? '结果 (最新)' : '结果'" name="result">
+              <!-- 结果面板 -->
+              <el-card v-if="showResult" class="result-card" shadow="hover">
+                <div slot="header" class="card-header">
+                  <i class="el-icon-data-analysis"></i> 判题结果报告
+                </div>
 
             <!-- 远程结果 Banner -->
-            <div :class="['result-banner', remoteBannerClass]">
-              <i :class="remoteBannerIcon"></i> {{ remoteBannerText }}
+            <div :class="['judge-status-widget', remoteBannerClass]">
+              <img
+                v-if="showRunningGif"
+                src="/b37.gif"
+                alt="running"
+                class="status-gif">
+              <i v-else :class="['status-icon', remoteBannerIcon]"></i>
+              <div class="status-content">
+                <div class="status-title">{{ remoteBannerText }}</div>
+                <div v-if="remoteBannerSubText" class="status-subtitle">{{ remoteBannerSubText }}</div>
+              </div>
             </div>
 
             <!-- 远程判题错误信息 -->
@@ -303,6 +323,21 @@
                     </el-tag>
                   </template>
                 </el-table-column>
+                <el-table-column label="错误信息" min-width="220">
+                  <template slot-scope="scope">
+                    <span v-if="!hasCaseStderr(scope.row.stderr)" class="case-stderr-empty">--</span>
+                    <el-popover
+                      v-else
+                      placement="left"
+                      trigger="click"
+                      width="520">
+                      <pre class="case-stderr-pre">{{ scope.row.stderr }}</pre>
+                      <el-button slot="reference" type="text" size="mini" class="case-stderr-preview">
+                        {{ formatCaseStderrPreview(scope.row.stderr) }}
+                      </el-button>
+                    </el-popover>
+                  </template>
+                </el-table-column>
                 <el-table-column label="时间" width="110" align="center">
                   <template slot-scope="scope">
                     {{ formatCaseTime(scope.row.time) }}
@@ -331,7 +366,14 @@
                 description="暂无测试点详情">
               </el-empty>
             </div>
-          </el-card>
+              </el-card>
+              <el-card v-else class="result-card empty-result-card" shadow="hover">
+                <div class="empty-state">
+                  <i class="el-icon-video-play"></i> 运行一次后在这里查看结果
+                </div>
+              </el-card>
+            </el-tab-pane>
+          </el-tabs>
         </el-col>
       </el-row>
 
@@ -390,6 +432,21 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="错误信息" min-width="220">
+            <template slot-scope="scope">
+              <span v-if="!hasCaseStderr(scope.row.stderr)" class="case-stderr-empty">--</span>
+              <el-popover
+                v-else
+                placement="left"
+                trigger="click"
+                width="520">
+                <pre class="case-stderr-pre">{{ scope.row.stderr }}</pre>
+                <el-button slot="reference" type="text" size="mini" class="case-stderr-preview">
+                  {{ formatCaseStderrPreview(scope.row.stderr) }}
+                </el-button>
+              </el-popover>
+            </template>
+          </el-table-column>
           <el-table-column label="时间" width="110" align="center">
             <template slot-scope="scope">
               {{ formatCaseTime(scope.row.time) }}
@@ -427,6 +484,7 @@ import { getJudgeInfo, getJudgeHistory, getJudgeCaseDetails, runCombinedJudge } 
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 const Highlight = () => import('@/components/oj/common/Highlight')
+const CodeMirror = () => import('@/components/admin/CodeMirror.vue')
 import { addCodeBtn } from '@/common/codeblock'
 
 // 配置 markdown-it 和 KaTeX
@@ -436,7 +494,8 @@ md.use(MarkdownItKatex)
 export default {
   name: 'JudgeTerminalPage',
   components: {
-    Highlight
+    Highlight,
+    CodeMirror
   },
   data() {
     return {
@@ -461,11 +520,16 @@ export default {
         pageSize: 10,
         total: 0
       },
+      leftPanelTab: 'editor',
+      rightPanelTab: 'problem',
       isRunning: false,
       showResult: false,
-      remoteBannerText: '等待开始...',
-      remoteBannerClass: 'bg-pending',
+      remoteBannerText: 'Waiting...',
+      remoteBannerSubText: '',
+      remoteBannerClass: 'status-pending',
       remoteBannerIcon: 'el-icon-loading',
+      showRunningGif: false,
+      runningTestSeq: null,
       remoteErrorMessage: '', // 新增：远程判题错误信息
       remoteSubmitId: '',
       remoteCaseDetails: [],
@@ -575,6 +639,7 @@ export default {
           this.historyPagination.currentPage = 1
           await this.fetchHistory()
           this.extractExamples()
+          this.rightPanelTab = 'problem'
           this.addLog('获取题目成功')
           this.$message.success('获取题目成功')
         } else {
@@ -629,15 +694,20 @@ export default {
 
       this.isRunning = true
       this.showResult = true
+      this.leftPanelTab = 'logs'
+      this.rightPanelTab = 'result'
       this.logs = []
       this.sampleResults = []
       this.remoteErrorMessage = '' // 清空远程错误信息
       this.remoteSubmitId = ''
       this.remoteCaseDetails = []
       this.isCaseDetailsLoading = false
-      this.remoteBannerText = '本地测试中...'
-      this.remoteBannerClass = 'bg-pending'
+      this.remoteBannerText = 'Compiling...'
+      this.remoteBannerSubText = ''
+      this.remoteBannerClass = 'status-pending'
       this.remoteBannerIcon = 'el-icon-loading'
+      this.showRunningGif = true
+      this.runningTestSeq = null
 
       this.$nextTick(() => {
         const resultCard = document.querySelector('.result-card')
@@ -681,9 +751,11 @@ export default {
           break
         case 'compile_error':
           this.addLog('编译错误')
-          this.remoteBannerText = '本地编译错误'
-          this.remoteBannerClass = 'bg-error'
+          this.remoteBannerText = 'Compile error'
+          this.remoteBannerSubText = ''
+          this.remoteBannerClass = 'status-error'
           this.remoteBannerIcon = 'el-icon-close'
+          this.showRunningGif = false
           break
         case 'remote_status':
           this.updateRemoteStatus(data.data)
@@ -706,6 +778,22 @@ export default {
             this.isCaseDetailsLoading = false
           }
           break
+        case 'case_progress':
+          if (data.data && data.data.total) {
+            const seq = this.toNumber(data.data.seq)
+            if (seq > 0) {
+              this.runningTestSeq = seq
+            }
+            const done = this.toNumber(data.data.done)
+            const total = this.toNumber(data.data.total)
+            const testSeq = this.runningTestSeq || seq || 1
+            this.remoteBannerText = `Running on test ${testSeq}`
+            this.remoteBannerSubText = total > 0 ? `Progress ${Math.max(0, done)}/${total}` : ''
+            this.remoteBannerClass = 'status-pending'
+            this.remoteBannerIcon = 'el-icon-loading'
+            this.showRunningGif = true
+          }
+          break
       }
     },
 
@@ -713,6 +801,11 @@ export default {
     handleSSEError(error) {
       this.addLog(`错误: ${error.message}`)
       this.isRunning = false
+      this.showRunningGif = false
+      if (this.remoteSubmitId) {
+        this.addLog(`连接中断，尝试回查提交 ${this.remoteSubmitId} 的测试点详情...`)
+        this.fetchCaseDetails(this.remoteSubmitId)
+      }
     },
 
     // 处理 SSE 完成
@@ -728,8 +821,7 @@ export default {
 
     // 更新远程状态
     updateRemoteStatus(data) {
-      const status = data.status
-      this.remoteBannerText = status
+      const status = data.status || ''
 
       // 提取错误信息
       if (data.errorMessage) {
@@ -738,20 +830,98 @@ export default {
         this.remoteErrorMessage = ''
       }
 
-      if (status === '答案正确') {
-        this.remoteBannerClass = 'bg-success'
-        this.remoteBannerIcon = 'el-icon-success'
-      } else if (['等待中', '判题中', '提交中'].includes(status)) {
-        this.remoteBannerClass = 'bg-pending'
+      if (this.isPendingRemoteStatus(status)) {
+        if (status === '编译中') {
+          this.remoteBannerText = 'Compiling...'
+          this.remoteBannerSubText = ''
+        } else if (status === '提交中') {
+          this.remoteBannerText = 'Submitting...'
+          this.remoteBannerSubText = ''
+        } else if (status === '等待中') {
+          this.remoteBannerText = 'Waiting for judge...'
+          this.remoteBannerSubText = ''
+        } else {
+          const runningSeq = this.runningTestSeq
+          if (runningSeq && runningSeq > 0) {
+            this.remoteBannerText = `Running on test ${runningSeq}`
+          } else {
+            this.remoteBannerText = 'Judging...'
+          }
+          this.remoteBannerSubText = ''
+        }
+        this.remoteBannerClass = 'status-pending'
         this.remoteBannerIcon = 'el-icon-loading'
+        this.showRunningGif = true
+        return
+      }
+
+      this.showRunningGif = false
+      const failedSeq = this.toNumber(data.failed_seq)
+      const failedStatus = this.toNumber(data.failed_status)
+
+      if (status === '答案正确') {
+        this.remoteBannerText = 'Accepted'
+        this.remoteBannerSubText = ''
+        this.remoteBannerClass = 'status-success'
+        this.remoteBannerIcon = 'el-icon-success'
       } else {
-        this.remoteBannerClass = 'bg-error'
+        if (failedSeq > 0 && failedStatus !== 0) {
+          this.remoteBannerText = this.buildFailedStatusText(failedStatus, failedSeq)
+        } else {
+          this.remoteBannerText = this.translateFinalStatus(status)
+        }
+        this.remoteBannerSubText = ''
+        this.remoteBannerClass = 'status-error'
         this.remoteBannerIcon = 'el-icon-error'
       }
     },
 
+    isPendingRemoteStatus(status) {
+      return ['等待中', '判题中', '提交中', '编译中'].includes(status)
+    },
+
     isFinalRemoteStatus(status) {
-      return !['等待中', '判题中', '提交中'].includes(status)
+      return !this.isPendingRemoteStatus(status)
+    },
+
+    toNumber(value) {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : 0
+    },
+
+    translateFinalStatus(status) {
+      const mapping = {
+        '答案错误': 'Wrong answer',
+        '时间超限': 'Time limit exceeded',
+        '内存超限': 'Memory limit exceeded',
+        '运行错误': 'Runtime error',
+        '编译错误': 'Compile error',
+        '格式错误': 'Presentation error',
+        '系统错误': 'System error',
+        '提交失败': 'Submission failed',
+        '部分正确': 'Partial accepted'
+      }
+      return mapping[status] || status || 'Judge finished'
+    },
+
+    buildFailedStatusText(status, seq) {
+      const testId = seq > 0 ? seq : 1
+      const mapping = {
+        '-3': 'Presentation error',
+        '-2': 'Compile error',
+        '-1': 'Wrong answer',
+        '1': 'Time limit exceeded',
+        '2': 'Memory limit exceeded',
+        '3': 'Runtime error',
+        '4': 'System error',
+        '8': 'Partial accepted',
+        '10': 'Submission failed'
+      }
+      const prefix = mapping[String(status)] || this.translateFinalStatus(this.getCaseStatusText(status))
+      if (String(status) === '-2') {
+        return prefix
+      }
+      return `${prefix} on test ${testId}`
     },
 
     async fetchCaseDetails(submitId) {
@@ -834,6 +1004,22 @@ export default {
     formatCaseMemory(memory) {
       if (memory === null || memory === undefined) return '--'
       return `${memory} KB`
+    },
+
+    hasCaseStderr(stderr) {
+      return typeof stderr === 'string' && stderr.trim() !== ''
+    },
+
+    formatCaseStderrPreview(stderr) {
+      if (!this.hasCaseStderr(stderr)) {
+        return '--'
+      }
+      const oneLine = stderr.replace(/\s+/g, ' ').trim()
+      const maxLen = 60
+      if (oneLine.length <= maxLen) {
+        return oneLine
+      }
+      return `${oneLine.slice(0, maxLen)}...`
     },
 
     // 添加日志
@@ -1070,6 +1256,16 @@ export default {
         'CSharp': 'csharp'
       }
       return languageMap[lang] || 'plaintext'
+    },
+
+    // 映射判题终端语言到 CodeMirror mode
+    getCodeEditorMode(language) {
+      if (!language) return 'text/plain'
+      if (language.includes('C++')) return 'text/x-c++src'
+      if (language.includes('C With')) return 'text/x-csrc'
+      if (language.includes('Java')) return 'text/x-java'
+      if (language.includes('Python')) return 'text/x-python'
+      return 'text/plain'
     }
   }
 }
@@ -1083,6 +1279,10 @@ export default {
 <style scoped>
 .judge-terminal-page {
   padding: 20px;
+}
+
+.panel-tabs {
+  margin-bottom: 10px;
 }
 
 .section-title {
@@ -1104,6 +1304,23 @@ export default {
   color: #409eff;
 }
 
+.code-editor-wrap {
+  margin-top: 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.code-editor-wrap /deep/ .CodeMirror {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+}
+
+.code-editor-wrap /deep/ .CodeMirror-scroll {
+  min-height: 320px;
+  max-height: 560px;
+}
+
 /* 卡片样式 */
 .config-card,
 .code-card,
@@ -1114,6 +1331,17 @@ export default {
   margin-bottom: 15px;
 }
 
+.history-card,
+.problem-card,
+.result-card {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.empty-result-card {
+  min-height: 240px;
+}
+
 /* 日志区域 */
 .log-area {
   background-color: #1e1e1e;
@@ -1121,7 +1349,9 @@ export default {
   font-family: 'Consolas', 'Monaco', monospace;
   padding: 10px;
   border-radius: 4px;
-  height: 120px;
+  height: calc(100vh - 330px);
+  min-height: 220px;
+  max-height: 620px;
   overflow-y: auto;
   font-size: 12px;
 }
@@ -1152,6 +1382,9 @@ export default {
   font-size: 14px;
   line-height: 1.8;
   color: #333;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 .problem-title {
@@ -1224,32 +1457,74 @@ export default {
 }
 
 /* 结果面板 */
-.result-banner {
-  padding: 30px;
-  text-align: center;
+.judge-status-widget {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
   border-radius: 8px;
-  margin-bottom: 20px;
-  color: #fff;
-  font-size: 24px;
-  font-weight: bold;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #dcdfe6;
+  background: #f8fafc;
 }
 
-.result-banner i {
-  margin-right: 10px;
-  font-size: 28px;
+.status-icon {
+  font-size: 20px;
+  flex-shrink: 0;
 }
 
-.bg-success {
-  background: linear-gradient(135deg, #67c23a, #85ce61);
+.status-gif {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
-.bg-error {
-  background: linear-gradient(135deg, #f56c6c, #f78989);
+.status-content {
+  min-width: 0;
 }
 
-.bg-pending {
-  background: linear-gradient(135deg, #909399, #b1b3b8);
+.status-title {
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.status-subtitle {
+  margin-top: 2px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.status-success {
+  border-color: #c2e7b0;
+  background: #f0f9eb;
+}
+
+.status-success .status-title,
+.status-success .status-icon {
+  color: #67c23a;
+}
+
+.status-error {
+  border-color: #f8c1c1;
+  background: #fef0f0;
+}
+
+.status-error .status-title,
+.status-error .status-icon {
+  color: #f56c6c;
+}
+
+.status-pending {
+  border-color: #d3d7de;
+  background: #f4f6f8;
+}
+
+.status-pending .status-title,
+.status-pending .status-icon {
+  color: #606266;
 }
 
 /* 样例测试 */
@@ -1383,6 +1658,30 @@ export default {
   overflow: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.case-stderr-empty {
+  color: #909399;
+}
+
+.case-stderr-preview {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.case-stderr-pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: 'Consolas', 'Monaco', monospace;
 }
 
 /* 代码显示容器 - 与学生端一致 */
