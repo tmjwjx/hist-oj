@@ -1,89 +1,91 @@
 <template>
   <div class="teacher-dashboard classroom-theme">
-    <div class="header">
-      <div class="header-left">
-        <h1>教师工作台</h1>
-        <p class="subtitle">管理您的班级</p>
-      </div>
-      <div class="header-actions">
-        <button class="classroom-btn classroom-btn-success" @click="goToQuestionBank">
-          <i class="el-icon-document"></i>
-          <span>题库管理</span>
-        </button>
-        <button class="classroom-btn classroom-btn-info" @click="goToExamPaper">
-          <i class="el-icon-document-copy"></i>
-          <span>试卷库</span>
-        </button>
-        <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
-          <i class="el-icon-plus"></i>
-          <span>创建班级</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- 空状态 -->
-    <div v-if="safeClassrooms.length === 0 && !loading" class="classroom-empty">
-      <i class="el-icon-school classroom-empty-icon"></i>
-      <div class="classroom-empty-text">还没有班级</div>
-      <div class="classroom-empty-hint">点击上方按钮创建您的第一个班级吧！</div>
-    </div>
-
-    <!-- 班级卡片列表 -->
-    <div v-else class="classroom-list">
-      <div v-for="classroom in safeClassrooms" :key="classroom.id" class="classroom-card classroom-fade-in">
-        <div class="classroom-card-header">
-          <div class="card-header-content" @click="viewClassroom(classroom)">
-            <div class="class-name">{{ classroom.className }}</div>
-            <span class="classroom-tag classroom-tag-success">{{ classroom.classBelong }}</span>
-          </div>
+    <div class="teacher-dashboard-inner">
+      <div class="header">
+        <div class="header-left">
+          <h1>教师工作台</h1>
+          <p class="subtitle">管理您的班级</p>
         </div>
-        <div class="card-body" @click="viewClassroom(classroom)">
-          <div class="info-item">
-            <i class="el-icon-key info-icon"></i>
-            <span class="info-label">班级代码</span>
-            <span class="info-value">{{ classroom.classCode }}</span>
-            <button
-              class="classroom-btn classroom-btn-secondary copy-btn"
-              @click.stop="copyClassCode(classroom.classCode)"
-            >
-              <i class="el-icon-document-copy"></i>
-              <span>复制</span>
+        <div class="header-actions">
+          <button class="classroom-btn classroom-btn-success" @click="goToQuestionBank">
+            <i class="el-icon-document"></i>
+            <span>题库管理</span>
+          </button>
+          <button class="classroom-btn classroom-btn-info" @click="goToExamPaper">
+            <i class="el-icon-document-copy"></i>
+            <span>试卷库</span>
+          </button>
+          <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
+            <i class="el-icon-plus"></i>
+            <span>创建班级</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 空状态 -->
+      <div v-if="safeClassrooms.length === 0 && !loading" class="classroom-empty">
+        <i class="el-icon-school classroom-empty-icon"></i>
+        <div class="classroom-empty-text">还没有班级</div>
+        <div class="classroom-empty-hint">点击上方按钮创建您的第一个班级吧！</div>
+      </div>
+
+      <!-- 班级卡片列表 -->
+      <div v-else class="classroom-list">
+        <div v-for="classroom in safeClassrooms" :key="classroom.id" class="classroom-card classroom-fade-in">
+          <div class="classroom-card-header">
+            <div class="card-header-content" @click="viewClassroom(classroom)">
+              <div class="class-name">{{ classroom.className }}</div>
+              <span class="classroom-tag classroom-tag-success">{{ classroom.classBelong }}</span>
+            </div>
+          </div>
+          <div class="card-body" @click="viewClassroom(classroom)">
+            <div class="info-item">
+              <i class="el-icon-key info-icon"></i>
+              <span class="info-label">班级代码</span>
+              <span class="info-value">{{ classroom.classCode }}</span>
+              <button
+                class="classroom-btn classroom-btn-secondary copy-btn"
+                @click.stop="copyClassCode(classroom.classCode)"
+              >
+                <i class="el-icon-document-copy"></i>
+                <span>复制</span>
+              </button>
+            </div>
+            <div class="info-item">
+              <i class="el-icon-user info-icon"></i>
+              <span class="info-label">教师</span>
+              <span class="info-value">{{ getTeacherNames(classroom) }}</span>
+            </div>
+          </div>
+          <div class="card-footer">
+            <button class="classroom-btn classroom-btn-primary" @click="viewClassroom(classroom)">
+              <i class="el-icon-setting"></i>
+              <span>管理班级</span>
+            </button>
+            <button class="classroom-btn classroom-btn-danger" @click="handleDelete(classroom)">
+              <i class="el-icon-delete"></i>
+              <span>删除班级</span>
             </button>
           </div>
-          <div class="info-item">
-            <i class="el-icon-user info-icon"></i>
-            <span class="info-label">教师</span>
-            <span class="info-value">{{ getTeacherNames(classroom) }}</span>
-          </div>
-        </div>
-        <div class="card-footer">
-          <button class="classroom-btn classroom-btn-primary" @click="viewClassroom(classroom)">
-            <i class="el-icon-setting"></i>
-            <span>管理班级</span>
-          </button>
-          <button class="classroom-btn classroom-btn-danger" @click="handleDelete(classroom)">
-            <i class="el-icon-delete"></i>
-            <span>删除班级</span>
-          </button>
         </div>
       </div>
-    </div>
 
-    <!-- 创建班级对话框 -->
-    <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px" custom-class="classroom-dialog">
-      <el-form :model="createForm" :rules="rules" ref="createForm" label-width="100px">
-        <el-form-item label="班级名称" prop="className">
-          <el-input v-model="createForm.className" placeholder="请输入班级名称" class="classroom-input" />
-        </el-form-item>
-        <el-form-item label="班级所属" prop="classBelong">
-          <el-input v-model="createForm.classBelong" placeholder="请输入班级所属" class="classroom-input" />
-        </el-form-item>
-      </el-form>
-      <span slot="footer">
-        <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">取消</el-button>
-        <el-button type="primary" @click="createClassroom" :loading="submitting" class="classroom-btn classroom-btn-primary">确认创建</el-button>
-      </span>
-    </el-dialog>
+      <!-- 创建班级对话框 -->
+      <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px" custom-class="classroom-dialog">
+        <el-form :model="createForm" :rules="rules" ref="createForm" label-width="100px">
+          <el-form-item label="班级名称" prop="className">
+            <el-input v-model="createForm.className" placeholder="请输入班级名称" class="classroom-input" />
+          </el-form-item>
+          <el-form-item label="班级所属" prop="classBelong">
+            <el-input v-model="createForm.classBelong" placeholder="请输入班级所属" class="classroom-input" />
+          </el-form-item>
+        </el-form>
+        <span slot="footer">
+          <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">取消</el-button>
+          <el-button type="primary" @click="createClassroom" :loading="submitting" class="classroom-btn classroom-btn-primary">确认创建</el-button>
+        </span>
+      </el-dialog>
+    </div>
   </div>
 </template>
 
@@ -317,6 +319,11 @@ export default {
   padding: 24px;
   background: var(--classroom-bg);
   min-height: 100vh;
+  margin: 0;
+  --workspace-surface-bg: var(--classroom-card-bg);
+}
+
+.teacher-dashboard-inner {
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -327,7 +334,7 @@ export default {
   align-items: flex-start;
   margin-bottom: 32px;
   padding: 24px;
-  background: white;
+  background: var(--workspace-surface-bg);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
@@ -358,7 +365,7 @@ export default {
 }
 
 .classroom-card {
-  background: white;
+  background: var(--workspace-surface-bg);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
   overflow: hidden;
@@ -372,9 +379,9 @@ export default {
 }
 
 .classroom-card-header {
-  background: #E3F2FD;
+  background: var(--workspace-surface-bg);
   padding: 20px;
-  border-bottom: 2px solid var(--classroom-primary);
+  border-bottom: 1px solid var(--classroom-border);
 }
 
 .card-header-content {
@@ -427,7 +434,7 @@ export default {
   display: flex;
   gap: 12px;
   padding: 16px 20px;
-  background: var(--classroom-bg);
+  background: var(--workspace-surface-bg);
   border-top: 1px solid var(--classroom-border);
 }
 
@@ -437,8 +444,8 @@ export default {
 
 /* 对话框样式 */
 .classroom-dialog .el-dialog__header {
-  background: #E3F2FD;
-  border-bottom: 2px solid var(--classroom-primary);
+  background: var(--workspace-surface-bg);
+  border-bottom: 1px solid var(--classroom-border);
 }
 
 .classroom-dialog .el-dialog__title {

@@ -121,9 +121,13 @@ export default {
   height: 50px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
   color: white;
   font-size: 24px;
+}
+
+.toolbox-logo i {
+  text-shadow: none;
+  filter: none;
 }
 
 .toolbox-title {
@@ -165,6 +169,8 @@ export default {
 
 .tool-icon i {
   font-size: 56px;
+  text-shadow: none;
+  filter: none;
 }
 
 .tool-card:hover .tool-icon {

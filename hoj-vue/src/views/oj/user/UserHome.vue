@@ -119,39 +119,45 @@
           </el-col>
         </el-row>
         <el-card style="margin-top:1rem;" v-if="userRating !== null" class="rating-info-card">
-          <div class="card-title">
-            <i class="el-icon-trophy" style="color:#9b59b6"></i>
-            Hist Rating 信息
+          <div class="card-title rating-info-title">
+            <span>
+              <i class="el-icon-trophy" :style="{ color: ratingColor }"></i>
+              BingOJ Rating
+            </span>
+            <span class="rating-title-chip" :style="{ color: ratingColor, borderColor: ratingColor }">
+              {{ ratingTitle }}
+            </span>
           </div>
-          <el-row :gutter="20" style="margin-top: 15px;">
-            <el-col :span="8">
+          <el-row :gutter="16" class="rating-stat-row">
+            <el-col :xs="24" :sm="8">
               <div class="rating-stat">
                 <div class="rating-stat-label">当前 Rating</div>
                 <div class="rating-stat-value" :style="{ color: ratingColor }">
                   {{ userRating }}
                 </div>
-                <div class="rating-stat-subtitle">{{ ratingTitle }}</div>
               </div>
             </el-col>
-            <el-col :span="8">
+            <el-col :xs="24" :sm="8">
               <div class="rating-stat">
                 <div class="rating-stat-label">最高 Rating</div>
                 <div class="rating-stat-value" :style="{ color: maxRatingColor }">
-                  {{ maxRating || userRating }}
+                  {{ displayMaxRating }}
                 </div>
-                <div class="rating-stat-subtitle">{{ maxRatingTitle }}</div>
               </div>
             </el-col>
-            <el-col :span="8">
+            <el-col :xs="24" :sm="8">
               <div class="rating-stat">
                 <div class="rating-stat-label">参赛次数</div>
-                <div class="rating-stat-value" style="color: #409eff;">
-                  {{ contestCount }}
+                <div class="rating-stat-value rating-stat-value--contest">
+                  {{ contestCountLabel }}
                 </div>
-                <div class="rating-stat-subtitle">场比赛</div>
               </div>
             </el-col>
           </el-row>
+          <div class="rating-meta">
+            <span>当前段位：<b :style="{ color: ratingColor }">{{ ratingTitle }}</b></span>
+            <span>最高段位：<b :style="{ color: maxRatingColor }">{{ maxRatingTitle }}</b></span>
+          </div>
         </el-card>
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
           <div class="card-title">
@@ -340,6 +346,13 @@ export default {
     maxRatingTitle() {
       if (this.maxRating === null) return this.ratingTitle;
       return getRatingName(this.maxRating);
+    },
+    displayMaxRating() {
+      if (this.maxRating === null || this.maxRating === undefined) return this.userRating;
+      return this.maxRating;
+    },
+    contestCountLabel() {
+      return `${this.contestCount} 场`;
     }
   },
   created(){
@@ -695,28 +708,80 @@ export default {
 }
 
 .rating-info-card {
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: linear-gradient(135deg, #f8fbff 0%, #eef3fb 100%);
+  border: 1px solid #e7edf7;
+}
+
+.rating-info-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rating-title-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.rating-stat-row {
+  margin-top: 12px;
 }
 
 .rating-stat {
   text-align: center;
-  padding: 10px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #e7edf7;
+  min-height: 116px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .rating-stat-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
 }
 
 .rating-stat-value {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: bold;
-  margin-bottom: 5px;
+  line-height: 1.2;
 }
 
-.rating-stat-subtitle {
+.rating-stat-value--contest {
+  color: #409eff;
+  font-size: 28px;
+}
+
+.rating-meta {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
   font-size: 13px;
-  color: #909399;
+  color: #606266;
+}
+
+@media (max-width: 768px) {
+  .rating-stat {
+    min-height: auto;
+    margin-bottom: 10px;
+  }
+  .rating-meta {
+    font-size: 12px;
+  }
 }
 </style>
