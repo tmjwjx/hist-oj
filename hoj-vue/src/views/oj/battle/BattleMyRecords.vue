@@ -1,6 +1,6 @@
 <template>
   <div class="my-records-container">
-    <el-card class="records-card">
+    <el-card class="records-card" shadow="never">
       <div slot="header" class="card-header">
         <div class="header-left">
           <el-button type="primary" size="small" @click="backToHome" class="back-button">
@@ -20,7 +20,7 @@
         <!-- 统计卡片 -->
         <el-row :gutter="20" class="stats-row">
           <el-col :span="6">
-            <el-card class="stat-card total" shadow="hover">
+            <el-card class="stat-card total" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.totalBattles }}</div>
                 <div class="stat-label">全部场次</div>
@@ -28,7 +28,7 @@
             </el-card>
           </el-col>
           <el-col :span="6">
-            <el-card class="stat-card win" shadow="hover">
+            <el-card class="stat-card win" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.winCount }}</div>
                 <div class="stat-label">全部胜场</div>
@@ -36,7 +36,7 @@
             </el-card>
           </el-col>
           <el-col :span="6">
-            <el-card class="stat-card lose" shadow="hover">
+            <el-card class="stat-card lose" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.loseCount }}</div>
                 <div class="stat-label">负场</div>
@@ -44,7 +44,7 @@
             </el-card>
           </el-col>
           <el-col :span="6">
-            <el-card class="stat-card rate" shadow="hover">
+            <el-card class="stat-card rate" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.winRate }}%</div>
                 <div class="stat-label">全部获胜率</div>
@@ -323,7 +323,6 @@ export default {
 
 .records-card {
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   animation: fadeInUp 0.6s ease;
 }
 
@@ -366,7 +365,6 @@ export default {
 .refresh-button:hover {
   background: linear-gradient(135deg, #5daf34 0%, #4a9628 100%);
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
 }
 
 .refresh-button i {
@@ -447,7 +445,6 @@ export default {
 
 .stat-card:hover {
   transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
   border-color: #4facfe;
 }
 
@@ -529,7 +526,6 @@ export default {
 ::v-deep .el-table__row:hover {
   background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%) !important;
   transform: scale(1.01);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 ::v-deep .el-table--enable-row-hover .el-table__body tr:hover > td {
@@ -552,25 +548,21 @@ export default {
 
 ::v-deep .el-tag--success {
   background: linear-gradient(135deg, #67C23A 0%, #5daf34 100%);
-  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
   color: white !important;
 }
 
 ::v-deep .el-tag--danger {
   background: linear-gradient(135deg, #F56C6C 0%, #f15454 100%);
-  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
   color: white !important;
 }
 
 ::v-deep .el-tag--warning {
   background: linear-gradient(135deg, #E6A23C 0%, #d9972a 100%);
-  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4);
   color: white !important;
 }
 
 ::v-deep .el-tag--info {
   background: linear-gradient(135deg, #909399 0%, #7a7d82 100%);
-  box-shadow: 0 4px 12px rgba(144, 147, 153, 0.3);
   color: white !important;
 }
 
@@ -608,7 +600,6 @@ export default {
 ::v-deep .el-table__row:hover .opponent-avatar {
   transform: scale(1.2) rotate(5deg);
   border-color: #4facfe;
-  box-shadow: 0 4px 8px rgba(79, 172, 254, 0.3);
 }
 
 .opponent-avatar-placeholder {

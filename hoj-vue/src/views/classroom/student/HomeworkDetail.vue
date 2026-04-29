@@ -473,6 +473,7 @@
             </p>
           </el-alert>
         </div>
+
       </div>
     </el-card>
 
@@ -490,7 +491,7 @@
     </el-dialog>
 
     <!-- 考试模式顶部标识栏 -->
-    <div v-if="isExamMode && examStarted" class="exam-header-bar">
+    <div v-if="showExamRuntimeUi" class="exam-header-bar">
       <div class="exam-badge">
         <i class="el-icon-warning-outline"></i>
         考试模式进行中
@@ -516,7 +517,7 @@
     </div>
 
     <!-- 考试模式题目导航 -->
-    <div v-if="isExamMode && examStarted && canViewHomework" class="question-navigator">
+    <div v-if="showExamRuntimeUi && canViewHomework" class="question-navigator">
       <div class="navigator-title">题目导航</div>
       <div class="navigator-grid">
         <div
@@ -536,7 +537,7 @@
     </div>
 
     <!-- 考试模式右下角计时器 -->
-    <div v-if="isExamMode && examStarted && canViewHomework" class="exam-corner-timer">
+    <div v-if="showExamRuntimeUi && canViewHomework" class="exam-corner-timer">
       <i class="el-icon-time"></i>
       <span class="timer-label">剩余时间：</span>
       <span class="timer-value" :style="{ color: timerColor }">{{ formattedTime }}</span>
@@ -718,6 +719,16 @@ export default {
       }
       // 剩余时间 > 10分钟，显示为绿色
       return '#67C23A'
+    },
+    // 考试运行中的提示条和角标（仅在进行中的考试展示）
+    showExamRuntimeUi() {
+      return this.isExamMode &&
+        this.examStarted &&
+        !this.dataLoading &&
+        !this.isSubmitted &&
+        this.homework &&
+        this.homework.status === 2 &&
+        this.remainingSeconds > 0
     }
   },
   mounted() {
@@ -2818,7 +2829,18 @@ export default {
 }
 
 .homework-detail .markdown-body p {
+  text-indent: 0 !important;
+  margin-left: 0 !important;
   margin-bottom: 16px !important;
+}
+
+/* 学生客观题题干和选项内容取消默认缩进 */
+.student-homework-page .question-title.markdown-body p,
+.student-homework-page .question-content.markdown-body p,
+.student-homework-page .option-content.markdown-body p {
+  text-indent: 0 !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
 }
 
 .homework-detail .markdown-body strong {
@@ -2837,13 +2859,29 @@ export default {
 }
 
 .homework-detail .markdown-body pre {
-  padding: 5px 10px !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
   white-space: pre-wrap !important;
   margin-top: 15px !important;
   margin-bottom: 15px !important;
   background: #f8f8f9 !important;
   border: 1px dashed #e9eaec !important;
   border-radius: 3px !important;
+  overflow-x: auto !important;
+}
+
+.homework-detail .markdown-body pre code,
+.homework-detail .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.homework-detail .markdown-body pre ol.pre-numbering {
+  display: none !important;
 }
 
 /* 答案显示样式 */
@@ -3225,74 +3263,56 @@ export default {
 /* 考试模式右下角计时器 */
 .exam-corner-timer {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 50px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  font-size: 16px;
-  font-weight: 600;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #DCDFE6;
+  color: #303133;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+  font-weight: 500;
   z-index: 999;
-  animation: slideIn 0.3s ease-out;
+  backdrop-filter: blur(2px);
 }
 
 .exam-corner-timer i {
-  font-size: 18px;
+  font-size: 14px;
+  color: #606266;
 }
 
 .exam-corner-timer .timer-label {
-  font-size: 14px;
-  opacity: 0.9;
+  font-size: 12px;
+  color: #909399;
 }
 
 .exam-corner-timer .timer-value {
-  font-size: 18px;
-  font-weight: 700;
-  font-family: 'Monaco', 'Consolas', monospace;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(100px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Menlo', 'Consolas', monospace;
 }
 
 /* 学生端专用样式：代码显示 - 只影响学生端 */
 .student-homework-page .code-display-wrapper .markdown-body pre {
-  padding: 0 16px 0 40px !important;  /* 左侧40px给行号留空间 */
-  position: relative !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
 }
 
 .student-homework-page .code-display-wrapper .markdown-body pre code {
-  padding: 0px 16px 0px 0px !important;  /* code不添加额外缩进，总缩进保持40px */
-  line-height: 26px !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
 }
 
 .student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering {
-  line-height: 26px !important;
-  font-size: 1rem !important;
-}
-
-.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering li {
-  line-height: 26px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering li:before {
-  width: 40px !important;
-  font-size: 1rem !important;
-  line-height: 26px !important;
-  vertical-align: top !important;
+  display: none !important;
 }
 </style>

@@ -166,6 +166,12 @@ const ClassroomRoutes = {
       meta: { title: '作业详情', requiresRole: 'student' }
     },
     {
+      path: 'student/classroom/:classroomId/homework/:homeworkId/ranking',
+      name: 'StudentHomeworkRanking',
+      component: () => import('@/views/classroom/student/HomeworkRanking'),
+      meta: { title: '作业排行榜', requiresRole: 'student' }
+    },
+    {
       path: 'student/classroom/:classroomId/my-info',
       name: 'StudentMyInfo',
       component: () => import('@/views/classroom/student/MyInfo'),

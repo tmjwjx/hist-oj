@@ -175,6 +175,9 @@ export default {
   getHomeworkAnalysis(homeworkId) {
     return axios.get(`${BASE_URL}/homework/${homeworkId}/analysis`)
   },
+  getHomeworkRanking(homeworkId) {
+    return axios.get(`${BASE_URL}/homework/${homeworkId}/ranking`)
+  },
 
   // ==================== 编程题提交记录 ====================
   saveProgrammingSubmission(data) {

@@ -243,10 +243,11 @@ export default {
 
 .homework-panel {
   padding: 24px;
-  background: var(--classroom-bg);
+  background: #fff;
   min-height: 100vh;
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  margin: 0;
 }
 
 .header {
@@ -257,7 +258,6 @@ export default {
   padding: 20px 24px;
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
 }
 
 .header h3 {

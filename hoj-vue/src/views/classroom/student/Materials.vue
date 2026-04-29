@@ -53,7 +53,7 @@
                 </div>
                 <div class="file-actions">
                   <el-button
-                    v-if="canPreview(getFileType(material.fileName)) && hasPreviewPermission(material)"
+                    v-if="canPreview(getFileType(material.fileName))"
                     size="mini"
                     type="text"
                     icon="el-icon-view"
@@ -66,12 +66,14 @@
                     size="mini"
                     type="text"
                     icon="el-icon-download"
+                    :loading="isDownloadBusy(material)"
+                    :disabled="isDownloadDisabled(material)"
                     @click.stop="downloadMaterial(material)"
                   >
-                    下载
+                    {{ isDownloadBusy(material) ? '下载中' : '下载' }}
                   </el-button>
                   <el-button
-                    v-if="!hasPreviewPermission(material) && !hasDownloadPermission(material)"
+                    v-if="!canPreview(getFileType(material.fileName)) && !hasDownloadPermission(material)"
                     size="mini"
                     type="text"
                     disabled
@@ -111,22 +113,20 @@
               v-if="hasDownloadPermission(selectedMaterial)"
               size="small"
               icon="el-icon-download"
+              :loading="isDownloadBusy(selectedMaterial)"
+              :disabled="isDownloadDisabled(selectedMaterial)"
               @click="downloadCurrentFile"
             >
-              下载
+              {{ isDownloadBusy(selectedMaterial) ? '下载中' : '下载' }}
             </el-button>
           </div>
         </div>
 
         <div class="preview-content" v-loading="previewLoading" element-loading-text="加载中...">
-          <!-- 统一使用腾讯云COS文档预览 -->
-          <COSDocViewer
-            v-if="selectedMaterial && canPreview(getFileType(selectedMaterial.fileName))"
-            :materialId="selectedMaterial.id"
-            :fileName="selectedMaterial.fileName"
-            :allowDownload="hasDownloadPermission(selectedMaterial)"
-            @viewer-loaded="handleCosViewerLoaded"
-          />
+          <div v-if="selectedMaterial && canPreview(getFileType(selectedMaterial.fileName))" class="preview-pending">
+            <i class="el-icon-time"></i>
+            <p>使用功能未开放，敬请期待</p>
+          </div>
 
           <!-- 不支持预览的文件 -->
           <div v-if="selectedMaterial && !canPreview(getFileType(selectedMaterial.fileName))" class="preview-unsupported">
@@ -136,9 +136,11 @@
               v-if="hasDownloadPermission(selectedMaterial)"
               type="primary"
               icon="el-icon-download"
+              :loading="isDownloadBusy(selectedMaterial)"
+              :disabled="isDownloadDisabled(selectedMaterial)"
               @click="downloadCurrentFile"
             >
-              下载文件
+              {{ isDownloadBusy(selectedMaterial) ? '下载中' : '下载文件' }}
             </el-button>
           </div>
         </div>
@@ -149,7 +151,7 @@
         <div class="empty-hint">
           <i class="el-icon-document"></i>
           <p>点击左侧文件进行预览</p>
-          <p class="hint-text">支持 PDF、PPT/Word/Excel、TXT 在线预览</p>
+          <p class="hint-text">预览功能未开放，敬请期待</p>
         </div>
       </div>
     </div>
@@ -161,13 +163,8 @@ import realtimeSync from '@/mixins/realtimeSync'
 
 import studentAuth from '@/mixins/studentAuth'
 
-import COSDocViewer from '@/components/COSDocViewer.vue'
-
 export default {
   name: 'Materials',
-  components: {
-    COSDocViewer
-  },
   mixins: [realtimeSync, studentAuth],
   props: {
     classroomId: [String, Number]
@@ -189,7 +186,9 @@ export default {
       // 预览相关
       selectedMaterial: null,
       previewLoading: false,
-      cachedCosViewers: new Set(), // 已缓存的COS预览（避免重复上传）
+      downloadingMap: {}, // 下载中状态映射
+      downloadCooldownUntil: {}, // 下载冷却截止时间映射
+      downloadCooldownMs: 3500, // 单文件下载触发后的冷却时长
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -245,11 +244,6 @@ export default {
     this.enableDownloads()
   },
   methods: {
-    // 处理COS查看器加载完成
-    handleCosViewerLoaded() {
-      console.log('[Materials] 腾讯云COS Viewer加载完成')
-    },
-
     async loadContent() {
       // 避免重复请求
       if (this.loading) return
@@ -435,14 +429,56 @@ export default {
       this.navigateToFolder(folder.id)
     },
 
+    getDownloadKey(material, fallbackName = '') {
+      if (material && material.id !== undefined && material.id !== null) {
+        return `material_${material.id}`
+      }
+      if (material && material.filePath) {
+        return `path_${material.filePath}`
+      }
+      return `name_${fallbackName}`
+    },
+
+    isDownloadBusy(material) {
+      if (!material) return false
+      const key = this.getDownloadKey(material, material.fileName || '')
+      return !!this.downloadingMap[key]
+    },
+
+    isDownloadInCooldown(material) {
+      if (!material) return false
+      const key = this.getDownloadKey(material, material.fileName || '')
+      const until = this.downloadCooldownUntil[key] || 0
+      return until > Date.now()
+    },
+
+    isDownloadDisabled(material) {
+      if (!material) return false
+      return this.isDownloadBusy(material) || this.isDownloadInCooldown(material)
+    },
+
     downloadMaterial(material) {
+      if (!material) return
+      if (this.isDownloadBusy(material)) {
+        this.$message.info('正在准备下载，请勿重复点击')
+        return
+      }
+      if (this.isDownloadInCooldown(material)) {
+        this.$message.info('下载已触发，请稍候在浏览器下载列表查看')
+        return
+      }
+
       // 使用带权限验证的下载API
       const downloadUrl = `/rating-api/api/classroom/material/${material.id}/download`
-      this.downloadFile(downloadUrl, material.fileName)
+      this.downloadFile(downloadUrl, material.fileName, material)
     },
 
     // 下载文件（携带token）
-    downloadFile(url, filename) {
+    downloadFile(url, filename, material = null) {
+      const downloadKey = this.getDownloadKey(material, filename || '')
+      this.$set(this.downloadingMap, downloadKey, true)
+      this.$message.info('正在准备下载，请稍候...')
+
       this.$axios({
         method: 'get',
         url: url,
@@ -459,6 +495,10 @@ export default {
         link.style.display = 'none'
         document.body.appendChild(link)
         link.click()
+
+        this.$set(this.downloadCooldownUntil, downloadKey, Date.now() + this.downloadCooldownMs)
+        this.$message.success('已触发下载，请在浏览器下载列表查看进度')
+
         // 延迟清理，确保下载开始
         setTimeout(() => {
           document.body.removeChild(link)
@@ -473,6 +513,8 @@ export default {
         } else {
           this.$message.error('下载失败：' + (error.response?.data?.message || error.message))
         }
+      }).finally(() => {
+        this.$set(this.downloadingMap, downloadKey, false)
       })
     },
 
@@ -511,10 +553,6 @@ export default {
 
     // 选择文件进行预览
     async selectMaterial(material) {
-      if (!this.hasPreviewPermission(material)) {
-        this.$message.warning('您没有预览权限，请联系教师')
-        return
-      }
       this.selectedMaterial = material
     },
 
@@ -522,9 +560,7 @@ export default {
     // 下载当前选中的文件
     downloadCurrentFile() {
       if (this.selectedMaterial) {
-        // 使用带权限验证的下载API
-        const downloadUrl = `/rating-api/api/classroom/material/${this.selectedMaterial.id}/download`
-        this.downloadFile(downloadUrl, this.selectedMaterial.fileName)
+        this.downloadMaterial(this.selectedMaterial)
       }
     },
 
@@ -554,12 +590,6 @@ export default {
       const sizes = ['B', 'KB', 'MB', 'GB']
       const i = Math.floor(Math.log(bytes) / Math.log(k))
       return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
-    },
-
-    // 检查是否有预览权限
-    hasPreviewPermission(material) {
-      if (!material || !material.permission) return false
-      return material.permission.canPreview === 1
     },
 
     // 检查是否有下载权限
@@ -1140,6 +1170,26 @@ export default {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+.preview-pending {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #909399;
+}
+
+.preview-pending i {
+  font-size: 64px;
+  color: #E6A23C;
+  margin-bottom: 16px;
+}
+
+.preview-pending p {
+  margin: 0;
+  font-size: 15px;
 }
 
 /* 不支持预览 */

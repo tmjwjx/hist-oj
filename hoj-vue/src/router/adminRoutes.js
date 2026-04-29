@@ -37,6 +37,8 @@ const ToolboxAdmin = () => import('@/views/admin/toolbox/ToolboxAdmin')
 const QuestionBankAdmin = () => import('@/views/admin/toolbox/QuestionBankAdmin')
 const QuestionBankEditor = () => import('@/views/common/QuestionBankEditor')
 const ExamPaperAdmin = () => import('@/views/admin/toolbox/ExamPaperAdmin')
+const AdminLearningMapList = () => import('@/views/admin/learning-map/AdminLearningMapList')
+const AdminLearningMapEditor = () => import('@/views/admin/learning-map/AdminLearningMapEditor')
 
 const adminRoutes = [
   {
@@ -307,6 +309,18 @@ const adminRoutes = [
         name: 'admin-toolbox',
         component: ToolboxAdmin,
         meta: { title: '工具箱' }
+      },
+      {
+        path: 'toolbox/learning-map',
+        name: 'admin-learning-map-list',
+        component: AdminLearningMapList,
+        meta: { title: '航海图管理' }
+      },
+      {
+        path: 'toolbox/learning-map/:mapId',
+        name: 'admin-learning-map-editor',
+        component: AdminLearningMapEditor,
+        meta: { title: '航海图编辑器' }
       },
       {
         path: 'registration',

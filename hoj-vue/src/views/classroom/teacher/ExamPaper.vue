@@ -303,8 +303,8 @@
       <el-divider>题目列表</el-divider>
 
       <div class="selected-questions-toolbar">
-        <el-button type="primary" icon="el-icon-plus" @click="openQuestionSelectorDialog">
-          添加题目
+        <el-button type="primary" size="small" icon="el-icon-plus" @click="openQuestionSelectorDialog">
+          添加客观题
         </el-button>
         <el-button
           type="success"
@@ -486,7 +486,7 @@
   </div>
 
   <el-dialog
-    title="添加题目"
+    title="添加客观题"
     :visible.sync="showQuestionSelectorDialog"
     width="1200px"
     append-to-body
@@ -2311,14 +2311,16 @@ export default {
 <style scoped>
 .exam-paper-container {
   padding: 16px;
-  max-width: 1320px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  margin: 0;
 }
 
 .exam-paper-editor-page {
   padding: 16px;
-  max-width: 1380px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  margin: 0;
 }
 
 .editor-toolbar {
@@ -2594,6 +2596,34 @@ export default {
   display: inline-block;
 }
 
+/* 添加客观题弹窗：代码块和段落默认无缩进 */
+.question-selector-dialog-wrapper >>> .markdown-body pre,
+.question-selector-dialog-wrapper >>> .question-description.markdown-body pre,
+.question-selector-dialog-wrapper >>> .option-text.markdown-body pre {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
+}
+
+.question-selector-dialog-wrapper >>> .markdown-body pre code,
+.question-selector-dialog-wrapper >>> .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.question-selector-dialog-wrapper >>> .markdown-body pre ol.pre-numbering {
+  display: none !important;
+}
+
+.question-selector-dialog-wrapper >>> .markdown-body p {
+  text-indent: 0 !important;
+  margin-left: 0 !important;
+}
+
 .add-programming-section {
   padding: 15px;
   border-top: 1px solid #e0e6ed;
@@ -2674,9 +2704,38 @@ export default {
 }
 
 .item-content {
-  padding-left: 28px;
+  padding-left: 0;
   color: #606266;
   font-size: 13px;
+}
+
+/* 已选题目区域：代码块和段落默认无缩进 */
+.selected-questions-panel >>> .markdown-body pre,
+.selected-questions-panel >>> .item-description.markdown-body pre,
+.selected-questions-panel >>> .option-text.markdown-body pre,
+.selected-questions-panel >>> .composite-sub-content.markdown-body pre {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto !important;
+}
+
+.selected-questions-panel >>> .markdown-body pre code,
+.selected-questions-panel >>> .markdown-body code.hljs {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+  display: block;
+  white-space: pre !important;
+}
+
+.selected-questions-panel >>> .markdown-body pre ol.pre-numbering {
+  display: none !important;
+}
+
+.selected-questions-panel >>> .markdown-body p {
+  text-indent: 0 !important;
+  margin-left: 0 !important;
 }
 
 .item-description {

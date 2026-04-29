@@ -119,6 +119,14 @@
               </div>
             </div>
             <div class="setting-item">
+              <el-checkbox v-model="form.showRank">
+                <span class="setting-label">作业结束后开放排行榜</span>
+              </el-checkbox>
+              <div class="setting-tip">
+                {{ form.isExamMode === 1 ? '考试模式下，考试结束后可查看排行榜' : '开启后，学生可在作业结束后查看班级排行榜和每题得分' }}
+              </div>
+            </div>
+            <div class="setting-item">
               <el-checkbox v-model="form.showAnswer">
                 <span class="setting-label">允许学生提交后查看答案</span>
               </el-checkbox>
@@ -1428,6 +1436,7 @@ export default {
         endTime: null,
         showHomework: false,
         showScore: false,
+        showRank: false,
         showAnswer: false,
         // 考试模式字段 - 使用路由参数作为初始值
         isExamMode: initialIsExamMode,
@@ -1901,6 +1910,7 @@ export default {
             endTime: new Date(homework.endTime),
             showHomework: homework.showHomework === 1,
             showScore: homework.showScore === 1,
+            showRank: homework.showRank === 1,
             showAnswer: homework.showAnswer === 1,
             // 考试模式字段
             isExamMode: homework.isExamMode || 0,
@@ -2011,6 +2021,7 @@ export default {
           endTime: moment(this.form.endTime).format(),
           showHomework: this.form.showHomework ? 1 : 0,
           showScore: this.form.showScore ? 1 : 0,
+          showRank: this.form.showRank ? 1 : 0,
           showAnswer: this.form.showAnswer ? 1 : 0,
           // 考试模式字段
           isExamMode: this.form.isExamMode,

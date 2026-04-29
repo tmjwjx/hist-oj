@@ -174,6 +174,10 @@ func InitTables(db *gorm.DB) error {
 	if err := InitPlagiarismTables(db); err != nil {
 		return err
 	}
+	// 创建算法航海图相关表
+	if err := InitLearningMapTables(db); err != nil {
+		return err
+	}
 	return nil
 }
 

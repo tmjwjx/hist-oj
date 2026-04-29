@@ -168,6 +168,7 @@ type ClassroomHomework struct {
 	ShowScore    int       `gorm:"type:int;default:1" json:"showScore"`               // 完成后是否显示成绩
 	ShowHomework int       `gorm:"type:int;default:0" json:"showHomework"`            // 完成后是否查看作业题目
 	ShowAnswer   int       `gorm:"type:int;default:0" json:"showAnswer"`              // 学生提交后是否可以查看答案
+	ShowRank     int       `gorm:"type:int;default:0" json:"showRank"`                // 作业结束后是否显示排行榜
 	Status       int       `gorm:"type:int;default:1;index:idx_status" json:"status"` // 1: 未开始, 2: 进行中, 3: 已结束
 	CreatedAt    time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt    time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`

@@ -478,6 +478,10 @@ const actions = {
     const res = await api.getHomeworkAnalysis(homeworkId)
     return res.data
   },
+  async getHomeworkRanking({ commit }, homeworkId) {
+    const res = await api.getHomeworkRanking(homeworkId)
+    return res.data
+  },
   async deleteHomework({ commit }, homeworkId) {
     const res = await api.deleteHomework(homeworkId)
     return res.data

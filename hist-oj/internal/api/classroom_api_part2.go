@@ -23,10 +23,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/hoj/hist-oj/internal/client"
-	"github.com/hoj/hist-oj/internal/config"
 	middlewarepkg "github.com/hoj/hist-oj/internal/middleware"
 	"github.com/hoj/hist-oj/internal/model"
-	"github.com/hoj/hist-oj/internal/service"
 	"github.com/hoj/hist-oj/internal/utils"
 )
 
@@ -144,6 +142,7 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 		ShowScore    int    `json:"showScore"`
 		ShowHomework int    `json:"showHomework"`
 		ShowAnswer   int    `json:"showAnswer"`
+		ShowRank     int    `json:"showRank"`
 		// 考试模式字段
 		IsExamMode              int                    `json:"isExamMode"`
 		ExamDuration            int                    `json:"examDuration"`
@@ -189,6 +188,7 @@ func (h *Handler) CreateHomework(c *gin.Context) {
 		ShowScore:               req.ShowScore,
 		ShowHomework:            req.ShowHomework,
 		ShowAnswer:              req.ShowAnswer,
+		ShowRank:                req.ShowRank,
 		Status:                  1,
 		IsExamMode:              req.IsExamMode,
 		ExamDuration:            req.ExamDuration,
@@ -277,6 +277,7 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 		ShowHomework int    `json:"showHomework"`
 		ShowScore    int    `json:"showScore"`
 		ShowAnswer   int    `json:"showAnswer"`
+		ShowRank     int    `json:"showRank"`
 		// 考试模式字段
 		IsExamMode              int `json:"isExamMode"`
 		ExamDuration            int `json:"examDuration"`
@@ -340,6 +341,7 @@ func (h *Handler) UpdateHomework(c *gin.Context) {
 	homework.ShowHomework = req.ShowHomework
 	homework.ShowScore = req.ShowScore
 	homework.ShowAnswer = req.ShowAnswer
+	homework.ShowRank = req.ShowRank
 	homework.IsExamMode = req.IsExamMode
 	homework.ExamDuration = req.ExamDuration
 	homework.AllowSubmitAfterMinutes = req.AllowSubmitAfterMinutes
@@ -1892,7 +1894,6 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 	}
 
 	db := client.GetDB()
-	logger := utils.GetLogger()
 
 	// 查询资料信息以获取文件路径
 	var material model.ClassroomMaterial
@@ -1905,22 +1906,7 @@ func (h *Handler) DeleteMaterial(c *gin.Context) {
 		return
 	}
 
-	// 删除COS上的文件及其预览缓存
-	cosService, err := service.NewCOSService()
-	if err == nil {
-		// 构建COS文件路径
-		cosPath := fmt.Sprintf("classroom/materials/%d/%d_%s", material.FolderID, material.ID, material.FileName)
-
-		// 删除COS文件和预览缓存（避免持续计费）
-		if err := cosService.DeleteMaterialAndCache(cosPath); err != nil {
-			logger.Warn("删除COS文件失败", zap.String("cosPath", cosPath), zap.Error(err))
-			// 继续执行，不因为COS删除失败而阻止本地删除
-		} else {
-			logger.Info("COS文件及预览缓存已删除", zap.String("cosPath", cosPath), zap.Uint64("material_id", material.ID))
-		}
-	} else {
-		logger.Warn("COS服务初始化失败，跳过COS文件删除", zap.Error(err))
-	}
+	// 资料库已切换为服务器挂载存储，不再处理 COS 删除逻辑
 
 	// 删除磁盘上的文件
 	if material.FilePath != "" {
@@ -3042,58 +3028,50 @@ func (h *Handler) SaveProgrammingSubmission(c *gin.Context) {
 
 				// 判题完成，更新数据库
 				score := 0.0
-				judgeResult := ""
+				fullScore := calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
+				judgeResult := getJudgeResultFromStatus(status)
 
-				// 根据 status 判断评测结果（使用 HOJ 官方状态码标准）
-				switch status {
-				case 0:
-					// AC - Accepted（通过）
-					score = calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
-					judgeResult = "AC"
-				case -2:
-					// CE - Compile Error（编译错误）
-					judgeResult = "CE"
-					score = 0
-				case -3:
-					// PE - Presentation Error（格式错误）
-					judgeResult = "PE"
-					score = 0
-				case -1:
-					// WA - Wrong Answer（答案错误）
-					judgeResult = "WA"
-					score = 0
-				case 1:
-					// TLE - Time Limit Exceeded（时间超限）
-					judgeResult = "TLE"
-					score = 0
-				case 2:
-					// MLE - Memory Limit Exceeded（内存超限）
-					judgeResult = "MLE"
-					score = 0
-				case 3:
-					// RE - Runtime Error（运行错误）
-					judgeResult = "RE"
-					score = 0
-				case 4:
-					// SE - System Error（系统错误）
-					judgeResult = "SE"
-					score = 0
-				case 8:
-					// PAC - Partial Accepted（部分通过）- 按比例计算分数
-					fullScore := calculateQuestionScoreForProblem(req.HomeworkID, req.ProblemID)
-					score = float64(targetSubmission.Score) / 100.0 * fullScore
-					judgeResult = "PAC"
-				case -4:
-					// CA - Cancelled（已取消）
-					judgeResult = "CA"
-					score = 0
-				case -5:
-					// SNR - Submitted Unknown Result（结果未知）
-					judgeResult = "SNR"
-					score = 0
-				default:
-					// 未知状态，保留原始状态码数字
-					judgeResult = fmt.Sprintf("Unknown(%d)", status)
+				// 先判断题目类型：0=ACM，1=OI。查不到时默认走 ACM 逻辑，避免影响现有流程。
+				problemType := 0
+				if t, err := getProgrammingProblemType(req.ProblemID); err != nil {
+					logger.Warn("查询题目类型失败，默认按 ACM 处理",
+						zap.String("problem_id", req.ProblemID),
+						zap.Error(err))
+				} else {
+					problemType = t
+				}
+
+				if problemType == 1 {
+					// OI 题：按百分比分数折算作业分。
+					// 优先从数据库 judge/judge_case 读取，避免受前端是否公开测试点影响。
+					scorePercent, err := getOISubmissionScorePercent(submitID)
+					if err != nil {
+						logger.Warn("从数据库获取 OI 提交得分失败，回退使用提交列表得分",
+							zap.Uint64("submit_id", submitID),
+							zap.String("problem_id", req.ProblemID),
+							zap.Error(err))
+						scorePercent = float64(targetSubmission.Score)
+					}
+					if scorePercent < 0 {
+						scorePercent = 0
+					}
+					if scorePercent > 100 {
+						scorePercent = 100
+					}
+					score = scorePercent / 100.0 * fullScore
+				} else {
+					// ACM 题：保留原有逻辑（AC 满分，PAC 按比例，其余 0 分）。
+					switch status {
+					case 0:
+						score = fullScore
+					case 8:
+						score = float64(targetSubmission.Score) / 100.0 * fullScore
+					default:
+						score = 0
+					}
+				}
+
+				if strings.HasPrefix(judgeResult, "Unknown(") {
 					logger.Warn("未知的评测状态码",
 						zap.Int("status", status),
 						zap.Uint64("submit_id", submitID))
@@ -3152,6 +3130,100 @@ func calculateQuestionScoreForProblem(homeworkID uint64, problemID string) float
 		return 0
 	}
 	return float64(homeworkQuestion.Score)
+}
+
+// getProgrammingProblemType 获取编程题类型（0=ACM，1=OI）
+func getProgrammingProblemType(problemID string) (int, error) {
+	db := client.GetDB()
+	var problem struct {
+		Type int `gorm:"column:type"`
+	}
+
+	if err := db.Table("problem").
+		Select("type").
+		Where("problem_id = ?", problemID).
+		First(&problem).Error; err != nil {
+		return 0, err
+	}
+	return problem.Type, nil
+}
+
+// getOISubmissionScorePercent 获取 OI 题提交的百分制得分（0~100）
+func getOISubmissionScorePercent(submitID uint64) (float64, error) {
+	db := client.GetDB()
+
+	// 先查 judge.score（OI 场景下通常就是该提交的百分制得分）
+	var judgeRow struct {
+		PID   uint64   `gorm:"column:pid"`
+		Score *float64 `gorm:"column:score"`
+	}
+	if err := db.Table("judge").
+		Select("pid, score").
+		Where("submit_id = ?", submitID).
+		First(&judgeRow).Error; err != nil {
+		return 0, err
+	}
+
+	if judgeRow.Score != nil {
+		return *judgeRow.Score, nil
+	}
+
+	// judge.score 为空时，回退到测试点分数汇总计算
+	var gotRow struct {
+		Total float64 `gorm:"column:total"`
+	}
+	if err := db.Table("judge_case").
+		Select("COALESCE(SUM(score), 0) AS total").
+		Where("submit_id = ?", submitID).
+		Scan(&gotRow).Error; err != nil {
+		return 0, err
+	}
+
+	var fullRow struct {
+		Total float64 `gorm:"column:total"`
+	}
+	if err := db.Table("problem_case").
+		Select("COALESCE(SUM(score), 0) AS total").
+		Where("pid = ? AND status = 0", judgeRow.PID).
+		Scan(&fullRow).Error; err != nil {
+		return 0, err
+	}
+
+	if fullRow.Total <= 0 {
+		return 0, fmt.Errorf("problem_case 总分为 0，pid=%d", judgeRow.PID)
+	}
+
+	return gotRow.Total / fullRow.Total * 100.0, nil
+}
+
+// getJudgeResultFromStatus 将 HOJ 状态码映射为结果文本
+func getJudgeResultFromStatus(status int) string {
+	switch status {
+	case 0:
+		return "AC"
+	case -2:
+		return "CE"
+	case -3:
+		return "PE"
+	case -1:
+		return "WA"
+	case 1:
+		return "TLE"
+	case 2:
+		return "MLE"
+	case 3:
+		return "RE"
+	case 4:
+		return "SE"
+	case 8:
+		return "PAC"
+	case -4:
+		return "CA"
+	case -5:
+		return "SNR"
+	default:
+		return fmt.Sprintf("Unknown(%d)", status)
+	}
 }
 
 // GetProgrammingSubmissions 获取编程题提交历史
@@ -3439,6 +3511,253 @@ func (h *Handler) UploadHomeworkAttachment(c *gin.Context) {
 	}))
 }
 
+// GetHomeworkRanking 获取作业排行榜（学生/教师）
+func (h *Handler) GetHomeworkRanking(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	homeworkIDStr := c.Param("homeworkId")
+	homeworkID, err := strconv.ParseUint(homeworkIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, errorResponse(400, "homeworkId参数格式错误"))
+		return
+	}
+
+	uidValue, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusOK, errorResponse(401, "未登录"))
+		return
+	}
+	uid := uidValue.(string)
+
+	db := client.GetDB()
+
+	var homework model.ClassroomHomework
+	if err := db.Where("id = ?", homeworkID).First(&homework).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "作业不存在"))
+		} else {
+			logger.Error("查询作业失败", zap.Error(err), zap.Uint64("homework_id", homeworkID))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	var classroom model.Classroom
+	if err := db.Where("id = ? AND status = 1", homework.ClassroomID).First(&classroom).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, errorResponse(404, "班级不存在"))
+		} else {
+			logger.Error("查询班级失败", zap.Error(err), zap.Uint64("classroom_id", homework.ClassroomID))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		}
+		return
+	}
+
+	isTeacher := classroom.TeacherID == uid
+	if !isTeacher {
+		var teacherCount int64
+		if err := db.Model(&model.ClassroomTeacher{}).
+			Where("classroom_id = ? AND teacher_id = ? AND status = 1", homework.ClassroomID, uid).
+			Count(&teacherCount).Error; err == nil {
+			isTeacher = teacherCount > 0
+		}
+	}
+
+	var adminCount int64
+	isAdmin := db.Model(&model.ClassroomUserRole{}).
+		Where("uid = ? AND role = ?", uid, "admin").
+		Count(&adminCount).Error == nil && adminCount > 0
+
+	var studentCount int64
+	isStudent := db.Model(&model.ClassroomStudent{}).
+		Where("classroom_id = ? AND uid = ? AND status = 1", homework.ClassroomID, uid).
+		Count(&studentCount).Error == nil && studentCount > 0
+
+	if !isTeacher && !isAdmin && !isStudent {
+		c.JSON(http.StatusOK, errorResponse(403, "无权查看该作业排行榜"))
+		return
+	}
+
+	// 学生端规则：仅当教师开启排行榜且作业结束后可查看
+	if !isTeacher && !isAdmin {
+		if homework.ShowRank != 1 {
+			c.JSON(http.StatusOK, errorResponse(403, "教师未开放排行榜"))
+			return
+		}
+		if time.Now().Before(homework.EndTime) {
+			c.JSON(http.StatusOK, errorResponse(403, "作业未结束，排行榜暂未开放"))
+			return
+		}
+	}
+
+	var homeworkQuestions []model.HomeworkQuestion
+	if err := db.Where("homework_id = ?", homeworkID).
+		Order("question_order ASC").
+		Find(&homeworkQuestions).Error; err != nil {
+		logger.Error("查询作业题目失败", zap.Error(err), zap.Uint64("homework_id", homeworkID))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	type questionColumn struct {
+		Key           string `json:"key"`
+		Label         string `json:"label"`
+		QuestionOrder int    `json:"questionOrder"`
+	}
+
+	questionColumns := make([]questionColumn, 0, len(homeworkQuestions))
+	questionIdentityToColumn := make(map[string]string, len(homeworkQuestions))
+
+	for i, q := range homeworkQuestions {
+		columnKey := strconv.Itoa(i + 1)
+		questionColumns = append(questionColumns, questionColumn{
+			Key:           columnKey,
+			Label:         columnKey,
+			QuestionOrder: q.QuestionOrder,
+		})
+
+		if q.ProblemID != nil && strings.TrimSpace(*q.ProblemID) != "" {
+			questionIdentityToColumn["p:"+strings.TrimSpace(*q.ProblemID)] = columnKey
+		} else if q.QuestionID != nil {
+			questionIdentityToColumn[fmt.Sprintf("q:%d", *q.QuestionID)] = columnKey
+		}
+	}
+
+	var classroomStudents []model.ClassroomStudent
+	if err := db.Where("classroom_id = ? AND status = 1", homework.ClassroomID).
+		Preload("User").
+		Find(&classroomStudents).Error; err != nil {
+		logger.Error("查询班级学生失败", zap.Error(err), zap.Uint64("classroom_id", homework.ClassroomID))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	var submissions []model.HomeworkSubmit
+	if err := db.Where("homework_id = ? AND is_officially_submitted = 1", homeworkID).
+		Order("update_time DESC").
+		Find(&submissions).Error; err != nil {
+		logger.Error("查询作业提交失败", zap.Error(err), zap.Uint64("homework_id", homeworkID))
+		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+		return
+	}
+
+	seenSubmission := make(map[string]bool)
+	studentQuestionScores := make(map[string]map[string]float64)
+	studentTotalScores := make(map[string]float64)
+	studentHasScore := make(map[string]bool)
+
+	for _, submission := range submissions {
+		questionIdentity := ""
+		if submission.ProblemID != nil && strings.TrimSpace(*submission.ProblemID) != "" {
+			questionIdentity = "p:" + strings.TrimSpace(*submission.ProblemID)
+		} else if submission.QuestionID != nil {
+			questionIdentity = fmt.Sprintf("q:%d", *submission.QuestionID)
+		}
+		if questionIdentity == "" {
+			continue
+		}
+
+		columnKey, ok := questionIdentityToColumn[questionIdentity]
+		if !ok {
+			continue
+		}
+
+		uniqueKey := submission.UID + "|" + questionIdentity
+		if seenSubmission[uniqueKey] {
+			continue
+		}
+		seenSubmission[uniqueKey] = true
+
+		if _, ok := studentQuestionScores[submission.UID]; !ok {
+			studentQuestionScores[submission.UID] = make(map[string]float64)
+		}
+
+		studentQuestionScores[submission.UID][columnKey] = submission.Score
+		studentTotalScores[submission.UID] += submission.Score
+		studentHasScore[submission.UID] = true
+	}
+
+	type rankingRow struct {
+		UID            string             `json:"uid"`
+		RealName       string             `json:"realName"`
+		Username       string             `json:"username"`
+		Rank           int                `json:"rank"`
+		TotalScore     float64            `json:"totalScore"`
+		HasScore       bool               `json:"hasScore"`
+		QuestionScores map[string]float64 `json:"questionScores"`
+	}
+
+	rows := make([]rankingRow, 0, len(classroomStudents))
+	for _, student := range classroomStudents {
+		username := ""
+		if student.User != nil {
+			username = student.User.Username
+		}
+
+		questionScores := make(map[string]float64)
+		if scoreMap, ok := studentQuestionScores[student.UID]; ok {
+			for k, v := range scoreMap {
+				questionScores[k] = v
+			}
+		}
+
+		rows = append(rows, rankingRow{
+			UID:            student.UID,
+			RealName:       student.RealName,
+			Username:       username,
+			TotalScore:     studentTotalScores[student.UID],
+			HasScore:       studentHasScore[student.UID],
+			QuestionScores: questionScores,
+		})
+	}
+
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].HasScore != rows[j].HasScore {
+			return rows[i].HasScore && !rows[j].HasScore
+		}
+		if rows[i].HasScore && rows[j].HasScore && rows[i].TotalScore != rows[j].TotalScore {
+			return rows[i].TotalScore > rows[j].TotalScore
+		}
+		if rows[i].Username != rows[j].Username {
+			return rows[i].Username < rows[j].Username
+		}
+		if rows[i].RealName != rows[j].RealName {
+			return rows[i].RealName < rows[j].RealName
+		}
+		return rows[i].UID < rows[j].UID
+	})
+
+	currentRank := 0
+	prevHasScore := false
+	prevScore := 0.0
+	for i := range rows {
+		if i == 0 {
+			currentRank = 1
+		} else {
+			if rows[i].HasScore && prevHasScore {
+				diff := rows[i].TotalScore - prevScore
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff > 1e-9 {
+					currentRank = i + 1
+				}
+			} else {
+				currentRank = i + 1
+			}
+		}
+		rows[i].Rank = currentRank
+		prevHasScore = rows[i].HasScore
+		prevScore = rows[i].TotalScore
+	}
+
+	c.JSON(http.StatusOK, successResponse(map[string]interface{}{
+		"questionColumns":   questionColumns,
+		"rankings":          rows,
+		"totalStudentCount": len(rows),
+	}))
+}
+
 // GetHomeworkAnalysis 获取作业学情分析（教师）
 func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -3539,34 +3858,34 @@ func (h *Handler) GetHomeworkAnalysis(c *gin.Context) {
 		return rankItems[i].UID < rankItems[j].UID
 	})
 
-		var submittedStudents []interface{}
-		var unsubmittedStudents []interface{}
-		studentRankings := make([]interface{}, 0, len(rankItems))
-		currentRank := 0
-		prevScore := 0.0
+	var submittedStudents []interface{}
+	var unsubmittedStudents []interface{}
+	studentRankings := make([]interface{}, 0, len(rankItems))
+	currentRank := 0
+	prevScore := 0.0
 
-		for i, item := range rankItems {
-			if i == 0 {
-				currentRank = 1
-			} else {
-				// 并列排名（竞赛排名）：同分同名次，后续名次按人数跳过
-				diff := item.Score - prevScore
-				if diff < 0 {
-					diff = -diff
-				}
-				if diff > 1e-9 {
-					currentRank = i + 1
-				}
+	for i, item := range rankItems {
+		if i == 0 {
+			currentRank = 1
+		} else {
+			// 并列排名（竞赛排名）：同分同名次，后续名次按人数跳过
+			diff := item.Score - prevScore
+			if diff < 0 {
+				diff = -diff
 			}
-			prevScore = item.Score
+			if diff > 1e-9 {
+				currentRank = i + 1
+			}
+		}
+		prevScore = item.Score
 
-			studentInfo := map[string]interface{}{
-				"uid":      item.UID,
-				"realName": item.RealName,
-				"username": item.Username,
-				"score":    item.Score,
-				"rank":     currentRank,
-			}
+		studentInfo := map[string]interface{}{
+			"uid":      item.UID,
+			"realName": item.RealName,
+			"username": item.Username,
+			"score":    item.Score,
+			"rank":     currentRank,
+		}
 
 		studentRankings = append(studentRankings, studentInfo)
 		if item.Submitted {
@@ -4376,17 +4695,26 @@ func (h *Handler) BatchSetAllMaterialPermissions(c *gin.Context) {
 		return
 	}
 
-	// 获取文件夹所在的班级
-	var folder model.ClassroomFolder
-	if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
-		logger.Error("查询文件夹失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+	// 获取资料所属班级（兼容根目录 folder_id=0）
+	classroomID := material.ClassroomID
+	if classroomID == 0 && material.FolderID != 0 {
+		var folder model.ClassroomFolder
+		if err := db.Where("id = ?", material.FolderID).First(&folder).Error; err != nil {
+			logger.Error("查询文件夹失败", zap.Error(err))
+			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
+			return
+		}
+		classroomID = folder.ClassroomID
+	}
+	if classroomID == 0 {
+		logger.Error("无法确定资料所属班级", zap.Uint64("material_id", materialID))
+		c.JSON(http.StatusOK, errorResponse(500, "资料班级信息异常"))
 		return
 	}
 
 	// 获取班级的所有学生
 	var students []model.ClassroomStudent
-	if err := db.Where("classroom_id = ? AND status = 1", folder.ClassroomID).
+	if err := db.Where("classroom_id = ? AND status = 1", classroomID).
 		Select("uid").
 		Find(&students).Error; err != nil {
 		logger.Error("查询学生列表失败", zap.Error(err))
@@ -5141,120 +5469,6 @@ func containsItem(slice []string, item string) bool {
 
 // GetCOSPreviewUrl 获取腾讯云COS文档预览URL
 func (h *Handler) GetCOSPreviewUrl(c *gin.Context) {
-	logger := utils.GetLogger()
-
-	materialIDStr := c.Param("materialId")
-	materialID, err := strconv.ParseUint(materialIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusOK, errorResponse(400, "materialId参数格式错误"))
-		return
-	}
-
-	db := client.GetDB()
-
-	// 查询资料信息
-	var material model.ClassroomMaterial
-	if err := db.Where("id = ? AND status = 1", materialID).First(&material).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
-		} else {
-			logger.Error("查询资料失败", zap.Error(err))
-			c.JSON(http.StatusOK, errorResponse(500, "查询失败"))
-		}
-		return
-	}
-
-	// 初始化COS服务
-	cosService, err := service.NewCOSService()
-	if err != nil {
-		logger.Error("初始化COS服务失败", zap.Error(err))
-		c.JSON(http.StatusOK, errorResponse(500, "COS服务初始化失败"))
-		return
-	}
-
-	logger.Info("COS配置信息",
-		zap.String("bucket", config.GlobalConfig.COS.Bucket),
-		zap.String("region", config.GlobalConfig.COS.Region))
-
-	// 构建COS文件路径（按文件夹ID组织）
-	cosPath := fmt.Sprintf("classroom/materials/%d/%d_%s", material.FolderID, material.ID, material.FileName)
-
-	logger.Info("准备处理COS文件",
-		zap.Uint64("material_id", material.ID),
-		zap.String("file_name", material.FileName),
-		zap.Uint64("folder_id", material.FolderID),
-		zap.String("cos_path", cosPath))
-
-	// 检查文件是否已在COS
-	exists, err := cosService.IsFileExists(cosPath)
-	var fileURL string
-
-	if !exists {
-		// 文件不在COS，需要上传
-		localPath := "." + material.FilePath
-		if _, err := os.Stat(localPath); os.IsNotExist(err) {
-			logger.Error("本地文件不存在", zap.String("path", localPath))
-			c.JSON(http.StatusOK, errorResponse(404, "文件不存在"))
-			return
-		}
-
-		fileURL, err := cosService.UploadFile(localPath, cosPath)
-		if err != nil {
-			logger.Error("上传到COS失败", zap.Error(err), zap.String("localPath", localPath))
-			c.JSON(http.StatusOK, errorResponse(500, "上传到COS失败"))
-			return
-		}
-
-		logger.Info("文件已上传到COS",
-			zap.Uint64("material_id", material.ID),
-			zap.String("cos_path", cosPath),
-			zap.String("cos_url", fileURL))
-	} else {
-		// 文件已在COS，直接使用公共URL
-		fileURL = fmt.Sprintf("https://%s.cos.%s.myqcloud.com/%s",
-			config.GlobalConfig.COS.Bucket,
-			config.GlobalConfig.COS.Region,
-			cosPath)
-		logger.Info("文件已在COS，直接使用",
-			zap.Uint64("material_id", material.ID),
-			zap.String("cos_path", cosPath))
-	}
-
-	// 根据文件类型生成不同的预览URL
-	fileType := getFileType(material.FileName)
-	var previewURL string
-
-	if isDocumentType(fileType) {
-		// 文档类型：使用腾讯云文档预览
-		previewURL = cosService.GetDocPreviewURL(fileURL)
-		logger.Info("使用文档预览URL",
-			zap.String("file_type", fileType),
-			zap.String("preview_url", previewURL))
-	} else if fileType == "video" {
-		// 视频类型：不支持在线预览
-		logger.Info("视频文件不支持在线预览",
-			zap.Uint64("material_id", material.ID),
-			zap.String("file_name", material.FileName))
-		c.JSON(http.StatusOK, errorResponse(400, "视频文件不支持在线预览，请下载后观看"))
-		return
-	} else {
-		// 音频、图片：直接使用原始COS URL
-		previewURL = fileURL
-		logger.Info("使用原始URL直接预览",
-			zap.String("file_type", fileType),
-			zap.String("direct_url", previewURL))
-	}
-
-	logger.Info("返回预览URL",
-		zap.String("file_type", fileType),
-		zap.String("preview_url", previewURL),
-		zap.String("cos_url", fileURL),
-		zap.Bool("uploaded", !exists))
-
-	c.JSON(http.StatusOK, successResponse(gin.H{
-		"previewUrl": previewURL,
-		"cosUrl":     fileURL,
-		"fileType":   fileType,
-		"uploaded":   !exists,
-	}))
+	utils.GetLogger().Info("COS预览接口已下线，资料库改为服务器挂载存储")
+	c.JSON(http.StatusOK, errorResponse(410, "COS预览已下线，请使用服务器存储方案"))
 }

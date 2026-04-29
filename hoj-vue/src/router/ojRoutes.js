@@ -35,6 +35,8 @@ import Registration from "@/views/oj/registration/Registration.vue"
 import RegistrationList from "@/views/oj/registration/RegistrationList.vue"
 import CompetitionDetail from "@/views/oj/registration/CompetitionDetail.vue"
 import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
+import LearningMapList from "@/views/oj/learning-map/LearningMapList.vue"
+import LearningMapPage from "@/views/oj/learning-map/LearningMapPage.vue"
 import BattleHome from "@/views/oj/battle/BattleHome.vue"
 import BattleRoom from "@/views/oj/battle/BattleRoom.vue"
 import BattleRank from "@/views/oj/battle/BattleRank.vue"
@@ -475,6 +477,18 @@ const ojRoutes = [
     name: 'Toolbox',
     component: Toolbox,
     meta: { title: 'Toolbox' }
+  },
+  {
+    path: '/toolbox/learning-map',
+    name: 'LearningMapList',
+    component: LearningMapList,
+    meta: { title: 'Learning Map', requireAuth: true }
+  },
+  {
+    path: '/toolbox/learning-map/:mapId',
+    name: 'LearningMapPage',
+    component: LearningMapPage,
+    meta: { title: 'Learning Map Detail', requireAuth: true }
   },
   {
     path: '/registration',

@@ -65,6 +65,13 @@ export default {
           icon: 'fa fa-trophy',
           iconColor: '#FFD700',
           url: '/registration/list'
+        },
+        {
+          title: '算法知识点航海图',
+          description: '知识点 + 题目技能树，按前置依赖解锁学习路线',
+          icon: 'fa fa-sitemap',
+          iconColor: '#36B37E',
+          url: '/toolbox/learning-map'
         }
         // 未来可以在这里添加更多工具
         // {
@@ -83,7 +90,7 @@ export default {
         if (tool.url.startsWith('http')) {
           window.open(tool.url, '_blank');
         } else {
-          window.location.href = tool.url;
+          this.$router.push(tool.url);
         }
       }
     }

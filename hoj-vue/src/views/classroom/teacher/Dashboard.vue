@@ -213,10 +213,10 @@ export default {
         }
       })
     },
-    viewClassroom(classroom, tab = 'homework') {
+    viewClassroom(classroom, tab = 'students') {
       this.navigateToClassroom(classroom, tab)
     },
-    navigateToClassroom(classroom, tab = 'homework', homeworkId = null) {
+    navigateToClassroom(classroom, tab = 'students', homeworkId = null) {
       const query = { tab }
       if (homeworkId) {
         query.homeworkId = homeworkId

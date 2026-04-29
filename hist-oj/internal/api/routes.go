@@ -86,6 +86,10 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 		// 注册训练相关路由
 		RegisterTrainingRoutes(api)
 
+		// 注册算法知识点航海图路由
+		learningMapService := service.NewLearningMapService(db)
+		RegisterLearningMapRoutes(api, learningMapService)
+
 		// 班级功能相关接口
 		classroom := api.Group("/classroom")
 		{
@@ -214,6 +218,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 			classroom.GET("/homework/:homeworkId/submissions", AuthMiddleware(), handler.GetHomeworkSubmissions)
 			classroom.GET("/homework/:homeworkId/status", AuthMiddleware(), handler.GetStudentHomeworkStatus)
 			classroom.GET("/homework/:homeworkId/my-detail", AuthMiddleware(), handler.GetStudentHomeworkDetail)
+			classroom.GET("/homework/:homeworkId/ranking", AuthMiddleware(), handler.GetHomeworkRanking)
 			classroom.GET("/homework/:homeworkId/analysis", AuthMiddleware(), handler.GetHomeworkAnalysis)
 
 			// 编程题提交记录 - 需要认证

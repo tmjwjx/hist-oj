@@ -23,7 +23,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('m.Operation')" width="150">
+      <el-table-column :label="$t('m.Operation')" width="280">
         <template slot-scope="{ row }">
           <!-- 进行中且未完成：显示"做作业"按钮 -->
           <el-button
@@ -41,6 +41,14 @@
             @click="viewResult(row)"
           >
             {{ $t('m.View_Result') }}
+          </el-button>
+          <el-button
+            size="small"
+            type="success"
+            plain
+            @click="viewRanking(row)"
+          >
+            查看排行榜
           </el-button>
         </template>
       </el-table-column>
@@ -135,6 +143,15 @@ export default {
       this.$router.push({
         name: 'StudentHomeworkDetail',
         params: { homeworkId: homework.id }
+      })
+    },
+    viewRanking(homework) {
+      this.$router.push({
+        name: 'StudentHomeworkRanking',
+        params: {
+          classroomId: this.classroomId,
+          homeworkId: homework.id
+        }
       })
     },
     getStatusType(status) {

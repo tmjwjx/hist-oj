@@ -119,6 +119,14 @@ export default {
           iconColor: '#F56C6C',
           action: 'openExamPaperAdmin',
           requireAuth: 'superAdmin' // 仅超级管理员
+        },
+        {
+          title: '算法航海图管理',
+          description: '维护知识点与题目航海图、编辑节点与依赖连线',
+          icon: 'fa fa-sitemap',
+          iconColor: '#36B37E',
+          action: 'openLearningMapAdmin',
+          requireAuth: 'admin' // 所有管理员可访问
         }
       ]
     };
@@ -173,6 +181,8 @@ export default {
         } else if (tool.action === 'openExamPaperAdmin') {
           // 跳转到试卷库管理页面
           this.$router.push({ name: 'admin-exam-paper' });
+        } else if (tool.action === 'openLearningMapAdmin') {
+          this.$router.push({ name: 'admin-learning-map-list' });
         }
       } else if (tool.url) {
         if (tool.url.startsWith('http')) {
