@@ -570,6 +570,7 @@ export default {
         content: ''
       },
       commonCourses: [
+        'GESP 考级课',
         '数据结构',
         '算法设计与分析',
         '计算机网络',

@@ -10,6 +10,9 @@ const (
 	LearningMapStatusDraft     = "draft"
 	LearningMapStatusPublished = "published"
 
+	LearningMapAccessAllOpen   = "all_open"
+	LearningMapAccessAllClosed = "all_closed"
+
 	LearningMapNodeTypeKnowledge = "knowledge"
 	LearningMapNodeTypeProblem   = "problem"
 
@@ -30,6 +33,7 @@ type LearningMap struct {
 	Title       string    `gorm:"type:varchar(120);not null" json:"title"`
 	Description string    `gorm:"type:text" json:"description"`
 	Status      string    `gorm:"type:varchar(20);not null;default:'draft';index:idx_status" json:"status"`
+	AccessMode  string    `gorm:"type:varchar(20);not null;default:'all_open';index:idx_access_mode" json:"accessMode"`
 	CreatedAt   time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
 	UpdatedAt   time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
 }
@@ -96,11 +100,27 @@ func (UserLearningProgress) TableName() string {
 	return "user_learning_progress"
 }
 
+// LearningMapPermission 航海图访问权限（按用户覆盖全局模式）
+// enabled=true: 允许访问，enabled=false: 禁止访问
+type LearningMapPermission struct {
+	ID        uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	MapID     uint64    `gorm:"type:bigint unsigned;not null;index:idx_map_id;uniqueIndex:uk_map_user,priority:1" json:"mapId"`
+	UserID    string    `gorm:"type:varchar(32);not null;index:idx_user_id;uniqueIndex:uk_map_user,priority:2" json:"userId"`
+	Enabled   bool      `gorm:"type:tinyint(1);not null;default:1" json:"enabled"`
+	CreatedAt time.Time `gorm:"column:create_time;autoCreateTime" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"column:update_time;autoUpdateTime" json:"updatedAt"`
+}
+
+func (LearningMapPermission) TableName() string {
+	return "learning_map_permission"
+}
+
 func InitLearningMapTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&LearningMap{},
 		&LearningMapNode{},
 		&LearningMapEdge{},
 		&UserLearningProgress{},
+		&LearningMapPermission{},
 	)
 }

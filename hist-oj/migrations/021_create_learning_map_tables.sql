@@ -6,10 +6,12 @@ CREATE TABLE IF NOT EXISTS `learning_map` (
   `title` varchar(120) NOT NULL,
   `description` text,
   `status` varchar(20) NOT NULL DEFAULT 'draft',
+  `access_mode` varchar(20) NOT NULL DEFAULT 'all_open',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_access_mode` (`access_mode`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='算法航海图';
 
 CREATE TABLE IF NOT EXISTS `learning_map_node` (
@@ -69,3 +71,16 @@ CREATE TABLE IF NOT EXISTS `user_learning_progress` (
   KEY `idx_map_id` (`map_id`),
   KEY `idx_node_id` (`node_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户算法航海图进度';
+
+CREATE TABLE IF NOT EXISTS `learning_map_permission` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `map_id` bigint unsigned NOT NULL,
+  `user_id` varchar(32) NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_map_user` (`map_id`, `user_id`),
+  KEY `idx_map_id` (`map_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='航海图用户权限覆盖';

@@ -118,7 +118,7 @@ export default {
           icon: 'fa fa-file-text-o',
           iconColor: '#F56C6C',
           action: 'openExamPaperAdmin',
-          requireAuth: 'superAdmin' // 仅超级管理员
+          requireAuth: 'admin' // 所有管理员可访问
         },
         {
           title: '算法航海图管理',
@@ -140,6 +140,8 @@ export default {
       switch (tool.requireAuth) {
         case 'superAdmin':
           return this.isSuperAdmin;
+        case 'superAdminOrProblemAdmin':
+          return this.isSuperAdmin || this.isProblemAdmin;
         case 'problemOrSuperAdmin':
           return this.isSuperAdmin || this.isProblemAdmin;
         case 'admin':

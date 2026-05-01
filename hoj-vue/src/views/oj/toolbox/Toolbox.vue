@@ -67,11 +67,18 @@ export default {
           url: '/registration/list'
         },
         {
+          title: '套卷练习',
+          description: '公开套卷在线练习，支持按题查看标准答案',
+          icon: 'el-icon-reading',
+          iconColor: '#1A73E8',
+          url: '/practice'
+        },
+        {
           title: '算法知识点航海图',
           description: '知识点 + 题目技能树，按前置依赖解锁学习路线',
           icon: 'fa fa-sitemap',
           iconColor: '#36B37E',
-          url: '/toolbox/learning-map'
+          url: '/learning-map'
         }
         // 未来可以在这里添加更多工具
         // {

@@ -28,9 +28,14 @@ learningMapRequest.interceptors.response.use(
     if (res.code === 200) {
       return res.data
     }
-    return Promise.reject(new Error(res.message || 'Error'))
+    return Promise.reject(new Error(res.message || '请求失败'))
   },
-  error => Promise.reject(error)
+  error => {
+    if (error && error.message === 'Network Error') {
+      return Promise.reject(new Error('网络连接失败，请稍后重试'))
+    }
+    return Promise.reject(new Error((error && error.message) || '请求失败'))
+  }
 )
 
 export default {
@@ -101,6 +106,24 @@ export default {
   },
   adminValidateMap(mapId) {
     return learningMapRequest.get(`/admin/learning-maps/${mapId}/validate`)
+  },
+  adminGetMapPermissions(mapId) {
+    return learningMapRequest.get(`/admin/learning-maps/${mapId}/permissions`)
+  },
+  adminSetMapAccessMode(mapId, accessMode) {
+    return learningMapRequest.put(`/admin/learning-maps/${mapId}/permissions/mode`, { accessMode })
+  },
+  adminSetMapUserPermission(mapId, userId, enabled) {
+    return learningMapRequest.put(`/admin/learning-maps/${mapId}/permissions/${userId}`, { enabled })
+  },
+  adminBatchSetMapUserPermissions(mapId, userIds, enabled) {
+    return learningMapRequest.post(`/admin/learning-maps/${mapId}/permissions/batch`, { userIds, enabled })
+  },
+  adminDeleteMapUserPermission(mapId, userId) {
+    return learningMapRequest.delete(`/admin/learning-maps/${mapId}/permissions/${userId}`)
+  },
+  adminSearchMapPermissionUsers(keyword) {
+    return learningMapRequest.get('/admin/learning-maps/users/search', { params: { q: keyword } })
   },
   adminSearchProblems(keyword) {
     return learningMapRequest.get('/admin/problems/search', { params: { q: keyword } })

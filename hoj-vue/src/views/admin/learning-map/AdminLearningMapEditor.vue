@@ -5,29 +5,40 @@
         <span class="panel-title home-title">航海图编辑器 - {{ mapInfo.title || `#${mapId}` }}</span>
         <div>
           <el-button size="small" @click="goList">返回列表</el-button>
-          <el-button size="small" @click="previewMap">预览用户端</el-button>
-          <el-button size="small" type="warning" @click="validateMap">发布校验</el-button>
-          <el-button size="small" type="success" @click="publishMap">发布</el-button>
+          <el-button
+            size="small"
+            :type="mapInfo.status === 'published' ? 'warning' : 'success'"
+            @click="toggleMapStatus"
+          >
+            {{ mapInfo.status === 'published' ? '隐藏' : '发布' }}
+          </el-button>
         </div>
       </div>
 
-      <el-form :inline="true" label-width="80px" class="map-meta-form">
+      <el-form label-width="80px" class="map-meta-form">
         <el-form-item label="标题">
-          <el-input v-model="mapInfo.title" style="width: 300px"></el-input>
+          <el-input
+            v-model="mapInfo.title"
+            maxlength="120"
+            show-word-limit
+            placeholder="请输入航海图标题"
+            @blur="syncMapMeta"
+          ></el-input>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            type="textarea"
+            :rows="2"
+            v-model="mapInfo.description"
+            placeholder="请输入航海图描述"
+            @blur="syncMapMeta"
+          ></el-input>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="mapInfo.status" style="width: 140px">
-            <el-option label="草稿" value="draft"></el-option>
-            <el-option label="已发布" value="published"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button size="small" type="primary" @click="saveMapMeta">保存草稿</el-button>
-        </el-form-item>
-      </el-form>
-      <el-form label-width="80px">
-        <el-form-item label="描述">
-          <el-input type="textarea" :rows="2" v-model="mapInfo.description"></el-input>
+          <el-tag size="mini" :type="mapInfo.status === 'published' ? 'success' : 'info'">
+            {{ mapInfo.status === 'published' ? '已发布' : '已隐藏' }}
+          </el-tag>
+          <span class="meta-saving" v-if="savingMeta">正在保存...</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -122,6 +133,61 @@
               </div>
             </el-scrollbar>
           </div>
+
+          <div class="panel-section">
+            <div class="section-title">使用权限控制</div>
+            <div class="permission-mode-row">
+              <el-tag size="mini" :type="permissionMode === 'all_open' ? 'success' : 'warning'">
+                {{ accessModeLabel(permissionMode) }}
+              </el-tag>
+              <div class="permission-mode-actions">
+                <el-button size="mini" type="success" @click="setAccessMode('all_open')">全部开启</el-button>
+                <el-button size="mini" type="warning" @click="setAccessMode('all_closed')">全部关闭</el-button>
+              </div>
+            </div>
+
+            <el-input
+              v-model="permissionKeyword"
+              size="mini"
+              clearable
+              placeholder="搜索用户：uid/用户名/昵称"
+              @keyup.enter.native="searchPermissionUsers"
+            >
+              <el-button slot="append" icon="el-icon-search" @click="searchPermissionUsers"></el-button>
+            </el-input>
+
+            <div class="permission-candidates" v-if="permissionCandidates.length">
+              <div class="permission-candidate-item" v-for="u in permissionCandidates" :key="u.userId">
+                <div class="permission-user-main">
+                  <div class="permission-user-name">{{ userDisplayName(u) }}</div>
+                  <div class="permission-user-id">{{ u.userId }}</div>
+                </div>
+                <div class="permission-actions">
+                  <el-button size="mini" type="success" @click="setUserPermission(u, true)">开通</el-button>
+                  <el-button size="mini" type="danger" plain @click="setUserPermission(u, false)">关闭</el-button>
+                </div>
+              </div>
+            </div>
+
+            <el-scrollbar style="max-height: 200px; margin-top: 8px;">
+              <div v-if="mapPermissions.length === 0" class="permission-empty">暂无单独配置用户</div>
+              <div class="permission-item" v-for="item in mapPermissions" :key="item.userId">
+                <div class="permission-user-main">
+                  <div class="permission-user-name">{{ userDisplayName(item) }}</div>
+                  <div class="permission-user-id">{{ item.userId }}</div>
+                </div>
+                <div class="permission-actions">
+                  <el-switch
+                    :value="item.enabled"
+                    @change="toggleUserPermission(item, $event)"
+                    active-color="#13ce66"
+                    inactive-color="#ff4949"
+                  ></el-switch>
+                  <el-button size="mini" type="text" style="color:#909399" @click="removeUserPermission(item)">移除</el-button>
+                </div>
+              </div>
+            </el-scrollbar>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -189,10 +255,12 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <div class="field-hint">层级：用于推荐学习顺序排序（数字越小越靠前），不直接参与解锁判断。</div>
 
         <el-form-item label="区域">
           <el-input v-model="nodeForm.region"></el-input>
         </el-form-item>
+        <div class="field-hint">区域：用于给节点做分区归类，例如「数据结构区」「字符串区」，便于筛选和可视化布局。</div>
 
         <template v-if="nodeForm.type === 'problem'">
           <el-divider>题目绑定</el-divider>
@@ -241,6 +309,7 @@
         <el-form-item label="扩展信息（JSON 格式）">
           <el-input type="textarea" :rows="3" v-model="nodeForm.metadataJson" placeholder='例如：{"estimatedMinutes":30}'></el-input>
         </el-form-item>
+        <div class="field-hint">扩展信息：用于存储个性化字段（如预计学习时长、视频链接、讲义地址等），不影响基础解锁逻辑。</div>
       </el-form>
 
       <div slot="footer">
@@ -288,10 +357,17 @@ export default {
       mapInfo: {
         title: '',
         description: '',
-        status: 'draft'
+        status: 'draft',
+        accessMode: 'all_open'
       },
+      savingMeta: false,
+      lastSavedMeta: '',
       nodes: [],
       edges: [],
+      permissionMode: 'all_open',
+      mapPermissions: [],
+      permissionKeyword: '',
+      permissionCandidates: [],
       selectedNode: null,
       edgeForm: {
         sourceNodeId: null,
@@ -419,8 +495,16 @@ export default {
       try {
         const data = await learningMapApi.adminGetMap(this.mapId)
         this.mapInfo = { ...data.map }
+        this.lastSavedMeta = JSON.stringify({
+          title: this.mapInfo.title || '',
+          description: this.mapInfo.description || '',
+          status: this.mapInfo.status || 'draft',
+          accessMode: this.mapInfo.accessMode || 'all_open'
+        })
+        this.permissionMode = this.mapInfo.accessMode || 'all_open'
         this.nodes = data.nodes || []
         this.edges = data.edges || []
+        await this.loadPermissions()
       } catch (e) {
         this.$message.error(e.message || '加载航海图失败')
       } finally {
@@ -430,45 +514,85 @@ export default {
     goList() {
       this.$router.push({ name: 'admin-learning-map-list' })
     },
-    async saveMapMeta() {
-      try {
-        await learningMapApi.adminUpdateMap(this.mapId, {
-          title: this.mapInfo.title,
-          description: this.mapInfo.description,
-          status: this.mapInfo.status || 'draft'
-        })
-        this.$message.success('已保存')
-      } catch (e) {
-        this.$message.error(e.message || '保存失败')
-      }
-    },
-    previewMap() {
-      const url = this.$router.resolve({ name: 'LearningMapPage', params: { mapId: String(this.mapId) } })
-      window.open(url.href, '_blank')
-    },
-    async validateMap() {
-      try {
-        const res = await learningMapApi.adminValidateMap(this.mapId)
-        if (res.valid) {
-          this.$message.success('校验通过，可以发布')
-        } else {
-          const message = (res.errors || []).map(e => `- ${e.message}`).join('\n')
-          this.$alert(`<pre style="white-space:pre-wrap">${message}</pre>`, '发布校验失败', {
-            dangerouslyUseHTMLString: true,
-            type: 'warning'
-          })
+    async syncMapMeta(options = {}) {
+      const { force = false, silent = true } = options
+      const title = (this.mapInfo.title || '').trim()
+      if (!title) {
+        if (!silent) {
+          this.$message.warning('标题不能为空')
         }
+        return false
+      }
+      const payload = {
+        title,
+        description: (this.mapInfo.description || '').trim(),
+        status: this.mapInfo.status || 'draft',
+        accessMode: this.permissionMode || 'all_open'
+      }
+      const snapshot = JSON.stringify(payload)
+      if (!force && snapshot === this.lastSavedMeta) {
+        return true
+      }
+      if (this.savingMeta) {
+        return false
+      }
+      this.savingMeta = true
+      try {
+        const updated = await learningMapApi.adminUpdateMap(this.mapId, payload)
+        this.mapInfo = { ...this.mapInfo, ...updated }
+        this.lastSavedMeta = JSON.stringify({
+          title: this.mapInfo.title || '',
+          description: this.mapInfo.description || '',
+          status: this.mapInfo.status || 'draft',
+          accessMode: this.mapInfo.accessMode || 'all_open'
+        })
+        return true
       } catch (e) {
-        this.$message.error(e.message || '校验失败')
+        if (!silent) {
+          this.$message.error(e.message || '保存失败')
+        }
+        return false
+      } finally {
+        this.savingMeta = false
       }
     },
-    publishMap() {
+    toggleMapStatus() {
+      if (this.mapInfo.status === 'published') {
+        this.$confirm('确认将当前航海图设置为隐藏？隐藏后普通用户将无法访问。', '隐藏确认', {
+          type: 'warning'
+        }).then(async () => {
+          try {
+            await learningMapApi.adminUpdateMap(this.mapId, {
+              title: this.mapInfo.title,
+              description: this.mapInfo.description || '',
+              status: 'draft',
+              accessMode: this.permissionMode || 'all_open'
+            })
+            this.mapInfo.status = 'draft'
+            this.$message.success('已隐藏')
+          } catch (e) {
+            this.$message.error(e.message || '隐藏失败')
+          }
+        })
+        return
+      }
+
       this.$confirm('确认发布当前航海图？发布前会执行完整校验。', '发布确认', {
         type: 'warning'
       }).then(async () => {
         try {
+          const ok = await this.syncMapMeta({ force: true, silent: false })
+          if (!ok) {
+            return
+          }
           await learningMapApi.adminPublishMap(this.mapId)
           this.mapInfo.status = 'published'
+          this.lastSavedMeta = JSON.stringify({
+            title: this.mapInfo.title || '',
+            description: this.mapInfo.description || '',
+            status: this.mapInfo.status || 'published',
+            accessMode: this.mapInfo.accessMode || 'all_open'
+          })
           this.$message.success('发布成功')
         } catch (e) {
           this.$message.error(e.message || '发布失败')
@@ -655,6 +779,74 @@ export default {
       } catch (e) {
         this.$message.error(e.message || '题目不存在或不可用')
       }
+    },
+    accessModeLabel(mode) {
+      return mode === 'all_closed' ? '默认：全部关闭，仅授权用户可见' : '默认：全部开启，按用户可单独关闭'
+    },
+    userDisplayName(user) {
+      return user.nickname || user.realname || user.username || user.userId
+    },
+    async loadPermissions() {
+      const cfg = await learningMapApi.adminGetMapPermissions(this.mapId)
+      this.permissionMode = cfg.accessMode || 'all_open'
+      this.mapPermissions = cfg.permissions || []
+    },
+    async setAccessMode(mode) {
+      try {
+        await learningMapApi.adminSetMapAccessMode(this.mapId, mode)
+        this.permissionMode = mode
+        this.mapInfo.accessMode = mode
+        this.$message.success(mode === 'all_open' ? '已设置为全部开启' : '已设置为全部关闭')
+      } catch (e) {
+        this.$message.error(e.message || '设置失败')
+      }
+    },
+    async searchPermissionUsers() {
+      const keyword = (this.permissionKeyword || '').trim()
+      if (!keyword) {
+        this.permissionCandidates = []
+        return
+      }
+      try {
+        this.permissionCandidates = await learningMapApi.adminSearchMapPermissionUsers(keyword)
+      } catch (e) {
+        this.permissionCandidates = []
+        this.$message.error(e.message || '搜索用户失败')
+      }
+    },
+    async setUserPermission(user, enabled) {
+      if (!user || !user.userId) return
+      try {
+        await learningMapApi.adminSetMapUserPermission(this.mapId, user.userId, enabled)
+        this.$message.success(enabled ? '已开通权限' : '已关闭权限')
+        await this.loadPermissions()
+      } catch (e) {
+        this.$message.error(e.message || '设置用户权限失败')
+      }
+    },
+    async toggleUserPermission(item, enabled) {
+      const original = item.enabled
+      item.enabled = enabled
+      try {
+        await learningMapApi.adminSetMapUserPermission(this.mapId, item.userId, enabled)
+        this.$message.success('权限已更新')
+      } catch (e) {
+        item.enabled = original
+        this.$message.error(e.message || '更新权限失败')
+      }
+    },
+    removeUserPermission(item) {
+      this.$confirm(`确认移除用户 ${item.userId} 的单独权限配置？`, '移除权限', {
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await learningMapApi.adminDeleteMapUserPermission(this.mapId, item.userId)
+          this.$message.success('已移除')
+          await this.loadPermissions()
+        } catch (e) {
+          this.$message.error(e.message || '移除失败')
+        }
+      })
     }
   }
 }
@@ -668,7 +860,15 @@ export default {
   gap: 8px;
 }
 .map-meta-form {
-  margin-bottom: 8px;
+  margin-top: 4px;
+}
+.map-meta-form >>> .el-form-item {
+  margin-bottom: 10px;
+}
+.meta-saving {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #64748b;
 }
 .panel-section {
   margin-top: 12px;
@@ -741,6 +941,60 @@ export default {
   gap: 6px;
   flex-wrap: wrap;
 }
+.permission-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.permission-mode-actions {
+  display: flex;
+  gap: 6px;
+}
+.permission-candidates {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.permission-candidate-item,
+.permission-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef2f7;
+}
+.permission-candidate-item:last-child,
+.permission-item:last-child {
+  border-bottom: 0;
+}
+.permission-user-main {
+  min-width: 0;
+}
+.permission-user-name {
+  font-size: 12px;
+  color: #1f2937;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.permission-user-id {
+  font-size: 11px;
+  color: #64748b;
+}
+.permission-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.permission-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 10px 6px;
+}
 .problem-list {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -772,6 +1026,11 @@ export default {
   border: 1px dashed #b9d8ff;
   border-radius: 8px;
   padding: 8px 10px;
+}
+.field-hint {
+  margin: -6px 0 8px 112px;
+  font-size: 12px;
+  color: #64748b;
 }
 </style>
 

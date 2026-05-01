@@ -47,7 +47,7 @@ router.beforeEach(async (to, from, next) => {
     if (!token) {
       next({ path: '/home' })
       store.commit('changeModalStatus', { mode: 'Login', visible: true })
-      mMessage.error('请先登录')
+      mMessage.error(i18n.t('m.Please_login_first'))
       return
     }
 

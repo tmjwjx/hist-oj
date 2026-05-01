@@ -1,6 +1,7 @@
 const ClassroomRoutes = {
   path: '/classroom',
   component: () => import('@/views/classroom/ClassroomHome'),
+  meta: { requireAuth: true },
   redirect: '/classroom/index',
   children: [
     {

@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	ErrLearningMapNotFound      = errors.New("learning map not found")
-	ErrLearningMapNotPublished  = errors.New("learning map is not published")
-	ErrLearningNodeNotFound     = errors.New("learning map node not found")
-	ErrLearningNodeLocked       = errors.New("learning node is locked")
-	ErrLearningNodeTypeMismatch = errors.New("learning node type mismatch")
+	ErrLearningMapNotFound       = errors.New("learning map not found")
+	ErrLearningMapNotPublished   = errors.New("learning map is not published")
+	ErrLearningMapPermissionDeny = errors.New("learning map permission denied")
+	ErrLearningNodeNotFound      = errors.New("learning map node not found")
+	ErrLearningNodeLocked        = errors.New("learning node is locked")
+	ErrLearningNodeTypeMismatch  = errors.New("learning node type mismatch")
 )
 
 // LearningMapService 航海图服务
@@ -88,6 +89,7 @@ type UpsertLearningMapInput struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
+	AccessMode  string `json:"accessMode"`
 }
 
 // UpsertLearningMapNodeInput 创建/更新节点
@@ -121,6 +123,30 @@ type PublishValidationError struct {
 	Message string `json:"message"`
 }
 
+// LearningMapPermissionView 航海图权限覆盖项
+type LearningMapPermissionView struct {
+	UserID    string    `json:"userId"`
+	Username  string    `json:"username"`
+	Nickname  string    `json:"nickname"`
+	Realname  string    `json:"realname"`
+	Enabled   bool      `json:"enabled"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// LearningMapAccessConfig 航海图访问配置
+type LearningMapAccessConfig struct {
+	AccessMode  string                      `json:"accessMode"`
+	Permissions []LearningMapPermissionView `json:"permissions"`
+}
+
+// LearningMapPermissionUser 用户搜索结果（用于权限设置）
+type LearningMapPermissionUser struct {
+	UserID   string `json:"userId"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+	Realname string `json:"realname"`
+}
+
 func normalizeLearningMapStatus(status string) string {
 	status = strings.TrimSpace(strings.ToLower(status))
 	if status == "" {
@@ -130,6 +156,14 @@ func normalizeLearningMapStatus(status string) string {
 		return model.LearningMapStatusDraft
 	}
 	return status
+}
+
+func normalizeLearningMapAccessMode(mode string) string {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == model.LearningMapAccessAllClosed {
+		return model.LearningMapAccessAllClosed
+	}
+	return model.LearningMapAccessAllOpen
 }
 
 func normalizeLearningNodeType(nodeType string) string {
@@ -227,6 +261,36 @@ func (s *LearningMapService) ListPublishedMaps() ([]model.LearningMap, error) {
 	return maps, err
 }
 
+func (s *LearningMapService) ListPublishedMapsForUser(uid string) ([]model.LearningMap, error) {
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return []model.LearningMap{}, nil
+	}
+	maps, err := s.ListPublishedMaps()
+	if err != nil {
+		return nil, err
+	}
+	if len(maps) == 0 {
+		return maps, nil
+	}
+	mapIDs := make([]uint64, 0, len(maps))
+	for _, m := range maps {
+		mapIDs = append(mapIDs, m.ID)
+	}
+	overrideMap, err := s.getPermissionOverrides(mapIDs, uid)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]model.LearningMap, 0, len(maps))
+	for _, m := range maps {
+		override, ok := overrideMap[m.ID]
+		if isMapAccessAllowed(m.AccessMode, ok, override) {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered, nil
+}
+
 func (s *LearningMapService) GetMapByID(mapID uint64) (*model.LearningMap, error) {
 	var learningMap model.LearningMap
 	if err := s.db.Where("id = ?", mapID).First(&learningMap).Error; err != nil {
@@ -243,6 +307,7 @@ func (s *LearningMapService) CreateMap(input UpsertLearningMapInput) (*model.Lea
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Status:      normalizeLearningMapStatus(input.Status),
+		AccessMode:  normalizeLearningMapAccessMode(input.AccessMode),
 	}
 	if learningMap.Title == "" {
 		return nil, errors.New("title is required")
@@ -258,10 +323,15 @@ func (s *LearningMapService) UpdateMap(mapID uint64, input UpsertLearningMapInpu
 	if err != nil {
 		return nil, err
 	}
+	accessMode := learningMap.AccessMode
+	if strings.TrimSpace(input.AccessMode) != "" {
+		accessMode = normalizeLearningMapAccessMode(input.AccessMode)
+	}
 	updates := map[string]interface{}{
 		"title":       strings.TrimSpace(input.Title),
 		"description": strings.TrimSpace(input.Description),
 		"status":      normalizeLearningMapStatus(input.Status),
+		"access_mode": accessMode,
 	}
 	if updates["title"] == "" {
 		return nil, errors.New("title is required")
@@ -272,6 +342,7 @@ func (s *LearningMapService) UpdateMap(mapID uint64, input UpsertLearningMapInpu
 	learningMap.Title = updates["title"].(string)
 	learningMap.Description = updates["description"].(string)
 	learningMap.Status = updates["status"].(string)
+	learningMap.AccessMode = updates["access_mode"].(string)
 	return learningMap, nil
 }
 
@@ -281,6 +352,9 @@ func (s *LearningMapService) DeleteMap(mapID uint64) error {
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("map_id = ?", mapID).Delete(&model.UserLearningProgress{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("map_id = ?", mapID).Delete(&model.LearningMapPermission{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("map_id = ?", mapID).Delete(&model.LearningMapEdge{}).Error; err != nil {
@@ -388,6 +462,201 @@ func (s *LearningMapService) GetPublishedMapGraph(mapID uint64) (*model.Learning
 	return learningMap, nodeViews, edges, nil
 }
 
+func isMapAccessAllowed(accessMode string, hasOverride bool, overrideEnabled bool) bool {
+	if hasOverride {
+		return overrideEnabled
+	}
+	return normalizeLearningMapAccessMode(accessMode) == model.LearningMapAccessAllOpen
+}
+
+func (s *LearningMapService) getPermissionOverrides(mapIDs []uint64, uid string) (map[uint64]bool, error) {
+	res := make(map[uint64]bool)
+	if len(mapIDs) == 0 || strings.TrimSpace(uid) == "" {
+		return res, nil
+	}
+	var rows []model.LearningMapPermission
+	if err := s.db.Where("map_id IN ? AND user_id = ?", mapIDs, uid).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		res[row.MapID] = row.Enabled
+	}
+	return res, nil
+}
+
+func (s *LearningMapService) ensureMapAccess(mapID uint64, uid string) (*model.LearningMap, error) {
+	learningMap, err := s.GetMapByID(mapID)
+	if err != nil {
+		return nil, err
+	}
+	if learningMap.Status != model.LearningMapStatusPublished {
+		return nil, ErrLearningMapNotPublished
+	}
+	overrideMap, err := s.getPermissionOverrides([]uint64{mapID}, uid)
+	if err != nil {
+		return nil, err
+	}
+	override, hasOverride := overrideMap[mapID]
+	if !isMapAccessAllowed(learningMap.AccessMode, hasOverride, override) {
+		return nil, ErrLearningMapPermissionDeny
+	}
+	return learningMap, nil
+}
+
+func (s *LearningMapService) GetPublishedMapGraphForUser(mapID uint64, uid string) (*model.LearningMap, []LearningMapNodeView, []model.LearningMapEdge, error) {
+	if _, err := s.ensureMapAccess(mapID, uid); err != nil {
+		return nil, nil, nil, err
+	}
+	return s.GetPublishedMapGraph(mapID)
+}
+
+func (s *LearningMapService) GetMapAccessConfig(mapID uint64) (*LearningMapAccessConfig, error) {
+	learningMap, err := s.GetMapByID(mapID)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		UserID    string    `gorm:"column:user_id"`
+		Username  string    `gorm:"column:username"`
+		Nickname  string    `gorm:"column:nickname"`
+		Realname  string    `gorm:"column:realname"`
+		Enabled   bool      `gorm:"column:enabled"`
+		UpdatedAt time.Time `gorm:"column:update_time"`
+	}
+	var rows []row
+	if err := s.db.Table("learning_map_permission p").
+		Select("p.user_id, p.enabled, p.update_time, ui.username, ui.nickname, ui.realname").
+		Joins("LEFT JOIN user_info ui ON ui.uuid = p.user_id").
+		Where("p.map_id = ?", mapID).
+		Order("p.update_time DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	views := make([]LearningMapPermissionView, 0, len(rows))
+	for _, r := range rows {
+		views = append(views, LearningMapPermissionView{
+			UserID:    r.UserID,
+			Username:  r.Username,
+			Nickname:  r.Nickname,
+			Realname:  r.Realname,
+			Enabled:   r.Enabled,
+			UpdatedAt: r.UpdatedAt,
+		})
+	}
+	return &LearningMapAccessConfig{
+		AccessMode:  normalizeLearningMapAccessMode(learningMap.AccessMode),
+		Permissions: views,
+	}, nil
+}
+
+func (s *LearningMapService) SetMapAccessMode(mapID uint64, accessMode string) error {
+	if _, err := s.GetMapByID(mapID); err != nil {
+		return err
+	}
+	mode := normalizeLearningMapAccessMode(accessMode)
+	return s.db.Model(&model.LearningMap{}).Where("id = ?", mapID).Update("access_mode", mode).Error
+}
+
+func (s *LearningMapService) SetMapUserPermission(mapID uint64, userID string, enabled bool) error {
+	if _, err := s.GetMapByID(mapID); err != nil {
+		return err
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return errors.New("userId is required")
+	}
+	now := time.Now()
+	row := model.LearningMapPermission{
+		MapID:     mapID,
+		UserID:    userID,
+		Enabled:   enabled,
+		UpdatedAt: now,
+	}
+	return s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "map_id"}, {Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{"enabled": enabled, "update_time": now}),
+	}).Create(&row).Error
+}
+
+func (s *LearningMapService) BatchSetMapUserPermissions(mapID uint64, userIDs []string, enabled bool) error {
+	if _, err := s.GetMapByID(mapID); err != nil {
+		return err
+	}
+	uniq := make(map[string]struct{}, len(userIDs))
+	rows := make([]model.LearningMapPermission, 0, len(userIDs))
+	now := time.Now()
+	for _, uid := range userIDs {
+		uid = strings.TrimSpace(uid)
+		if uid == "" {
+			continue
+		}
+		if _, ok := uniq[uid]; ok {
+			continue
+		}
+		uniq[uid] = struct{}{}
+		rows = append(rows, model.LearningMapPermission{
+			MapID:     mapID,
+			UserID:    uid,
+			Enabled:   enabled,
+			UpdatedAt: now,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "map_id"}, {Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{"enabled": enabled, "update_time": now}),
+	}).Create(&rows).Error
+}
+
+func (s *LearningMapService) DeleteMapUserPermission(mapID uint64, userID string) error {
+	if _, err := s.GetMapByID(mapID); err != nil {
+		return err
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return errors.New("userId is required")
+	}
+	return s.db.Where("map_id = ? AND user_id = ?", mapID, userID).Delete(&model.LearningMapPermission{}).Error
+}
+
+func (s *LearningMapService) SearchUsersForMapPermission(keyword string, limit int) ([]LearningMapPermissionUser, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return []LearningMapPermissionUser{}, nil
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	type row struct {
+		UserID   string `gorm:"column:uuid"`
+		Username string `gorm:"column:username"`
+		Nickname string `gorm:"column:nickname"`
+		Realname string `gorm:"column:realname"`
+	}
+	var rows []row
+	like := "%" + keyword + "%"
+	if err := s.db.Table("user_info").
+		Select("uuid, username, nickname, realname").
+		Where("username LIKE ? OR nickname LIKE ? OR realname LIKE ?", like, like, like).
+		Order("uuid ASC").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	res := make([]LearningMapPermissionUser, 0, len(rows))
+	for _, r := range rows {
+		res = append(res, LearningMapPermissionUser{
+			UserID:   r.UserID,
+			Username: r.Username,
+			Nickname: r.Nickname,
+			Realname: r.Realname,
+		})
+	}
+	return res, nil
+}
+
 func (s *LearningMapService) CreateNode(mapID uint64, input UpsertLearningMapNodeInput) (*model.LearningMapNode, error) {
 	if _, err := s.GetMapByID(mapID); err != nil {
 		return nil, err
@@ -483,6 +752,9 @@ func (s *LearningMapService) CreateEdge(mapID uint64, input UpsertLearningMapEdg
 	if err := s.validateEdgeNodesExist(mapID, edge.SourceNodeID, edge.TargetNodeID); err != nil {
 		return nil, err
 	}
+	if err := s.ensurePrerequisiteEdgeNoCycle(mapID, 0, *edge); err != nil {
+		return nil, err
+	}
 	if err := s.db.Create(edge).Error; err != nil {
 		return nil, err
 	}
@@ -505,6 +777,9 @@ func (s *LearningMapService) UpdateEdge(mapID, edgeID uint64, input UpsertLearni
 		return nil, err
 	}
 	if err := s.validateEdgeNodesExist(mapID, updated.SourceNodeID, updated.TargetNodeID); err != nil {
+		return nil, err
+	}
+	if err := s.ensurePrerequisiteEdgeNoCycle(mapID, edgeID, *updated); err != nil {
 		return nil, err
 	}
 	updates := map[string]interface{}{
@@ -625,7 +900,7 @@ func (s *LearningMapService) ValidateMapForPublish(mapID uint64) ([]PublishValid
 
 // GetMapFullForUser 一次性返回图谱、进度、推荐
 func (s *LearningMapService) GetMapFullForUser(mapID uint64, uid string) (*LearningMapFullResponse, error) {
-	learningMap, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	learningMap, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -701,7 +976,7 @@ func BuildLearningMapSummary(progress []LearningNodeProgressSnapshot) LearningMa
 }
 
 func (s *LearningMapService) GetMapProgressForUser(mapID uint64, uid string) ([]LearningNodeProgressSnapshot, LearningMapSummary, error) {
-	_, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	_, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return nil, LearningMapSummary{}, err
 	}
@@ -722,7 +997,7 @@ func (s *LearningMapService) GetMapProgressForUser(mapID uint64, uid string) ([]
 }
 
 func (s *LearningMapService) MarkNodeStart(mapID, nodeID uint64, uid string) error {
-	_, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	_, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return err
 	}
@@ -761,7 +1036,7 @@ func (s *LearningMapService) MarkNodeStart(mapID, nodeID uint64, uid string) err
 }
 
 func (s *LearningMapService) MarkKnowledgeNodeCompleted(mapID, nodeID uint64, uid string) error {
-	_, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	_, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return err
 	}
@@ -822,7 +1097,7 @@ func ValidateKnowledgeActionAllowed(nodeType, status string) error {
 
 func (s *LearningMapService) SearchNodesForUser(mapID uint64, uid, keyword string) ([]LearningMapNodeView, error) {
 	keyword = strings.TrimSpace(keyword)
-	_, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	_, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -866,7 +1141,7 @@ func mergeStatusIntoMetadata(raw string, progress LearningNodeProgressSnapshot) 
 }
 
 func (s *LearningMapService) RecommendNextNode(mapID uint64, uid string) (*LearningMapNodeView, LearningMapSummary, error) {
-	_, nodeViews, edges, err := s.GetPublishedMapGraph(mapID)
+	_, nodeViews, edges, err := s.GetPublishedMapGraphForUser(mapID, uid)
 	if err != nil {
 		return nil, LearningMapSummary{}, err
 	}
@@ -1056,6 +1331,100 @@ func (s *LearningMapService) validateEdgeNodesExist(mapID, sourceNodeID, targetN
 		return errors.New("sourceNodeId or targetNodeId does not exist")
 	}
 	return nil
+}
+
+func (s *LearningMapService) ensurePrerequisiteEdgeNoCycle(mapID, ignoreEdgeID uint64, edge model.LearningMapEdge) error {
+	if normalizeEdgeType(edge.Type) != model.LearningMapEdgeTypePrerequisite {
+		return nil
+	}
+	var edges []model.LearningMapEdge
+	if err := s.db.Where("map_id = ? AND type = ?", mapID, model.LearningMapEdgeTypePrerequisite).Find(&edges).Error; err != nil {
+		return err
+	}
+	hasCycle, cyclePath := CheckPrerequisiteEdgeCreatesCycle(edges, ignoreEdgeID, edge.SourceNodeID, edge.TargetNodeID)
+	if !hasCycle {
+		return nil
+	}
+	return fmt.Errorf("前置依赖会形成环：%s", formatNodePath(cyclePath))
+}
+
+func formatNodePath(path []uint64) string {
+	if len(path) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(path))
+	for _, id := range path {
+		parts = append(parts, strconv.FormatUint(id, 10))
+	}
+	return strings.Join(parts, " -> ")
+}
+
+// CheckPrerequisiteEdgeCreatesCycle 判断新增/更新一条 prerequisite 边后是否会形成环。
+// ignoreEdgeID 用于更新场景：先逻辑删除该边，再判断候选边是否导致成环。
+func CheckPrerequisiteEdgeCreatesCycle(
+	edges []model.LearningMapEdge,
+	ignoreEdgeID uint64,
+	sourceNodeID uint64,
+	targetNodeID uint64,
+) (bool, []uint64) {
+	if sourceNodeID == 0 || targetNodeID == 0 {
+		return false, nil
+	}
+	adj := make(map[uint64][]uint64)
+	for _, e := range edges {
+		if ignoreEdgeID > 0 && e.ID == ignoreEdgeID {
+			continue
+		}
+		if normalizeEdgeType(e.Type) != model.LearningMapEdgeTypePrerequisite {
+			continue
+		}
+		adj[e.SourceNodeID] = append(adj[e.SourceNodeID], e.TargetNodeID)
+	}
+
+	// 若已存在 target -> ... -> source，新增 source -> target 将闭合成环。
+	queue := []uint64{targetNodeID}
+	visited := map[uint64]bool{targetNodeID: true}
+	parent := make(map[uint64]uint64)
+	found := false
+
+	for len(queue) > 0 && !found {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, nxt := range adj[cur] {
+			if visited[nxt] {
+				continue
+			}
+			visited[nxt] = true
+			parent[nxt] = cur
+			if nxt == sourceNodeID {
+				found = true
+				break
+			}
+			queue = append(queue, nxt)
+		}
+	}
+	if !found {
+		return false, nil
+	}
+
+	// 还原路径：target -> ... -> source；最终返回环路：source -> target -> ... -> source。
+	reversed := []uint64{sourceNodeID}
+	for cur := sourceNodeID; cur != targetNodeID; {
+		p, ok := parent[cur]
+		if !ok {
+			break
+		}
+		reversed = append(reversed, p)
+		cur = p
+	}
+	pathTargetToSource := make([]uint64, len(reversed))
+	for i := range reversed {
+		pathTargetToSource[i] = reversed[len(reversed)-1-i]
+	}
+	cyclePath := make([]uint64, 0, len(pathTargetToSource)+1)
+	cyclePath = append(cyclePath, sourceNodeID)
+	cyclePath = append(cyclePath, pathTargetToSource...)
+	return true, cyclePath
 }
 
 func (s *LearningMapService) resolveProblemForNode(node *model.LearningMapNode) (*LearningProblemInfo, error) {
@@ -1360,11 +1729,49 @@ func ComputeLearningNodeProgress(
 		}
 	}
 
+	// 只有在“自身基础完成 + 所有 prerequisite 也有效完成”时，才视为有效完成。
+	effectiveCompletedMemo := make(map[uint64]bool, len(nodes))
+	effectiveCompletedDone := make(map[uint64]bool, len(nodes))
+	var resolveEffectiveCompleted func(nodeID uint64, visiting map[uint64]bool) bool
+	resolveEffectiveCompleted = func(nodeID uint64, visiting map[uint64]bool) bool {
+		if done, ok := effectiveCompletedDone[nodeID]; ok && done {
+			return effectiveCompletedMemo[nodeID]
+		}
+		if !baseCompleted[nodeID] {
+			effectiveCompletedDone[nodeID] = true
+			effectiveCompletedMemo[nodeID] = false
+			return false
+		}
+		if visiting[nodeID] {
+			// 保护性分支：若历史脏数据存在环，认为不可有效完成，避免错误传递解锁。
+			effectiveCompletedDone[nodeID] = true
+			effectiveCompletedMemo[nodeID] = false
+			return false
+		}
+		visiting[nodeID] = true
+		for _, pre := range incoming[nodeID] {
+			if !resolveEffectiveCompleted(pre, visiting) {
+				delete(visiting, nodeID)
+				effectiveCompletedDone[nodeID] = true
+				effectiveCompletedMemo[nodeID] = false
+				return false
+			}
+		}
+		delete(visiting, nodeID)
+		effectiveCompletedDone[nodeID] = true
+		effectiveCompletedMemo[nodeID] = true
+		return true
+	}
+	effectiveCompleted := make(map[uint64]bool, len(nodes))
+	for _, node := range nodes {
+		effectiveCompleted[node.ID] = resolveEffectiveCompleted(node.ID, map[uint64]bool{})
+	}
+
 	result := make(map[uint64]LearningNodeProgressSnapshot, len(nodes))
 	for _, node := range nodes {
 		missing := make([]uint64, 0)
 		for _, pre := range incoming[node.ID] {
-			if !baseCompleted[pre] {
+			if !effectiveCompleted[pre] {
 				missing = append(missing, pre)
 			}
 		}
@@ -1373,11 +1780,11 @@ func ComputeLearningNodeProgress(
 			snapshot.Status = model.LearningMapProgressLocked
 			snapshot.MissingPrerequisiteIDs = missing
 		} else {
-			if baseMastered[node.ID] {
+			if baseMastered[node.ID] && effectiveCompleted[node.ID] {
 				snapshot.Status = model.LearningMapProgressMastered
 				snapshot.MasteredAt = masteredAt[node.ID]
 				snapshot.CompletedAt = completedAt[node.ID]
-			} else if baseCompleted[node.ID] {
+			} else if effectiveCompleted[node.ID] {
 				snapshot.Status = model.LearningMapProgressCompleted
 				snapshot.CompletedAt = completedAt[node.ID]
 			} else if baseInProgress[node.ID] {

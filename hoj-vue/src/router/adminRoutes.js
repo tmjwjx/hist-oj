@@ -116,7 +116,7 @@ const adminRoutes = [
         path: 'exam-paper',
         name: 'admin-exam-paper',
         component: ExamPaperAdmin,
-        meta: { requireSuperAdmin: true, title: '试卷库管理' }
+        meta: { requireAdmin: true, title: '试卷库管理' }
       },
       {
         path: 'announcement',
@@ -311,13 +311,13 @@ const adminRoutes = [
         meta: { title: '工具箱' }
       },
       {
-        path: 'toolbox/learning-map',
+        path: 'learning-map',
         name: 'admin-learning-map-list',
         component: AdminLearningMapList,
         meta: { title: '航海图管理' }
       },
       {
-        path: 'toolbox/learning-map/:mapId',
+        path: 'learning-map/:mapId',
         name: 'admin-learning-map-editor',
         component: AdminLearningMapEditor,
         meta: { title: '航海图编辑器' }

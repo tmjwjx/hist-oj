@@ -1,18 +1,28 @@
 <template>
   <div class="learning-map-canvas" ref="stage" @wheel.prevent="onWheel" @mousedown="onStageMouseDown" @touchstart="onStageTouchStart">
-    <div class="map-grid"></div>
-
     <div class="world" :style="worldStyle">
       <svg class="edge-layer" :width="worldSize.width" :height="worldSize.height">
-        <line
-          v-for="edge in filteredEdges"
-          :key="edge.id"
-          :x1="getNodePosition(edge.sourceNodeId).x"
-          :y1="getNodePosition(edge.sourceNodeId).y"
-          :x2="getNodePosition(edge.targetNodeId).x"
-          :y2="getNodePosition(edge.targetNodeId).y"
-          :class="['edge-line', edge.type === 'related' ? 'edge-related' : 'edge-prerequisite']"
-        />
+        <g v-for="edge in filteredEdges" :key="edge.id">
+          <line
+            :x1="getEdgeEndpoints(edge).x1"
+            :y1="getEdgeEndpoints(edge).y1"
+            :x2="getEdgeEndpoints(edge).x2"
+            :y2="getEdgeEndpoints(edge).y2"
+            :class="['edge-line', edge.type === 'related' ? 'edge-related' : 'edge-prerequisite']"
+          />
+          <circle
+            class="edge-anchor"
+            :cx="getEdgeEndpoints(edge).x1"
+            :cy="getEdgeEndpoints(edge).y1"
+            r="2.2"
+          />
+          <circle
+            class="edge-anchor"
+            :cx="getEdgeEndpoints(edge).x2"
+            :cy="getEdgeEndpoints(edge).y2"
+            r="2.2"
+          />
+        </g>
       </svg>
 
       <div class="node-layer">
@@ -32,12 +42,20 @@
           @mousedown.stop="onNodeMouseDown(node, $event)"
           @touchstart.stop="onNodeTouchStart(node, $event)"
         >
-          <div class="node-icon">
-            <i v-if="getNodeStatus(node.id) === 'locked'" class="el-icon-lock"></i>
-            <i v-else-if="getNodeStatus(node.id) === 'completed'" class="el-icon-circle-check"></i>
-            <i v-else-if="getNodeStatus(node.id) === 'mastered'" class="el-icon-medal-1"></i>
-            <i v-else-if="node.type === 'problem'" class="el-icon-document"></i>
-            <i v-else class="el-icon-reading"></i>
+          <div class="node-status-badge status-flag" v-if="isDoneStatus(getNodeStatus(node.id))">
+            <span class="flag-pole"></span>
+            <span class="flag-cloth"></span>
+          </div>
+          <div class="node-status-badge status-swords" v-else-if="showBattleBadge(getNodeStatus(node.id))">
+            <span class="sword sword-a"></span>
+            <span class="sword sword-b"></span>
+          </div>
+          <div class="ship-wrap">
+            <div class="ship-mast"></div>
+            <div class="ship-sail"></div>
+            <div class="ship-hull"></div>
+            <div class="ship-wave ship-wave-1"></div>
+            <div class="ship-wave ship-wave-2"></div>
           </div>
           <div class="node-title">{{ node.title }}</div>
         </div>
@@ -58,18 +76,18 @@
         <line
           v-for="edge in filteredEdges"
           :key="`mini-${edge.id}`"
-          :x1="miniX(getNodePosition(edge.sourceNodeId).x)"
-          :y1="miniY(getNodePosition(edge.sourceNodeId).y)"
-          :x2="miniX(getNodePosition(edge.targetNodeId).x)"
-          :y2="miniY(getNodePosition(edge.targetNodeId).y)"
+          :x1="miniX(getEdgeEndpoints(edge).x1)"
+          :y1="miniY(getEdgeEndpoints(edge).y1)"
+          :x2="miniX(getEdgeEndpoints(edge).x2)"
+          :y2="miniY(getEdgeEndpoints(edge).y2)"
           class="mini-edge"
         />
 
         <circle
           v-for="node in filteredNodes"
           :key="`mini-node-${node.id}`"
-          :cx="miniX(getNodePosition(node.id).x)"
-          :cy="miniY(getNodePosition(node.id).y)"
+          :cx="miniX(getNodeRenderPosition(node.id).x)"
+          :cy="miniY(getNodeRenderPosition(node.id).y)"
           r="3"
           :class="['mini-node', `mini-${node.type}`]"
         />
@@ -89,6 +107,7 @@
 <script>
 const MIN_SCALE = 0.28
 const MAX_SCALE = 2.8
+const WORLD_PADDING = 260
 const NODE_TYPE_LABEL = {
   knowledge: '知识点',
   problem: '题目'
@@ -149,6 +168,10 @@ export default {
         width: 2600,
         height: 1800
       },
+      worldOffset: {
+        x: WORLD_PADDING,
+        y: WORLD_PADDING
+      },
       miniSize: {
         width: 220,
         height: 140
@@ -202,8 +225,8 @@ export default {
       if (this.filteredNodes.length === 0) {
         return { minX: 0, maxX: 1, minY: 0, maxY: 1 }
       }
-      const xs = this.filteredNodes.map(n => this.getNodePosition(n.id).x)
-      const ys = this.filteredNodes.map(n => this.getNodePosition(n.id).y)
+      const xs = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).x)
+      const ys = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).y)
       const minX = Math.min(...xs) - 120
       const maxX = Math.max(...xs) + 120
       const minY = Math.min(...ys) - 120
@@ -263,6 +286,12 @@ export default {
     getStatusLabel(status) {
       return STATUS_LABEL[status] || status
     },
+    isDoneStatus(status) {
+      return status === 'completed' || status === 'mastered'
+    },
+    showBattleBadge(status) {
+      return status === 'available' || status === 'in_progress'
+    },
     getNodeStatus(nodeId) {
       if (!this.progressMap || !this.progressMap[nodeId]) {
         return 'locked'
@@ -274,10 +303,25 @@ export default {
       return `${node.title}\n类型：${this.getNodeTypeLabel(node.type)}\n状态：${this.getStatusLabel(status)}`
     },
     nodeStyle(node) {
-      const pos = this.getNodePosition(node.id)
+      const pos = this.getNodeRenderPosition(node.id)
       return {
         left: `${pos.x}px`,
         top: `${pos.y}px`
+      }
+    },
+    getShipAnchorPosition(nodeId) {
+      const pos = this.getNodeRenderPosition(nodeId)
+      const yOffset = this.stageSize.width <= 900 ? 12 : 14
+      return { x: pos.x, y: pos.y - yOffset }
+    },
+    getEdgeEndpoints(edge) {
+      const source = this.getShipAnchorPosition(edge.sourceNodeID || edge.sourceNodeId)
+      const target = this.getShipAnchorPosition(edge.targetNodeID || edge.targetNodeId)
+      return {
+        x1: source.x,
+        y1: source.y,
+        x2: target.x,
+        y2: target.y
       }
     },
     getNodePosition(nodeId) {
@@ -291,6 +335,21 @@ export default {
       }
       return { x: Number(raw.x) || 0, y: Number(raw.y) || 0 }
     },
+    getNodeRenderPosition(nodeId) {
+      return this.projectPoint(this.getNodePosition(nodeId))
+    },
+    projectPoint(point) {
+      return {
+        x: Number(point.x || 0) + this.worldOffset.x,
+        y: Number(point.y || 0) + this.worldOffset.y
+      }
+    },
+    unprojectPoint(point) {
+      return {
+        x: Number(point.x || 0) - this.worldOffset.x,
+        y: Number(point.y || 0) - this.worldOffset.y
+      }
+    },
     setNodePosition(nodeId, x, y) {
       this.$set(this.localNodePositions, nodeId, { x, y })
     },
@@ -303,16 +362,21 @@ export default {
     recalculateWorldSize() {
       if (!this.nodes.length) {
         this.worldSize = { width: 2600, height: 1800 }
+        this.worldOffset = { x: WORLD_PADDING, y: WORLD_PADDING }
         return
       }
-      const xs = this.nodes.map(n => Number(n.x) || 0)
-      const ys = this.nodes.map(n => Number(n.y) || 0)
+      const xs = this.nodes.map(n => this.getNodePosition(n.id).x)
+      const ys = this.nodes.map(n => this.getNodePosition(n.id).y)
       const maxX = Math.max(...xs)
       const maxY = Math.max(...ys)
       const minX = Math.min(...xs)
       const minY = Math.min(...ys)
-      const width = Math.max(2200, Math.ceil(maxX - minX + 520))
-      const height = Math.max(1600, Math.ceil(maxY - minY + 520))
+      this.worldOffset = {
+        x: WORLD_PADDING - minX,
+        y: WORLD_PADDING - minY
+      }
+      const width = Math.max(2200, Math.ceil(maxX - minX + WORLD_PADDING * 2))
+      const height = Math.max(1600, Math.ceil(maxY - minY + WORLD_PADDING * 2))
       this.worldSize = { width, height }
     },
     miniX(x) {
@@ -376,11 +440,12 @@ export default {
         return
       }
       const world = this.clientToWorld(e.clientX, e.clientY)
+      const rawWorld = this.unprojectPoint(world)
       const pos = this.getNodePosition(node.id)
       this.draggingNodeId = node.id
       this.draggingStartWorld = {
-        offsetX: world.x - pos.x,
-        offsetY: world.y - pos.y
+        offsetX: rawWorld.x - pos.x,
+        offsetY: rawWorld.y - pos.y
       }
     },
     onNodeTouchStart(node, e) {
@@ -389,11 +454,12 @@ export default {
       }
       const t = e.touches[0]
       const world = this.clientToWorld(t.clientX, t.clientY)
+      const rawWorld = this.unprojectPoint(world)
       const pos = this.getNodePosition(node.id)
       this.draggingNodeId = node.id
       this.draggingStartWorld = {
-        offsetX: world.x - pos.x,
-        offsetY: world.y - pos.y
+        offsetX: rawWorld.x - pos.x,
+        offsetY: rawWorld.y - pos.y
       }
     },
     onPointerMove(e) {
@@ -401,8 +467,9 @@ export default {
         const clientX = e.touches ? e.touches[0].clientX : e.clientX
         const clientY = e.touches ? e.touches[0].clientY : e.clientY
         const world = this.clientToWorld(clientX, clientY)
-        const x = world.x - this.draggingStartWorld.offsetX
-        const y = world.y - this.draggingStartWorld.offsetY
+        const rawWorld = this.unprojectPoint(world)
+        const x = rawWorld.x - this.draggingStartWorld.offsetX
+        const y = rawWorld.y - this.draggingStartWorld.offsetY
         this.setNodePosition(this.draggingNodeId, x, y)
         return
       }
@@ -475,8 +542,9 @@ export default {
         this.viewHistory.push({ ...this.viewport })
       }
       const targetScale = Math.max(1, this.viewport.scale)
-      const targetX = this.stageSize.width / 2 - this.getNodePosition(node.id).x * targetScale
-      const targetY = this.stageSize.height / 2 - this.getNodePosition(node.id).y * targetScale
+      const pos = this.getNodeRenderPosition(node.id)
+      const targetX = this.stageSize.width / 2 - pos.x * targetScale
+      const targetY = this.stageSize.height / 2 - pos.y * targetScale
       this.animateViewport({ x: targetX, y: targetY, scale: targetScale })
     },
     goBackView() {
@@ -490,8 +558,8 @@ export default {
       if (!this.filteredNodes.length) {
         return
       }
-      const xs = this.filteredNodes.map(n => this.getNodePosition(n.id).x)
-      const ys = this.filteredNodes.map(n => this.getNodePosition(n.id).y)
+      const xs = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).x)
+      const ys = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).y)
       const minX = Math.min(...xs) - 180
       const maxX = Math.max(...xs) + 180
       const minY = Math.min(...ys) - 140
@@ -534,19 +602,14 @@ export default {
   border-radius: 18px;
   border: 1px solid #cfe1f8;
   background:
-    radial-gradient(circle at 14% 18%, rgba(255, 241, 189, 0.65), transparent 38%),
-    radial-gradient(circle at 85% 24%, rgba(199, 241, 255, 0.65), transparent 42%),
-    linear-gradient(180deg, #ecf6ff 0%, #e7f3ff 52%, #fff5da 100%);
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.22), transparent 34%),
+    radial-gradient(circle at 82% 26%, rgba(173, 230, 255, 0.28), transparent 40%),
+    radial-gradient(circle at 20% 82%, rgba(40, 161, 226, 0.26), transparent 46%),
+    linear-gradient(180deg, #8bd4ff 0%, #45a8e2 42%, #1f7cbf 72%, #18679f 100%);
   touch-action: none;
 }
 .map-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(74, 144, 226, 0.1) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(74, 144, 226, 0.1) 1px, transparent 1px);
-  background-size: 28px 28px;
-  pointer-events: none;
+  display: none;
 }
 .world {
   position: absolute;
@@ -569,26 +632,30 @@ export default {
   stroke: #94a3b8;
   stroke-dasharray: 6 4;
 }
+.edge-anchor {
+  fill: #2563eb;
+  opacity: 0.85;
+}
 .node-layer {
   position: absolute;
   inset: 0;
 }
 .map-node {
   position: absolute;
-  width: 160px;
-  min-height: 64px;
+  width: 168px;
+  min-height: 86px;
   transform: translate(-50%, -50%);
-  border-radius: 16px;
-  border: 2px solid #ceddf2;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 6px 14px rgba(27, 39, 94, 0.12);
-  padding: 8px 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(122, 148, 178, 0.36);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(248, 251, 255, 0.84) 100%);
+  box-shadow: 0 8px 16px rgba(27, 39, 94, 0.14);
+  padding: 8px 10px 9px;
   cursor: pointer;
   transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
   user-select: none;
+  overflow: visible;
 }
 .map-node:hover {
-  transform: translate(-50%, -52%);
   box-shadow: 0 10px 18px rgba(36, 78, 160, 0.2);
 }
 .map-node.is-selected {
@@ -597,35 +664,135 @@ export default {
 .map-node.is-dragging {
   cursor: grabbing;
 }
-.map-node .node-icon {
-  font-size: 16px;
-  margin-bottom: 5px;
+.node-status-badge {
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 22px;
+  z-index: 3;
+}
+.flag-pole {
+  position: absolute;
+  left: 7px;
+  top: 1px;
+  width: 2px;
+  height: 20px;
+  background: #6b5a43;
+}
+.flag-cloth {
+  position: absolute;
+  left: 9px;
+  top: 2px;
+  width: 16px;
+  height: 10px;
+  background: linear-gradient(145deg, #34d399 0%, #16a34a 100%);
+  border: 1px solid rgba(18, 121, 68, 0.38);
+  clip-path: polygon(0 0, 100% 50%, 0 100%, 20% 50%);
+  border-radius: 2px;
+}
+.status-swords .sword {
+  position: absolute;
+  left: 13px;
+  top: 2px;
+  width: 2px;
+  height: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #94a3b8 100%);
+  border-radius: 1px;
+}
+.status-swords .sword::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: -3px;
+  width: 8px;
+  height: 3px;
+  border-radius: 3px;
+  background: #9a7f55;
+}
+.status-swords .sword-a {
+  transform: rotate(-38deg);
+}
+.status-swords .sword-b {
+  transform: rotate(38deg);
+}
+.ship-wrap {
+  position: relative;
+  width: 66px;
+  height: 34px;
+  margin: 0 auto 7px;
+}
+.ship-mast {
+  position: absolute;
+  left: 28px;
+  top: 0;
+  width: 3px;
+  height: 19px;
+  border-radius: 2px;
+  background: #7a5434;
+}
+.ship-sail {
+  position: absolute;
+  left: 31px;
+  top: 3px;
+  width: 22px;
+  height: 16px;
+  background: linear-gradient(180deg, #94c5ff 0%, #5b8fd3 100%);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  border: 1px solid rgba(42, 93, 164, 0.45);
+  border-left: none;
+  transform-origin: left center;
+  animation: sailSwing 2.8s ease-in-out infinite;
+}
+.ship-hull {
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  width: 50px;
+  height: 12px;
+  background: linear-gradient(180deg, #8b5e3c 0%, #6d4328 100%);
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 14% 100%);
+  border-radius: 2px;
+}
+.ship-wave {
+  position: absolute;
+  top: 29px;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(44, 119, 205, 0.42);
+  animation: waveMove 1.8s ease-in-out infinite;
+}
+.ship-wave-1 {
+  left: 3px;
+}
+.ship-wave-2 {
+  right: 1px;
+  animation-delay: 0.4s;
 }
 .map-node .node-title {
   font-size: 13px;
   line-height: 1.35;
   font-weight: 600;
   word-break: break-word;
+  text-align: center;
 }
 .map-node.type-knowledge {
-  border-color: #7fd8b1;
-  background: linear-gradient(180deg, #ffffff 0%, #f2fff7 100%);
+  border-color: rgba(63, 174, 146, 0.42);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(241, 255, 247, 0.88) 100%);
 }
 .map-node.type-problem {
-  border-color: #ffd08a;
-  background: linear-gradient(180deg, #ffffff 0%, #fff8ea 100%);
-}
-.map-node.status-available,
-.map-node.status-in_progress {
-  animation: floatNode 2.8s ease-in-out infinite;
+  border-color: rgba(236, 158, 47, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 248, 235, 0.88) 100%);
 }
 .map-node.status-locked {
   filter: grayscale(1);
-  opacity: 0.65;
+  opacity: 0.56;
 }
 .map-node.status-completed {
-  border-color: #42b983;
-  background: #f0fbf5;
+  border-color: #37ad76;
+  background: linear-gradient(180deg, rgba(241, 252, 246, 0.93) 0%, rgba(232, 249, 241, 0.9) 100%);
 }
 .map-node.status-mastered {
   border-color: #f6ad55;
@@ -642,15 +809,29 @@ export default {
     box-shadow: 0 0 0 0 rgba(246, 173, 85, 0.2);
   }
 }
-@keyframes floatNode {
+@keyframes sailSwing {
   0% {
-    transform: translate(-50%, -50%);
+    transform: skewY(0deg);
   }
   50% {
-    transform: translate(-50%, -53%);
+    transform: skewY(4deg);
   }
   100% {
-    transform: translate(-50%, -50%);
+    transform: skewY(0deg);
+  }
+}
+@keyframes waveMove {
+  0% {
+    opacity: 0.45;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 0.88;
+    transform: translateX(2px);
+  }
+  100% {
+    opacity: 0.45;
+    transform: translateX(0);
   }
 }
 .canvas-tools {
@@ -697,7 +878,7 @@ export default {
     height: 64vh;
   }
   .map-node {
-    width: 132px;
+    width: 138px;
   }
   .canvas-tools {
     right: 8px;

@@ -120,11 +120,15 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config, db *g
 
 				// 管理员题库管理
 				admin.GET("/question-bank", handler.AdminGetQuestionBank) // 获取所有题目
+			}
 
-				// 管理员试卷库管理
-				admin.GET("/exam-papers", handler.AdminGetExamPaperList)           // 获取所有试卷
-				admin.PUT("/exam-paper/:paperId", handler.AdminUpdateExamPaper)    // 更新试卷
-				admin.DELETE("/exam-paper/:paperId", handler.AdminDeleteExamPaper) // 删除试卷
+			// 航海图/试卷管理开放给普通管理员、题目管理员、超级管理员
+			adminOrProblemAdmin := classroom.Group("/admin")
+			adminOrProblemAdmin.Use(AdminOrProblemAdminAuthMiddleware())
+			{
+				adminOrProblemAdmin.GET("/exam-papers", handler.AdminGetExamPaperList)           // 获取所有试卷
+				adminOrProblemAdmin.PUT("/exam-paper/:paperId", handler.AdminUpdateExamPaper)    // 更新试卷
+				adminOrProblemAdmin.DELETE("/exam-paper/:paperId", handler.AdminDeleteExamPaper) // 删除试卷
 			}
 
 			// 班级管理（教师）- 需要认证

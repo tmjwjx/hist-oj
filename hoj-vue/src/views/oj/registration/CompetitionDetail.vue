@@ -744,8 +744,7 @@ export default {
   async mounted() {
     this.currentUser = this.getCurrentUser()
     if (!this.currentUser) {
-      mMessage.error('请先登录')
-      this.$router.push('/')
+      this.$router.replace({ path: '/home' })
       return
     }
     await this.loadCompetition()

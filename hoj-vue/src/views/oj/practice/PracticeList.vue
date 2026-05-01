@@ -4,7 +4,7 @@
       <div class="search-bar">
         <el-input
           v-model="keyword"
-          placeholder="搜索公开试卷"
+          placeholder="搜索套卷"
           clearable
           @clear="handleSearch"
           @keyup.enter.native="handleSearch"
@@ -16,7 +16,7 @@
 
     <el-card shadow="never" class="list-card">
       <div v-loading="loading">
-        <el-empty v-if="papers.length === 0" description="暂无公开练习试卷"></el-empty>
+        <el-empty v-if="papers.length === 0" description="暂无可练习套卷"></el-empty>
         <div v-else class="paper-list">
           <article
             v-for="paper in papers"
@@ -25,7 +25,7 @@
           >
             <div class="paper-main" @click="goDetail(paper.id)">
               <div class="paper-topline">
-                <span class="paper-origin">公开练习 · 试卷</span>
+                <span class="paper-origin">套卷练习 · 试卷</span>
                 <span class="paper-author">作者 {{ paper.creator ? paper.creator.username : '-' }}</span>
               </div>
               <h3 class="paper-title">{{ paper.title }}</h3>
@@ -39,7 +39,7 @@
               </div>
             </div>
             <div class="paper-actions">
-              <el-button type="primary" size="small" @click="goDetail(paper.id)">进入练习</el-button>
+              <el-button type="primary" size="small" @click="goDetail(paper.id)">进入套卷</el-button>
             </div>
           </article>
         </div>
@@ -93,10 +93,10 @@ export default {
           this.papers = data.papers || []
           this.pagination.total = data.total || 0
         } else {
-          this.$message.error((res.data && res.data.message) || '加载练习列表失败')
+          this.$message.error((res.data && res.data.message) || '加载套卷练习列表失败')
         }
       } catch (error) {
-        this.$message.error('加载练习列表失败')
+        this.$message.error('加载套卷练习列表失败')
       } finally {
         this.loading = false
       }

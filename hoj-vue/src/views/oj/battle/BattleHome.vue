@@ -161,34 +161,8 @@ export default {
       }
     },
 
-    // 检查用户是否登录
-    checkLogin() {
-      const userInfo = this.$store.getters.userInfo;
-
-      // 用户ID字段名是 uid
-      const userId = userInfo.uid;
-
-      if (!userInfo || !userId) {
-        this.$confirm('请先登录后再使用代码对战功能', '提示', {
-          confirmButtonText: '去登录',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }).then(() => {
-          this.$router.push({ name: 'Home' });
-        }).catch(() => {
-          // 用户取消
-        });
-        return false;
-      }
-      return true;
-    },
-
     // 创建房间
     async createRoom() {
-      if (!this.checkLogin()) {
-        return;
-      }
-
       try {
         const res = await createRoom();
 
@@ -238,10 +212,6 @@ export default {
 
     // 加入房间
     joinRoom() {
-      if (!this.checkLogin()) {
-        return;
-      }
-
       this.$refs.joinForm.validate(async (valid) => {
         if (valid) {
           this.joinLoading = true;

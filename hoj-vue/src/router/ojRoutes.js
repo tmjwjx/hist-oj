@@ -147,13 +147,13 @@ const ojRoutes = [
     path: '/practice',
     name: 'PracticeList',
     component: PracticeList,
-    meta: { title: 'Practice' }
+    meta: { title: '套卷练习' }
   },
   {
     path: '/practice/:paperId',
     name: 'PracticeDetail',
     component: PracticeDetail,
-    meta: { title: 'Practice Detail' }
+    meta: { title: '套卷练习详情' }
   },
   {
     path: '/contest',
@@ -479,13 +479,13 @@ const ojRoutes = [
     meta: { title: 'Toolbox' }
   },
   {
-    path: '/toolbox/learning-map',
+    path: '/learning-map',
     name: 'LearningMapList',
     component: LearningMapList,
     meta: { title: 'Learning Map', requireAuth: true }
   },
   {
-    path: '/toolbox/learning-map/:mapId',
+    path: '/learning-map/:mapId',
     name: 'LearningMapPage',
     component: LearningMapPage,
     meta: { title: 'Learning Map Detail', requireAuth: true }
@@ -494,13 +494,13 @@ const ojRoutes = [
     path: '/registration',
     name: 'Registration',
     component: Registration,
-    meta: { title: 'Registration' }
+    meta: { title: 'Registration', requireAuth: true }
   },
   {
     path: '/registration/list',
     name: 'RegistrationList',
     component: RegistrationList,
-    meta: { title: 'Registration List' }
+    meta: { title: 'Registration List', requireAuth: true }
   },
   {
     path: '/registration/competition/:id',

@@ -22,7 +22,7 @@
       <el-alert
         type="info"
         :closable="false"
-        title="点击“开始作答”后进入练习，每道题都可以单独点击“查看答案”查看标准答案。"
+        title="点击“开始作答”后进入套卷练习，每道题都可以单独点击“查看答案”查看标准答案。"
       ></el-alert>
     </el-card>
 
@@ -343,11 +343,11 @@ export default {
             }
           })
         } else {
-          this.$message.error((res.data && res.data.message) || '加载练习详情失败')
+          this.$message.error((res.data && res.data.message) || '加载套卷练习详情失败')
           this.$router.push({ name: 'PracticeList' })
         }
       } catch (error) {
-        this.$message.error('加载练习详情失败')
+        this.$message.error('加载套卷练习详情失败')
         this.$router.push({ name: 'PracticeList' })
       } finally {
         this.loading = false

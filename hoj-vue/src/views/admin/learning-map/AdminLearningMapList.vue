@@ -25,8 +25,6 @@
         <vxe-table-column title="操作" min-width="260">
           <template v-slot="{ row }">
             <el-button type="primary" size="mini" @click="openEditor(row.id)">编辑</el-button>
-            <el-button type="success" size="mini" @click="publishMap(row.id)">发布</el-button>
-            <el-button size="mini" @click="previewMap(row.id)">预览</el-button>
             <el-button type="danger" size="mini" @click="deleteMap(row.id)">删除</el-button>
           </template>
         </vxe-table-column>
@@ -71,7 +69,7 @@ export default {
   },
   methods: {
     mapStatusLabel(status) {
-      return status === 'published' ? '已发布' : '草稿'
+      return status === 'published' ? '已发布' : '已隐藏'
     },
     async loadMaps() {
       this.loading = true
@@ -107,23 +105,6 @@ export default {
     },
     openEditor(mapId) {
       this.$router.push({ name: 'admin-learning-map-editor', params: { mapId: String(mapId) } })
-    },
-    previewMap(mapId) {
-      const url = this.$router.resolve({ name: 'LearningMapPage', params: { mapId: String(mapId) } })
-      window.open(url.href, '_blank')
-    },
-    publishMap(mapId) {
-      this.$confirm('发布前将进行依赖与题目绑定校验，确认继续？', '发布确认', {
-        type: 'warning'
-      }).then(async () => {
-        try {
-          await learningMapApi.adminPublishMap(mapId)
-          this.$message.success('发布成功')
-          this.loadMaps()
-        } catch (e) {
-          this.$message.error(e.message || '发布失败')
-        }
-      })
     },
     deleteMap(mapId) {
       this.$confirm('删除后不可恢复，确认删除该航海图？', '危险操作', {
