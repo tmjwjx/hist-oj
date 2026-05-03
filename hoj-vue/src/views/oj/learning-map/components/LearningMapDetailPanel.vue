@@ -77,6 +77,15 @@
             effect="plain"
           >{{ tag }}</el-tag>
         </div>
+        <div class="problem-remark-box" v-if="nodeRemark">
+          <div class="problem-remark-title">
+            <i class="el-icon-document"></i>
+            <span>备注</span>
+          </div>
+          <div class="problem-remark-content">
+            <Markdown :content="nodeRemark" :is-avoid-xss="true" />
+          </div>
+        </div>
         <el-button
           size="mini"
           type="primary"
@@ -136,6 +145,16 @@ export default {
       }
       return this.extractResources(this.node.knowledgeContent || '')
     },
+    nodeRemark() {
+      if (!this.node || this.node.type !== 'problem') {
+        return ''
+      }
+      if (this.node.remark) {
+        return String(this.node.remark).trim()
+      }
+      const metadata = this.parseNodeMetadata(this.node.metadata)
+      return typeof metadata.remark === 'string' ? metadata.remark.trim() : ''
+    },
     difficultyLabel() {
       const key = this.node && this.node.difficulty
       return DIFFICULTY_LABEL[key] || '入门'
@@ -152,6 +171,15 @@ export default {
     }
   },
   methods: {
+    parseNodeMetadata(raw) {
+      if (!raw || !String(raw).trim()) return {}
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      } catch (e) {
+        return {}
+      }
+    },
     extractResources(content) {
       if (!content) return []
       const reg = /\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
@@ -307,6 +335,37 @@ export default {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+.problem-remark-box {
+  border: 1px dashed #f0c36a;
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+  background: #fffaf0;
+}
+.problem-remark-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8a5a12;
+  margin-bottom: 6px;
+}
+.problem-remark-content >>> .markdown-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #374151;
+  word-break: break-word;
+}
+.problem-remark-content >>> .markdown-body p {
+  margin: 0 0 6px;
+}
+.problem-remark-content >>> .markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.problem-remark-content >>> .markdown-body a {
+  word-break: break-all;
 }
 .detail-empty {
   height: 100%;

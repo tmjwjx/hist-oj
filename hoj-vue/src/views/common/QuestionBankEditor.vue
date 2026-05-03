@@ -12,7 +12,7 @@
     </div>
 
     <el-row :gutter="20">
-      <el-col :span="14" class="form-column">
+      <el-col :span="24" class="form-column">
         <el-card shadow="never" class="form-card">
           <el-form :model="form" label-width="110px" class="question-form">
             <el-form-item label="题型" required>
@@ -31,32 +31,7 @@
             </el-form-item>
 
             <el-form-item label="题目内容" required>
-              <div class="content-editor-toolbar">
-                <el-button
-                  size="mini"
-                  icon="el-icon-picture-outline"
-                  :loading="uploadingContentImage"
-                  @click="triggerContentImageUpload"
-                >
-                  上传图片
-                </el-button>
-                <span class="content-editor-tip">仅支持 png/jpg/jpeg，上传后自动插入 Markdown 图片语法</span>
-                <span class="content-editor-tip">点击右侧预览中的图片可手动调整显示宽度</span>
-              </div>
-              <el-input
-                ref="contentInput"
-                type="textarea"
-                v-model="form.content"
-                :rows="7"
-                placeholder="请输入题目内容，支持 Markdown"
-              ></el-input>
-              <input
-                ref="contentImageInput"
-                class="hidden-content-upload-input"
-                type="file"
-                accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-                @change="handleContentImageSelected"
-              />
+              <Editor :value.sync="form.content" :allow-upload="true" class="question-content-markdown-editor" />
             </el-form-item>
 
             <template v-if="form.type === 'single_choice'">
@@ -81,7 +56,7 @@
                 </div>
                 <div class="form-tip">
                   <i class="el-icon-info"></i>
-                  既可直接输入，也可点击“窗口编辑”查看更大编辑区与实时 Markdown 预览
+                  既可直接输入，也可点击“窗口编辑”使用完整 Markdown 编辑器
                 </div>
               </el-form-item>
             </template>
@@ -108,7 +83,7 @@
                 </div>
                 <div class="form-tip">
                   <i class="el-icon-info"></i>
-                  既可直接输入，也可点击“窗口编辑”查看更大编辑区与实时 Markdown 预览
+                  既可直接输入，也可点击“窗口编辑”使用完整 Markdown 编辑器
                 </div>
               </el-form-item>
             </template>
@@ -237,19 +212,7 @@
             </template>
 
             <el-form-item label="题目解析">
-              <div class="analysis-editor-wrap">
-                <el-input
-                  type="textarea"
-                  v-model="form.analysis"
-                  :rows="3"
-                  placeholder="请输入题目解析（可选）"
-                ></el-input>
-                <el-button size="mini" @click="openAnalysisEditor">窗口编辑</el-button>
-              </div>
-              <div class="form-tip">
-                <i class="el-icon-info"></i>
-                既可直接输入，也可点击“窗口编辑”查看更大编辑区与实时 Markdown 预览
-              </div>
+              <Editor :value.sync="form.analysis" :allow-upload="true" class="question-analysis-markdown-editor" />
             </el-form-item>
 
             <el-form-item label="题目标签">
@@ -310,235 +273,29 @@
         </el-card>
       </el-col>
 
-      <el-col :span="10" class="preview-column">
-        <el-card class="preview-card" shadow="never">
-          <div slot="header">
-            <i class="el-icon-view"></i> 实时预览
-          </div>
-          <div class="preview-content">
-            <div v-if="form.title" v-html="renderMarkdown(form.title)" class="markdown-body preview-title" v-highlight></div>
-            <p v-else class="preview-placeholder">题目标题预览</p>
-
-            <div
-              v-if="form.content"
-              v-html="renderMarkdown(form.content)"
-              class="markdown-body preview-content-text"
-              v-highlight
-              @click="handleContentPreviewClick"
-            ></div>
-            <p v-else class="preview-placeholder">题目内容预览</p>
-
-            <div v-if="form.type === 'single_choice'" class="preview-options">
-              <div v-for="(option, index) in form.choiceOptions" :key="index" class="preview-option-item">
-                <div class="preview-option-head">
-                  <el-tag :type="form.correctAnswer === index ? 'success' : 'info'" size="small">
-                    {{ optionLetters[index] }}
-                  </el-tag>
-                </div>
-                <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body preview-option-content" v-highlight></div>
-                <div v-else class="preview-placeholder">选项内容</div>
-              </div>
-            </div>
-
-            <div v-if="form.type === 'multiple_choice'" class="preview-options">
-              <div v-for="(option, index) in form.choiceOptions" :key="index" class="preview-option-item">
-                <div class="preview-option-head">
-                  <el-tag :type="form.correctAnswers[index] ? 'success' : 'info'" size="small">
-                    {{ optionLetters[index] }}
-                  </el-tag>
-                </div>
-                <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body preview-option-content" v-highlight></div>
-                <div v-else class="preview-placeholder">选项内容</div>
-              </div>
-            </div>
-
-            <div v-if="form.type === 'judge'" class="preview-options">
-              <div class="preview-option-item">
-                <el-tag :type="form.correctAnswer === 'true' ? 'success' : 'info'" size="small">✓</el-tag>
-                <span>正确</span>
-              </div>
-              <div class="preview-option-item">
-                <el-tag :type="form.correctAnswer === 'false' ? 'success' : 'info'" size="small">✗</el-tag>
-                <span>错误</span>
-              </div>
-            </div>
-
-            <div v-if="form.type === 'fill_blank'" class="preview-subjective">
-              <el-alert type="success" :closable="false">
-                填空题，学生答案命中任意一个参考答案即判对
-              </el-alert>
-              <div class="fill-blank-preview-list">
-                <el-tag
-                  v-for="(answer, index) in getNormalizedFillBlankAnswers(form.fillBlankAnswers, true)"
-                  :key="`fill-blank-preview-${index}`"
-                  size="small"
-                  type="info"
-                >
-                  {{ answer }}
-                </el-tag>
-                <span v-if="getNormalizedFillBlankAnswers(form.fillBlankAnswers, true).length === 0" class="preview-placeholder">
-                  请至少填写一个标准答案
-                </span>
-              </div>
-            </div>
-
-            <div v-if="form.type === 'subjective'" class="preview-subjective">
-              <el-alert type="info" :closable="false">
-                主观题，学生需输入文字答案
-              </el-alert>
-            </div>
-
-            <div v-if="form.type === 'composite'" class="preview-options">
-              <div
-                v-for="(subQuestion, subIndex) in form.compositeQuestions"
-                :key="subQuestion.id"
-                class="preview-option-item composite-preview-item"
-              >
-                <div class="composite-preview-title">
-                  子题 {{ subIndex + 1 }}（{{ subQuestion.score || 0 }} 分）
-                </div>
-                <div
-                  v-if="subQuestion.content"
-                  class="markdown-body preview-option-content"
-                  v-html="renderMarkdown(subQuestion.content)"
-                  v-highlight
-                ></div>
-                <div v-else class="preview-placeholder">子题题干预览</div>
-                <div class="preview-options">
-                  <div
-                    v-for="(option, optionIndex) in subQuestion.choiceOptions"
-                    :key="optionIndex"
-                    class="preview-option-item"
-                  >
-                    <div class="preview-option-head">
-                      <el-tag :type="subQuestion.correctAnswer === optionIndex ? 'success' : 'info'" size="small">
-                        {{ optionLetters[optionIndex] }}
-                      </el-tag>
-                    </div>
-                    <div
-                      v-if="option"
-                      class="markdown-body preview-option-content"
-                      v-html="renderMarkdown(option)"
-                      v-highlight
-                    ></div>
-                    <div v-else class="preview-placeholder">选项内容</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="form.analysis" class="preview-analysis">
-              <el-divider content-position="left">
-                <i class="el-icon-document" style="color: #E6A23C;"></i>
-                <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
-              </el-divider>
-              <div v-html="renderMarkdown(form.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
-            </div>
-            <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
-          </div>
-        </el-card>
-      </el-col>
     </el-row>
 
     <el-dialog
       :title="optionEditorTitle"
       :visible.sync="optionEditor.visible"
-      width="1100px"
+      width="900px"
       append-to-body
     >
-      <el-row :gutter="18">
-        <el-col :span="12">
-          <div class="dialog-title">编辑区</div>
-          <el-input
-            type="textarea"
-            :rows="18"
-            v-model="optionEditor.content"
-            :placeholder="optionEditorInputPlaceholder"
-            @input="syncOptionEditorContent"
-          ></el-input>
-        </el-col>
-        <el-col :span="12">
-          <div class="dialog-title">Markdown 预览</div>
-          <div class="option-dialog-preview markdown-body" v-html="renderMarkdown(optionEditor.content)" v-highlight></div>
-        </el-col>
-      </el-row>
+      <Editor
+        :value="optionEditor.content"
+        :allow-upload="true"
+        class="question-dialog-markdown-editor"
+        @update:value="syncOptionEditorContent"
+      />
       <span slot="footer">
         <el-button @click="closeOptionEditor">关闭</el-button>
-      </span>
-    </el-dialog>
-
-    <el-dialog
-      title="调整图片大小"
-      :visible.sync="imageSizeDialog.visible"
-      width="620px"
-      append-to-body
-    >
-      <div class="image-size-dialog-body">
-        <div class="image-size-dialog-tip">
-          调整后会写入题目内容，保存题目后，学生作业/考试页和主页练习页会按相同尺寸显示。
-        </div>
-        <div class="image-size-preview-wrap">
-          <img
-            v-if="imageSizeDialog.url"
-            :src="imageSizeDialog.url"
-            :style="{
-              width: imageSizeDialog.width > 0 ? imageSizeDialog.width + 'px' : 'auto',
-              maxWidth: '100%'
-            }"
-            alt="预览图"
-          />
-        </div>
-        <div class="image-size-control-line">
-          <span class="image-size-label">宽度(px)</span>
-          <el-slider
-            v-model="imageSizeDialog.width"
-            :min="100"
-            :max="1200"
-            :step="10"
-            :disabled="imageSizeDialog.width === 0"
-            style="flex: 1;"
-          ></el-slider>
-          <el-input-number
-            v-model="imageSizeDialog.width"
-            :min="0"
-            :max="1200"
-            :step="10"
-            controls-position="right"
-          ></el-input-number>
-        </div>
-        <div class="image-size-presets">
-          <el-button size="mini" @click="imageSizeDialog.width = 300">小(300)</el-button>
-          <el-button size="mini" @click="imageSizeDialog.width = 500">中(500)</el-button>
-          <el-button size="mini" @click="imageSizeDialog.width = 800">大(800)</el-button>
-          <el-button size="mini" type="warning" plain @click="imageSizeDialog.width = 0">原始大小</el-button>
-        </div>
-      </div>
-      <span slot="footer">
-        <el-button @click="closeImageSizeDialog">取消</el-button>
-        <el-button type="primary" @click="applyImageSize">应用</el-button>
       </span>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import MarkdownIt from 'markdown-it'
-import katex from '@iktakahiro/markdown-it-katex'
-import 'katex/dist/katex.min.css'
-
-const md = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true
-})
-
-md.use(katex, {
-  throwOnError: false,
-  errorColor: '#cc0000',
-  strict: false,
-  enableSuperscript: false,
-  enableSubscript: false
-})
+import Editor from '@/components/admin/Editor'
 
 const QUESTION_IMAGE_UPLOAD_PREFIX = '/uploads/classroom/questions/'
 const QUESTION_IMAGE_MARKDOWN_REGEX = /!\[[^\]]*]\(([^)]+)\)/g
@@ -546,6 +303,9 @@ const QUESTION_IMAGE_HTML_REGEX = /<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi
 
 export default {
   name: 'QuestionBankEditor',
+  components: {
+    Editor
+  },
   props: {
     scene: {
       type: String,
@@ -559,7 +319,6 @@ export default {
     return {
       loading: false,
       saving: false,
-      uploadingContentImage: false,
       tagInput: '',
       optionLetters: ['A', 'B', 'C', 'D'],
       optionEditor: {
@@ -581,15 +340,6 @@ export default {
         '政治',
         '英语'
       ],
-      imageSizeDialog: {
-        visible: false,
-        url: '',
-        sourceUrl: '',
-        alt: '图片描述',
-        width: 500,
-        startPos: -1,
-        endPos: -1
-      },
       originalQuestionImageUrls: [],
       sessionUploadedQuestionImageUrls: [],
       hasSavedQuestion: false,
@@ -634,16 +384,7 @@ export default {
         const letter = this.optionLetters[this.optionEditor.index] || ''
         return `编辑子题 ${subIndex + 1} 选项 ${letter}`
       }
-      if (this.optionEditor.mode === 'analysis') {
-        return '编辑题目解析'
-      }
       return '编辑内容'
-    },
-    optionEditorInputPlaceholder() {
-      if (this.optionEditor.mode === 'analysis') {
-        return '请输入题目解析，支持 Markdown'
-      }
-      return '请输入选项内容，支持 Markdown'
     }
   },
   created() {
@@ -915,194 +656,6 @@ export default {
       }
       this.form.fillBlankAnswers.splice(index, 1)
     },
-    triggerContentImageUpload() {
-      if (this.uploadingContentImage) {
-        return
-      }
-      const input = this.$refs.contentImageInput
-      if (!input) {
-        return
-      }
-      input.value = ''
-      input.click()
-    },
-    async handleContentImageSelected(event) {
-      const input = event && event.target ? event.target : null
-      const file = input && input.files && input.files.length > 0 ? input.files[0] : null
-      if (!file) {
-        return
-      }
-
-      const ext = (file.name || '').toLowerCase()
-      const isAllowedExt = ext.endsWith('.png') || ext.endsWith('.jpg') || ext.endsWith('.jpeg')
-      const mime = (file.type || '').toLowerCase()
-      const isAllowedMime = mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/jpg'
-
-      if (!isAllowedExt || (mime && !isAllowedMime)) {
-        this.$message.warning('仅支持上传 png/jpg/jpeg 格式图片')
-        if (input) input.value = ''
-        return
-      }
-
-      const maxSize = 10 * 1024 * 1024
-      if (file.size > maxSize) {
-        this.$message.warning('图片大小不能超过10MB')
-        if (input) input.value = ''
-        return
-      }
-
-      await this.uploadContentImage(file)
-      if (input) input.value = ''
-    },
-    async uploadContentImage(file) {
-      this.uploadingContentImage = true
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        const res = await this.$http.post('/api/classroom/question/upload-image', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (res.data.code !== 200 || !res.data.data || !res.data.data.url) {
-          this.$message.error(res.data.message || '图片上传失败')
-          return
-        }
-
-        const imageURL = res.data.data.url
-        const normalizedImageURL = this.normalizeQuestionImageUrl(imageURL)
-        if (normalizedImageURL) {
-          this.sessionUploadedQuestionImageUrls = this.uniqueQuestionImageUrls([
-            ...this.sessionUploadedQuestionImageUrls,
-            normalizedImageURL
-          ])
-        }
-        const markdown = `![${file.name}](${imageURL})`
-        this.insertContentMarkdown(markdown)
-        this.$message.success('图片上传成功')
-      } catch (error) {
-        this.$message.error('图片上传失败')
-      } finally {
-        this.uploadingContentImage = false
-      }
-    },
-    insertContentMarkdown(markdown) {
-      const contentInput = this.$refs.contentInput
-      const textarea = contentInput && contentInput.$refs ? contentInput.$refs.textarea : null
-      if (!textarea || typeof textarea.selectionStart !== 'number' || typeof textarea.selectionEnd !== 'number') {
-        this.form.content = this.form.content ? `${this.form.content}\n${markdown}` : markdown
-        return
-      }
-
-      const source = this.form.content || ''
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      const before = source.slice(0, start)
-      const after = source.slice(end)
-      const prefix = before && !before.endsWith('\n') ? '\n' : ''
-      const suffix = after && !after.startsWith('\n') ? '\n' : ''
-      const inserted = `${prefix}${markdown}${suffix}`
-      const next = `${before}${inserted}${after}`
-      this.form.content = next
-
-      this.$nextTick(() => {
-        const cursor = before.length + inserted.length
-        textarea.focus()
-        textarea.setSelectionRange(cursor, cursor)
-      })
-    },
-    handleContentPreviewClick(event) {
-      if (!event || !event.target || event.target.tagName !== 'IMG') {
-        return
-      }
-      this.findImageInContentMarkdown(event.target.src)
-    },
-    findImageInContentMarkdown(imageUrl) {
-      const content = this.form.content || ''
-      if (!content.trim()) {
-        return
-      }
-
-      let imagePath = imageUrl
-      if (imageUrl.startsWith(window.location.origin)) {
-        imagePath = imageUrl.substring(window.location.origin.length)
-      }
-
-      const escapedPath = this.escapeRegex(imagePath)
-      const mdImageRegex = new RegExp(`!\\[([^\\]]*)\\]\\(([^)]*${escapedPath}[^)]*)\\)`, 'g')
-      const htmlImgRegex = new RegExp(`<img[^>]*src=["']([^"']*${escapedPath}[^"']*)["'][^>]*>`, 'gi')
-
-      const mdMatch = mdImageRegex.exec(content)
-      const htmlMatch = htmlImgRegex.exec(content)
-
-      if (mdMatch) {
-        this.imageSizeDialog.url = imageUrl
-        this.imageSizeDialog.sourceUrl = mdMatch[2] || imagePath
-        this.imageSizeDialog.alt = mdMatch[1] || '图片描述'
-        this.imageSizeDialog.width = 0
-        this.imageSizeDialog.startPos = mdMatch.index
-        this.imageSizeDialog.endPos = mdMatch.index + mdMatch[0].length
-        this.imageSizeDialog.visible = true
-        return
-      }
-
-      if (htmlMatch) {
-        const widthMatch = htmlMatch[0].match(/width=["'](\d+)["']/i)
-        const altMatch = htmlMatch[0].match(/alt=["']([^"']*)["']/i)
-        this.imageSizeDialog.url = imageUrl
-        this.imageSizeDialog.sourceUrl = htmlMatch[1] || imagePath
-        this.imageSizeDialog.alt = altMatch ? altMatch[1] : '图片描述'
-        this.imageSizeDialog.width = widthMatch ? parseInt(widthMatch[1], 10) : 0
-        this.imageSizeDialog.startPos = htmlMatch.index
-        this.imageSizeDialog.endPos = htmlMatch.index + htmlMatch[0].length
-        this.imageSizeDialog.visible = true
-        return
-      }
-
-      this.$message.warning('未找到对应图片代码，请检查题目内容中的图片语法')
-    },
-    escapeRegex(text) {
-      return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    },
-    escapeHtmlAttr(text) {
-      return String(text || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-    },
-    closeImageSizeDialog() {
-      this.imageSizeDialog.visible = false
-      this.imageSizeDialog.url = ''
-      this.imageSizeDialog.sourceUrl = ''
-      this.imageSizeDialog.alt = '图片描述'
-      this.imageSizeDialog.width = 500
-      this.imageSizeDialog.startPos = -1
-      this.imageSizeDialog.endPos = -1
-    },
-    applyImageSize() {
-      const start = this.imageSizeDialog.startPos
-      const end = this.imageSizeDialog.endPos
-      if (start === -1 || end === -1 || end <= start) {
-        this.$message.error('无法定位图片位置，请重新点击图片后再试')
-        return
-      }
-
-      const content = this.form.content || ''
-      const before = content.substring(0, start)
-      const after = content.substring(end)
-      const safeAlt = this.escapeHtmlAttr(this.imageSizeDialog.alt || '图片描述')
-      const sourceUrl = this.imageSizeDialog.sourceUrl || this.imageSizeDialog.url
-
-      let newImageCode = ''
-      if (this.imageSizeDialog.width > 0) {
-        newImageCode = `<img src="${sourceUrl}" width="${this.imageSizeDialog.width}" alt="${safeAlt}">`
-      } else {
-        newImageCode = `![${safeAlt}](${sourceUrl})`
-      }
-
-      this.form.content = before + newImageCode + after
-      this.closeImageSizeDialog()
-      this.$message.success('图片大小已更新，保存题目后学生端将同步显示')
-    },
     addTag() {
       const tag = this.tagInput.trim()
       if (tag && !this.form.tags.includes(tag)) {
@@ -1138,13 +691,6 @@ export default {
       this.optionEditor.subIndex = subIndex
       this.optionEditor.content = subQuestion.choiceOptions[optionIndex] || ''
     },
-    openAnalysisEditor() {
-      this.optionEditor.visible = true
-      this.optionEditor.mode = 'analysis'
-      this.optionEditor.index = null
-      this.optionEditor.subIndex = null
-      this.optionEditor.content = this.form.analysis || ''
-    },
     closeOptionEditor() {
       this.optionEditor.visible = false
       this.optionEditor.mode = ''
@@ -1153,6 +699,7 @@ export default {
       this.optionEditor.content = ''
     },
     syncOptionEditorContent(value) {
+      this.optionEditor.content = value
       if (this.optionEditor.mode === 'normal_option') {
         if (this.optionEditor.index === null) return
         this.$set(this.form.choiceOptions, this.optionEditor.index, value)
@@ -1170,9 +717,6 @@ export default {
         if (subIndex === null || optionIndex === null || !this.form.compositeQuestions[subIndex]) return
         this.$set(this.form.compositeQuestions[subIndex].choiceOptions, optionIndex, value)
         return
-      }
-      if (this.optionEditor.mode === 'analysis') {
-        this.$set(this.form, 'analysis', value)
       }
     },
     addCompositeQuestion() {
@@ -1481,14 +1025,6 @@ export default {
       } finally {
         this.saving = false
       }
-    },
-    renderMarkdown(content) {
-      if (!content) return ''
-      try {
-        return md.render(content)
-      } catch (e) {
-        return content
-      }
     }
   }
 }
@@ -1525,8 +1061,7 @@ export default {
   gap: 10px;
 }
 
-.form-column,
-.preview-column {
+.form-column {
   max-height: calc(100vh - 160px);
   overflow-y: auto;
 }
@@ -1537,72 +1072,6 @@ export default {
 
 .question-form .el-form-item {
   margin-bottom: 14px;
-}
-
-.content-editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.content-editor-tip {
-  color: #909399;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.hidden-content-upload-input {
-  display: none;
-}
-
-.image-size-dialog-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.image-size-dialog-tip {
-  font-size: 12px;
-  color: #909399;
-}
-
-.image-size-preview-wrap {
-  min-height: 140px;
-  border: 1px dashed #dcdfe6;
-  border-radius: 6px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fafafa;
-}
-
-.image-size-preview-wrap img {
-  display: block;
-  border-radius: 4px;
-}
-
-.image-size-control-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.image-size-label {
-  width: 70px;
-  font-size: 13px;
-  color: #606266;
-}
-
-.image-size-presets {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.question-editor-page /deep/ .preview-content-text img {
-  cursor: pointer;
 }
 
 .compact-form-row .el-form-item {
@@ -1634,13 +1103,6 @@ export default {
 
 .fill-blank-answer-item .el-input {
   flex: 1;
-}
-
-.fill-blank-preview-list {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .composite-panel {
@@ -1689,11 +1151,6 @@ export default {
   gap: 8px;
 }
 
-.composite-preview-title {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
 .option-item {
   display: flex;
   align-items: flex-start;
@@ -1718,12 +1175,6 @@ export default {
   gap: 4px;
 }
 
-.analysis-editor-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .tags-input-container {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
@@ -1735,107 +1186,20 @@ export default {
   margin-bottom: 8px;
 }
 
-.preview-card {
-  min-height: 100%;
-  border: 2px solid #e4e7ed;
+.question-content-markdown-editor /deep/ .v-note-wrapper {
+  min-height: 360px;
 }
 
-.preview-content {
-  padding: 10px;
+.question-analysis-markdown-editor /deep/ .v-note-wrapper {
+  min-height: 300px;
 }
 
-.preview-title {
-  color: #303133;
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  border-bottom: 2px solid #e4e7ed;
-  padding-bottom: 10px;
-}
-
-.preview-content-text {
-  color: #606266;
-  line-height: 1.8;
-  margin-bottom: 20px;
-  font-size: 14px;
-}
-
-.preview-placeholder {
-  color: #c0c4cc;
-  font-style: italic;
-}
-
-.preview-options {
-  margin-top: 15px;
-}
-
-.preview-option-item {
-  display: block;
-  padding: 10px;
-  margin-bottom: 10px;
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-.preview-option-head {
-  margin-bottom: 6px;
-}
-
-.preview-option-content {
-  width: 100%;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.preview-option-content p {
-  margin: 0;
-}
-
-.preview-option-content pre {
-  margin: 0;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.preview-subjective {
-  margin-top: 15px;
-}
-
-.preview-analysis {
-  margin-top: 15px;
-  padding: 10px;
-  background: #fff9e6;
-  border-left: 3px solid #e6a23c;
-  border-radius: 4px;
-}
-
-.preview-analysis-content {
-  margin-top: 10px;
-  padding: 10px;
-  background: #fff;
-  border-radius: 4px;
-  line-height: 1.8;
-}
-
-.dialog-title {
-  font-size: 13px;
-  color: #606266;
-  margin-bottom: 8px;
-}
-
-.option-dialog-preview {
-  min-height: 390px;
-  max-height: 460px;
-  overflow-y: auto;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 12px;
-  background: #fafafa;
+.question-dialog-markdown-editor /deep/ .v-note-wrapper {
+  min-height: 420px;
 }
 
 @media (max-width: 1200px) {
-  .form-column,
-  .preview-column {
+  .form-column {
     max-height: none;
   }
 }

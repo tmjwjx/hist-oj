@@ -314,22 +314,22 @@
         >
           添加编程题
         </el-button>
-        <el-tag size="small" type="info">已选 {{ paperForm.questions.length }} 题</el-tag>
+        <el-tag size="small" type="info">已选 {{ selectedPaperQuestions.length }} 题</el-tag>
         <el-tag size="small" type="success">总分: {{ getSelectedScore() }} 分</el-tag>
       </div>
 
       <div class="selected-questions-panel selected-questions-panel--full">
         <div class="panel-header">
           <span class="panel-title">已选题目</span>
-          <el-tag size="small" type="info">{{ paperForm.questions.length }} 题</el-tag>
+          <el-tag size="small" type="info">{{ selectedPaperQuestions.length }} 题</el-tag>
           <el-tag size="small" type="success" style="margin-left: 8px;">
             总分: {{ getSelectedScore() }} 分
           </el-tag>
         </div>
 
-        <div class="selected-list" v-if="paperForm.questions.length > 0">
+        <div class="selected-list" v-if="selectedPaperQuestions.length > 0">
           <transition-group name="list">
-            <template v-for="(q, index) in paperForm.questions">
+            <template v-for="(q, index) in selectedPaperQuestions">
               <div
                 v-if="q && (q.questionId || q.problemId)"
                 :key="q.questionId || q.problemId || index"
@@ -360,7 +360,7 @@
                       size="mini"
                       type="primary"
                       icon="el-icon-bottom"
-                      :disabled="index === paperForm.questions.length - 1"
+                      :disabled="index === selectedPaperQuestions.length - 1"
                       @click="moveQuestionDown(index)"
                     ></el-button>
                     <el-button
@@ -593,7 +593,7 @@
 
       <div class="selector-summary">
         <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
-        <el-tag size="small" type="success">已选 {{ paperForm.questions.length }} 题</el-tag>
+        <el-tag size="small" type="success">已选 {{ selectedPaperQuestions.length }} 题</el-tag>
       </div>
 
       <div class="question-selector-list" v-loading="questionsLoading">
@@ -1141,6 +1141,11 @@ export default {
         return this.questionBank
       }
       return this.questionBank.filter(q => !this.isQuestionSelected(q))
+    },
+    selectedPaperQuestions() {
+      return this.paperForm && Array.isArray(this.paperForm.questions)
+        ? this.paperForm.questions
+        : []
     }
   },
   mounted() {
@@ -1354,12 +1359,27 @@ export default {
         this.addQuestion(question)
       }
     },
+    ensurePaperFormQuestions() {
+      if (!this.paperForm) {
+        this.paperForm = {
+          title: '',
+          description: '',
+          isShared: false,
+          questions: []
+        }
+      }
+      if (!Array.isArray(this.paperForm.questions)) {
+        this.$set(this.paperForm, 'questions', [])
+      }
+      return this.paperForm.questions
+    },
     removeObjectiveQuestion(questionId) {
-      const index = this.paperForm.questions.findIndex(
+      const questions = this.ensurePaperFormQuestions()
+      const index = questions.findIndex(
         q => q && q.questionId === questionId
       )
       if (index !== -1) {
-        this.paperForm.questions.splice(index, 1)
+        questions.splice(index, 1)
       }
     },
     isObjectiveQuestionType(type) {
@@ -1375,7 +1395,7 @@ export default {
         this.$message.warning('题目ID必须是数字')
         return
       }
-      if (this.paperForm.questions.some(q => q && String(q.questionId) === questionId)) {
+      if (this.selectedPaperQuestions.some(q => q && String(q.questionId) === questionId)) {
         this.$message.warning('该题目已添加')
         return
       }
@@ -1415,7 +1435,7 @@ export default {
       }
 
       // 添加题目
-      this.paperForm.questions.push({
+      this.ensurePaperFormQuestions().push({
         questionId: question.id,
         problemId: null,
         questionType: question.type,
@@ -1428,7 +1448,7 @@ export default {
     },
     isQuestionSelected(question) {
       if (!question || !question.id) return false
-      return this.paperForm.questions.some(q => q && q.questionId === question.id)
+      return this.selectedPaperQuestions.some(q => q && q.questionId === question.id)
     },
     getDefaultScore(type) {
       const scores = {
@@ -1442,21 +1462,23 @@ export default {
       return scores[type] || 10
     },
     removeQuestion(index) {
-      this.paperForm.questions.splice(index, 1)
+      this.ensurePaperFormQuestions().splice(index, 1)
       this.$forceUpdate()
     },
     moveQuestionUp(index) {
+      const questions = this.ensurePaperFormQuestions()
       if (index > 0) {
-        const temp = this.paperForm.questions[index]
-        this.$set(this.paperForm.questions, index, this.paperForm.questions[index - 1])
-        this.$set(this.paperForm.questions, index - 1, temp)
+        const temp = questions[index]
+        this.$set(questions, index, questions[index - 1])
+        this.$set(questions, index - 1, temp)
       }
     },
     moveQuestionDown(index) {
-      if (index < this.paperForm.questions.length - 1) {
-        const temp = this.paperForm.questions[index]
-        this.$set(this.paperForm.questions, index, this.paperForm.questions[index + 1])
-        this.$set(this.paperForm.questions, index + 1, temp)
+      const questions = this.ensurePaperFormQuestions()
+      if (index < questions.length - 1) {
+        const temp = questions[index]
+        this.$set(questions, index, questions[index + 1])
+        this.$set(questions, index + 1, temp)
       }
     },
     getQuestionTitle(q) {
@@ -1523,13 +1545,13 @@ export default {
       }
 
       // 检查是否已添加
-      if (this.paperForm.questions.some(q => q.problemId === this.programmingForm.problemId)) {
+      if (this.selectedPaperQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
         this.$message.warning('该编程题已添加')
         return
       }
 
       // 添加编程题
-      this.paperForm.questions.push({
+      this.ensurePaperFormQuestions().push({
         questionId: null,
         problemId: this.programmingForm.problemId,
         questionType: 'programming',
@@ -1700,13 +1722,13 @@ export default {
           const problemData = res.data.data
 
           // 检查是否已添加
-          if (this.paperForm.questions.some(q => q.problemId === this.programmingForm.problemId)) {
+          if (this.selectedPaperQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
             this.$message.warning('该编程题已添加')
             return
           }
 
           // 直接添加编程题
-          this.paperForm.questions.push({
+          this.ensurePaperFormQuestions().push({
             questionId: null,
             problemId: this.programmingForm.problemId,
             questionType: 'programming',
@@ -1754,7 +1776,7 @@ export default {
       return nameMap[difficulty] || '未知'
     },
     getSelectedScore() {
-      return this.paperForm.questions.reduce((sum, q) => sum + (q.score || 0), 0)
+      return this.selectedPaperQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
     },
     async viewPaper(row) {
       try {
@@ -1872,7 +1894,8 @@ export default {
       }
     },
     async savePaper() {
-      if (this.paperForm.questions.length === 0) {
+      const questions = this.selectedPaperQuestions
+      if (questions.length === 0) {
         this.$message.warning('请至少添加一道题目')
         return
       }
@@ -1883,7 +1906,7 @@ export default {
           title: this.paperForm.title,
           description: this.paperForm.description,
           isShared: this.paperForm.isShared ? 1 : 0,
-          questions: this.paperForm.questions.map(q => ({
+          questions: questions.map(q => ({
             questionId: q.questionId,
             problemId: q.problemId,
             questionType: q.questionType,

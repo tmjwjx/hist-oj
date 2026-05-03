@@ -11,7 +11,7 @@
       v-model="currentValue"
       codeStyle="arduino-light"
     >
-      <template v-slot:left-toolbar-after v-if="isAdminRole">
+      <template v-slot:left-toolbar-after v-if="canUploadMarkdownAsset">
         <button
           type="button"
           :title="$t('m.Upload_file')"
@@ -46,6 +46,10 @@ export default {
     openHtml: {
       type: Boolean,
       default: true,
+    },
+    allowUpload: {
+      type: Boolean,
+      default: null,
     },
   },
   data() {
@@ -90,14 +94,15 @@ export default {
     };
   },
   created() {
-    if (this.isAdminRole || this.isGroupAdmin) {
-      this.toolbars.imagelink = true;
-    }
+    this.syncImageToolbar();
   },
   methods: {
+    syncImageToolbar() {
+      this.toolbars.imagelink = this.canUploadMarkdownAsset;
+    },
     // 将图片上传到服务器，返回地址替换到md中
     $imgAdd(pos, $file) {
-      if (!this.isAdminRole && !this.isGroupAdmin) {
+      if (!this.canUploadMarkdownAsset) {
         return;
       }
       var formdata = new FormData();
@@ -161,6 +166,12 @@ export default {
   },
   computed: {
     ...mapGetters(['isAdminRole', 'isGroupAdmin']),
+    canUploadMarkdownAsset() {
+      if (this.allowUpload !== null) {
+        return this.allowUpload;
+      }
+      return this.isAdminRole || this.isGroupAdmin;
+    },
   },
   watch: {
     value(val) {
@@ -176,12 +187,8 @@ export default {
         });
       }
     },
-    isAdminRole(val) {
-      if (!val) {
-        this.toolbars.imagelink = false;
-      } else {
-        this.toolbars.imagelink = true;
-      }
+    canUploadMarkdownAsset() {
+      this.syncImageToolbar();
     },
   },
 };

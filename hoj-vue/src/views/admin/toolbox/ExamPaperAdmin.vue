@@ -120,7 +120,7 @@
           <h3 class="editor-page-title">{{ dialogTitle }}</h3>
         </div>
         <div class="editor-toolbar-actions">
-          <el-button @click="closeEditPage">{{ isCreateMode ? '取消' : '关闭' }}</el-button>
+          <el-button v-if="isCreateMode" @click="closeEditPage">取消</el-button>
           <el-button v-if="!isEditMode" type="primary" @click="isEditMode = true">编辑</el-button>
           <template v-else>
             <el-button v-if="!isCreateMode" @click="isEditMode = false">取消编辑</el-button>
@@ -167,15 +167,15 @@
           >
             添加编程题
           </el-button>
-          <el-tag size="small" type="info">已选 {{ editForm.questions.length }} 题</el-tag>
+          <el-tag size="small" type="info">已选 {{ selectedEditQuestions.length }} 题</el-tag>
           <el-tag size="small" type="success">总分 {{ getTotalScore() }} 分</el-tag>
         </div>
 
-        <div v-if="editForm.questions.length > 0" class="questions-edit-layout">
-          <div class="question-index-panel" v-if="editForm.questions.length > 1">
+        <div v-if="selectedEditQuestions.length > 0" class="questions-edit-layout">
+          <div class="question-index-panel" v-if="selectedEditQuestions.length > 1">
             <div class="question-index-title">题号导航</div>
             <el-button
-              v-for="(q, index) in editForm.questions"
+              v-for="(q, index) in selectedEditQuestions"
               v-if="q && (q.questionId || q.problemId)"
               :key="'index-nav-' + index"
               size="mini"
@@ -187,7 +187,7 @@
           </div>
 
           <div class="questions-edit-list" ref="editQuestionScroll">
-            <template v-for="(q, index) in editForm.questions">
+            <template v-for="(q, index) in selectedEditQuestions">
               <div v-if="q && (q.questionId || q.problemId)" :key="index" class="question-edit-item" ref="editQuestionItem">
                 <div class="question-edit-header">
                   <span class="question-number">{{ index + 1 }}.</span>
@@ -218,7 +218,7 @@
                       icon="el-icon-bottom"
                       size="mini"
                       type="primary"
-                      :disabled="index === editForm.questions.length - 1"
+                      :disabled="index === selectedEditQuestions.length - 1"
                       @click="moveQuestion(index, 1)"
                     ></el-button>
                     <el-button
@@ -469,7 +469,7 @@
 
         <div class="selector-summary">
           <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
-          <el-tag size="small" type="success">已选 {{ editForm ? editForm.questions.length : 0 }} 题</el-tag>
+          <el-tag size="small" type="success">已选 {{ selectedEditQuestions.length }} 题</el-tag>
         </div>
 
         <div class="question-selector-list" v-loading="questionsLoading">
@@ -995,6 +995,11 @@ export default {
         return this.questionBank
       }
       return this.questionBank.filter(q => !this.isQuestionSelected(q))
+    },
+    selectedEditQuestions() {
+      return this.editForm && Array.isArray(this.editForm.questions)
+        ? this.editForm.questions
+        : []
     }
   },
   mounted() {
@@ -1150,7 +1155,7 @@ export default {
           this.showQuestionSelectorDialog = false
           // 加载题库数据
           this.loadQuestionBank()
-          this.hydrateProgrammingProblemDetails(this.editForm.questions)
+          this.hydrateProgrammingProblemDetails(this.selectedEditQuestions)
         }
       } catch (error) {
         this.$message.error('加载试卷详情失败')
@@ -1175,24 +1180,29 @@ export default {
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
-        this.editForm.questions.splice(index, 1)
+        const questions = this.ensureEditFormQuestions()
+        if (!questions) return
+        questions.splice(index, 1)
         // 确保题库列表保持完整，不重新加载题库
         // 如果题目不在当前页的题库列表中，可能需要搜索或翻页找到
       })
     },
     moveQuestion(index, direction) {
+      const questions = this.ensureEditFormQuestions()
+      if (!questions) return
       const newIndex = index + direction
-      if (newIndex < 0 || newIndex >= this.editForm.questions.length) return
+      if (newIndex < 0 || newIndex >= questions.length) return
 
-      const temp = this.editForm.questions[index]
-      this.editForm.questions.splice(index, 1)
-      this.editForm.questions.splice(newIndex, 0, temp)
+      const temp = questions[index]
+      questions.splice(index, 1)
+      questions.splice(newIndex, 0, temp)
     },
     async confirmEdit() {
       this.$refs.editForm.validate(async (valid) => {
         if (!valid) return
 
-        if (this.editForm.questions.length === 0) {
+        const questions = this.selectedEditQuestions
+        if (questions.length === 0) {
           this.$message.warning('试卷至少需要一道题目')
           return
         }
@@ -1205,7 +1215,7 @@ export default {
             description: this.editForm.description,
             isShared: this.editForm.isShared ? 1 : 0,
             isPublic: this.editForm.isPublic ? 1 : 0,
-            questions: this.editForm.questions.map(q => ({
+            questions: questions.map(q => ({
               questionId: q.questionType === 'programming' ? null : q.questionId,
               problemId: q.questionType === 'programming' ? q.problemId : null,
               questionType: q.questionType,
@@ -1438,15 +1448,25 @@ export default {
         this.addQuestion(question)
       }
     },
+    ensureEditFormQuestions() {
+      if (!this.editForm) {
+        return null
+      }
+      if (!Array.isArray(this.editForm.questions)) {
+        this.$set(this.editForm, 'questions', [])
+      }
+      return this.editForm.questions
+    },
     removeObjectiveQuestion(questionId) {
-      if (!this.editForm || !Array.isArray(this.editForm.questions)) {
+      const questions = this.ensureEditFormQuestions()
+      if (!questions) {
         return
       }
-      const index = this.editForm.questions.findIndex(
+      const index = questions.findIndex(
         q => q && q.questionId === questionId
       )
       if (index !== -1) {
-        this.editForm.questions.splice(index, 1)
+        questions.splice(index, 1)
       }
     },
     isObjectiveQuestionType(type) {
@@ -1462,7 +1482,7 @@ export default {
         this.$message.warning('题目ID必须是数字')
         return
       }
-      if (this.editForm && this.editForm.questions && this.editForm.questions.some(q => q && String(q.questionId) === questionId)) {
+      if (this.selectedEditQuestions.some(q => q && String(q.questionId) === questionId)) {
         this.$message.warning('该题目已添加')
         return
       }
@@ -1500,6 +1520,10 @@ export default {
         this.$message.warning('该题目已添加')
         return
       }
+      const questions = this.ensureEditFormQuestions()
+      if (!questions) {
+        return
+      }
 
       // 添加题目
       const newQuestion = {
@@ -1510,13 +1534,13 @@ export default {
         title: question.title,
         question: question
       }
-      this.editForm.questions.push(newQuestion)
+      questions.push(newQuestion)
 
       this.$message.success('添加成功')
     },
     isQuestionSelected(question) {
       if (!question || !question.id) return false
-      return this.editForm.questions.some(q => q && q.questionId === question.id)
+      return this.selectedEditQuestions.some(q => q && q.questionId === question.id)
     },
     getDefaultScore(type) {
       const scores = {
@@ -1556,7 +1580,7 @@ export default {
       return '未知题目'
     },
     getTotalScore() {
-      return this.editForm.questions.reduce((sum, q) => sum + (q.score || 0), 0)
+      return this.selectedEditQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
     },
     toggleQuestionDetail(row) {
       if (!row) return
@@ -1705,13 +1729,15 @@ export default {
       }
 
       // 检查是否已添加
-      if (this.editForm.questions.some(q => q.problemId === this.programmingForm.problemId)) {
+      if (this.selectedEditQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
         this.$message.warning('该编程题已添加')
         return
       }
+      const questions = this.ensureEditFormQuestions()
+      if (!questions) return
 
       // 添加编程题
-      this.editForm.questions.push({
+      questions.push({
         questionId: null,
         problemId: this.programmingForm.problemId,
         questionType: 'programming',
@@ -1883,13 +1909,15 @@ export default {
           const problemData = res.data.data
 
           // 检查是否已添加
-          if (this.editForm.questions.some(q => q.problemId === this.programmingForm.problemId)) {
+          if (this.selectedEditQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
             this.$message.warning('该编程题已添加')
             return
           }
+          const questions = this.ensureEditFormQuestions()
+          if (!questions) return
 
           // 直接添加编程题
-          this.editForm.questions.push({
+          questions.push({
             questionId: null,
             problemId: this.programmingForm.problemId,
             questionType: 'programming',

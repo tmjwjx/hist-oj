@@ -58,6 +58,10 @@
             <div class="ship-wave ship-wave-2"></div>
           </div>
           <div class="node-title">{{ node.title }}</div>
+          <div class="node-remark-badge" v-if="hasProblemRemark(node)">
+            <i class="el-icon-document"></i>
+            <span>备注</span>
+          </div>
         </div>
       </div>
     </div>
@@ -298,9 +302,41 @@ export default {
       }
       return this.progressMap[nodeId].status || 'locked'
     },
+    parseNodeMetadata(raw) {
+      if (!raw || !String(raw).trim()) return {}
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      } catch (e) {
+        return {}
+      }
+    },
+    getNodeRemark(node) {
+      if (!node || node.type !== 'problem') {
+        return ''
+      }
+      if (node.remark) {
+        return String(node.remark).trim()
+      }
+      const metadata = this.parseNodeMetadata(node.metadata)
+      return typeof metadata.remark === 'string' ? metadata.remark.trim() : ''
+    },
+    hasProblemRemark(node) {
+      return !!this.getNodeRemark(node)
+    },
     buildNodeTooltip(node) {
       const status = this.getNodeStatus(node.id)
-      return `${node.title}\n类型：${this.getNodeTypeLabel(node.type)}\n状态：${this.getStatusLabel(status)}`
+      const lines = [
+        node.title,
+        `类型：${this.getNodeTypeLabel(node.type)}`,
+        `状态：${this.getStatusLabel(status)}`
+      ]
+      const remark = this.getNodeRemark(node)
+      if (remark) {
+        const compact = remark.replace(/\s+/g, ' ')
+        lines.push(`备注：${compact.length > 80 ? compact.slice(0, 80) + '...' : compact}`)
+      }
+      return lines.join('\n')
     },
     nodeStyle(node) {
       const pos = this.getNodeRenderPosition(node.id)
@@ -777,6 +813,16 @@ export default {
   font-weight: 600;
   word-break: break-word;
   text-align: center;
+}
+.node-remark-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #8a5a12;
 }
 .map-node.type-knowledge {
   border-color: rgba(63, 174, 146, 0.42);

@@ -803,6 +803,27 @@ footer h1 {
   padding: 8px 10px !important;
 }
 
+.markdown-body table {
+  display: block;
+  max-width: 100%;
+  margin: 12px 0 16px;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+.markdown-body table th,
+.markdown-body table td {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+}
+.markdown-body table th {
+  font-weight: 600;
+  background: #f5f7fa;
+}
+.markdown-body table tr:nth-child(even) {
+  background: #fafafa;
+}
+
 .markdown-body blockquote {
   color: #666;
   border-left: 4px solid #8bc34a;

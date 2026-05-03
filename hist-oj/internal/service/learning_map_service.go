@@ -50,6 +50,7 @@ type LearningProblemInfo struct {
 type LearningMapNodeView struct {
 	model.LearningMapNode
 	TagsList    []string             `json:"tagsList"`
+	Remark      string               `json:"remark,omitempty"`
 	ProblemInfo *LearningProblemInfo `json:"problemInfo,omitempty"`
 }
 
@@ -249,6 +250,27 @@ func encodeMetadata(metadata map[string]interface{}) string {
 	return string(data)
 }
 
+func decodeMetadata(raw string) map[string]interface{} {
+	meta := map[string]interface{}{}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return meta
+	}
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return map[string]interface{}{}
+	}
+	return meta
+}
+
+func extractNodeRemark(raw string) string {
+	meta := decodeMetadata(raw)
+	value, ok := meta["remark"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
 func (s *LearningMapService) ListAdminMaps() ([]model.LearningMap, error) {
 	var maps []model.LearningMap
 	err := s.db.Order("id DESC").Find(&maps).Error
@@ -415,6 +437,7 @@ func (s *LearningMapService) buildNodeViews(nodes []model.LearningMapNode) ([]Le
 			TagsList:        decodeTags(node.Tags),
 		}
 		if node.Type == model.LearningMapNodeTypeProblem {
+			view.Remark = extractNodeRemark(node.Metadata)
 			if node.ProblemID != nil {
 				if info, ok := problemInfoMap[*node.ProblemID]; ok {
 					copyInfo := info
@@ -1112,9 +1135,11 @@ func (s *LearningMapService) SearchNodesForUser(mapID uint64, uid, keyword strin
 	filtered := make([]LearningMapNodeView, 0)
 	for _, n := range nodeViews {
 		if keyword != "" {
-			if !strings.Contains(strings.ToLower(n.Title), strings.ToLower(keyword)) &&
-				!strings.Contains(strings.ToLower(n.Description), strings.ToLower(keyword)) {
-				if n.ProblemInfo == nil || !strings.Contains(strings.ToLower(n.ProblemInfo.ProblemDisplayID), strings.ToLower(keyword)) {
+			keywordLower := strings.ToLower(keyword)
+			if !strings.Contains(strings.ToLower(n.Title), keywordLower) &&
+				!strings.Contains(strings.ToLower(n.Description), keywordLower) &&
+				!strings.Contains(strings.ToLower(n.Remark), keywordLower) {
+				if n.ProblemInfo == nil || !strings.Contains(strings.ToLower(n.ProblemInfo.ProblemDisplayID), keywordLower) {
 					continue
 				}
 			}
@@ -1128,10 +1153,7 @@ func (s *LearningMapService) SearchNodesForUser(mapID uint64, uid, keyword strin
 }
 
 func mergeStatusIntoMetadata(raw string, progress LearningNodeProgressSnapshot) string {
-	meta := map[string]interface{}{}
-	if strings.TrimSpace(raw) != "" {
-		_ = json.Unmarshal([]byte(raw), &meta)
-	}
+	meta := decodeMetadata(raw)
 	meta["status"] = progress.Status
 	if len(progress.MissingPrerequisiteIDs) > 0 {
 		meta["missingPrerequisiteIds"] = progress.MissingPrerequisiteIDs

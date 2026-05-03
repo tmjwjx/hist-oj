@@ -192,3 +192,16 @@ func TestMapAccessAllClosedWithUserOverride(t *testing.T) {
 		t.Fatalf("expected explicit disabled override to deny access")
 	}
 }
+
+func TestExtractNodeRemark(t *testing.T) {
+	remark := extractNodeRemark(`{"remark":"  [讲解视频](https://example.com/v)  "}`)
+	if remark != "[讲解视频](https://example.com/v)" {
+		t.Fatalf("unexpected remark: %q", remark)
+	}
+	if remark := extractNodeRemark(`{"note":"not used"}`); remark != "" {
+		t.Fatalf("expected empty remark for unrelated metadata, got %q", remark)
+	}
+	if remark := extractNodeRemark(`bad-json`); remark != "" {
+		t.Fatalf("expected empty remark for invalid metadata, got %q", remark)
+	}
+}

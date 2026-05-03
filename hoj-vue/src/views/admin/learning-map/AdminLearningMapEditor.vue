@@ -75,7 +75,7 @@
 
           <div class="panel-section">
             <div class="section-title">节点列表</div>
-            <el-scrollbar style="max-height: 280px;">
+            <el-scrollbar class="admin-list-scroll node-list-scroll">
               <div
                 v-for="node in nodes"
                 :key="node.id"
@@ -121,7 +121,7 @@
 
           <div class="panel-section">
             <div class="section-title">连线列表</div>
-            <el-scrollbar style="max-height: 250px;">
+            <el-scrollbar class="admin-list-scroll edge-list-scroll">
               <div v-for="edge in edges" :key="edge.id" class="edge-item">
                 <div class="edge-text">
                   {{ nodeTitleMap[edge.sourceNodeId] || edge.sourceNodeId }}
@@ -169,7 +169,7 @@
               </div>
             </div>
 
-            <el-scrollbar style="max-height: 200px; margin-top: 8px;">
+            <el-scrollbar class="admin-list-scroll permission-list-scroll">
               <div v-if="mapPermissions.length === 0" class="permission-empty">暂无单独配置用户</div>
               <div class="permission-item" v-for="item in mapPermissions" :key="item.userId">
                 <div class="permission-user-main">
@@ -298,6 +298,11 @@
               </el-form-item>
             </el-col>
           </el-row>
+
+          <el-form-item label="备注">
+            <Editor :value.sync="nodeForm.problemRemark" />
+          </el-form-item>
+          <div class="field-hint">备注会在学生端题目节点详情中展示，支持 Markdown 链接。</div>
         </template>
 
         <template v-else>
@@ -423,15 +428,32 @@ export default {
         knowledgeContent: '',
         problemId: null,
         problemDisplayId: '',
+        problemRemark: '',
         metadataJson: '{}'
       }
     },
     parseMetadata(json) {
       if (!json || !json.trim()) return {}
       try {
-        return JSON.parse(json)
+        const parsed = JSON.parse(json)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('扩展信息必须是 JSON 对象')
+        }
+        return parsed
       } catch (e) {
+        if (e.message === '扩展信息必须是 JSON 对象') {
+          throw e
+        }
         throw new Error('扩展信息不是合法 JSON')
+      }
+    },
+    parseMetadataQuietly(json) {
+      if (!json || !String(json).trim()) return {}
+      try {
+        const parsed = JSON.parse(json)
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      } catch (e) {
+        return {}
       }
     },
     nodeTypeLabel(type) {
@@ -452,6 +474,15 @@ export default {
       return DIFFICULTY_LABEL[value] || value || DIFFICULTY_LABEL.beginner
     },
     toNodePayload(form) {
+      const metadata = this.parseMetadata(form.metadataJson)
+      if (form.type === 'problem') {
+        const remark = (form.problemRemark || '').trim()
+        if (remark) {
+          metadata.remark = remark
+        } else {
+          delete metadata.remark
+        }
+      }
       return {
         type: form.type,
         title: form.title,
@@ -469,10 +500,11 @@ export default {
         knowledgeContent: form.type === 'knowledge' ? form.knowledgeContent : '',
         problemId: form.type === 'problem' && form.problemId ? Number(form.problemId) : null,
         problemDisplayId: form.type === 'problem' ? (form.problemDisplayId || '').trim() : '',
-        metadata: this.parseMetadata(form.metadataJson)
+        metadata
       }
     },
     fillNodeForm(node) {
+      const metadata = this.parseMetadataQuietly(node.metadata)
       this.nodeForm = {
         type: node.type,
         title: node.title || '',
@@ -487,6 +519,7 @@ export default {
         knowledgeContent: node.knowledgeContent || '',
         problemId: node.problemId || null,
         problemDisplayId: node.problemDisplayId || '',
+        problemRemark: typeof metadata.remark === 'string' ? metadata.remark : (node.remark || ''),
         metadataJson: node.metadata || '{}'
       }
     },
@@ -880,6 +913,22 @@ export default {
   font-weight: 600;
   margin-bottom: 8px;
   color: #475569;
+}
+.admin-list-scroll >>> .el-scrollbar__wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.node-list-scroll >>> .el-scrollbar__wrap {
+  max-height: 280px;
+}
+.edge-list-scroll >>> .el-scrollbar__wrap {
+  max-height: 250px;
+}
+.permission-list-scroll {
+  margin-top: 8px;
+}
+.permission-list-scroll >>> .el-scrollbar__wrap {
+  max-height: 200px;
 }
 .node-item {
   display: flex;
