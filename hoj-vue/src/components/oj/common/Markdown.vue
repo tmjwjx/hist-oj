@@ -1,6 +1,7 @@
 <template>
   <div
     v-if="isAvoidXss"
+    key="sanitized"
     v-dompurify-html="html"
     v-highlight
     v-katex
@@ -8,6 +9,7 @@
   ></div>
   <div
     v-else
+    key="trusted"
     v-html="html"
     v-highlight
     v-katex
