@@ -179,14 +179,12 @@
     </el-card>
 
     <!-- 代码查看对话框 -->
-    <el-dialog title="提交代码" :visible.sync="showCodeDialog" width="60%" @opened="addCodeLineNumbers">
+    <el-dialog title="提交代码" :visible.sync="showCodeDialog" width="60%">
       <div class="code-display-wrapper">
-        <Highlight
-          :key="showCodeDialog"
+        <ClassroomCodeViewer
           :code="currentCode"
           :language="mapLanguage(currentLanguage)"
-          :classroom-mode="true"
-        ></Highlight>
+        />
       </div>
     </el-dialog>
   </div>
@@ -199,10 +197,7 @@ import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import axios from 'axios'
-import hljs from 'highlight.js'
-import 'highlight.js/styles/atom-one-dark.css'
-const Highlight = () => import('@/components/oj/common/Highlight')
-import { addCodeBtn } from '@/common/codeblock'
+const ClassroomCodeViewer = () => import('@/components/classroom/ClassroomCodeViewer')
 
 // 配置 markdown-it 和 KaTeX
 const md = new MarkdownIt({
@@ -221,7 +216,7 @@ md.use(MarkdownItKatex, {
 export default {
   name: 'ProgrammingQuestion',
   components: {
-    Highlight
+    ClassroomCodeViewer
   },
   props: {
     problemId: {
@@ -280,17 +275,6 @@ export default {
   },
   beforeDestroy() {
     this.stopResultPolling()
-  },
-  watch: {
-    showCodeDialog(newVal) {
-      if (newVal) {
-        this.$nextTick(() => {
-          setTimeout(() => {
-            addCodeBtn()
-          }, 100)
-        })
-      }
-    }
   },
   methods: {
     async initSubmitHistory() {
@@ -595,14 +579,6 @@ export default {
       if (code === 'PAC') return 'el-icon-star-on'
       if (['WA', 'CE', 'RE', 'TLE', 'MLE', 'PE'].includes(code)) return 'el-icon-error'
       return 'el-icon-info'
-    },
-    // 添加代码行号
-    addCodeLineNumbers() {
-      this.$nextTick(() => {
-        setTimeout(() => {
-          addCodeBtn()
-        }, 100)
-      })
     },
     // 映射编程语言到 highlight.js 支持的语言标识
     mapLanguage(lang) {

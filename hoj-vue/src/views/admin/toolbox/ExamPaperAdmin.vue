@@ -1579,6 +1579,13 @@ export default {
       }
       return '未知题目'
     },
+    getRequestErrorMessage(error, fallback) {
+      return error?.data?.msg ||
+        error?.data?.message ||
+        error?.response?.data?.msg ||
+        error?.response?.data?.message ||
+        fallback
+    },
     getTotalScore() {
       return this.selectedEditQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
     },
@@ -1673,7 +1680,7 @@ export default {
         .filter(q => q && q.problemId && (!q.problem || !q.problem.title))
         .map(async q => {
           try {
-            const res = await problemApi.getProblem(q.problemId, '0', undefined)
+            const res = await problemApi.getProblem(q.problemId, '0', undefined, true)
             if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
               this.$set(q, 'problem', res.data.data.problem)
             }
@@ -1702,7 +1709,7 @@ export default {
 
       this.fetchingProblem = true
       try {
-        const res = await problemApi.getProblem(this.programmingForm.problemId, '0', undefined)
+        const res = await problemApi.getProblem(this.programmingForm.problemId, '0', undefined, true)
 
         // 适配后端返回的数据结构
         // axios响应: res.data = {status: 200, data: {problem: {...}}, msg: "success"}
@@ -1712,7 +1719,8 @@ export default {
           this.$message.error('获取题目信息失败')
         }
       } catch (error) {
-        this.$message.error('获取题目信息失败')
+        this.programmingProblemPreview = null
+        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
       } finally {
         this.fetchingProblem = false
       }
@@ -1876,13 +1884,15 @@ export default {
       this.showTagProblemDetailDialog = true
 
       try {
-        const res = await problemApi.getProblem(problem.problemId, '0', undefined)
+        const res = await problemApi.getProblem(problem.problemId, '0', undefined, true)
         if (res && res.status === 200 && res.data && res.data.data) {
           this.tagProblemDetail = res.data.data
         }
       } catch (error) {
         console.error('获取题目详情失败:', error)
-        this.$message.error('获取题目详情失败')
+        this.tagProblemDetail = null
+        this.showTagProblemDetailDialog = false
+        this.$message.error(this.getRequestErrorMessage(error, '获取题目详情失败'))
       } finally {
         this.loadingTagProblemDetail = false
       }
@@ -1903,7 +1913,7 @@ export default {
       // 获取完整题目信息
       this.fetchingProblem = true
       try {
-        const res = await problemApi.getProblem(this.programmingForm.problemId, '0', undefined)
+        const res = await problemApi.getProblem(this.programmingForm.problemId, '0', undefined, true)
 
         if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
           const problemData = res.data.data
@@ -1935,7 +1945,8 @@ export default {
         }
       } catch (error) {
         console.error('获取题目信息失败:', error)
-        this.$message.error('获取题目信息失败')
+        this.programmingProblemPreview = null
+        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
       } finally {
         this.fetchingProblem = false
       }
@@ -1978,7 +1989,7 @@ export default {
       this.currentViewProblem = null
 
       try {
-        const res = await problemApi.getProblem(problemId, '0', undefined)
+        const res = await problemApi.getProblem(problemId, '0', undefined, true)
 
         // 适配后端返回的数据结构
         // axios响应: res.data = {status: 200, data: {problem: {...}}, msg: "success"}
@@ -1990,7 +2001,7 @@ export default {
         }
       } catch (error) {
         console.error('获取题目信息失败:', error)
-        this.$message.error('获取题目信息失败')
+        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
         this.showProblemDetailDialog = false
       } finally {
         this.fetchingViewProblem = false

@@ -62,14 +62,17 @@ axios.interceptors.response.use(
     }
     // 检查 code 字段（hist-oj 后端返回格式：{ code: 200, message: "success", data: ... }）
     // 也兼容 status 字段（其他后端可能使用 status）
+    const silentError = response.config && response.config.silentError
     const isSuccess = (response.data.code === 200 || response.data.code === undefined) &&
                      (response.data.status === 200 || response.data.status === undefined);
     if (isSuccess) {
       return Promise.resolve(response);
     } else {
       const errorMsg = response.data.msg || response.data.message || '请求失败';
-      mMessage.error(errorMsg);
-      if (!isMobile) {
+      if (!silentError) {
+        mMessage.error(errorMsg);
+      }
+      if (!silentError && !isMobile) {
         Vue.prototype.$notify.error({
           title: i18n.t('m.Error'),
           message: errorMsg,
@@ -88,6 +91,7 @@ axios.interceptors.response.use(
       if (error.response.headers['refresh-token']) { // token续约！！
         store.commit('changeUserToken', error.response.headers['authorization'])
       }
+      const silentError = error.config && error.config.silentError
       if (error.response.data instanceof Blob) { // 如果是文件操作的返回，由后续进行处理
         return Promise.resolve(error.response);
       }
@@ -97,8 +101,10 @@ axios.interceptors.response.use(
         // 在登录成功后返回当前页面，这一步需要在登录页操作。
         case 401:
           if (error.response.data.msg) {
-            mMessage.error(error.response.data.msg);
-            if (!isMobile) {
+            if (!silentError) {
+              mMessage.error(error.response.data.msg);
+            }
+            if (!silentError && !isMobile) {
               Vue.prototype.$notify.error({
                 title: i18n.t('m.Error'),
                 message: error.response.data.msg,
@@ -118,8 +124,10 @@ axios.interceptors.response.use(
         // 无权限访问或操作的请求
         case 403:
           if (error.response.data.msg) {
-            mMessage.error(error.response.data.msg);
-            if (!isMobile) {
+            if (!silentError) {
+              mMessage.error(error.response.data.msg);
+            }
+            if (!silentError && !isMobile) {
               Vue.prototype.$notify.error({
                 title: i18n.t('m.Error'),
                 message: error.response.data.msg,
@@ -137,14 +145,18 @@ axios.interceptors.response.use(
           break;
         // 404请求不存在
         case 404:
-          mMessage.error(i18n.t('m.Query_error_unable_to_find_the_resource_to_request'));
+          if (!silentError) {
+            mMessage.error(i18n.t('m.Query_error_unable_to_find_the_resource_to_request'));
+          }
           break;
         // 其他错误，直接抛出错误提示
         default:
           if (error.response.data) {
             if (error.response.data.msg) {
-              mMessage.error(error.response.data.msg);
-              if (!isMobile) {
+              if (!silentError) {
+                mMessage.error(error.response.data.msg);
+              }
+              if (!silentError && !isMobile) {
                 Vue.prototype.$notify.error({
                   title: i18n.t('m.Error'),
                   message: error.response.data.msg,
@@ -153,13 +165,19 @@ axios.interceptors.response.use(
                 });
               }
             } else {
-              mMessage.error(i18n.t('m.Server_error_please_refresh_again'));
+              if (!silentError) {
+                mMessage.error(i18n.t('m.Server_error_please_refresh_again'));
+              }
             }
           }
           break;
       }
       return Promise.reject(error);
     } else { //处理断网或请求超时，请求没响应
+      const silentError = error.config && error.config.silentError
+      if (silentError) {
+        return Promise.reject(error);
+      }
       if (error.code == 'ECONNABORTED' || error.message.includes('timeout')) {
         mMessage.error(i18n.t('m.Request_timed_out_please_try_again_later'));
       } else {
@@ -317,12 +335,13 @@ const ojApi = {
   },
 
   // Problem详情页的相关请求
-  getProblem(problemId, cid, gid) {
+  getProblem(problemId, cid, gid, silentError = false) {
     return ajax('/api/get-problem-detail', 'get', {
       params: {
         problemId,
         gid
-      }
+      },
+      silentError
     })
   },
 
@@ -1954,16 +1973,18 @@ export default api
  */
 function ajax(url, method, options) {
   if (options !== undefined) {
-    var { params = {}, data = {} } = options
+    var { params = {}, data = {}, silentError = false } = options
   } else {
     params = data = {}
+    silentError = false
   }
   return new Promise((resolve, reject) => {
     axios({
       url,
       method,
       params,
-      data
+      data,
+      silentError
     }).then((res) => {
       resolve(res)
     }).catch(error => {

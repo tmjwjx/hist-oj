@@ -23,6 +23,23 @@
           <p><strong>{{ $t('m.Description') }}:</strong> {{ homework.description || '-' }}</p>
           <p><strong>{{ $t('m.Start_Time') }}:</strong> {{ formatTime(homework.startTime) }}</p>
           <p><strong>{{ $t('m.End_Time') }}:</strong> {{ formatTime(homework.endTime) }}</p>
+          <p v-if="isSubmitted && submission"><strong>{{ $t('m.Submit_Time') }}:</strong> {{ formatTime(submission.submitTime) }}</p>
+        </div>
+
+        <div v-if="canViewScore && submission" class="score-summary-card">
+          <div class="score-summary-label">
+            <i class="el-icon-medal"></i>
+            <span>{{ submission.hasUngraded ? $t('m.Graded_Score') : '最终成绩' }}</span>
+          </div>
+          <div class="score-summary-value">
+            <span :class="{ 'zero-score': scoreSummaryValue === 0 }">{{ scoreSummaryValue }}</span>
+            <span class="score-divider">/</span>
+            <span>{{ totalHomeworkScore }}</span>
+          </div>
+          <div v-if="submission.hasUngraded" class="score-summary-tip">
+            <i class="el-icon-info"></i>
+            {{ $t('m.Has_Ungraded_Questions_Tip') }}
+          </div>
         </div>
 
         <el-divider></el-divider>
@@ -431,42 +448,15 @@
         </div>
 
         <!-- 已提交信息（只有正式提交后才显示） -->
-        <div v-if="isSubmitted && submission">
+        <div v-if="isSubmitted && submission && (!canViewScore || !canViewHomework)">
           <!-- 当可以查看作业时显示详细信息 -->
-          <el-alert v-if="canViewHomework" type="success" :closable="false">
-            <p><strong>{{ $t('m.Submit_Time') }}:</strong> {{ formatTime(submission.submitTime) }}</p>
-            <!-- 根据教师设置决定是否显示分数 -->
-            <div v-if="canViewScore">
-              <!-- 有未评分题目时显示详细分数信息 -->
-              <div v-if="submission.hasUngraded">
-                <p><strong>{{ $t('m.Graded_Score') }}:</strong> {{ submission.gradedScore !== undefined ? submission.gradedScore : 0 }}</p>
-                <p style="color: #909399; font-size: 12px;">
-                  <i class="el-icon-info"></i>
-                  {{ $t('m.Has_Ungraded_Questions_Tip') }}
-                </p>
-              </div>
-              <!-- 所有题目都已评分 -->
-              <p v-else><strong>{{ $t('m.Score') }}:</strong> <span :style="{ color: submission.score === 0 ? '#F56C6C' : '' }">{{ submission.score !== undefined ? submission.score : $t('m.Not_Graded') }}</span></p>
-            </div>
-            <p v-else><strong>{{ $t('m.Score') }}:</strong> {{ $t('m.Score_Hidden_Tip') }}</p>
+          <el-alert v-if="canViewHomework && !canViewScore" type="success" :closable="false">
+            <p v-if="!canViewScore"><strong>{{ $t('m.Score') }}:</strong> {{ $t('m.Score_Hidden_Tip') }}</p>
           </el-alert>
 
           <!-- 当不能查看作业时，显示简化提示 -->
           <el-alert v-else type="info" :closable="false">
-            <p><strong>{{ $t('m.Submit_Time') }}:</strong> {{ formatTime(submission.submitTime) }}</p>
-            <div v-if="canViewScore">
-              <!-- 有未评分题目时显示详细分数信息 -->
-              <div v-if="submission.hasUngraded">
-                <p><strong>{{ $t('m.Graded_Score') }}:</strong> {{ submission.gradedScore !== undefined ? submission.gradedScore : 0 }}</p>
-                <p style="color: #909399; font-size: 12px;">
-                  <i class="el-icon-info"></i>
-                  {{ $t('m.Has_Ungraded_Questions_Tip') }}
-                </p>
-              </div>
-              <!-- 所有题目都已评分 -->
-              <p v-else><strong>{{ $t('m.Score') }}:</strong> <span :style="{ color: submission.score === 0 ? '#F56C6C' : '' }">{{ submission.score !== undefined ? submission.score : $t('m.Not_Graded') }}</span></p>
-            </div>
-            <p v-else><strong>{{ $t('m.Score') }}:</strong> {{ $t('m.Score_Hidden_Tip') }}</p>
+            <p v-if="!canViewScore"><strong>{{ $t('m.Score') }}:</strong> {{ $t('m.Score_Hidden_Tip') }}</p>
             <p style="margin-top: 10px; color: #909399;">
               <i class="el-icon-info"></i>
               {{ $t('m.Homework_Content_Hidden_Tip') }}
@@ -671,6 +661,27 @@ export default {
     canViewScore() {
       // 必须已提交且教师允许查看分数
       return this.isSubmitted && this.homework.showScore === 1
+    },
+    scoreSummaryValue() {
+      if (!this.submission) {
+        return this.$t('m.Not_Graded')
+      }
+      if (this.submission.hasUngraded) {
+        return this.submission.gradedScore !== undefined && this.submission.gradedScore !== null
+          ? this.submission.gradedScore
+          : 0
+      }
+      return this.submission.score !== undefined && this.submission.score !== null
+        ? this.submission.score
+        : this.$t('m.Not_Graded')
+    },
+    totalHomeworkScore() {
+      if (this.homework.totalScore !== undefined && this.homework.totalScore !== null) {
+        return this.homework.totalScore
+      }
+      return (this.homework.questions || []).reduce((total, item) => {
+        return total + Number(item.score || 0)
+      }, 0)
     },
     // 是否可以查看答案
     canViewAnswer() {
@@ -2629,6 +2640,47 @@ export default {
   font-size: 18px;
   color: #1f2d3d;
 }
+.score-summary-card {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+}
+.score-summary-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #409EFF;
+  font-size: 14px;
+  font-weight: 600;
+}
+.score-summary-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #303133;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+.score-summary-value .zero-score {
+  color: #F56C6C;
+}
+.score-divider {
+  color: #909399;
+  font-size: 18px;
+  font-weight: 500;
+}
+.score-summary-tip {
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .questions-container {
   margin: 20px 0;
 }
@@ -3296,23 +3348,4 @@ export default {
   font-family: 'Menlo', 'Consolas', monospace;
 }
 
-/* 学生端专用样式：代码显示 - 只影响学生端 */
-.student-homework-page .code-display-wrapper .markdown-body pre {
-  margin-left: 0 !important;
-  text-indent: 0 !important;
-  padding: 10px 12px !important;
-  overflow-x: auto !important;
-}
-
-.student-homework-page .code-display-wrapper .markdown-body pre code {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-  text-indent: 0 !important;
-  display: block;
-  white-space: pre !important;
-}
-
-.student-homework-page .code-display-wrapper .markdown-body pre ol.pre-numbering {
-  display: none !important;
-}
 </style>
