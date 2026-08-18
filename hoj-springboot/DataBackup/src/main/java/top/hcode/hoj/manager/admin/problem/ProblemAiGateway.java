@@ -1,9 +1,12 @@
 package top.hcode.hoj.manager.admin.problem;
 
+import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
@@ -18,6 +21,7 @@ import java.util.*;
 
 @Component
 public class ProblemAiGateway {
+    private static final Logger log = LoggerFactory.getLogger(ProblemAiGateway.class);
     private static final String REASONING_EFFORT = "xhigh";
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int MAX_OUTPUT_TOKENS = 16_384;
@@ -42,6 +46,14 @@ public class ProblemAiGateway {
                     continue;
                 }
                 int status = e.getRawStatusCode();
+                // A few CDN/proxy layers return 502/503/504/524 after waiting for
+                // a streamed response. Retry the same request as regular JSON
+                // first; this avoids repeating another long-lived SSE request.
+                if (stream && !fallbackUsed && RETRYABLE_STATUS.contains(status)) {
+                    stream = false;
+                    fallbackUsed = true;
+                    continue;
+                }
                 if (RETRYABLE_STATUS.contains(status) && attempt < MAX_ATTEMPTS) {
                     pauseBeforeRetry();
                     attempt++;
@@ -49,8 +61,23 @@ public class ProblemAiGateway {
                 }
                 throw upstreamFailure(status);
             } catch (ResourceAccessException e) {
+                if (stream && !fallbackUsed) {
+                    stream = false;
+                    fallbackUsed = true;
+                    continue;
+                }
                 throw new IllegalStateException(
                         "AI 服务连接或读取超时，请稍后重试；若持续失败，请检查管理员配置的 AI 直连地址", e);
+            } catch (IllegalStateException e) {
+                // A successful HTTP response can still contain an empty or
+                // provider-specific stream. Try one non-stream request before
+                // exposing the compatibility error to the caller.
+                if (stream && !fallbackUsed && responseCompatibilityFailure(e)) {
+                    stream = false;
+                    fallbackUsed = true;
+                    continue;
+                }
+                throw e;
             }
         }
         throw new IllegalStateException("AI 服务暂时不可用，请稍后重试");
@@ -112,9 +139,16 @@ public class ProblemAiGateway {
                 new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.startsWith("data:")) {
+                // Strip an optional UTF-8 BOM and tolerate the whitespace used
+                // by a few SSE proxies before the field name.
+                String eventLine = line;
+                if (!eventLine.isEmpty() && eventLine.charAt(0) == '\uFEFF') {
+                    eventLine = eventLine.substring(1);
+                }
+                eventLine = eventLine.trim();
+                if (eventLine.startsWith("data:")) {
                     sse = true;
-                    appendStreamEvent(streamed, line.substring(5).trim());
+                    appendStreamEvent(streamed, eventLine.substring(5).trim());
                 } else if (!sse) {
                     raw.append(line).append('\n');
                 }
@@ -122,6 +156,9 @@ public class ProblemAiGateway {
         }
         String content = sse ? streamed.toString() : extractMessageContent(raw.toString());
         if (StringUtils.isEmpty(content)) {
+            log.warn("AI response contained no text: status={}, contentType={}, sse={}, rawChars={}, streamChars={}",
+                    response.getRawStatusCode(), response.getHeaders().getContentType(), sse,
+                    raw.length(), streamed.length());
             throw new IllegalStateException("AI 接口未返回有效内容，请检查模型和接口兼容性");
         }
         return content;
@@ -131,18 +168,12 @@ public class ProblemAiGateway {
         if (StringUtils.isEmpty(data) || "[DONE]".equals(data)) return;
         try {
             JSONObject event = JSONUtil.parseObj(data);
-            String delta = event.getByPath("choices[0].delta.content", String.class);
-            if (!StringUtils.isEmpty(delta)) {
-                content.append(delta);
-                return;
-            }
-            if (content.length() == 0) {
-                String message = event.getByPath("choices[0].message.content", String.class);
-                if (StringUtils.isEmpty(message)) {
-                    message = event.getByPath("choices[0].text", String.class);
-                }
-                if (!StringUtils.isEmpty(message)) content.append(message);
-            }
+            appendText(content, firstText(event,
+                    "choices[0].delta.content",
+                    "choices[0].message.content",
+                    "choices[0].text",
+                    "output_text",
+                    "output[0].content[0].text"));
         } catch (Exception ignored) {
             // 心跳或非标准扩展事件不应中断后续 SSE 内容读取。
         }
@@ -150,11 +181,69 @@ public class ProblemAiGateway {
 
     private String extractMessageContent(String responseBody) {
         try {
-            return JSONUtil.parseObj(responseBody)
-                    .getByPath("choices[0].message.content", String.class);
+            JSONObject response = JSONUtil.parseObj(responseBody);
+            return firstText(response,
+                    "choices[0].message.content",
+                    "choices[0].text",
+                    "output_text",
+                    "output[0].content[0].text");
         } catch (Exception e) {
             throw new IllegalStateException("AI 接口返回格式不兼容，请检查管理员配置的接口地址和模型");
         }
+    }
+
+    private String firstText(JSONObject value, String... paths) {
+        for (String path : paths) {
+            try {
+                String text = textValue(value.getByPath(path));
+                if (!StringUtils.isEmpty(text)) return text;
+            } catch (Exception ignored) {
+                // Continue with the next compatible response shape.
+            }
+        }
+        return "";
+    }
+
+    /**
+     * OpenAI-compatible providers normally return a String, but some return
+     * content parts ({@code [{"type":"text","text":"..."}]}). Extract
+     * only text parts so their JSON envelope is not appended to generated code.
+     */
+    private String textValue(Object value) {
+        if (value == null) return "";
+        if (value instanceof CharSequence) return value.toString();
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            String text = textValue(object.get("text"));
+            if (!StringUtils.isEmpty(text)) return text;
+            return textValue(object.get("content"));
+        }
+        if (value instanceof Map) {
+            Map<?, ?> object = (Map<?, ?>) value;
+            String text = textValue(object.get("text"));
+            if (!StringUtils.isEmpty(text)) return text;
+            return textValue(object.get("content"));
+        }
+        if (value instanceof JSONArray) {
+            StringBuilder result = new StringBuilder();
+            for (Object item : (JSONArray) value) result.append(textValue(item));
+            return result.toString();
+        }
+        if (value instanceof Iterable) {
+            StringBuilder result = new StringBuilder();
+            for (Object item : (Iterable<?>) value) result.append(textValue(item));
+            return result.toString();
+        }
+        return String.valueOf(value);
+    }
+
+    private void appendText(StringBuilder target, String text) {
+        if (!StringUtils.isEmpty(text)) target.append(text);
+    }
+
+    private boolean responseCompatibilityFailure(IllegalStateException error) {
+        String message = error.getMessage();
+        return message != null && (message.contains("未返回有效内容") || message.contains("返回格式不兼容"));
     }
 
     private IllegalStateException upstreamFailure(int status) {
