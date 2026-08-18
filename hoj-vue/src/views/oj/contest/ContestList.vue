@@ -229,8 +229,12 @@
                           <i
                             class="el-icon-user-solid"
                             style="color:rgb(48, 145, 242);"
-                          ></i
-                          >x{{ contest.count }}
+                          ></i>
+                          {{ $t('m.Registered_Count') }}: {{ contest.count }}
+                        </li>
+                        <li>
+                          <i class="el-icon-user" style="color:rgb(48, 145, 242);"></i>
+                          {{ $t('m.Problem_Setter') }}: {{ contest.author }}
                         </li>
                         <li v-if="contest.openRank">
                           <el-tooltip
@@ -259,6 +263,17 @@
                       :lg="2"
                       style="text-align: center"
                     >
+                      <el-tag v-if="contest.registered" size="small" type="success" class="register-state">
+                        {{ $t('m.Registered') }}
+                      </el-tag>
+                      <el-button
+                        v-else-if="contest.status != CONTEST_STATUS.ENDED"
+                        size="mini"
+                        type="primary"
+                        plain
+                        class="register-state"
+                        @click.stop="registerContest(contest)"
+                      >{{ $t('m.Register') }}</el-button>
                       <el-tag
                         effect="dark"
                         :color="CONTEST_STATUS_REVERSE[contest.status]['color']"
@@ -513,6 +528,22 @@ export default {
         });
       }
     },
+    registerContest(contest) {
+      if (!this.isAuthenticated) {
+        myMessage.warning(this.$i18n.t('m.Please_login_first'));
+        this.$store.dispatch('changeModalStatus', { visible: true });
+        return;
+      }
+      if (contest.auth !== 0 || contest.openRegistration) {
+        this.toContest(contest);
+        return;
+      }
+      api.registerContest(String(contest.id), '').then(() => {
+        contest.registered = true;
+        contest.count = Number(contest.count || 0) + 1;
+        myMessage.success(this.$i18n.t('m.Register_contest_successfully'));
+      });
+    },
     toContestOutsideScoreBoard(cid, type) {
       if (type == 0) {
         this.$router.push({
@@ -617,6 +648,9 @@ export default {
   font-size: 0.875rem;
   padding-left: 0;
   padding-bottom: 10px;
+}
+.register-state {
+  margin-bottom: 8px;
 }
 #contest-list .contest-main li {
   display: inline-block;

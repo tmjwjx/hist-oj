@@ -129,6 +129,9 @@ const mutations = {
   },
   SET_QUESTION_BANK_SYNC_ACTIVE(state, active) {
     state.questionBankSyncActive = !!active
+  },
+  SET_ERROR(state, error) {
+    state.error = error
   }
 }
 
@@ -407,7 +410,11 @@ const actions = {
     }
     return res.data
   },
-  async getHomeworkDetail({ commit, state }, homeworkId, forceRefresh = false) {
+  async getHomeworkDetail({ commit, state }, payload) {
+    const isOptions = payload && typeof payload === 'object'
+    const homeworkId = isOptions ? payload.homeworkId : payload
+    const forceRefresh = isOptions && payload.forceRefresh === true
+
     // 如果强制刷新，跳过缓存
     if (!forceRefresh) {
       // 检查缓存
@@ -625,7 +632,12 @@ const actions = {
   },
   // 记录违规
   async logViolation({ commit }, { homeworkId, violationType, description }) {
-    const res = await api.logViolation({ homeworkId, violationType, description })
+    const res = await api.logViolation({
+      homeworkId,
+      violationType,
+      description,
+      details: description
+    })
     return res.data
   },
   // 获取考试监控数据

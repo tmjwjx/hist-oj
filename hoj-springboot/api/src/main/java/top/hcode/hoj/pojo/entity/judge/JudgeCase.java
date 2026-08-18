@@ -65,6 +65,9 @@ public class JudgeCase implements Serializable {
     @ApiModelProperty(value = "用户样例输出，暂不使用，当前用于记录对单个测试点的输出或信息提示")
     private String userOutput;
 
+    @ApiModelProperty(value = "该测试点用户程序与判题程序的标准错误流")
+    private String stderr;
+
     @ApiModelProperty(value = "subtask分组的组号")
     private Integer groupNum;
 

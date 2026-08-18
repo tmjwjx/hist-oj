@@ -30,6 +30,9 @@ public class ContestVO implements Serializable {
     @ApiModelProperty(value = "0为acm赛制，1为比分赛制")
     private Integer type;
 
+    @ApiModelProperty(value = "是否计入站内 Rating")
+    private Boolean isRating;
+
     @ApiModelProperty(value = "比赛说明")
     private String description;
 
@@ -75,9 +78,24 @@ public class ContestVO implements Serializable {
     @ApiModelProperty(value = "比赛的报名人数")
     private Integer count;
 
+    @ApiModelProperty(value = "当前登录用户是否已报名")
+    private Boolean registered;
+
     @ApiModelProperty(value = "团队ID")
     private Long gid;
 
     @ApiModelProperty(value = "是否允许比赛结束后继续交题")
     private Boolean allowEndSubmit;
+
+    @ApiModelProperty(value = "是否要求填写比赛报名信息")
+    private Boolean openRegistration;
+
+    @ApiModelProperty(value = "需要填写的报名字段 JSON")
+    private String registrationFields;
+
+    @ApiModelProperty(value = "是否使用报名信息替换比赛内名称")
+    private Boolean useRegistrationName;
+
+    @ApiModelProperty(value = "比赛内名称的组合字段 JSON")
+    private String registrationNameFields;
 }

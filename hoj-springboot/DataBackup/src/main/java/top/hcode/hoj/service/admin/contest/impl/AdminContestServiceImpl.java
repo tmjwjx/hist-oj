@@ -9,9 +9,16 @@ import top.hcode.hoj.common.exception.StatusSystemErrorException;
 import top.hcode.hoj.common.result.CommonResult;
 import top.hcode.hoj.common.result.ResultStatus;
 import top.hcode.hoj.manager.admin.contest.AdminContestManager;
+import top.hcode.hoj.manager.oj.ContestRegistrationManager;
+import top.hcode.hoj.manager.admin.problem.ProblemVerificationManager;
 import top.hcode.hoj.pojo.entity.contest.Contest;
+import top.hcode.hoj.pojo.entity.contest.ContestRegister;
+import top.hcode.hoj.pojo.dto.ContestRegistrationUpdateDTO;
 import top.hcode.hoj.pojo.vo.AdminContestVO;
+import top.hcode.hoj.pojo.vo.ContestVerificationVO;
 import top.hcode.hoj.service.admin.contest.AdminContestService;
+
+import java.util.List;
 
 /**
  * @Author: Himit_ZH
@@ -23,6 +30,12 @@ public class AdminContestServiceImpl implements AdminContestService {
 
     @Autowired
     private AdminContestManager adminContestManager;
+
+    @Autowired
+    private ContestRegistrationManager contestRegistrationManager;
+
+    @Autowired
+    private ProblemVerificationManager problemVerificationManager;
 
     @Override
     public CommonResult<IPage<Contest>> getContestList(Integer limit, Integer currentPage, String keyword) {
@@ -95,5 +108,33 @@ public class AdminContestServiceImpl implements AdminContestService {
             return CommonResult.errorResponse(e.getMessage());
         }
         return CommonResult.successResponse();
+    }
+
+    @Override
+    public CommonResult<List<ContestRegister>> getContestRegistrations(Long cid) {
+        try {
+            return CommonResult.successResponse(contestRegistrationManager.getContestRegistrations(cid));
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<Void> updateContestRegistration(ContestRegistrationUpdateDTO dto) {
+        try {
+            contestRegistrationManager.updateContestRegistration(dto);
+            return CommonResult.successResponse();
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<ContestVerificationVO> getContestVerification(Long cid) {
+        return CommonResult.successResponse(problemVerificationManager.getContestStatus(cid));
     }
 }

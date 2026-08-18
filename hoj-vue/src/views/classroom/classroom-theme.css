@@ -1,272 +1,278 @@
-/* 班级功能浅蓝色主题 */
+/* 班级功能OJ统一主题 */
 
-/* 主色调 - 浅蓝色系 */
+/* 主色调 - 与OJ保持一致 */
 .classroom-theme {
-  --classroom-primary: #4A90E2;
-  --classroom-primary-light: #5BA3F5;
-  --classroom-primary-lighter: #E3F2FD;
-  --classroom-secondary: #64B5F6;
-  --classroom-accent: #2196F3;
-  --classroom-bg: #F5F9FC;
-  --classroom-card-bg: #FFFFFF;
-  --classroom-text: #2C3E50;
-  --classroom-text-secondary: #546E7A;
-  --classroom-border: #E1E8ED;
-  --classroom-hover: #E3F2FD;
-  --classroom-success: #66BB6A;
-  --classroom-warning: #FFA726;
-  --classroom-danger: #EF5350;
+  --classroom-primary: #409eff;
+  --classroom-primary-light: #66b1ff;
+  --classroom-primary-lighter: #ecf5ff;
+  --classroom-secondary: #909399;
+  --classroom-accent: #409eff;
+  --classroom-bg: #f5f7fa;
+  --classroom-card-bg: #ffffff;
+  --classroom-text: #303133;
+  --classroom-text-secondary: #606266;
+  --classroom-border: #e4e7ed;
+  --classroom-hover: #f5f7fa;
+  --classroom-success: #67c23a;
+  --classroom-warning: #e6a23c;
+  --classroom-danger: #f56c6c;
+  --classroom-info: #909399;
 }
 
 /* 卡片样式 */
 .classroom-card {
   background: var(--classroom-card-bg);
   border: 1px solid var(--classroom-border);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
-  transition: all 0.3s ease;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
 .classroom-card:hover {
-  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.12);
-  transform: translateY(-2px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 按钮样式 - 统一显示文字 */
+/* 按钮样式 */
 .classroom-btn {
-  border-radius: 8px;
-  padding: 10px 20px;
+  border-radius: 4px;
+  padding: 9px 15px;
   font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  border: none;
+  font-weight: 400;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .classroom-btn-primary {
-  background: #4A90E2;
+  background: #409eff;
   color: white;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+  border-color: #409eff;
 }
 
 .classroom-btn-primary:hover {
-  background: #3A7BC8;
-  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
-  transform: translateY(-1px);
+  background: #66b1ff;
+  border-color: #66b1ff;
 }
 
 .classroom-btn-secondary {
-  background: var(--classroom-primary-lighter);
-  color: var(--classroom-primary);
-  border: 1px solid var(--classroom-primary);
+  background: #fff;
+  color: #606266;
+  border: 1px solid #dcdfe6;
 }
 
 .classroom-btn-secondary:hover {
-  background: var(--classroom-primary);
-  color: white;
+  color: #409eff;
+  border-color: #c6e2ff;
+  background: #ecf5ff;
 }
 
 .classroom-btn-success {
-  background: #66BB6A;
+  background: #67c23a;
   color: white;
-  box-shadow: 0 2px 8px rgba(102, 187, 106, 0.3);
+  border-color: #67c23a;
 }
 
 .classroom-btn-success:hover {
-  box-shadow: 0 4px 12px rgba(102, 187, 106, 0.4);
-  transform: translateY(-1px);
+  background: #85ce61;
+  border-color: #85ce61;
 }
 
 .classroom-btn-warning {
-  background: #FFA726;
+  background: #e6a23c;
   color: white;
-  box-shadow: 0 2px 8px rgba(255, 167, 38, 0.3);
+  border-color: #e6a23c;
 }
 
 .classroom-btn-warning:hover {
-  box-shadow: 0 4px 12px rgba(255, 167, 38, 0.4);
-  transform: translateY(-1px);
+  background: #ebb563;
+  border-color: #ebb563;
 }
 
 .classroom-btn-info {
-  background: #42A5F5;
+  background: #909399;
   color: white;
-  box-shadow: 0 2px 8px rgba(66, 165, 245, 0.3);
+  border-color: #909399;
 }
 
 .classroom-btn-info:hover {
-  box-shadow: 0 4px 12px rgba(66, 165, 245, 0.4);
-  transform: translateY(-1px);
+  background: #a6a9ad;
+  border-color: #a6a9ad;
 }
 
 .classroom-btn-danger {
-  background: #EF5350;
+  background: #f56c6c;
   color: white;
-  box-shadow: 0 2px 8px rgba(239, 83, 80, 0.3);
+  border-color: #f56c6c;
 }
 
 .classroom-btn-danger:hover {
-  box-shadow: 0 4px 12px rgba(239, 83, 80, 0.4);
-  transform: translateY(-1px);
+  background: #f78989;
+  border-color: #f78989;
 }
 
 /* 标签样式 */
 .classroom-tag {
   display: inline-flex;
   align-items: center;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 400;
   gap: 4px;
+  line-height: 22px;
 }
 
 .classroom-tag-primary {
-  background: var(--classroom-primary-lighter);
-  color: var(--classroom-primary);
-  border: 1px solid rgba(74, 144, 226, 0.2);
+  background: #ecf5ff;
+  color: #409eff;
+  border: 1px solid #d9ecff;
 }
 
 .classroom-tag-success {
-  background: #E8F5E9;
-  color: #66BB6A;
-  border: 1px solid rgba(102, 187, 106, 0.2);
+  background: #f0f9ff;
+  color: #67c23a;
+  border: 1px solid #e1f3d8;
 }
 
 .classroom-tag-warning {
-  background: #FFF3E0;
-  color: #FFA726;
-  border: 1px solid rgba(255, 167, 38, 0.2);
+  background: #fdf6ec;
+  color: #e6a23c;
+  border: 1px solid #faecd8;
 }
 
 .classroom-tag-info {
-  background: #E3F2FD;
-  color: #2196F3;
-  border: 1px solid rgba(33, 150, 243, 0.2);
+  background: #f4f4f5;
+  color: #909399;
+  border: 1px solid #e9e9eb;
+}
+
+.classroom-tag-danger {
+  background: #fef0f0;
+  color: #f56c6c;
+  border: 1px solid #fde2e2;
 }
 
 /* 输入框样式 */
 .classroom-input {
-  border: 1px solid var(--classroom-border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 9px 15px;
   font-size: 14px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   background: white;
+  color: #606266;
 }
 
 .classroom-input:focus {
-  border-color: var(--classroom-primary);
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  border-color: #409eff;
   outline: none;
 }
 
 /* 表格样式优化 */
 .classroom-table .el-table__header {
-  background: var(--classroom-primary-lighter);
+  background: #f5f7fa;
 }
 
 .classroom-table .el-table__header th {
-  background: #E3F2FD;
-  color: var(--classroom-text);
+  background: #f5f7fa;
+  color: #606266;
   font-weight: 600;
-  border-bottom: 2px solid var(--classroom-primary);
+  border-bottom: 1px solid #e4e7ed;
 }
 
 .classroom-table .el-table__body tr:hover {
-  background: var(--classroom-hover);
+  background: #f5f7fa;
 }
 
 .classroom-table .el-table__body td {
-  border-bottom: 1px solid var(--classroom-border);
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* 标签页样式 */
 .classroom-tabs .el-tabs__item {
-  color: var(--classroom-text-secondary);
-  font-size: 15px;
-  padding: 0 24px;
+  color: #606266;
+  font-size: 14px;
+  padding: 0 20px;
 }
 
 .classroom-tabs .el-tabs__item:hover {
-  color: var(--classroom-primary);
+  color: #409eff;
 }
 
 .classroom-tabs .el-tabs__item.is-active {
-  color: var(--classroom-primary);
-  font-weight: 600;
+  color: #409eff;
+  font-weight: 500;
 }
 
 .classroom-tabs .el-tabs__active-bar {
-  background: var(--classroom-primary);
-  height: 3px;
-  border-radius: 2px;
+  background: #409eff;
+  height: 2px;
 }
 
 /* 卡片标题 */
 .classroom-card-header {
-  background: #E3F2FD;
-  border-bottom: 2px solid var(--classroom-primary);
-  padding: 16px 20px;
-  border-radius: 12px 12px 0 0;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 12px 16px;
+  border-radius: 4px 4px 0 0;
 }
 
 .classroom-card-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--classroom-text);
+  color: #303133;
   margin: 0;
 }
 
 /* 统计卡片 */
 .classroom-stat-card {
-  background: #FFFFFF;
-  border: 1px solid var(--classroom-border);
-  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
   padding: 20px;
   text-align: center;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .classroom-stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .classroom-stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--classroom-primary);
+  font-size: 28px;
+  font-weight: 600;
+  color: #409eff;
   margin-bottom: 8px;
 }
 
 .classroom-stat-label {
   font-size: 14px;
-  color: var(--classroom-text-secondary);
-  font-weight: 500;
+  color: #606266;
+  font-weight: 400;
 }
 
 /* 进度条 */
 .classroom-progress .el-progress-bar__outer {
-  background: var(--classroom-primary-lighter);
-  border-radius: 10px;
-  height: 8px;
+  background: #e4e7ed;
+  border-radius: 4px;
+  height: 6px;
 }
 
 .classroom-progress .el-progress-bar__inner {
-  background: #4A90E2;
-  border-radius: 10px;
+  background: #409eff;
+  border-radius: 4px;
 }
 
 /* 分隔线 */
 .classroom-divider {
   height: 1px;
-  background: var(--classroom-border);
-  margin: 20px 0;
+  background: #e4e7ed;
+  margin: 16px 0;
 }
 
 /* 徽章 */
@@ -274,14 +280,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 8px;
-  background: var(--classroom-danger);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #f56c6c;
   color: white;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* 头像组 */
@@ -303,22 +309,23 @@
 .classroom-empty {
   text-align: center;
   padding: 60px 20px;
-  color: var(--classroom-text-secondary);
+  color: #909399;
 }
 
 .classroom-empty-icon {
-  font-size: 64px;
-  color: var(--classroom-primary-lighter);
-  margin-bottom: 20px;
+  font-size: 48px;
+  color: #c0c4cc;
+  margin-bottom: 16px;
 }
 
 .classroom-empty-text {
-  font-size: 16px;
+  font-size: 14px;
   margin-bottom: 8px;
+  color: #606266;
 }
 
 .classroom-empty-hint {
-  font-size: 14px;
+  font-size: 13px;
   color: #909399;
 }
 
@@ -331,39 +338,19 @@
 }
 
 .classroom-loading .el-loading-spinner {
-  color: var(--classroom-primary);
+  color: #409eff;
 }
 
 /* 响应式 */
 @media (max-width: 768px) {
   .classroom-btn {
-    padding: 8px 16px;
+    padding: 7px 15px;
     font-size: 13px;
-  }
-
-  .classroom-card {
-    border-radius: 8px;
   }
 
   .classroom-stat-value {
     font-size: 24px;
   }
-}
-
-/* 动画 */
-@keyframes classroom-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.classroom-fade-in {
-  animation: classroom-fade-in 0.3s ease;
 }
 
 /* 工具栏 */
@@ -373,8 +360,8 @@
   gap: 12px;
   padding: 16px;
   background: var(--classroom-bg);
-  border-radius: 8px;
-  margin-bottom: 20px;
+  border-radius: 4px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
@@ -397,32 +384,31 @@
 /* 状态指示器 */
 .classroom-status-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   margin-right: 6px;
 }
 
 .classroom-status-online {
-  background: var(--classroom-success);
-  box-shadow: 0 0 0 2px rgba(102, 187, 106, 0.2);
+  background: #67c23a;
 }
 
 .classroom-status-offline {
-  background: #BDBDBD;
+  background: #c0c4cc;
 }
 
 /* 时间线 */
 .classroom-timeline .el-timeline-item__timestamp {
-  color: var(--classroom-text-secondary);
+  color: #909399;
   font-size: 13px;
 }
 
 .classroom-timeline .el-timeline-item__tail {
-  border-left: 2px solid var(--classroom-primary-lighter);
+  border-left: 2px solid #e4e7ed;
 }
 
 .classroom-timeline .el-timeline-item__node {
-  background: var(--classroom-primary);
+  background: #409eff;
   border: 2px solid white;
 }

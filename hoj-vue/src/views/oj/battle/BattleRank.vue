@@ -220,87 +220,61 @@ export default {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 
 .rank-card {
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  animation: fadeInUp 0.6s ease;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #e3f2fd;
-  padding: 25px 30px;
-  border-radius: 16px 16px 0 0;
-  position: relative;
+  background: #fff;
+  border-bottom: 2px solid #409eff;
+  padding: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .back-button {
-  background: #ffffff;
-  border: 2px solid #bbdefb;
-  color: #1976d2;
-  font-weight: 600;
-  transition: all 0.3s ease;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  color: #606266;
+  transition: all 0.2s;
 }
 
 .back-button:hover {
-  background: #f5f5f5;
-  border-color: #90caf9;
-  transform: translateX(-3px);
+  color: #409eff;
+  border-color: #c6e2ff;
+  background: #ecf5ff;
 }
 
 .header-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 24px;
-  font-weight: 700;
-  color: #1565c0;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .header-title i {
-  color: #FFD700;
-  font-size: 28px;
-  text-shadow: 0 2px 10px rgba(255, 215, 0, 0.5);
-  animation: glow 2s ease-in-out infinite;
-}
-
-@keyframes glow {
-  0%, 100% {
-    filter: brightness(1);
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-  }
-  50% {
-    filter: brightness(1.2);
-    text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-  }
+  color: #e6a23c;
+  font-size: 20px;
 }
 
 .rank-content {
-  padding: 30px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  padding: 24px 20px;
+  background: #fff;
 }
 
 .search-box {
@@ -316,37 +290,32 @@ export default {
 /* 美化表格 */
 ::v-deep .el-table {
   background: transparent;
-  border-radius: 12px;
+  border-radius: 4px;
   overflow: hidden;
-}
-
-::v-deep .el-table__header-wrapper {
-  border-radius: 12px 12px 0 0;
+  border: 1px solid #e4e7ed;
 }
 
 ::v-deep .el-table th {
-  background: #e3f2fd !important;
-  color: #1976d2 !important;
+  background: #f5f7fa !important;
+  color: #606266 !important;
   font-weight: 600;
-  font-size: 15px;
-  border: none;
-  padding: 18px 0;
+  font-size: 14px;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 12px 0;
 }
 
 ::v-deep .el-table td {
-  border: none;
-  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 0;
 }
 
 ::v-deep .el-table__row {
-  transition: all 0.3s ease;
+  transition: background-color 0.2s;
   background: white;
 }
 
 ::v-deep .el-table__row:hover {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%) !important;
-  transform: scale(1.01);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: #f5f7fa !important;
 }
 
 ::v-deep .el-table--enable-row-hover .el-table__body tr:hover > td {
@@ -357,123 +326,78 @@ export default {
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  min-width: 40px;
-  height: 40px;
+  min-width: 32px;
+  height: 32px;
   border-radius: 50%;
-  font-size: 18px;
-  font-weight: bold;
-  animation: bounceIn 0.6s ease;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .rank-1 {
-  background: linear-gradient(135deg, #FFE5B4 0%, #FFDAB9 100%);
-  color: #D2691E;
-  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  background: #ffd700;
+  color: #8b6914;
 }
 
 .rank-2 {
-  background: linear-gradient(135deg, #E8E8E8 0%, #D3D3D3 100%);
-  color: #696969;
-  box-shadow: 0 2px 8px rgba(192, 192, 192, 0.3);
+  background: #c0c0c0;
+  color: #4a4a4a;
 }
 
 .rank-3 {
-  background: linear-gradient(135deg, #F5DEB3 0%, #DEB887 100%);
-  color: #CD853F;
-  box-shadow: 0 2px 8px rgba(205, 127, 50, 0.3);
-}
-
-@keyframes bounceIn {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  background: #cd7f32;
+  color: #5c3a1a;
 }
 
 .rank-number {
-  font-size: 18px;
-  font-weight: 600;
-  color: #909399;
+  font-size: 14px;
+  font-weight: 500;
+  color: #606266;
 }
 
 .user-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .user-avatar {
   color: #c0c4cc;
-  transition: all 0.3s ease;
 }
 
 .username {
-  font-weight: 600;
-  font-size: 16px;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-table__row:hover .user-avatar {
-  transform: scale(1.2);
-  color: #667eea;
-}
-
-::v-deep .el-table__row:hover .username {
-  transform: scale(1.05);
+  font-weight: 500;
+  font-size: 14px;
 }
 
 /* 美化进度条 */
 ::v-deep .el-progress-bar__outer {
-  background: linear-gradient(90deg, #e0e0e0 0%, #f5f5f5 100%);
-  border-radius: 10px;
-  height: 12px !important;
+  background: #e4e7ed;
+  border-radius: 4px;
+  height: 10px !important;
 }
 
 ::v-deep .el-progress-bar__inner {
-  border-radius: 10px;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-table__row:hover .el-progress-bar__inner {
-  transform: scaleY(1.2);
+  border-radius: 4px;
 }
 
 .pagination {
-  margin-top: 30px;
+  margin-top: 20px;
   text-align: center;
 }
 
 ::v-deep .el-pagination.is-background .el-pager li:not(.disabled).active {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  border-radius: 8px;
-}
-
-::v-deep .el-pagination.is-background .el-pager li {
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-pagination.is-background .el-pager li:hover {
-  transform: scale(1.1);
+  background: #409eff;
 }
 
 /* 高亮自己的行 */
 ::v-deep .el-table .my-row {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%);
-  box-shadow: inset 3px 0 0 #4facfe;
+  background: #ecf5ff;
+  border-left: 3px solid #409eff;
 }
 
 ::v-deep .el-table .my-row:hover > td {
-  background: linear-gradient(135deg, #e1f3ff 0%, #d1e9ff 100%) !important;
-  box-shadow: inset 3px 0 0 #4facfe, 0 4px 12px rgba(79, 172, 254, 0.2);
+  background: #ecf5ff !important;
 }
 
 @media screen and (max-width: 768px) {
@@ -486,16 +410,16 @@ export default {
   }
 
   .header-title {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   ::v-deep .el-table th {
-    font-size: 13px;
-    padding: 12px 0;
+    font-size: 12px;
+    padding: 10px 0;
   }
 
   ::v-deep .el-table td {
-    padding: 10px 0;
+    padding: 8px 0;
   }
 }
 </style>

@@ -191,12 +191,10 @@
 </template>
 
 <script>
-import { getJudgeInfo } from '@/common/judgeTerminal'
 import api from '@/common/api'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
-import axios from 'axios'
 const ClassroomCodeViewer = () => import('@/components/classroom/ClassroomCodeViewer')
 
 // 配置 markdown-it 和 KaTeX
@@ -366,29 +364,19 @@ export default {
         return
       }
 
-      // 从 localStorage 获取 token
-      const token = localStorage.getItem('token')
-      if (!token) {
-        this.$message.error('未找到登录凭证，请重新登录')
-        return
-      }
-
       this.submitting = true
       try {
-        // 调用 hist-oj 提交 API,使用当前登录用户的 token
-        const response = await axios.post('/judge-api/submit', {
+        // 直接提交到 HOJ Java 判题接口。
+        const response = await api.submitCode({
           pid: this.problemId,
-          cid: '0',
-          mode: 'normal',
-          username: userInfo.username,
-          token: token, // 使用 token 而不是密码
-          password: '',
+          cid: 0,
           language: this.submitForm.language,
-          code: this.submitForm.code
+          code: this.submitForm.code,
+          isRemote: false
         })
 
-        if (response.data && response.data.code === 200) {
-          const submitId = response.data.data.submit_id
+        if (response.data && response.data.status === 200) {
+          const submitId = response.data.data.submitId
           // 保存提交记录到作业提交表（失败时自动重试一次）
           let saved = false
           let saveError = null
@@ -426,7 +414,7 @@ export default {
             this.stopResultPolling()
           }
         } else {
-          this.$message.error(response.data?.message || '提交失败')
+          this.$message.error((response.data && response.data.message) || '提交失败')
         }
       } catch (error) {
         console.error('提交失败:', error)
@@ -436,16 +424,12 @@ export default {
       }
     },
     async saveSubmissionRecord(submitId) {
-      // 从 localStorage 获取 token
-      const token = localStorage.getItem('token')
-
       const res = await this.$store.dispatch('classroom/saveProgrammingSubmission', {
         homeworkId: this.homeworkId,
         problemId: this.problemId,
         submitId: submitId,
         code: this.submitForm.code,
-        language: this.submitForm.language,
-        token: token
+        language: this.submitForm.language
       })
 
       if (!res || res.code !== 200) {

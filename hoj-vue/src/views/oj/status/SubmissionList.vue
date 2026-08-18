@@ -143,6 +143,14 @@
             :title="$t('m.Run_ID')"
             width="80"
           ></vxe-table-column>
+          <vxe-table-column field="submissionType" title="评测类型" width="130">
+            <template v-slot="{ row }">
+              <el-tag v-if="row.submissionType" size="mini"
+                :type="row.submissionType === 'user_submission' ? 'info' : 'warning'">
+                {{ submissionTypeLabel(row.submissionType) }}
+              </el-tag>
+            </template>
+          </vxe-table-column>
           <vxe-table-column
             field="pid"
             :title="$t('m.Problem')"
@@ -224,7 +232,7 @@
                         v-if="row.status == JUDGE_STATUS_RESERVE['sf'] && row.uid == userInfo.uid"
                         @click="reSubmit(row)"
                       ></i>
-                      {{ JUDGE_STATUS[row.status].name }}
+                      {{ row.statusText || JUDGE_STATUS[row.status].name }}
                     </span>
                   </div>
                 </el-popover>
@@ -576,6 +584,13 @@ export default {
     this.getData();
   },
   methods: {
+    submissionTypeLabel(type) {
+      return {
+        ai_validation: 'AI 验题',
+        creator_validation: '题目创建验证',
+        user_submission: '用户题库提交',
+      }[type] || type;
+    },
     init() {
       this.checkStatusNum = 0;
       this.contestID = this.$route.params.contestID;
@@ -746,6 +761,8 @@ export default {
               this.submissions[submitIds[key]] = result[submitId];
               // 更新view中的结果，f分数，耗时，空间消耗，判题机ip
               viewData[submitIds[key]].status = result[submitId].status;
+              viewData[submitIds[key]].statusText = result[submitId].statusText;
+              viewData[submitIds[key]].currentTest = result[submitId].currentTest;
               viewData[submitIds[key]].score = result[submitId].score;
               viewData[submitIds[key]].time = result[submitId].time;
               viewData[submitIds[key]].memory = result[submitId].memory;

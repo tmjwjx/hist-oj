@@ -12,6 +12,7 @@ import top.hcode.hoj.pojo.dto.ContestRankDTO;
 import top.hcode.hoj.pojo.dto.RegisterContestDTO;
 import top.hcode.hoj.pojo.dto.UserReadContestAnnouncementDTO;
 import top.hcode.hoj.pojo.entity.common.Announcement;
+import top.hcode.hoj.pojo.entity.contest.ContestRegister;
 import top.hcode.hoj.pojo.vo.*;
 import top.hcode.hoj.service.oj.ContestService;
 
@@ -71,6 +72,12 @@ public class ContestController {
     @RequiresAuthentication
     public CommonResult<Void> toRegisterContest(@RequestBody RegisterContestDTO registerContestDto) {
         return contestService.toRegisterContest(registerContestDto);
+    }
+
+    @GetMapping("/get-my-contest-registration")
+    @RequiresAuthentication
+    public CommonResult<ContestRegister> getMyContestRegistration(@RequestParam("cid") Long cid) {
+        return contestService.getMyContestRegistration(cid);
     }
 
     /**

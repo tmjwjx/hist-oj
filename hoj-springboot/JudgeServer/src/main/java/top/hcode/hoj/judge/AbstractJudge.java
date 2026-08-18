@@ -69,7 +69,9 @@ public abstract class AbstractJudge {
                 .originalStatus(judgeResult.getStr("originalStatus"))
                 .build();
 
-        return checkResult(sandBoxRes, judgeDTO, judgeGlobalDTO);
+        JSONObject result = checkResult(sandBoxRes, judgeDTO, judgeGlobalDTO);
+        result.set("stderr", sandBoxRes.getStderr());
+        return result;
     }
 
     private JSONObject processMultiple(JudgeDTO judgeDTO, JudgeGlobalDTO judgeGlobalDTO, JSONArray judgeResultList) throws SystemError {
@@ -96,7 +98,12 @@ public abstract class AbstractJudge {
                 .originalStatus(interactiveJudgeResult.getStr("originalStatus"))
                 .build();
 
-        return checkMultipleResult(userSandBoxRes, interactiveSandBoxRes, judgeDTO, judgeGlobalDTO);
+        JSONObject result = checkMultipleResult(userSandBoxRes, interactiveSandBoxRes, judgeDTO, judgeGlobalDTO);
+        String userStderr = StrUtil.nullToEmpty(userSandBoxRes.getStderr());
+        String interactiveStderr = StrUtil.nullToEmpty(interactiveSandBoxRes.getStderr());
+        result.set("stderr", "用户程序 stderr:\n" + userStderr
+                + "\n交互程序 stderr:\n" + interactiveStderr);
+        return result;
     }
 
     public abstract JSONObject checkResult(SandBoxRes sandBoxRes, JudgeDTO judgeDTO, JudgeGlobalDTO judgeGlobalDTO) throws SystemError;

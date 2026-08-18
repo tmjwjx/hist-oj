@@ -66,10 +66,9 @@ public class GroupProblemServiceImpl implements GroupProblemService {
     }
 
     @Override
-    public CommonResult<Void> addProblem(ProblemDTO problemDto) {
+    public CommonResult<Long> addProblem(ProblemDTO problemDto) {
         try {
-            groupProblemManager.addProblem(problemDto);
-            return CommonResult.successResponse();
+            return CommonResult.successResponse(groupProblemManager.addProblem(problemDto));
         } catch (StatusForbiddenException e) {
             return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
         } catch (StatusNotFoundException e) {

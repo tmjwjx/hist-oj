@@ -118,6 +118,18 @@
                   >
                   </el-button>
                 </el-tooltip>
+                <el-tooltip
+                  effect="dark"
+                  content="查看报名信息"
+                  placement="top"
+                >
+                  <el-button
+                    icon="el-icon-user"
+                    size="mini"
+                    @click.native="goContestRegistrationList(row.id)"
+                    type="warning"
+                  ></el-button>
+                </el-tooltip>
               </div>
               <div style="margin-bottom:10px">
                 <el-tooltip
@@ -408,7 +420,7 @@ export default {
       if (visible) {
         let checkData = null;
         try {
-          const res = await api.admin_getContestTerminalCheckStatus(contestId);
+          const res = await api.admin_getContestProblemVerification(contestId);
           checkData = (res && res.data && res.data.data) ? res.data.data : {};
         } catch (e) {
           rollbackVisible();
@@ -416,40 +428,31 @@ export default {
           return;
         }
 
-        if (!checkData.allChecked) {
-          const unchecked = checkData.uncheckedProblems || [];
+        if (!checkData.ready) {
+          const unchecked = checkData.problems || [];
           const messageLines = [];
 
           if ((checkData.totalProblems || 0) === 0) {
-            messageLines.push('该比赛暂无题目，尚未进行判题终端检测。');
-            messageLines.push('是否仍然设置为可见？');
+            messageLines.push('该比赛暂无可发布的验题结果。');
           } else {
             const lines = unchecked.slice(0, 8).map((item) => {
-              const label = item.displayId ? `[${item.displayId}]` : `[#${item.pid}]`;
-              const title = item.displayTitle || '未命名题目';
+              const label = item.problemId ? `[${item.problemId}]` : `[#${item.pid}]`;
+              const title = item.title || '未命名题目';
               return `${label}${title}`;
             });
             if (unchecked.length > 8) {
               lines.push(`... 其余 ${unchecked.length - 8} 题未展示`);
             }
-            messageLines.push(`该比赛有 ${unchecked.length} 道题未完成判题终端检测。`);
-            messageLines.push('是否仍然设置为可见？');
+            messageLines.push(`该比赛有 ${unchecked.length} 道题未完成测试数据同步或标准程序验题。`);
             if (lines.length > 0) {
               messageLines.push('');
               messageLines.push(...lines);
             }
           }
 
-          try {
-            await this.$confirm(messageLines.join('\n'), '检测提醒', {
-              confirmButtonText: '仍然设置可见',
-              cancelButtonText: '取消',
-              type: 'warning',
-            });
-          } catch (e) {
-            rollbackVisible();
-            return;
-          }
+          this.$alert(messageLines.join('\n'), '无法设为可见', { type: 'warning' });
+          rollbackVisible();
+          return;
         }
       }
 
@@ -459,6 +462,12 @@ export default {
       } catch (e) {
         rollbackVisible();
       }
+    },
+    goContestRegistrationList(contestId) {
+      this.$router.push({
+        name: "admin-contest-registration-list",
+        params: { contestId },
+      });
     },
     filterByKeyword() {
       this.currentChange(1);

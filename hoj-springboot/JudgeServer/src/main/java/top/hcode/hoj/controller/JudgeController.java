@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import top.hcode.hoj.common.CommonResult;
 import top.hcode.hoj.common.ResultStatus;
 import top.hcode.hoj.common.exception.SystemError;
@@ -16,6 +17,7 @@ import top.hcode.hoj.pojo.dto.TestJudgeRes;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.dto.ToJudgeDTO;
 import top.hcode.hoj.service.JudgeService;
+import top.hcode.hoj.service.ProblemTestCaseSyncService;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -42,6 +44,9 @@ public class JudgeController {
     @Autowired
     private JudgeServerEntityService judgeServerEntityService;
 
+    @Autowired
+    private ProblemTestCaseSyncService problemTestCaseSyncService;
+
     @RequestMapping("/version")
     public CommonResult<HashMap<String, Object>> getVersion() {
         return CommonResult.successResponse(judgeServerEntityService.getJudgeServerInfo(), "运行正常");
@@ -63,6 +68,52 @@ public class JudgeController {
         judgeService.judge(judge);
 
         return CommonResult.successResponse("判题机评测完成！");
+    }
+
+    @PostMapping(value = "/sync-testcase")
+    public CommonResult<Void> syncTestCase(@RequestParam("token") String token,
+                                           @RequestParam("pid") Long pid,
+                                           @RequestParam("version") String version,
+                                           @RequestPart("archive") MultipartFile archive) {
+        if (!Objects.equals(token, judgeToken)) {
+            return CommonResult.errorResponse("判题服务调用凭证不正确！", ResultStatus.ACCESS_DENIED);
+        }
+        try {
+            problemTestCaseSyncService.install(pid, version, archive);
+            return CommonResult.successResponse("测试数据同步成功");
+        } catch (Exception e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @PostMapping(value = "/sync-testcase-info")
+    public CommonResult<Void> syncTestCaseInfo(@RequestParam("token") String token,
+                                               @RequestParam("pid") Long pid,
+                                               @RequestParam("version") String version,
+                                               @RequestPart("info") MultipartFile info) {
+        if (!Objects.equals(token, judgeToken)) {
+            return CommonResult.errorResponse("判题服务调用凭证不正确！", ResultStatus.ACCESS_DENIED);
+        }
+        try {
+            problemTestCaseSyncService.installInfo(pid, version, info);
+            return CommonResult.successResponse("测试数据元信息更新成功");
+        } catch (Exception e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @PostMapping(value = "/delete-testcase")
+    public CommonResult<Void> deleteTestCase(@RequestParam("token") String token,
+                                             @RequestParam("pid") Long pid) {
+        if (!Objects.equals(token, judgeToken)) {
+            return CommonResult.errorResponse("判题服务调用凭证不正确！", ResultStatus.ACCESS_DENIED);
+        }
+        try {
+            problemTestCaseSyncService.delete(pid);
+            return CommonResult.successResponse("测试数据清理成功");
+        } catch (Exception e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
     }
 
 

@@ -3,6 +3,7 @@ package top.hcode.hoj.judge;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import org.springframework.stereotype.Component;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import top.hcode.hoj.common.exception.SystemError;
 import top.hcode.hoj.judge.entity.JudgeDTO;
 import top.hcode.hoj.judge.entity.JudgeGlobalDTO;
@@ -11,6 +12,7 @@ import top.hcode.hoj.judge.task.*;
 import top.hcode.hoj.pojo.dto.TestJudgeReq;
 import top.hcode.hoj.pojo.dto.TestJudgeRes;
 import top.hcode.hoj.pojo.entity.problem.Problem;
+import top.hcode.hoj.pojo.entity.judge.JudgeCase;
 import top.hcode.hoj.util.Constants;
 import top.hcode.hoj.util.JudgeUtils;
 import top.hcode.hoj.util.ThreadPoolUtils;
@@ -43,6 +45,9 @@ public class JudgeRun {
 
     @Resource
     private LanguageConfigLoader languageConfigLoader;
+
+    @Resource
+    private top.hcode.hoj.dao.JudgeCaseEntityService judgeCaseEntityService;
 
     public List<JSONObject> judgeAllCase(Long submitId,
                                          Problem problem,
@@ -105,12 +110,12 @@ public class JudgeRun {
         // OI题的subtask最低分模式，则每个subtask组只要有一个case非AC 或者 percentage为 0.0则该组剩余评测点跳过，不再评测
         if (Constants.Contest.TYPE_OI.getCode().equals(problem.getType())
                 && Constants.JudgeCaseMode.SUBTASK_LOWEST.getMode().equals(judgeCaseMode)) {
-            return subtaskJudgeAllCase(testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
+            return subtaskJudgeAllCase(submitId, testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
         } else if (Constants.JudgeCaseMode.ERGODIC_WITHOUT_ERROR.getMode().equals(judgeCaseMode)){
             // 顺序评测测试点，遇到非AC就停止！
-            return ergodicJudgeAllCase(testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
+            return ergodicJudgeAllCase(submitId, testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
         } else {
-            return defaultJudgeAllCase(testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
+            return defaultJudgeAllCase(submitId, testcaseList, testCasesDir, judgeGlobalDTO, abstractJudge);
         }
     }
 
@@ -124,7 +129,8 @@ public class JudgeRun {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    private List<JSONObject> defaultJudgeAllCase(JSONArray testcaseList,
+    private List<JSONObject> defaultJudgeAllCase(Long submitId,
+                                                 JSONArray testcaseList,
                                                  String testCasesDir,
                                                  JudgeGlobalDTO judgeGlobalDTO,
                                                  AbstractJudge abstractJudge) throws ExecutionException, InterruptedException {
@@ -168,6 +174,7 @@ public class JudgeRun {
                 result.set("outputFileName", judgeDTO.getTestCaseOutputFileName());
                 result.set("groupNum", groupNum);
                 result.set("seq", testCaseId);
+                recordCaseResult(submitId, result);
                 return result;
             }));
 
@@ -185,7 +192,8 @@ public class JudgeRun {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    private List<JSONObject> ergodicJudgeAllCase(JSONArray testcaseList,
+    private List<JSONObject> ergodicJudgeAllCase(Long submitId,
+                                                 JSONArray testcaseList,
                                                  String testCasesDir,
                                                  JudgeGlobalDTO judgeGlobalDTO,
                                                  AbstractJudge abstractJudge) throws ExecutionException, InterruptedException {
@@ -231,6 +239,7 @@ public class JudgeRun {
                 result.set("seq", judgeDTO.getTestCaseNum());
                 return result;
             }));
+            recordCaseResult(submitId, judgeRes);
             judgeResList.add(judgeRes);
             Integer status = judgeRes.getInt("status");
             if (!Constants.Judge.STATUS_ACCEPTED.getStatus().equals(status)){
@@ -250,7 +259,8 @@ public class JudgeRun {
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    private List<JSONObject> subtaskJudgeAllCase(JSONArray testcaseList,
+    private List<JSONObject> subtaskJudgeAllCase(Long submitId,
+                                                 JSONArray testcaseList,
                                                  String testCasesDir,
                                                  JudgeGlobalDTO judgeGlobalDTO,
                                                  AbstractJudge abstractJudge) throws ExecutionException, InterruptedException {
@@ -312,6 +322,7 @@ public class JudgeRun {
                     result.set("seq", judgeDTO.getTestCaseNum());
                     return result;
                 }));
+                recordCaseResult(submitId, judgeRes);
                 judgeResList.add(judgeRes);
                 Integer status = judgeRes.getInt("status");
                 Double percentage = judgeRes.getDouble("percentage");
@@ -331,7 +342,8 @@ public class JudgeRun {
                         elseJudgeRes.set("inputFileName", elseJudgeDTO.getTestCaseInputFileName());
                         elseJudgeRes.set("outputFileName", elseJudgeDTO.getTestCaseOutputFileName());
                         elseJudgeRes.set("groupNum", groupNum);
-                        elseJudgeRes.set("seq", judgeDTO.getTestCaseNum());
+                        elseJudgeRes.set("seq", elseJudgeDTO.getTestCaseNum());
+                        recordCaseResult(submitId, elseJudgeRes);
                         judgeResList.add(elseJudgeRes);
                     }
                     break;
@@ -339,6 +351,24 @@ public class JudgeRun {
             }
         }
         return judgeResList;
+    }
+
+    /** 将单个测试点的最新结果及时写回，列表页即可显示当前测试点。 */
+    private void recordCaseResult(Long submitId, JSONObject result) {
+        Integer seq = result.getInt("seq");
+        if (seq == null) {
+            return;
+        }
+        UpdateWrapper<JudgeCase> update = new UpdateWrapper<>();
+        update.eq("submit_id", submitId).eq("seq", seq)
+                .set("status", result.getInt("status"))
+                .set("time", result.getLong("time", 0L))
+                .set("memory", result.getLong("memory", 0L));
+        if (result.getStr("errMsg") != null) {
+            update.set("user_output", result.getStr("errMsg"));
+        }
+        update.set("stderr", result.getStr("stderr", ""));
+        judgeCaseEntityService.update(update);
     }
 
     /**

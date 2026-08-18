@@ -31,7 +31,38 @@
       >
         <el-empty :description="$t('m.No_Announcements')"></el-empty>
       </div>
-      <template v-if="listVisible">
+      <div v-if="defaultExpanded && listVisible && announcements.length" key="expanded-list">
+        <el-collapse v-model="activeNames" class="expanded-announcements">
+          <el-collapse-item
+            v-for="announcement in announcements"
+            :key="announcement.id"
+            :name="announcement.id"
+          >
+            <template slot="title">
+              <div class="expanded-title">
+                <strong>{{ announcement.title }}</strong>
+                <span>
+                  <i class="el-icon-edit"></i> {{ announcement.gmtCreate | localtime }}
+                  <i class="el-icon-user"></i> {{ announcement.username }}
+                </span>
+              </div>
+            </template>
+            <div
+              v-katex
+              v-highlight
+              v-html="announcement.renderedContent"
+              class="content-container markdown-body"
+            ></div>
+          </el-collapse-item>
+        </el-collapse>
+        <Pagination
+          v-if="!isContest"
+          :total="total"
+          :page-size="limit"
+          @on-change="getAnnouncementList"
+        ></Pagination>
+      </div>
+      <template v-else-if="listVisible">
         <ul class="announcements-container" key="list">
           <li v-for="announcement in announcements" :key="announcement.title">
             <div class="flex-container">
@@ -91,6 +122,10 @@ export default {
       type: Number,
       default: 5,
     },
+    defaultExpanded: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -99,6 +134,7 @@ export default {
       announcements: [],
       announcement: '',
       listVisible: true,
+      activeNames: [],
     };
   },
   mounted() {
@@ -117,7 +153,7 @@ export default {
       api.getAnnouncementList(page, this.limit).then(
         (res) => {
           this.btnLoading = false;
-          this.announcements = res.data.data.records;
+          this.setAnnouncements(res.data.data.records);
           this.total = res.data.data.total;
         },
         () => {
@@ -136,7 +172,7 @@ export default {
         .then(
           (res) => {
             this.btnLoading = false;
-            this.announcements = res.data.data.records;
+            this.setAnnouncements(res.data.data.records);
             this.total = res.data.data.total;
           },
           () => {
@@ -155,6 +191,16 @@ export default {
     goBack() {
       this.listVisible = true;
       this.announcement = '';
+    },
+    setAnnouncements(records) {
+      this.announcements = (records || []).map((item) => ({
+        ...item,
+        renderedContent: this.$markDown.render(item.content || ''),
+      }));
+      if (this.defaultExpanded) {
+        this.activeNames = this.announcements.map((item) => item.id);
+        this.$nextTick(() => addCodeBtn());
+      }
     },
   },
   computed: {
@@ -219,6 +265,23 @@ export default {
 
 .content-container {
   padding: 0 20px 20px 20px;
+}
+.expanded-announcements /deep/ .el-collapse-item__header {
+  min-height: 52px;
+  height: auto;
+  line-height: 1.5;
+}
+.expanded-title {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 12px;
+}
+.expanded-title span {
+  color: #909399;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .no-announcement {

@@ -54,6 +54,7 @@ public class ContestEntityServiceImpl extends ServiceImpl<ContestMapper, Contest
         List<Long> cidList = Collections.singletonList(cid);
         ContestVO contestVo = contestMapper.getContestInfoById(cid);
         if (contestVo != null) {
+            contestVo.setCount(0);
             List<ContestRegisterCountVO> contestRegisterCountVOList = contestMapper.getContestRegisterCount(cidList);
             if(!CollectionUtils.isEmpty(contestRegisterCountVOList)) {
                 ContestRegisterCountVO contestRegisterCountVo = contestRegisterCountVOList.get(0);
@@ -65,6 +66,7 @@ public class ContestEntityServiceImpl extends ServiceImpl<ContestMapper, Contest
 
 
     private void setRegisterCount(List<ContestVO> contestList){
+        contestList.forEach(contest -> contest.setCount(0));
         List<Long> cidList = contestList.stream().map(ContestVO::getId).collect(Collectors.toList());
         if (!CollectionUtils.isEmpty(cidList)) {
             List<ContestRegisterCountVO> contestRegisterCountVOList = contestMapper.getContestRegisterCount(cidList);

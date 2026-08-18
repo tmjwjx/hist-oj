@@ -338,7 +338,7 @@ export default {
   },
   // 管理员获取试卷详情
   adminGetExamPaperDetail(paperId) {
-    return axios.get(`${BASE_URL}/exam-paper/${paperId}`)
+    return axios.get(`${BASE_URL}/admin/exam-paper/${paperId}`)
   },
   // 管理员获取题库（所有题目，包括私有）
   adminGetQuestionBank(params) {

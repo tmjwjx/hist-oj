@@ -8,11 +8,15 @@ import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.result.CommonResult;
 import top.hcode.hoj.common.result.ResultStatus;
 import top.hcode.hoj.manager.oj.TrainingManager;
+import top.hcode.hoj.manager.oj.TrainingParticipantManager;
+import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.pojo.dto.RegisterTrainingDTO;
 import top.hcode.hoj.pojo.vo.AccessVO;
 import top.hcode.hoj.pojo.vo.ProblemVO;
 import top.hcode.hoj.pojo.vo.TrainingRankVO;
 import top.hcode.hoj.pojo.vo.TrainingVO;
+import top.hcode.hoj.pojo.vo.TrainingParticipantVO;
+import top.hcode.hoj.pojo.vo.TrainingProgressVO;
 import top.hcode.hoj.service.oj.TrainingService;
 
 import javax.annotation.Resource;
@@ -28,6 +32,9 @@ public class TrainingServiceImpl implements TrainingService {
 
     @Resource
     private TrainingManager trainingManager;
+
+    @Resource
+    private TrainingParticipantManager trainingParticipantManager;
 
     @Override
     public CommonResult<IPage<TrainingVO>> getTrainingList(Integer limit, Integer currentPage,
@@ -93,5 +100,55 @@ public class TrainingServiceImpl implements TrainingService {
         } catch (StatusForbiddenException e) {
             return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
         }
+    }
+
+    @Override
+    public CommonResult<TrainingParticipantVO> joinTraining(Long tid) {
+        try {
+            return CommonResult.successResponse(trainingParticipantManager.join(tid));
+        } catch (StatusNotFoundException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.NOT_FOUND);
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<List<TrainingParticipantVO>> getTrainingParticipants(Long tid) {
+        try {
+            return CommonResult.successResponse(trainingParticipantManager.getParticipants(tid));
+        } catch (StatusNotFoundException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.NOT_FOUND);
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        }
+    }
+
+    @Override
+    public CommonResult<TrainingParticipantVO> getMyTrainingRecord(Long tid) {
+        try {
+            return CommonResult.successResponse(trainingParticipantManager.getMyRecord(tid));
+        } catch (StatusNotFoundException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.NOT_FOUND);
+        }
+    }
+
+    @Override
+    public CommonResult<Void> refreshTrainingStatus(Long tid) {
+        try {
+            trainingParticipantManager.refreshStatus(tid);
+            return CommonResult.successResponse();
+        } catch (StatusNotFoundException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.NOT_FOUND);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<List<TrainingProgressVO>> getMyTrainingProgress() {
+        return CommonResult.successResponse(trainingParticipantManager.getMyProgress());
     }
 }

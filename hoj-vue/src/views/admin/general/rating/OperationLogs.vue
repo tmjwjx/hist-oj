@@ -203,13 +203,13 @@ export default {
         this.axios.post('/api/rating/admin/fix-logs-username')
           .then(response => {
             const data = response.data
-            if (data.code === 200) {
+            if (data.code === 200 || data.status === 200) {
               this.$message.success('修复成功！')
-              console.log('修复统计:', data.data.statistics)
+              console.log('修复统计:', data.data && data.data.statistics)
               // 刷新日志列表
               this.fetchLogs()
             } else {
-              this.$message.error('修复失败: ' + data.message)
+              this.$message.error('修复失败: ' + (data.message || data.msg))
             }
           })
           .catch(error => {

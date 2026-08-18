@@ -421,7 +421,7 @@ export default {
       showRenameFolderDialog: false,
       editFolderName: '',
       currentEditFolder: null,
-      uploadUrl: '/rating-api/api/classroom/material/upload',
+      uploadUrl: '/api/classroom/material/upload',
       uploadHeaders: {
         Authorization: localStorage.getItem('token') || ''
       },
@@ -1029,7 +1029,7 @@ export default {
       }
 
       // 使用带权限验证的下载API
-      const downloadUrl = `/rating-api/api/classroom/material/${material.id}/download`
+      const downloadUrl = `/api/classroom/material/${material.id}/download`
       this.downloadFile(downloadUrl, material.fileName, material)
     },
 
@@ -1201,7 +1201,7 @@ export default {
 
       this.permissionLoading = true
       try {
-        const response = await this.$axios.get(`/rating-api/api/classroom/material/${this.currentPermissionMaterial.id}/permissions`)
+        const response = await this.$axios.get(`/api/classroom/material/${this.currentPermissionMaterial.id}/permissions`)
         if (response.data.code === 200) {
           this.studentPermissions = (response.data.data || []).map(item => ({
             ...item,
@@ -1257,7 +1257,7 @@ export default {
           }))
         }
 
-        const response = await this.$axios.post('/rating-api/api/classroom/material/permissions', data)
+      const response = await this.$axios.post('/api/classroom/material/permissions', data)
         if (response.data.code === 200) {
           this.$message.success('权限设置保存成功')
           this.showPermissionDialog = false

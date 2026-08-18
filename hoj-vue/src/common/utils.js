@@ -124,12 +124,15 @@ function getLanguages (all=true) {
 }
 
 function stringToExamples(value){
-  let reg = "<input>([\\s\\S]*?)</input><output>([\\s\\S]*?)</output>";
+  if (!value) return [];
+  // Keep compatibility with legacy examples while accepting an optional
+  // explanation that belongs to the statement sample (not judge data).
+  let reg = "<input>([\\s\\S]*?)</input>\\s*<output>([\\s\\S]*?)</output>(?:\\s*<explanation>([\\s\\S]*?)</explanation>)?";
   let re = RegExp(reg,"g");
   let objList = []
   let tmp;
   while(tmp=re.exec(value)){
-    objList.push({input:tmp[1],output:tmp[2]})
+    objList.push({input:tmp[1],output:tmp[2],explanation:tmp[3] || ""})
   }
   return objList
 }
@@ -141,6 +144,9 @@ function examplesToString(objList){
   let result=""
   for(let obj of objList){
     result+= "<input>"+obj.input+"</input><output>"+obj.output+"</output>"
+    if (obj.explanation && obj.explanation.trim()) {
+      result += "<explanation>" + obj.explanation + "</explanation>"
+    }
   }
   return result
 }

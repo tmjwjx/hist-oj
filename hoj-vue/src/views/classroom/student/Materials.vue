@@ -469,7 +469,7 @@ export default {
       }
 
       // 使用带权限验证的下载API
-      const downloadUrl = `/rating-api/api/classroom/material/${material.id}/download`
+      const downloadUrl = `/api/classroom/material/${material.id}/download`
       this.downloadFile(downloadUrl, material.fileName, material)
     },
 

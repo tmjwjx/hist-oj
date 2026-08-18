@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.hcode.hoj.mapper.BattleRecordMapper">
+
+    <select id="selectRank" resultType="top.hcode.hoj.pojo.vo.BattleRankVO">
+        SELECT br.user_id AS userId,
+               MAX(br.username) AS username,
+               COUNT(*) AS totalBattles,
+               SUM(CASE WHEN br.is_winner = 1 THEN 1 ELSE 0 END) AS winCount,
+               SUM(CASE WHEN br.is_winner = 0 THEN 1 ELSE 0 END) AS loseCount,
+               ROUND(SUM(CASE WHEN br.is_winner = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS winRate,
+               COALESCE(SUM(br.submit_count), 0) AS totalSubmitCount,
+               ROUND(AVG(br.battle_time)) AS avgBattleTime,
+               MAX(ur.hist_rating) AS rating
+        FROM battle_record br
+        LEFT JOIN user_record ur ON ur.uid = br.user_id
+        WHERE br.is_excluded = 0
+        <if test="username != null and username != ''">
+            AND br.username LIKE CONCAT('%', #{username}, '%')
+        </if>
+        GROUP BY br.user_id
+        ORDER BY winCount DESC, winRate DESC, totalBattles DESC, username ASC
+    </select>
+</mapper>

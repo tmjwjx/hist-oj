@@ -281,18 +281,15 @@
                           <pre>{{ example.output }}</pre>
                         </div>
                       </div>
+                      <div v-if="example.explanation" class="example-explanation">
+                        <p class="title">样例解释 {{ index + 1 }}</p>
+                        <Markdown
+                          class="md-content"
+                          :isAvoidXss="problemData.problem.gid != null"
+                          :content="example.explanation">
+                        </Markdown>
+                      </div>
                     </div>
-                  </template>
-
-                  <template v-if="problemData.problem.hint">
-                    <p class="title">{{ $t('m.Hint') }}</p>
-                    <el-card dis-hover>
-                      <Markdown 
-                      class="hint-content"
-                      :isAvoidXss="problemData.problem.gid != null" 
-                      :content="problemData.problem.hint">
-                    </Markdown>
-                    </el-card>
                   </template>
 
                   <template v-if="problemData.problem.source && !contestID">
@@ -366,7 +363,7 @@
                     >
                       <template v-slot="{ row }">
                         <span :class="getStatusColor(row.status)">{{
-                          JUDGE_STATUS[row.status].name
+                          row.statusText || JUDGE_STATUS[row.status].name
                         }}</span>
                       </template>
                     </vxe-table-column>
@@ -946,6 +943,9 @@ export default {
       mySubmission_limit: 10,
       mySubmission_currentPage: 1,
       mySubmissions: [],
+      refreshStatus: null,
+      submissionListTimer: null,
+      submissionListLoading: false,
       loading: false,
       bodyClass: "",
       userExtraFile: null,
@@ -991,6 +991,7 @@ export default {
     this.checkBattleMode();
   },
   beforeDestroy() {
+    this.stopSubmissionPolling();
     // 清理对战轮询定时器
     this.stopBattlePolling();
   },
@@ -1026,9 +1027,13 @@ export default {
     handleClickTab({ name }) {
       if (name == "mySubmission" && this.isAuthenticated) {
         this.getMySubmission();
+      } else {
+        this.stopMySubmissionPolling();
       }
     },
-    getMySubmission() {
+    getMySubmission(options = {}) {
+      const silent = options && typeof options === "object" && options.silent;
+      if (this.submissionListLoading) return Promise.resolve();
       let params = {
         onlyMine: true,
         currentPage: this.mySubmission_currentPage,
@@ -1049,22 +1054,65 @@ export default {
       let func = this.contestID
         ? "getContestSubmissionList"
         : "getSubmissionList";
-      this.loadingTable = true;
-      api[func](this.mySubmission_limit, utils.filterEmptyValue(params))
+      this.submissionListLoading = true;
+      if (!silent) this.loadingTable = true;
+      return api[func](this.mySubmission_limit, utils.filterEmptyValue(params))
         .then(
           (res) => {
             let data = res.data.data;
             this.mySubmissions = data.records;
             this.mySubmission_total = data.total;
-            this.loadingTable = false;
+            this.scheduleMySubmissionPolling();
           },
-          (err) => {
-            this.loadingTable = false;
-          }
+          () => this.stopMySubmissionPolling()
         )
-        .catch(() => {
+        .finally(() => {
+          this.submissionListLoading = false;
           this.loadingTable = false;
         });
+    },
+    isSubmissionRunning(status) {
+      return [
+        JUDGE_STATUS_RESERVE["Pending"],
+        JUDGE_STATUS_RESERVE["Compiling"],
+        JUDGE_STATUS_RESERVE["Judging"],
+        JUDGE_STATUS_RESERVE["Submitting"],
+      ].includes(status);
+    },
+    syncSubmissionRow(submission) {
+      if (!submission || !submission.submitId) return;
+      const index = this.mySubmissions.findIndex(
+        (item) => item.submitId === submission.submitId
+      );
+      if (index >= 0) {
+        this.$set(this.mySubmissions, index, {
+          ...this.mySubmissions[index],
+          ...submission,
+        });
+      }
+    },
+    scheduleMySubmissionPolling() {
+      this.stopMySubmissionPolling();
+      if (
+        this.activeName !== "mySubmission" ||
+        !this.isAuthenticated ||
+        !this.mySubmissions.some((item) => this.isSubmissionRunning(item.status))
+      ) {
+        return;
+      }
+      this.submissionListTimer = setTimeout(
+        () => this.getMySubmission({ silent: true }),
+        1500
+      );
+    },
+    stopMySubmissionPolling() {
+      if (this.submissionListTimer) clearTimeout(this.submissionListTimer);
+      this.submissionListTimer = null;
+    },
+    stopSubmissionPolling() {
+      if (this.refreshStatus) clearTimeout(this.refreshStatus);
+      this.refreshStatus = null;
+      this.stopMySubmissionPolling();
     },
     getStatusColor(status) {
       return "el-tag el-tag--medium status-" + JUDGE_STATUS[status].color;
@@ -1555,8 +1603,11 @@ export default {
         let submitId = this.submissionId;
         api.getSubmission(submitId).then(
           (res) => {
-            this.result.status = res.data.data.submission.status;
-            if (Object.keys(res.data.data.submission).length !== 0) {
+            const submission = res.data.data.submission;
+            this.result.status = submission.status;
+            this.result.statusText = submission.statusText;
+            this.syncSubmissionRow(submission);
+            if (Object.keys(submission).length !== 0) {
               // status不为判题和排队中才表示此次判题结束
               if (
                 res.data.data.submission.status !=
@@ -1569,6 +1620,10 @@ export default {
                 this.submitting = false;
                 this.submitted = false;
                 clearTimeout(this.refreshStatus);
+                this.refreshStatus = null;
+                if (this.activeName === "mySubmission") {
+                  this.getMySubmission({ silent: true });
+                }
 
                 // 检查是否AC，如果是对战模式则处理
                 if (this.result.status === 0 && this.isBattleMode) {
@@ -1625,6 +1680,14 @@ export default {
 
       // 比赛题目需要检查是否有权限提交
       if (!this.canSubmit && this.$route.params.contestID) {
+        if (this.contest.openRegistration) {
+          myMessage.warning("请先在比赛概览页完成报名信息填写");
+          this.$router.push({
+            name: "ContestDetails",
+            params: { contestID: this.contestID },
+          });
+          return;
+        }
         this.submitPwdVisible = true;
         return;
       }
@@ -1663,7 +1726,7 @@ export default {
             }
             // 更新store的可提交权限
             if (!this.canSubmit) {
-              this.$store.commit("contestIntoAccess", { access: true });
+              this.$store.commit("contestIntoAccess", { intoAccess: true });
             }
             this.submitted = true;
             this.checkSubmissionStatus();
@@ -2012,7 +2075,7 @@ export default {
       }
     },
     beforeLeaveDo(cid){
-      clearInterval(this.refreshStatus);
+      this.stopSubmissionPolling();
       storage.set(
         buildProblemCodeAndSettingKey(this.problemID, cid),
         {
@@ -2050,7 +2113,7 @@ export default {
     },
     submissionStatus() {
       return {
-        text: JUDGE_STATUS[this.result.status]["name"],
+        text: this.result.statusText || JUDGE_STATUS[this.result.status]["name"],
         color: JUDGE_STATUS[this.result.status]["rgb"],
       };
     },
@@ -2348,9 +2411,16 @@ a {
   padding-left: 8px;
 }
 
-.hint-content {
-  margin: 1em 0;
-  font-size: 15px !important;
+.example-explanation {
+  margin: 8px 0 18px;
+  padding: 10px 14px;
+  border-left: 3px solid #67c23a;
+  background: #f0f9eb;
+}
+
+.example-explanation .title {
+  margin: 0 0 4px !important;
+  color: #67c23a !important;
 }
 
 .md-content {

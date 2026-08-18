@@ -104,7 +104,7 @@ export default {
         } else {
           // 第一次预览，请求后端（会触发CI处理）
           const response = await this.$axios.get(
-            `/rating-api/api/classroom/material/${this.materialId}/cos-preview-url`
+            `/api/classroom/material/${this.materialId}/cos-preview-url`
           )
 
           if (response.data.code === 200) {
@@ -165,7 +165,7 @@ export default {
     },
 
     downloadFile() {
-      const downloadUrl = `/rating-api/api/classroom/material/${this.materialId}/download`
+      const downloadUrl = `/api/classroom/material/${this.materialId}/download`
       const link = document.createElement('a')
       link.href = downloadUrl
       link.download = this.fileName

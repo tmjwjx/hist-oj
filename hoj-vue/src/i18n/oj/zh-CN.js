@@ -241,6 +241,12 @@ export const m = {
   Latest_Problem: '最新题目',
   Supported_Remote_Online_Judge: '支持的远程评测平台',
   Statistics_Submissions_In_The_Last_Week: '最近一周提交统计',
+  Rating_Rank: 'Rating 排行榜',
+  View_All: '查看全部',
+  Registered_Count: '已报名人数',
+  Problem_Setter: '命题人',
+  Register: '报名',
+  Registered: '已报名',
 
 
   // 表格通用列名,按钮，搜索框等
@@ -307,7 +313,7 @@ export const m = {
   Submit: '提交评测',
   Online_Test:'在线自测',
   Submitting: '提交中',
-  Judging: '正在评测',
+  Judging: '运行中',
   Wrong_Answer: '答案错误',
   View_Contest: '查看比赛',
   Are_you_sure_you_want_to_reset_your_code: '你是否确定要重置原始代码？如果该题有代码模板，则还原为原始模板的代码，否则正在编辑的代码将清空。',

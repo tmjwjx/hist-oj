@@ -72,7 +72,7 @@
                 <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
                   <i class="el-icon-warning-outline"></i> 未提交
                 </el-tag>
-                <span class="question-score">{{ submit.question.score || 0 }}分</span>
+                <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}分</span>
               </div>
 
               <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
@@ -225,7 +225,7 @@
               <el-tag :type="getQuestionTypeTag(submit.question.type)" size="small">
                 {{ getQuestionTypeText(submit.question.type) }}
               </el-tag>
-              <span class="question-score">{{ submit.question.score || 0 }}分</span>
+              <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}分</span>
             </div>
 
             <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
@@ -624,7 +624,7 @@ export default {
 
             // 重要：作业详情更新后（如添加了新题目），需要重新构建学生提交数据
             // 否则新题目不会显示在学生提交详情中
-            if (this.submission) {
+            if (Array.isArray(this.submissions)) {
               const studentUid = this.$route.params.uid || this.$route.query.uid
               this.buildStudentSubmission(studentUid)
             }
@@ -977,17 +977,17 @@ export default {
     },
     async submitGrade() {
       // 验证分数范围
-      const maxScore = this.currentQuestion?.question?.score || 0
+      const maxScore = this.getCurrentQuestionScore()
       const scoreValue = Number(this.gradeForm.score) || 0 // 确保转换为数字，null/undefined 时默认为 0
       if (scoreValue < 0 || scoreValue > maxScore) {
         this.$message.error(`${this.$t('m.Score_Range_Error')}: 0 - ${maxScore}`)
         return
       }
 
-      // 使用 homeworkQuestionId（后端返回的新字段）
-      const questionId = this.currentQuestion.homeworkQuestionId || this.currentQuestion.questionId
-      if (!questionId) {
-        this.$message.error('无法获取题目ID')
+      // Java 合并后的评分接口以具体提交记录为准，避免同一题多次提交时评错记录。
+      const submissionId = this.currentQuestion.id
+      if (!submissionId) {
+        this.$message.error('无法获取提交记录ID')
         return
       }
 
@@ -995,7 +995,8 @@ export default {
       try {
         const res = await this.$store.dispatch('classroom/gradeHomework', {
           homeworkId: parseInt(this.$route.params.homeworkId),
-          questionId: questionId,
+          submissionId,
+          questionId: this.currentQuestion.homeworkQuestionId || this.currentQuestion.questionId,
           uid: this.currentQuestion.uid,
           score: scoreValue
         })
@@ -1097,8 +1098,8 @@ export default {
         })
         return homeworkQuestion?.score || 0
       }
-      // 普通题目：直接从 question 获取
-      return this.currentQuestion?.question?.score || 0
+      // 题目满分属于作业-题目关系，新 Java 接口放在提交视图的 maxScore 外层。
+      return this.currentQuestion?.maxScore || this.currentQuestion?.question?.score || 0
     },
     // 解析附件字符串为图片URL数组
     getAttachmentImages(attachment) {

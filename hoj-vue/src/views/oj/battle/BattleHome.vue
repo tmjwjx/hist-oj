@@ -333,173 +333,100 @@ export default {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 
 .battle-home-card {
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  animation: fadeInUp 0.6s ease;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .battle-header {
-  text-align: center;
-  padding: 30px 20px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  border-radius: 16px 16px 0 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.battle-header::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
-  background-size: 20px 20px;
-  animation: bgMove 20s linear infinite;
-}
-
-@keyframes bgMove {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(20px, 20px);
-  }
+  background: #fff;
+  border-bottom: 2px solid #409eff;
+  padding: 20px;
 }
 
 .battle-title-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  position: relative;
-  z-index: 1;
+  gap: 12px;
 }
 
 .battle-logo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 70px;
-  height: 70px;
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
-  border-radius: 20px;
-  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.5);
+  width: 40px;
+  height: 40px;
+  background: #409eff;
+  border-radius: 4px;
   color: white;
-  font-size: 32px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 8px 25px rgba(255, 107, 107, 0.5);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 12px 35px rgba(255, 107, 107, 0.7);
-  }
+  font-size: 20px;
 }
 
 .battle-title {
-  font-size: 36px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 2px 10px rgba(255, 255, 255, 0.3);
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .battle-content {
-  padding: 30px 20px;
+  padding: 24px 20px;
+  background: #fff;
 }
 
 .modules-section {
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .module-card {
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border-radius: 16px;
+  transition: all 0.2s;
+  border-radius: 4px;
   text-align: center;
-  padding: 35px 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border: 2px solid transparent;
-  position: relative;
-  overflow: hidden;
+  padding: 30px 20px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px;
 }
 
 .module-card > * {
   width: 100%;
 }
 
-.module-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  opacity: 0;
-  transition: opacity 0.3s;
-  background: linear-gradient(135deg, rgba(79, 172, 254, 0.08) 0%, rgba(0, 242, 254, 0.08) 100%);
-}
-
-.module-card:hover::before {
-  opacity: 1;
-}
-
 .module-card:hover {
-  transform: translateY(-10px) scale(1.03);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
-  border-color: #4facfe;
+  border-color: #409eff;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
 }
 
 .module-icon {
-  margin: 0 auto 20px;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  position: relative;
-  z-index: 1;
-  width: 80px;
-  height: 80px;
+  margin: 0 auto 16px;
+  transition: transform 0.2s;
+  width: 60px;
+  height: 60px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%);
+  background: #ecf5ff;
 }
 
 .module-card:hover .module-icon {
-  transform: scale(1.15) rotate(5deg);
+  transform: scale(1.1);
 }
 
 /* 创建房间 - 绿色主题 */
 .create-card .module-icon {
-  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  background: #f0f9ff;
   color: #67C23A;
 }
 
@@ -509,7 +436,7 @@ export default {
 
 /* 加入房间 - 蓝色主题 */
 .join-card .module-icon {
-  background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+  background: #ecf5ff;
   color: #409EFF;
 }
 
@@ -519,96 +446,75 @@ export default {
 
 /* 排行榜 - 橙色主题 */
 .rank-card .module-icon {
-  background: linear-gradient(135deg, #FFE57F 0%, #FFB300 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 15px rgba(255, 179, 0, 0.4);
+  background: #fdf6ec;
+  color: #e6a23c;
 }
 
 .rank-card:hover {
-  border-color: #FFB300;
-}
-
-.rank-card .module-icon i {
-  animation: none;
-}
-
-.rank-card:hover .module-icon i {
-  animation: bounce 0.6s ease;
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  border-color: #e6a23c;
 }
 
 /* 我的战绩 - 紫色主题 */
 .records-card .module-icon {
-  background: linear-gradient(135deg, #e2d9f3 0%, #d3c7e8 100%);
-  color: #9b59b6;
+  background: #f4f4f5;
+  color: #909399;
 }
 
 .records-card:hover {
-  border-color: #9b59b6;
+  border-color: #909399;
 }
 
 .module-title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   color: #303133;
-  margin: 0 0 12px 0;
-  position: relative;
-  z-index: 1;
-  transition: all 0.3s ease;
-}
-
-.module-card:hover .module-title {
-  transform: scale(1.05);
+  margin: 0 0 8px 0;
 }
 
 .module-desc {
-  font-size: 14px;
-  color: #909399;
+  font-size: 13px;
+  color: #606266;
   margin: 0;
-  position: relative;
-  z-index: 1;
+  line-height: 1.6;
 }
 
 .rules-card {
-  margin-top: 30px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-  border: 2px solid #ffc107;
+  margin-top: 24px;
+  border-radius: 4px;
+  background: #fef0f0;
+  border: 1px solid #fbc4c4;
 }
 
 .rules-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-weight: 600;
-  font-size: 18px;
-  color: #856404;
+  font-size: 14px;
+  color: #f56c6c;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #fbc4c4;
+}
+
+.rules-content {
+  padding: 16px 20px;
 }
 
 .rules-list {
   margin: 0;
-  padding-left: 25px;
-  line-height: 2.2;
+  padding-left: 20px;
+  line-height: 1.8;
 }
 
 .rules-list li {
-  color: #856404;
-  font-size: 15px;
-  position: relative;
-  padding-left: 10px;
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
 .rules-list li::marker {
-  color: #ffc107;
-  font-size: 1.2em;
+  color: #f56c6c;
 }
 
 @media screen and (max-width: 768px) {
@@ -617,24 +523,24 @@ export default {
   }
 
   .battle-title {
-    font-size: 28px;
+    font-size: 20px;
   }
 
   .battle-logo {
-    width: 60px;
-    height: 60px;
-    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
   }
 
   .module-card {
-    padding: 25px 20px;
+    padding: 20px 15px;
     margin-bottom: 15px;
   }
 
   .module-icon {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 15px;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
   }
 
   .module-icon i {
@@ -642,11 +548,11 @@ export default {
   }
 
   .module-title {
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .module-desc {
-    font-size: 13px;
+    font-size: 12px;
   }
 }
 </style>

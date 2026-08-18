@@ -10,7 +10,17 @@
     <el-card v-loading="loading">
       <!-- 总体统计 -->
       <div class="overview-section">
-        <h4>总体情况</h4>
+        <h4>
+          总体情况
+          <span class="overview-summary">
+            <span v-if="analysisData.submissionCount !== undefined && analysisData.submissionCount !== null">
+              作答记录：{{ analysisData.submissionCount }} 条
+            </span>
+            <span v-if="analysisData.averageScore !== undefined && analysisData.averageScore !== null">
+              平均得分：{{ formatScore(analysisData.averageScore) }}
+            </span>
+          </span>
+        </h4>
         <el-row :gutter="20">
           <el-col :span="6">
             <div class="stat-card clickable" @click="showAllStudents">
@@ -44,21 +54,26 @@
       <!-- 题目分析 -->
       <div class="questions-section">
         <h4>题目分析</h4>
-        <el-collapse v-model="activeQuestions" accordion>
+        <el-empty
+          v-if="!analysisData.questionAnalysis || analysisData.questionAnalysis.length === 0"
+          description="暂无题目维度分析数据"
+          :image-size="80"
+        />
+        <el-collapse v-else v-model="activeQuestions" accordion>
           <el-collapse-item
             v-for="(question, index) in analysisData.questionAnalysis || []"
-            :key="question.homeworkQuestionId"
-            :title="`题目 ${question.questionOrder}: ${question.title}`"
+            :key="question.homeworkQuestionId || question.id || index"
+            :title="`题目 ${question.questionOrder || index + 1}: ${question.title || '未命名题目'}`"
             :name="index"
           >
             <template slot="title">
               <div class="question-title">
-                <span class="question-order">题目 {{ question.questionOrder }}</span>
+                <span class="question-order">题目 {{ question.questionOrder || index + 1 }}</span>
                 <el-tag :type="getQuestionTypeTag(question.type)" size="small" style="margin: 0 10px;">
                   {{ getQuestionTypeText(question.type) }}
                 </el-tag>
-                <span class="question-title-text">{{ question.title }}</span>
-                <span class="question-score">({{ question.score }}分)</span>
+                <span class="question-title-text">{{ question.title || '未命名题目' }}</span>
+                <span class="question-score">({{ formatScore(question.score) }}分)</span>
               </div>
             </template>
 
@@ -80,13 +95,13 @@
                 <el-col :span="4">
                   <div class="mini-stat">
                     <span class="mini-stat-label">平均得分：</span>
-                    <span class="mini-stat-value">{{ question.avgScore.toFixed(2) }}</span>
+                    <span class="mini-stat-value">{{ formatScore(question.avgScore) }}</span>
                   </div>
                 </el-col>
                 <el-col :span="4">
                   <div class="mini-stat">
                     <span class="mini-stat-label">得分率：</span>
-                    <span class="mini-stat-value">{{ ((question.avgScore / question.score) * 100).toFixed(1) }}%</span>
+                    <span class="mini-stat-value">{{ getQuestionScoreRate(question) }}%</span>
                   </div>
                 </el-col>
                 <el-col :span="8">
@@ -367,6 +382,7 @@
 import teacherAuth from '@/mixins/teacherAuth'
 import realtimeSync from '@/mixins/realtimeSync'
 import UserName from '@/components/oj/common/UserName.vue'
+import { firstDefined, normalizeHomeworkAnalysis, toNumber } from '@/utils/classroomAnalysis'
 
 export default {
   name: 'HomeworkAnalysis',
@@ -409,25 +425,22 @@ export default {
     }
   },
   computed: {
-    // 统一的 homeworkId：优先从 props 获取（管理员路由），否则从 route 获取（教师路由）
-    homeworkId() {
-      // 优先从 props 获取
-      if (this.$options.propsData && this.$options.propsData.homeworkId !== undefined) {
-        return this.$options.propsData.homeworkId
+    // 管理员页面通过 props 复用本组件，教师页面则从路由参数读取。
+    // 不直接把 computed 命名为 homeworkId/classroomId，避免与同名 prop 冲突。
+    resolvedHomeworkId() {
+      if (this.homeworkId !== undefined && this.homeworkId !== null && this.homeworkId !== '') {
+        return this.homeworkId
       }
-      // 否则从 route 获取
       return this.$route.query.homeworkId || this.$route.params.homeworkId
     },
-    classroomId() {
-      // 优先从 props 获取
-      if (this.$options.propsData && this.$options.propsData.classroomId !== undefined) {
-        return this.$options.propsData.classroomId
+    resolvedClassroomId() {
+      if (this.classroomId !== undefined && this.classroomId !== null && this.classroomId !== '') {
+        return this.classroomId
       }
-      // 否则从 route 获取
       return this.$route.query.classroomId || this.$route.params.classroomId
     },
     submissionRate() {
-        if (!this.analysisData.totalStudentCount || this.analysisData.totalStudentCount === 0) {
+      if (!this.analysisData.totalStudentCount || this.analysisData.totalStudentCount === 0) {
         return 0
       }
       return ((this.analysisData.submittedCount || 0) / this.analysisData.totalStudentCount * 100).toFixed(1)
@@ -457,11 +470,13 @@ export default {
       }
 
       try {
-        const homeworkId = this.homeworkId  // 使用 computed 中的 homeworkId
+        const homeworkId = this.resolvedHomeworkId
         const res = await this.$store.dispatch('classroom/getHomeworkAnalysis', homeworkId)
 
-        if (res.code === 200) {
-          const newData = res.data
+        const responseCode = toNumber(firstDefined(res, ['code', 'status'], 200), 200)
+        if (responseCode === 200) {
+          const payload = res && res.data !== undefined ? res.data : res
+          const newData = normalizeHomeworkAnalysis(payload)
 
           // 深度对比：使用 JSON.stringify 检查数据是否真的变化
           const currentDataString = JSON.stringify(this.analysisData)
@@ -504,8 +519,14 @@ export default {
       this.questionUnsubmittedStudents = question.unsubmittedBy || []
       this.questionUnsubmittedDialogVisible = true
     },
+    getQuestionScoreRate(question) {
+      const fullScore = toNumber(question && question.score, 0)
+      if (fullScore <= 0) return '0.0'
+      const averageScore = toNumber(question && question.avgScore, 0)
+      return (averageScore / fullScore * 100).toFixed(1)
+    },
     formatScore(score) {
-      const numericScore = Number(score || 0)
+      const numericScore = toNumber(score, 0)
       return Number.isInteger(numericScore) ? numericScore : numericScore.toFixed(2)
     },
     formatAnswer(answer) {
@@ -829,6 +850,15 @@ export default {
 
 .overview-section {
   margin-bottom: 20px;
+}
+
+.overview-summary {
+  display: inline-flex;
+  gap: 16px;
+  margin-left: 16px;
+  color: #909399;
+  font-size: 13px;
+  font-weight: normal;
 }
 
 .stat-card {

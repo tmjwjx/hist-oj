@@ -4,7 +4,6 @@ const Home = () => import('@/views/admin/Home')
 const Dashboard = () => import('@/views/admin/Dashboard')
 const User = () => import('@/views/admin/general/User')
 const RatingManagement = () => import('@/views/admin/general/RatingManagement')
-const JudgeTerminalPage = () => import('@/views/admin/general/JudgeTerminalPage')
 const BattleRecordsAdmin = () => import('@/views/admin/toolbox/BattleRecordsAdmin')
 const PermissionDocs = () => import('@/views/admin/general/PermissionDocs')
 const Announcement = () => import('@/views/admin/general/Announcement')
@@ -14,19 +13,18 @@ const SysSwitch = () => import('@/views/admin/general/SysSwitch')
 const ProblemList = () => import('@/views/admin/problem/ProblemList')
 const AdminGroupProblemList = () => import('@/views/admin/problem/GroupProblemList')
 const Problem = () => import('@/views/admin/problem/Problem')
+const ProblemAIHistory = () => import('@/views/admin/problem/ProblemAIHistory')
 const Tag = () => import('@/views/admin/problem/Tag')
 const ProblemImportAndExport = () => import('@/views/admin/problem/ImportAndExport')
 const Contest = () => import('@/views/admin/contest/Contest')
 const ContestList = () => import('@/views/admin/contest/ContestList')
+const ContestRegistrationList = () => import('@/views/admin/contest/ContestRegistrationList')
 const Training = () => import('@/views/admin/training/Training')
 const TrainingList = () => import('@/views/admin/training/TrainingList')
 const TrainingProblemList = () => import('@/views/admin/training/TrainingProblemList')
 const TrainingParticipants = () => import('@/views/admin/training/TrainingParticipants')
 const TrainingCategory = () => import('@/views/admin/training/Category')
 const DiscussionList = () => import('@/views/admin/discussion/Discussion')
-const RegistrationAdmin = () => import('@/views/admin/registration/RegistrationAdmin')
-const CompetitionEditor = () => import('@/views/admin/registration/CompetitionEditor')
-const RegistrationList = () => import('@/views/admin/registration/RegistrationList')
 const UserRoleManagement = () => import('@/views/admin/classroom/UserRoleManagement')
 const ClassroomAdmin = () => import('@/views/admin/classroom/ClassroomAdmin')
 const ClassroomHomeworkAnalysis = () => import('@/views/admin/classroom/HomeworkAnalysis')
@@ -73,12 +71,6 @@ const adminRoutes = [
         name: 'admin-rating',
         component: RatingManagement,
         meta: { requireSuperAdmin: true, title: 'Rating管理' }
-      },
-      {
-        path: 'judge-terminal',
-        name: 'admin-judge-terminal-page',
-        component: JudgeTerminalPage,
-        meta: { requireAdminOrProblemAdmin: true, title: '判题终端' }
       },
       {
         path: 'battle-records',
@@ -159,6 +151,12 @@ const adminRoutes = [
         name: 'admin-edit-problem',
         component: Problem,
         meta: { title: '编辑题目' }
+      },
+      {
+        path: 'problem/edit/:problemId/ai-history',
+        name: 'admin-problem-ai-history',
+        component: ProblemAIHistory,
+        meta: { title: '历史 AI 验题' }
       },
       {
         path: 'problem/tag',
@@ -323,29 +321,11 @@ const adminRoutes = [
         meta: { title: '航海图编辑器' }
       },
       {
-        path: 'registration',
-        name: 'admin-registration',
-        component: RegistrationAdmin,
-        meta: { title: '报名管理' }
+        path: 'contest/:contestId/registrations',
+        name: 'admin-contest-registration-list',
+        component: ContestRegistrationList,
+        meta: { title: '比赛报名信息' }
       },
-      {
-        path: 'registration/create',
-        name: 'admin-registration-create',
-        component: CompetitionEditor,
-        meta: { title: '创建比赛' }
-      },
-      {
-        path: 'registration/edit/:id',
-        name: 'admin-registration-edit',
-        component: CompetitionEditor,
-        meta: { title: '编辑比赛' }
-      },
-      {
-        path: 'registration/list/:id',
-        name: 'admin-registration-list',
-        component: RegistrationList,
-        meta: { title: '报名列表' }
-      }
     ]
   },
   {

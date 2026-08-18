@@ -12,6 +12,7 @@ import top.hcode.hoj.pojo.vo.OIContestRankVO;
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -25,6 +26,9 @@ public class ContestRankManager {
 
     @Resource
     private ContestCalculateRankManager contestCalculateRankManager;
+
+    @Resource
+    private ContestRegistrationNameManager registrationNameManager;
 
     /**
      * @param isOpenSealRank 是否封榜
@@ -57,16 +61,18 @@ public class ContestRankManager {
                 concernedList,
                 externalCidList,
                 isContainsAfterContestJudge);
+        applyACMRegistrationNames(contest, orderResultList);
 
         if (StrUtil.isNotBlank(keyword)) {
             String finalKeyword = keyword.trim().toLowerCase();
             orderResultList = orderResultList.stream()
                     .filter(rankVo -> filterBySchoolORRankShowName(finalKeyword,
                             rankVo.getSchool(),
-                            getUserRankShowName(contest.getRankShowName(),
+                            getUserRankShowName(contest,
                                     rankVo.getUsername(),
                                     rankVo.getRealname(),
-                                    rankVo.getNickname())))
+                                    rankVo.getNickname(),
+                                    rankVo.getContestName())))
                     .collect(Collectors.toList());
         }
 
@@ -105,16 +111,18 @@ public class ContestRankManager {
                 concernedList,
                 externalCidList,
                 isContainsAfterContestJudge);
+        applyOIRegistrationNames(contest, orderResultList);
 
         if (StrUtil.isNotBlank(keyword)) {
             String finalKeyword = keyword.trim().toLowerCase();
             orderResultList = orderResultList.stream()
                     .filter(rankVo -> filterBySchoolORRankShowName(finalKeyword,
                             rankVo.getSchool(),
-                            getUserRankShowName(contest.getRankShowName(),
+                            getUserRankShowName(contest,
                                     rankVo.getUsername(),
                                     rankVo.getRealname(),
-                                    rankVo.getNickname())))
+                                    rankVo.getNickname(),
+                                    rankVo.getContestName())))
                     .collect(Collectors.toList());
         }
 
@@ -163,16 +171,18 @@ public class ContestRankManager {
                 useCache,
                 cacheTime,
                 isContainsAfterContestJudge);
+        applyACMRegistrationNames(contest, acmContestRankVOS);
 
         if (StrUtil.isNotBlank(keyword)) {
             String finalKeyword = keyword.trim().toLowerCase();
             acmContestRankVOS = acmContestRankVOS.stream()
                     .filter(rankVo -> filterBySchoolORRankShowName(finalKeyword,
                             rankVo.getSchool(),
-                            getUserRankShowName(contest.getRankShowName(),
+                            getUserRankShowName(contest,
                                     rankVo.getUsername(),
                                     rankVo.getRealname(),
-                                    rankVo.getNickname())))
+                                    rankVo.getNickname(),
+                                    rankVo.getContestName())))
                     .collect(Collectors.toList());
         }
         return getPagingRankList(acmContestRankVOS, currentPage, limit);
@@ -220,16 +230,18 @@ public class ContestRankManager {
                 useCache,
                 cacheTime,
                 isContainsAfterContestJudge);
+        applyOIRegistrationNames(contest, oiContestRankVOList);
 
         if (StrUtil.isNotBlank(keyword)) {
             String finalKeyword = keyword.trim().toLowerCase();
             oiContestRankVOList = oiContestRankVOList.stream()
                     .filter(rankVo -> filterBySchoolORRankShowName(finalKeyword,
                             rankVo.getSchool(),
-                            getUserRankShowName(contest.getRankShowName(),
+                            getUserRankShowName(contest,
                                     rankVo.getUsername(),
                                     rankVo.getRealname(),
-                                    rankVo.getNickname())))
+                                    rankVo.getNickname(),
+                                    rankVo.getContestName())))
                     .collect(Collectors.toList());
         }
         return getPagingRankList(oiContestRankVOList, currentPage, limit);
@@ -250,8 +262,12 @@ public class ContestRankManager {
         return page;
     }
 
-    private String getUserRankShowName(String contestRankShowName, String username, String realName, String nickname) {
-        switch (contestRankShowName) {
+    private String getUserRankShowName(Contest contest, String username, String realName,
+                                       String nickname, String contestName) {
+        if (Boolean.TRUE.equals(contest.getUseRegistrationName()) && StrUtil.isNotBlank(contestName)) {
+            return contestName;
+        }
+        switch (contest.getRankShowName()) {
             case "username":
                 return username;
             case "realname":
@@ -260,6 +276,18 @@ public class ContestRankManager {
                 return nickname;
         }
         return null;
+    }
+
+    private void applyACMRegistrationNames(Contest contest, List<ACMContestRankVO> ranks) {
+        Map<String, String> names = registrationNameManager.getNames(contest,
+                ranks.stream().map(ACMContestRankVO::getUid).collect(Collectors.toList()));
+        ranks.forEach(rank -> rank.setContestName(names.get(rank.getUid())));
+    }
+
+    private void applyOIRegistrationNames(Contest contest, List<OIContestRankVO> ranks) {
+        Map<String, String> names = registrationNameManager.getNames(contest,
+                ranks.stream().map(OIContestRankVO::getUid).collect(Collectors.toList()));
+        ranks.forEach(rank -> rank.setContestName(names.get(rank.getUid())));
     }
 
     private boolean filterBySchoolORRankShowName(String keyword, String school, String rankShowName) {

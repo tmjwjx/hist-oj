@@ -100,6 +100,18 @@ public class AdminContestVO {
     @ApiModelProperty(value = "是否允许比赛结束后继续交题")
     private Boolean allowEndSubmit;
 
+    @ApiModelProperty(value = "是否要求填写比赛报名信息")
+    private Boolean openRegistration;
+
+    @ApiModelProperty(value = "需要填写的报名字段")
+    private List<String> registrationFields;
+
+    @ApiModelProperty(value = "是否使用报名信息替换比赛内名称")
+    private Boolean useRegistrationName;
+
+    @ApiModelProperty(value = "比赛内名称的组合字段")
+    private List<String> registrationNameFields;
+
     private Date gmtCreate;
 
     private Date gmtModified;

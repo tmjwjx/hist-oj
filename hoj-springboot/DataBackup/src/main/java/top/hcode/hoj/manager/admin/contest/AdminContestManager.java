@@ -23,6 +23,8 @@ import top.hcode.hoj.pojo.vo.AdminContestVO;
 import top.hcode.hoj.pojo.vo.ContestAwardConfigVO;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
+import top.hcode.hoj.utils.ContestRegistrationUtils;
+import top.hcode.hoj.validator.ContestRegistrationValidator;
 import top.hcode.hoj.validator.ContestValidator;
 
 import java.util.ArrayList;
@@ -47,6 +49,9 @@ public class AdminContestManager {
 
     @Autowired
     private ContestValidator contestValidator;
+
+    @Autowired
+    private ContestRegistrationValidator registrationValidator;
 
     public IPage<Contest> getContestList(Integer limit, Integer currentPage, String keyword) {
 
@@ -81,7 +86,11 @@ public class AdminContestManager {
         if (!isRoot && !userRolesVo.getUid().equals(contest.getUid())) {
             throw new StatusForbiddenException("对不起，你无权限操作！");
         }
-        AdminContestVO adminContestVo = BeanUtil.copyProperties(contest, AdminContestVO.class, "starAccount");
+        AdminContestVO adminContestVo = BeanUtil.copyProperties(contest, AdminContestVO.class,
+                "starAccount", "registrationFields", "registrationNameFields");
+        adminContestVo.setRegistrationFields(ContestRegistrationUtils.fromJson(contest.getRegistrationFields()));
+        adminContestVo.setRegistrationNameFields(
+                ContestRegistrationUtils.fromJson(contest.getRegistrationNameFields()));
         if (StringUtils.isEmpty(contest.getStarAccount())) {
             adminContestVo.setStarAccount(new ArrayList<>());
         } else {
@@ -123,9 +132,12 @@ public class AdminContestManager {
     }
 
     public void addContest(AdminContestVO adminContestVo) throws StatusFailException {
+        registrationValidator.validateConfig(adminContestVo);
         contestValidator.validateContest(adminContestVo);
 
-        Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class, "starAccount");
+        Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class,
+                "starAccount", "registrationFields", "registrationNameFields");
+        applyRegistrationConfig(adminContestVo, contest);
         JSONObject accountJson = new JSONObject();
         if (adminContestVo.getStarAccount() == null) {
             accountJson.set("star_account", new ArrayList<>());
@@ -167,6 +179,7 @@ public class AdminContestManager {
     }
 
     public void updateContest(AdminContestVO adminContestVo) throws StatusForbiddenException, StatusFailException {
+        registrationValidator.validateConfig(adminContestVo);
         contestValidator.validateContest(adminContestVo);
 
         // 获取当前登录的用户
@@ -177,7 +190,9 @@ public class AdminContestManager {
         if (!isRoot && !userRolesVo.getUid().equals(adminContestVo.getUid())) {
             throw new StatusForbiddenException("对不起，你无权限操作！");
         }
-        Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class, "starAccount");
+        Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class,
+                "starAccount", "registrationFields", "registrationNameFields");
+        applyRegistrationConfig(adminContestVo, contest);
 
         JSONObject accountJson = new JSONObject();
         accountJson.set("star_account", adminContestVo.getStarAccount());
@@ -224,6 +239,13 @@ public class AdminContestManager {
         }
         log.info("[{}],[{}],value:[{}],cid:[{}],operatorUid:[{}],operatorUsername:[{}]",
                 "Admin_Contest", "Change_Visible", visible, cid, userRolesVo.getUid(), userRolesVo.getUsername());
+    }
+
+    private void applyRegistrationConfig(AdminContestVO source, Contest target) {
+        target.setOpenRegistration(Boolean.TRUE.equals(source.getOpenRegistration()));
+        target.setRegistrationFields(ContestRegistrationUtils.toJson(source.getRegistrationFields()));
+        target.setUseRegistrationName(Boolean.TRUE.equals(source.getUseRegistrationName()));
+        target.setRegistrationNameFields(ContestRegistrationUtils.toJson(source.getRegistrationNameFields()));
     }
 
 }

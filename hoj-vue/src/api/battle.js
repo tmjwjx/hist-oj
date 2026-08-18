@@ -1,9 +1,7 @@
 import axios from 'axios';
-import store from '@/store';
 
-// 创建专门用于对战API的axios实例
 const battleRequest = axios.create({
-  baseURL: '/battle-api',
+  baseURL: '',
   timeout: 30000
 });
 
@@ -13,26 +11,6 @@ battleRequest.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = token;
-    }
-
-    // 自动添加用户信息
-    const userInfo = store.state.user.userInfo;
-    if (userInfo && userInfo.uid) {
-      // POST 请求：添加到请求体
-      if ((config.method === 'post' || config.method === 'POST') && config.data) {
-        if (!config.data.userId) {
-          config.data.userId = userInfo.uid;
-        }
-        if (!config.data.username && userInfo.username) {
-          config.data.username = userInfo.username;
-        }
-      }
-      // GET 请求：添加到查询参数
-      else if ((config.method === 'get' || config.method === 'GET') && config.params) {
-        if (!config.params.userId) {
-          config.params.userId = userInfo.uid;
-        }
-      }
     }
 
     return config;
@@ -45,6 +23,11 @@ battleRequest.interceptors.request.use(
 // 响应拦截器
 battleRequest.interceptors.response.use(
   response => {
+    const data = response.data;
+    if (data && data.code === undefined && data.status !== undefined) {
+      data.code = data.status === 200 ? 0 : 1;
+      data.message = data.msg;
+    }
     return response;
   },
   error => {
@@ -216,9 +199,9 @@ export function resetRoom(data) {
  * @param {Object} data - { recordId: number, isExcluded: boolean }
  */
 export function excludeRecord(data) {
-  return axios.put('/battle-api/api/admin/battle/record/exclude', data, {
-    headers: {
-      Authorization: localStorage.getItem('token')
-    }
+  return battleRequest({
+    url: '/api/admin/battle/record/exclude',
+    method: 'put',
+    data
   });
 }

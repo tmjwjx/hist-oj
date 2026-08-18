@@ -17,7 +17,7 @@ BingOJ 系统中有 **3个主要的 Logo**：
 ## 📂 文件位置结构
 
 ```
-hist-oj/                              # 项目根目录
+hist-oj/                              # 项目根目录（Java 主后端与前端）
 ├── logo.png                          # ⭐ Docker映射源文件（前端Logo）
 ├── backstage.png                      # ⭐ Docker映射源文件（管理员Logo）
 ├── favicon.ico                       # ⭐ Docker映射源文件（网站图标）

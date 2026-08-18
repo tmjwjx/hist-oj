@@ -437,9 +437,8 @@ export default {
         // 在教师端路由下，使用命名路由
         this.$router.push({
           name: 'StudentSubmissionDetail',
-          params: { homeworkId: this.homeworkId },
+          params: { homeworkId: this.homeworkId, uid: submission.uid },
           query: {
-            uid: submission.uid,
             realName: submission.realName || ''
           }
         })

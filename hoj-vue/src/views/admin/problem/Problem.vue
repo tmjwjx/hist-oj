@@ -4,43 +4,90 @@
       <div slot="header">
         <span class="panel-title home-title">{{ title }}</span>
       </div>
+      <el-steps :active="editorStep" finish-status="success" align-center class="problem-steps">
+        <el-step title="题面与配置" description="题目 ID、描述、输入输出与判题配置" />
+        <el-step title="样例与测试数据" description="导入 ZIP 或手工测试点，仅数据变化时同步" />
+        <el-step title="验证题目" description="AI 验题与创建者标准程序验题" />
+      </el-steps>
       <el-form
+        v-show="editorStep < 2"
         ref="form"
         :model="problem"
         :rules="rules"
         label-position="top"
         label-width="70px"
+        class="problem-editor-form"
       >
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item
-              prop="problemId"
-              :label="$t('m.Problem_Display_ID')"
-              required
-            >
-              <el-input
-                :placeholder="$t('m.Problem_Display_ID')"
-                v-model="problem.problemId"
-                :disabled="problem.isRemote"
-              >
-              </el-input>
+        <div v-show="editorStep === 0">
+        <div class="problem-header-grid">
+          <div class="problem-overview-grid">
+            <el-form-item class="overview-field overview-id" prop="problemId" :label="$t('m.Problem_Display_ID')" required>
+              <el-input :placeholder="$t('m.Problem_Display_ID')" v-model="problem.problemId" :disabled="problem.isRemote" />
             </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item
-              prop="title"
-              :label="$t('m.Title')"
-              required
-            >
-              <el-input
-                :placeholder="$t('m.Title')"
-                v-model="problem.title"
-              ></el-input>
+            <el-form-item class="overview-field overview-title" prop="title" :label="$t('m.Title')" required>
+              <el-input :placeholder="$t('m.Title')" v-model="problem.title" />
             </el-form-item>
-          </el-col>
-        </el-row>
+            <el-form-item class="overview-field" :label="$t('m.Time_Limit') + '(ms)'" required>
+              <el-input type="Number" v-model="problem.timeLimit" :disabled="problem.isRemote" />
+            </el-form-item>
+            <el-form-item class="overview-field" :label="$t('m.Memory_Limit') + '(mb)'" required>
+              <el-input type="Number" v-model="problem.memoryLimit" :disabled="problem.isRemote" />
+            </el-form-item>
+            <el-form-item class="overview-field" :label="$t('m.Stack_Limit') + '(mb)'" required>
+              <el-input type="Number" v-model="problem.stackLimit" :disabled="problem.isRemote" />
+            </el-form-item>
+            <el-form-item class="overview-field" :label="$t('m.Level')" required>
+              <el-select class="difficulty-select" v-model="problem.difficulty">
+                <el-option :label="getLevelName(key)" :value="parseInt(key)" v-for="(value, key, index) in PROBLEM_LEVEL" :key="index" />
+              </el-select>
+            </el-form-item>
+          </div>
+          <div class="problem-quick-settings">
+            <el-form-item class="quick-field quick-auth" :label="$t('m.Auth')">
+              <el-select v-model="problem.auth" size="small">
+                <el-option :label="$t('m.Public_Problem')" :value="1" />
+                <el-option :label="$t('m.Private_Problem')" :value="2" />
+                <el-option :label="$t('m.Contest_Problem')" :value="3" />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="quick-field quick-type" :label="$t('m.Type')">
+              <el-select v-model="problem.type" :disabled="disableRuleType || problem.isRemote" @change="problemTypeChange">
+                <el-option label="ACM" :value="0" />
+                <el-option label="OI" :value="1" />
+              </el-select>
+            </el-form-item>
+          </div>
+        </div>
+
+        <div class="problem-secondary-settings">
+          <el-form-item class="source-setting secondary-middle-field" :label="$t('m.Source')">
+            <el-input :placeholder="$t('m.Source')" v-model="problem.source" />
+          </el-form-item>
+          <el-form-item class="secondary-middle-field language-setting" :label="$t('m.Languages')" :error="error.languages" required>
+            <el-select v-model="problemLanguages" multiple collapse-tags filterable placeholder="选择允许运行的语言" class="language-select">
+              <el-option v-for="lang in allLanguage" :key="lang.name" :label="lang.name" :value="lang.name" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="!problem.isRemote" class="secondary-toggle-field" :label="$t('m.Auto_Remove_the_Blank_at_the_End_of_Code')">
+            <el-switch v-model="problem.isRemoveEndBlank" />
+          </el-form-item>
+          <el-form-item class="secondary-toggle-field" :label="$t('m.Publish_the_Judging_Result_of_Test_Data')">
+            <el-switch v-model="problem.openCaseResult" />
+          </el-form-item>
+          <el-form-item class="secondary-toggle-field" :label="$t('m.Code_Shareable')">
+            <el-switch v-model="problem.codeShare" active-text="" inactive-text="" />
+          </el-form-item>
+          <el-form-item class="tags-setting secondary-toggle-field" :label="$t('m.Tags')">
+            <el-tag v-for="tag in problemTags" :key="tag.name" closable :close-transition="false" size="small"
+              @close="closeTag(tag.name)">{{ tag.name }}</el-tag>
+            <el-autocomplete v-if="inputVisible" size="mini" class="input-new-tag" v-model="tagInput"
+              :trigger-on-focus="true" @keyup.enter.native="addTag" @click="selectTag" @select="addTag"
+              :fetch-suggestions="querySearch" />
+            <el-tooltip v-else effect="dark" :content="$t('m.Add')" placement="top">
+              <el-button class="button-new-tag" size="small" @click="inputVisible = true" icon="el-icon-plus" />
+            </el-tooltip>
+          </el-form-item>
+        </div>
 
         <el-row
           :gutter="20"
@@ -80,6 +127,7 @@
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item
+              class="compact-description"
               prop="description"
               :label="$t('m.Description')"
               required
@@ -90,81 +138,9 @@
         </el-row>
 
         <el-row :gutter="20">
-          <el-col
-            :md="6"
-            :xs="24"
-          >
+          <el-col :md="12" :xs="24">
             <el-form-item
-              :label="$t('m.Time_Limit') + '(ms)'"
-              required
-            >
-              <el-input
-                type="Number"
-                :placeholder="$t('m.Time_Limit')"
-                v-model="problem.timeLimit"
-                :disabled="problem.isRemote"
-              ></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col
-            :md="6"
-            :xs="24"
-          >
-            <el-form-item
-              :label="$t('m.Memory_Limit') + '(mb)'"
-              required
-            >
-              <el-input
-                type="Number"
-                :placeholder="$t('m.Memory_Limit')"
-                v-model="problem.memoryLimit"
-                :disabled="problem.isRemote"
-              ></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col
-            :md="6"
-            :xs="24"
-          >
-            <el-form-item
-              :label="$t('m.Stack_Limit') + '(mb)'"
-              required
-            >
-              <el-input
-                type="Number"
-                :placeholder="$t('m.Stack_Limit')"
-                v-model="problem.stackLimit"
-                :disabled="problem.isRemote"
-              ></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col
-            :md="6"
-            :xs="24"
-          >
-            <el-form-item
-              :label="$t('m.Level')"
-              required
-            >
-              <el-select
-                class="difficulty-select"
-                placeholder="Enter the level of problem"
-                v-model="problem.difficulty"
-              >
-                <el-option
-                  :label="getLevelName(key)"
-                  :value="parseInt(key)"
-                  v-for="(value, key, index) in PROBLEM_LEVEL"
-                  :key="index"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item
+              class="compact-description"
               prop="input_description"
               :label="$t('m.Input')"
               required
@@ -172,8 +148,9 @@
               <Editor :value.sync="problem.input"></Editor>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :md="12" :xs="24">
             <el-form-item
+              class="compact-description"
               prop="output_description"
               :label="$t('m.Output')"
               required
@@ -181,142 +158,14 @@
               <Editor :value.sync="problem.output"></Editor>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item
-              style="margin-top: 20px"
-              :label="$t('m.Hint')"
-            >
-              <Editor :value.sync="problem.hint"></Editor>
-            </el-form-item>
-          </el-col>
         </el-row>
 
-        <el-row :gutter="20">
-          <el-col
-            :md="4"
-            :xs="24"
-          >
-            <el-form-item :label="$t('m.Auth')">
-              <el-select
-                v-model="problem.auth"
-                size="small"
-              >
-                <el-option
-                  :label="$t('m.Public_Problem')"
-                  :value="1"
-                ></el-option>
-                <el-option
-                  :label="$t('m.Private_Problem')"
-                  :value="2"
-                ></el-option>
-                <el-option
-                  :label="$t('m.Contest_Problem')"
-                  :value="3"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
+        </div>
 
-          <el-col
-            :md="4"
-            :xs="24"
-          >
-            <el-form-item :label="$t('m.Type')">
-              <el-radio-group
-                v-model="problem.type"
-                :disabled="disableRuleType || problem.isRemote"
-                @change="problemTypeChange"
-              >
-                <el-radio :label="0">ACM</el-radio>
-                <el-radio :label="1">OI</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-
-          <el-col
-            :md="4"
-            :xs="24"
-          >
-            <el-form-item :label="$t('m.Code_Shareable')">
-              <el-switch
-                v-model="problem.codeShare"
-                active-text=""
-                inactive-text=""
-              >
-              </el-switch>
-            </el-form-item>
-          </el-col>
-
-          <el-col
-            :md="12"
-            :xs="24"
-          >
-            <el-form-item :label="$t('m.Tags')">
-              <el-tag
-                v-for="tag in problemTags"
-                closable
-                :close-transition="false"
-                :key="tag.name"
-                size="small"
-                @close="closeTag(tag.name)"
-                style="margin-right: 7px;margin-top:4px"
-              >{{ tag.name }}</el-tag>
-              <!-- 输入时建议，回车，选择，光标消失触发更新 -->
-              <el-autocomplete
-                v-if="inputVisible"
-                size="mini"
-                class="input-new-tag"
-                v-model="tagInput"
-                :trigger-on-focus="true"
-                @keyup.enter.native="addTag"
-                @click="selectTag"
-                @select="addTag"
-                :fetch-suggestions="querySearch"
-              >
-              </el-autocomplete>
-              <el-tooltip
-                effect="dark"
-                :content="$t('m.Add')"
-                placement="top"
-                v-else
-              >
-                <el-button
-                  class="button-new-tag"
-                  size="small"
-                  @click="inputVisible = true"
-                  icon="el-icon-plus"
-                ></el-button>
-              </el-tooltip>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col
-            :md="24"
-            :xs="24"
-          >
-            <el-form-item
-              :label="$t('m.Languages')"
-              :error="error.languages"
-              required
-            >
-              <el-checkbox-group v-model="problemLanguages">
-                <el-tooltip
-                  class="spj-radio"
-                  v-for="lang in allLanguage"
-                  :key="lang.name"
-                  effect="dark"
-                  :content="lang.description"
-                  placement="top-start"
-                >
-                  <el-checkbox :label="lang.name"></el-checkbox>
-                </el-tooltip>
-              </el-checkbox-group>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <div>
+        <div v-show="editorStep === 1">
+          <el-alert class="test-data-tip" title="测试数据按变更导入"
+            description="上传新 ZIP 或修改手工测试点时才会同步判题机；普通保存不会重复传输已同步的大数据包。"
+            type="info" :closable="false" show-icon />
           <div class="panel-title home-title">
             {{ $t('m.Problem_Examples') }}
             <el-popover
@@ -387,12 +236,18 @@
                     </el-input>
                   </el-form-item>
                 </el-col>
+                <el-col :span="24">
+                  <el-form-item label="样例解释（可选）">
+                    <el-input v-model="example.explanation" type="textarea" :rows="3"
+                      placeholder="说明样例输入如何得到样例输出，可留空" />
+                  </el-form-item>
+                </el-col>
               </el-row>
             </Accordion>
           </el-form-item>
         </div>
 
-        <div class="add-example-btn">
+        <div v-show="editorStep === 1" class="add-example-btn">
           <el-button
             class="add-examples"
             @click="addExample()"
@@ -402,199 +257,113 @@
           </el-button>
         </div>
 
-        <template v-if="!problem.isRemote">
-          <div class="panel-title home-title">
-            {{ $t('m.Judge_Extra_File') }}
-            <el-popover
-              placement="right"
-              trigger="hover"
-            >
-              <p>{{ $t('m.Judge_Extra_File_Tips1') }}</p>
-              <p>{{ $t('m.Judge_Extra_File_Tips2') }}</p>
-              <i
-                slot="reference"
-                class="el-icon-question"
-              ></i>
-            </el-popover>
+        <el-collapse v-show="editorStep === 0" v-model="advancedConfigOpen" class="advanced-config">
+          <el-collapse-item title="高级判题与代码配置" name="judge">
+        <div v-show="editorStep === 0" class="advanced-config-body">
+          <div class="advanced-option-grid">
+            <div v-if="!problem.isRemote" class="advanced-option extra-file-option">
+              <div class="advanced-label">
+                {{ $t('m.Judge_Extra_File') }}
+                <el-popover placement="right" trigger="hover">
+                  <p>{{ $t('m.Judge_Extra_File_Tips1') }}</p>
+                  <p>{{ $t('m.Judge_Extra_File_Tips2') }}</p>
+                  <i slot="reference" class="el-icon-question"></i>
+                </el-popover>
+              </div>
+              <div class="inline-checks">
+                <el-checkbox v-model="addUserExtraFile">{{ $t('m.User_Program') }}</el-checkbox>
+                <el-checkbox v-model="addJudgeExtraFile">{{ $t('m.SPJ_Or_Interactive_Program') }}</el-checkbox>
+              </div>
+            </div>
+
+            <div v-if="!problem.isRemote" class="advanced-option">
+              <div class="advanced-label">{{ $t('m.Read_Write_Mode') }}</div>
+              <el-select v-model="problem.isFileIO">
+                <el-option :label="$t('m.Standard_IO')" :value="false" />
+                <el-option :label="$t('m.File_IO')" :value="true" />
+              </el-select>
+            </div>
+
+            <div v-if="!problem.isRemote" class="advanced-option">
+              <div class="advanced-label">
+                {{ $t('m.Judge_Mode') }}
+                <el-popover placement="right" trigger="hover">
+                  <p>1. {{ $t('m.General_Judge_Mode_Tips') }}</p>
+                  <p>2. {{ $t('m.Special_Judge_Mode_Tips') }}</p>
+                  <p>3. {{ $t('m.Interactive_Judge_Mode_Tips') }}</p>
+                  <i slot="reference" class="el-icon-question"></i>
+                </el-popover>
+              </div>
+              <el-select v-model="problem.judgeMode" @change="switchMode">
+                <el-option label="普通判题" value="default" />
+                <el-option label="特殊判题（SPJ）" value="spj" />
+                <el-option label="交互判题" value="interactive" />
+              </el-select>
+              <div v-if="error.spj" class="advanced-error">{{ error.spj }}</div>
+            </div>
+
+            <div class="advanced-option template-option">
+              <div class="advanced-label">{{ $t('m.Code_Template') }}</div>
+              <el-select v-model="selectedTemplateLanguages" multiple collapse-tags filterable
+                placeholder="选择模板语言">
+                <el-option v-for="(v, k) in codeTemplate" :key="'template-option' + k"
+                  :label="k" :value="k" />
+              </el-select>
+            </div>
           </div>
 
-          <el-row :gutter="20">
-            <el-col
-              :md="12"
-              :xs="24"
-            >
-              <el-form-item>
-                <el-checkbox v-model="addUserExtraFile">{{
-                  $t('m.User_Program')
-                }}</el-checkbox>
-              </el-form-item>
-              <el-form-item v-if="addUserExtraFile">
-                <AddExtraFile
-                  :files.sync="userExtraFile"
-                  type="user"
-                  @upsertFile="upsertFile"
-                  @deleteFile="deleteFile"
-                ></AddExtraFile>
-              </el-form-item>
+          <el-row v-if="!problem.isRemote && (addUserExtraFile || addJudgeExtraFile)" :gutter="16" class="advanced-details">
+            <el-col v-if="addUserExtraFile" :md="12" :xs="24">
+              <AddExtraFile :files.sync="userExtraFile" type="user"
+                @upsertFile="upsertFile" @deleteFile="deleteFile" />
             </el-col>
-            <el-col
-              :md="12"
-              :xs="24"
-            >
-              <el-form-item>
-                <el-checkbox v-model="addJudgeExtraFile">{{
-                  $t('m.SPJ_Or_Interactive_Program')
-                }}</el-checkbox>
-              </el-form-item>
-              <el-form-item v-if="addJudgeExtraFile">
-                <AddExtraFile
-                  :files.sync="judgeExtraFile"
-                  type="judge"
-                  @upsertFile="upsertFile"
-                  @deleteFile="deleteFile"
-                ></AddExtraFile>
-              </el-form-item>
+            <el-col v-if="addJudgeExtraFile" :md="12" :xs="24">
+              <AddExtraFile :files.sync="judgeExtraFile" type="judge"
+                @upsertFile="upsertFile" @deleteFile="deleteFile" />
             </el-col>
           </el-row>
-        </template>
 
-        <template v-if="!problem.isRemote">
-          <div class="panel-title home-title">
-            {{ $t('m.Read_Write_Mode') }}
-          </div>
-          <el-row :gutter="20">
-            <el-col :xs="24" :md="8">
-              <el-form-item
-                  required
-                >
-                  <el-radio-group
-                    v-model="problem.isFileIO"
-                  >
-                    <el-radio :label="false">
-                      {{  $t('m.Standard_IO')}}
-                    </el-radio>
-                    <el-radio :label="true">
-                      {{  $t('m.File_IO')}}
-                    </el-radio>
-                  </el-radio-group>
-              </el-form-item>
+          <el-row v-if="!problem.isRemote && problem.isFileIO" :gutter="16" class="advanced-details">
+            <el-col :md="12" :xs="24">
+              <el-input v-model="problem.ioReadFileName" size="small">
+                <template slot="prepend">{{ $t('m.Input_File_Name') }}</template>
+              </el-input>
             </el-col>
-            <el-col :xs="24" :md="8">
-              <el-form-item v-if="problem.isFileIO">
-                <el-input  v-model="problem.ioReadFileName" size="small">
-                    <template slot="prepend">{{  $t('m.Input_File_Name')}}</template>
-                </el-input>
-              </el-form-item>
+            <el-col :md="12" :xs="24">
+              <el-input v-model="problem.ioWriteFileName" size="small">
+                <template slot="prepend">{{ $t('m.Output_File_Name') }}</template>
+              </el-input>
             </el-col>
-            <el-col :xs="24" :md="8">
-              <el-form-item v-if="problem.isFileIO">
-                <el-input v-model="problem.ioWriteFileName" size="small">
-                  <template slot="prepend">{{  $t('m.Output_File_Name')}}</template>
-                </el-input>
-              </el-form-item>
-            </el-col>
-        </el-row>
-        </template>
+          </el-row>
 
-        <template v-if="!problem.isRemote">
-          <div class="panel-title home-title">
-            {{ $t('m.Judge_Mode') }}
-            <el-popover
-              placement="right"
-              trigger="hover"
-            >
-              <p>1. {{ $t('m.General_Judge_Mode_Tips') }}</p>
-              <p>2. {{ $t('m.Special_Judge_Mode_Tips') }}</p>
-              <p>3. {{ $t('m.Interactive_Judge_Mode_Tips') }}</p>
-              <i
-                slot="reference"
-                class="el-icon-question"
-              ></i>
-            </el-popover>
-          </div>
-          <el-form-item
-            label=""
-            :error="error.spj"
-          >
-            <el-col :span="24">
-              <el-radio-group
-                v-model="problem.judgeMode"
-                @change="switchMode"
-              >
-                <el-radio label="default">{{ $t('m.General_Judge') }}</el-radio>
-                <el-radio label="spj">{{ $t('m.Special_Judge') }}</el-radio>
-                <el-radio label="interactive">{{
-                  $t('m.Interactive_Judge')
-                }}</el-radio>
-              </el-radio-group>
-            </el-col>
-          </el-form-item>
-          <el-form-item v-if="problem.judgeMode != 'default'">
-            <Accordion :title="
-                problem.judgeMode == 'spj'
-                  ? $t('m.Special_Judge_Code')
-                  : $t('m.Interactive_Judge_Code')
-              ">
+          <el-form-item v-if="!problem.isRemote && problem.judgeMode != 'default'" class="advanced-details">
+            <Accordion :title="problem.judgeMode == 'spj' ? $t('m.Special_Judge_Code') : $t('m.Interactive_Judge_Code')">
               <template slot="header">
-                <span style="margin-right:5px;">{{
-                    problem.judgeMode == 'spj'
-                      ? $t('m.SPJ_Language')
-                      : $t('m.Interactive_Language')
-                  }}：</span>
-                <el-radio-group v-model="problem.spjLanguage">
-                  <el-tooltip
-                    class="spj-radio"
-                    v-for="lang in allSpjLanguage"
-                    :key="lang.name"
-                    effect="dark"
-                    :content="lang.description"
-                    placement="top-start"
-                  >
-                    <el-radio :label="lang.name">{{ lang.name }}</el-radio>
-                  </el-tooltip>
-                </el-radio-group>
-                <el-button
-                  type="primary"
-                  size="small"
-                  icon="el-icon-folder-checked"
-                  @click="compileSPJ"
-                  :loading="loadingCompile"
-                  style="margin-left:10px"
-                >{{ $t('m.Compile') }}
-                </el-button>
+                <span class="spj-header-label">{{ problem.judgeMode == 'spj' ? $t('m.SPJ_Language') : $t('m.Interactive_Language') }}：</span>
+                <el-select v-model="problem.spjLanguage" class="spj-language-select">
+                  <el-option v-for="lang in allSpjLanguage" :key="lang.name" :label="lang.name" :value="lang.name" />
+                </el-select>
+                <el-button type="primary" size="small" icon="el-icon-folder-checked"
+                  @click="compileSPJ" :loading="loadingCompile" class="compile-button">{{ $t('m.Compile') }}</el-button>
               </template>
-              <code-mirror
-                v-model="problem.spjCode"
-                :mode="spjMode"
-              ></code-mirror>
+              <code-mirror v-model="problem.spjCode" :mode="spjMode"></code-mirror>
             </Accordion>
           </el-form-item>
-        </template>
 
-        <div class="panel-title home-title">{{ $t('m.Code_Template') }}</div>
-        <el-form-item>
-          <el-row>
-            <el-col
-              :span="24"
-              v-for="(v, k) in codeTemplate"
-              :key="'template' + k"
-            >
-              <el-form-item>
-                <el-checkbox v-model="v.status">{{ k }}</el-checkbox>
-                <div v-if="v.status">
-                  <code-mirror
-                    v-model="v.code"
-                    :mode="v.mode"
-                  ></code-mirror>
-                </div>
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-form-item>
+          <div v-if="selectedTemplateLanguages.length" class="advanced-details">
+            <div v-for="(v, k) in codeTemplate" :key="'template' + k" v-show="v.status" class="template-editor">
+              <div class="template-title">{{ k }}</div>
+              <code-mirror v-model="v.code" :mode="v.mode" />
+            </div>
+          </div>
+        </div>
+          </el-collapse-item>
+        </el-collapse>
 
         <el-row
           :gutter="20"
           v-if="!problem.isRemote"
+          v-show="editorStep === 1"
         >
           <div class="panel-title home-title">
             {{ $t('m.Judge_Samples') }}
@@ -613,21 +382,12 @@
           <el-form-item
             required
           >
-            <el-radio-group
-              v-model="problem.judgeCaseMode"
-              @change="switchJudgeCaseMode"
-            >
-              <el-radio :label="JUDGE_CASE_MODE.DEFAULT">
-                {{ problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode'): $t('m.ACM_Judge_Case_Default_Mode')}}
-              </el-radio>
-              <template v-if="problem.type == 1">
-                <el-radio :label="JUDGE_CASE_MODE.SUBTASK_LOWEST">{{$t('m.Judge_Case_Subtask_Lowest_Mode')}}</el-radio>
-                <el-radio :label="JUDGE_CASE_MODE.SUBTASK_AVERAGE">{{$t('m.Judge_Case_Subtask_Average_Mode')}}</el-radio>
-              </template>
-              <template v-else>
-                <el-radio :label="JUDGE_CASE_MODE.ERGODIC_WITHOUT_ERROR">{{$t('m.Judge_Case_Ergodic_Without_Error_Mode')}}</el-radio>
-              </template>
-            </el-radio-group>
+            <el-select v-model="problem.judgeCaseMode" @change="switchJudgeCaseMode" class="mode-select">
+              <el-option :label="problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode') : $t('m.ACM_Judge_Case_Default_Mode')" :value="JUDGE_CASE_MODE.DEFAULT" />
+              <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Lowest_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_LOWEST" />
+              <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Average_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_AVERAGE" />
+              <el-option v-if="problem.type != 1" :label="$t('m.Judge_Case_Ergodic_Without_Error_Mode')" :value="JUDGE_CASE_MODE.ERGODIC_WITHOUT_ERROR" />
+            </el-select>
           </el-form-item>
 
           <el-form-item required>
@@ -826,42 +586,21 @@
           </div>
         </el-row>
 
-        <el-form-item :label="$t('m.Source')">
-          <el-input
-            :placeholder="$t('m.Source')"
-            v-model="problem.source"
-          ></el-input>
-        </el-form-item>
-
-        <el-form-item
-          :label="$t('m.Auto_Remove_the_Blank_at_the_End_of_Code')"
-          v-if="!problem.isRemote"
-        >
-          <el-switch
-            v-model="problem.isRemoveEndBlank"
-            active-text=""
-            inactive-text=""
-          >
-          </el-switch>
-        </el-form-item>
-
-        <el-form-item :label="$t('m.Publish_the_Judging_Result_of_Test_Data')">
-          <el-switch
-            v-model="problem.openCaseResult"
-            active-text=""
-            inactive-text=""
-          >
-          </el-switch>
-        </el-form-item>
-
-        <el-button
-          type="primary"
-          @click.native="submit()"
-          size="small"
-        >{{
-          $t('m.Save')
-        }}</el-button>
+        <div class="wizard-actions" :class="{ 'single-action': editorStep === 0 }">
+          <el-button v-if="editorStep === 0" type="primary" @click="nextToDataStep">下一步：样例与测试数据</el-button>
+          <template v-else>
+            <el-button @click="editorStep = 0">返回题面配置</el-button>
+            <el-button type="primary" :loading="saving" @click.native="submit()">保存并进入验题</el-button>
+          </template>
+        </div>
       </el-form>
+      <ProblemValidationStep
+        v-if="editorStep === 2 && verificationPid"
+        :pid="verificationPid"
+        :languages="problemLanguages"
+        @back="editorStep = 1"
+        @passed="finishVerification"
+      />
     </el-card>
   </div>
 </template>
@@ -876,6 +615,8 @@ const Editor = () => import("@/components/admin/Editor.vue");
 const Accordion = () => import("@/components/admin/Accordion.vue");
 const AddExtraFile = () => import("@/components/admin/AddExtraFile.vue");
 const CodeMirror = () => import("@/components/admin/CodeMirror.vue");
+const ProblemValidationStep = () =>
+  import("@/components/admin/ProblemValidationStep.vue");
 export default {
   name: "Problem",
   components: {
@@ -883,6 +624,7 @@ export default {
     AddExtraFile,
     CodeMirror,
     Editor,
+    ProblemValidationStep,
   },
   data() {
     return {
@@ -985,8 +727,15 @@ export default {
       addJudgeExtraFile: false,
       userExtraFile: null,
       judgeExtraFile: null,
+      judgeExtraFileRecord: null,
       judgeCaseModeRecord: "default",
       sampleIndex: 1,
+      verificationPid: null,
+      needsVerification: false,
+      editorStep: 0,
+      saving: false,
+      savedPid: null,
+      advancedConfigOpen: ['judge'],
     };
   },
   mounted() {
@@ -1003,6 +752,7 @@ export default {
     } else {
       this.mode = "add";
     }
+    this.applyRequestedStep();
     api
       .admin_getAllProblemTagList("ALL")
       .then((res) => {
@@ -1088,6 +838,9 @@ export default {
       this.problemSamples = [];
       this.problemCodeTemplate = [];
       this.codeTemplate = [];
+      this.editorStep = 0;
+      this.applyRequestedStep();
+      this.savedPid = null;
       this.init();
     },
 
@@ -1138,6 +891,26 @@ export default {
     },
   },
   methods: {
+    applyRequestedStep() {
+      const requestedStep = Number(this.$route.query && this.$route.query.step);
+      if (requestedStep !== 2 || this.mode !== "edit") return;
+      this.editorStep = 2;
+      this.verificationPid = this.$route.params.problemId;
+    },
+    nextToDataStep() {
+      const required = [
+        [this.problem.problemId, this.$i18n.t("m.Problem_Display_ID")],
+        [this.problem.title, this.$i18n.t("m.Title")],
+        [this.problem.description, this.$i18n.t("m.Description")],
+        [this.problem.input, this.$i18n.t("m.Input")],
+        [this.problem.output, this.$i18n.t("m.Output")],
+      ];
+      const missing = required.find(([value]) => !value || !String(value).trim());
+      if (missing) return myMessage.error(missing[1] + " " + this.$i18n.t("m.is_required"));
+      if (!this.problemLanguages.length) return myMessage.error(this.$i18n.t("m.Language") + " " + this.$i18n.t("m.is_required"));
+      this.editorStep = 1;
+      this.$nextTick(() => window.scrollTo(0, 0));
+    },
     init() {
       this.sampleIndex = 1;
       if (this.mode === "edit") {
@@ -1159,7 +932,8 @@ export default {
           data.spjLanguage = data.spjLanguage || "C";
           this.spjRecord.spjLanguage = data.spjLanguage;
           this.spjRecord.spjCode = data.spjCode;
-          this.judgeCaseModeRecord = data.judgeCaseModeRecord;
+          this.judgeExtraFileRecord = data.judgeExtraFile || null;
+          this.judgeCaseModeRecord = data.judgeCaseMode;
           this.problem = data;
           this.problem["examples"] = utils.stringToExamples(data.examples);
           if (this.problem["examples"].length > 0) {
@@ -1365,7 +1139,7 @@ export default {
 
     // 添加题目样例
     addExample() {
-      this.problem.examples.push({ input: "", output: "", isOpen: true });
+      this.problem.examples.push({ input: "", output: "", explanation: "", isOpen: true });
     },
     changeExampleVisible(index, isOpen) {
       this.problem.examples[index]["isOpen"] = isOpen;
@@ -1687,7 +1461,11 @@ export default {
       // }
       let isChangeModeCode =
         this.spjRecord.spjLanguage != this.problem.spjLanguage ||
-        this.spjRecord.spjCode != this.problem.spjCode;
+        this.spjRecord.spjCode != this.problem.spjCode ||
+        this.judgeExtraFileRecord !=
+          (Object.keys(this.judgeExtraFile || {}).length
+            ? JSON.stringify(this.judgeExtraFile)
+            : null);
       if (!this.problem.isRemote) {
         if (this.problem.judgeMode != "default") {
           if (!this.problem.spjCode) {
@@ -1715,12 +1493,14 @@ export default {
         return;
       }
 
-      let funcName = {
+      let funcName = this.savedPid
+        ? (this.contestID ? "admin_editContestProblem" : "admin_editProblem")
+        : ({
         "admin-create-problem": "admin_createProblem",
         "admin-edit-problem": "admin_editProblem",
         "admin-create-contest-problem": "admin_createContestProblem",
         "admin-edit-contest-problem": "admin_editContestProblem",
-      }[this.routeName];
+      }[this.routeName]);
       // edit contest problem 时, contest_id会被后来的请求覆盖掉
       if (funcName === "editContestProblem") {
         this.problem.cid = this.contest.id;
@@ -1829,11 +1609,13 @@ export default {
         problemDto["samples"] = this.problemSamples;
       }
 
-      if (this.judgeCaseModeRecord != this.problem.judgeCaseModeRecord) {
+      if (this.judgeCaseModeRecord != this.problem.judgeCaseMode) {
         problemDto["changeJudgeCaseMode"] = true;
       } else {
         problemDto["changeJudgeCaseMode"] = false;
       }
+      this.needsVerification = !this.problem.isRemote;
+      this.saving = true;
 
       api[funcName](problemDto)
         .then((res) => {
@@ -1846,44 +1628,325 @@ export default {
               this.contestProblem["pid"] = res.data.data.pid;
               this.contestProblem["cid"] = this.$route.params.contestId;
             }
-            api.admin_setContestProblemInfo(this.contestProblem).then((res) => {
-              myMessage.success("success");
-              this.$router.push({
-                name: "admin-contest-problem-list",
-                params: { contestId: this.$route.params.contestId },
-              });
+            api.admin_setContestProblemInfo(this.contestProblem).then(() => {
+              this.afterSave(this.contestProblem.pid);
             });
           } else {
-            myMessage.success("success");
-            if (this.backPath) {
-              this.$router.push({ path: this.backPath });
-            } else {
-              this.$router.push({ name: "admin-problem-list" });
-            }
+            this.afterSave((res.data.data && res.data.data.pid) || this.problem.id);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { this.saving = false; });
+    },
+    afterSave(pid) {
+      if (this.needsVerification && pid) {
+        this.savedPid = pid;
+        this.pid = pid;
+        this.problem.id = pid;
+        this.verificationPid = pid;
+        this.editorStep = 2;
+        this.$nextTick(() => window.scrollTo(0, 0));
+        return;
+      }
+      this.finishVerification();
+    },
+    finishVerification() {
+      myMessage.success("success");
+      if (this.routeName === "admin-create-contest-problem" || this.routeName === "admin-edit-contest-problem") {
+        this.$router.push({
+          name: "admin-contest-problem-list",
+          params: { contestId: this.$route.params.contestId },
+        });
+      } else if (this.backPath) {
+        this.$router.push({ path: this.backPath });
+      } else {
+        this.$router.push({ name: "admin-problem-list" });
+      }
     },
   },
   computed: {
     ...mapGetters(["userInfo"]),
+    selectedTemplateLanguages: {
+      get() {
+        return Object.keys(this.codeTemplate).filter((key) => this.codeTemplate[key].status);
+      },
+      set(values) {
+        const selected = values || [];
+        Object.keys(this.codeTemplate).forEach((key) => {
+          this.codeTemplate[key].status = selected.indexOf(key) !== -1;
+        });
+      },
+    },
   },
 };
 </script>
 
 <style scoped>
-/deep/.el-form-item__label {
-  padding: 0 !important;
+/* 页面整体 */
+.problem {
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
+
+.problem /deep/ .el-card {
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.problem /deep/ .el-card__header {
+  background: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+}
+
+.problem /deep/ .el-card__body {
+  padding: 24px;
+}
+
+/* 表单项 */
 .el-form-item {
-  margin-bottom: 10px !important;
+  margin-bottom: 18px !important;
 }
+
+.problem /deep/ .el-form-item__label {
+  padding: 0 0 8px 0 !important;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #606266;
+}
+
+/* 步骤条 */
+.problem-steps {
+  margin-bottom: 28px;
+}
+
+/* 表单变量 */
+.problem-editor-form {
+  --editor-border: #e4e7ed;
+}
+
+/* 头部网格：题目ID、标题、限制条件等 */
+.problem-header-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.problem-overview-grid {
+  display: contents;
+}
+
+.problem-overview-grid .el-form-item,
+.problem-quick-settings .el-form-item {
+  margin-bottom: 0 !important;
+}
+
+.problem-overview-grid .overview-field:nth-child(1) { grid-column: 1; }
+.problem-overview-grid .overview-field:nth-child(2) { grid-column: 2; }
+.problem-overview-grid .overview-field:nth-child(3) { grid-column: 3; }
+.problem-overview-grid .overview-field:nth-child(4) { grid-column: 4; }
+.problem-overview-grid .overview-field:nth-child(5) { grid-column: 5; }
+.problem-overview-grid .overview-field:nth-child(6) { grid-column: 6; }
+
+/* 快速设置区域：权限、类型 */
+.problem-quick-settings {
+  display: contents;
+}
+
+.problem-quick-settings .el-select {
+  width: 100%;
+}
+
+.problem-quick-settings .quick-auth { grid-column: 7; }
+.problem-quick-settings .quick-type { grid-column: 8; }
+
+/* 次要设置：来源、开关、标签 */
+.problem-secondary-settings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+  padding: 16px;
+  margin-bottom: 20px;
+  background: #f9fafb;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+}
+
+.problem-secondary-settings .el-form-item {
+  margin-bottom: 0 !important;
+}
+
+.problem-secondary-settings .el-select,
+.problem-secondary-settings .el-input {
+  width: 100%;
+}
+
+.problem-secondary-settings .secondary-middle-field { grid-column: span 2; }
+.problem-secondary-settings .secondary-toggle-field { grid-column: span 1; }
+
+.problem-secondary-settings .el-tag {
+  margin-right: 7px;
+  margin-top: 4px;
+}
+
+/* 编辑器 */
+.compact-description .mavon-editor,
+.compact-description /deep/ .v-note-wrapper {
+  min-height: 300px;
+  height: 340px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.compact-description {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.compact-description /deep/ .v-note-panel,
+.compact-description /deep/ .v-note-edit.divarea {
+  min-height: 286px;
+}
+
+/* 高级配置 */
+.advanced-config {
+  margin-top: 20px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.advanced-config /deep/ .el-collapse-item__header {
+  height: 48px;
+  line-height: 48px;
+  padding: 0 20px;
+  color: #606266;
+  font-weight: 600;
+  background: #f5f7fa;
+}
+
+.advanced-config /deep/ .el-collapse-item__content {
+  padding: 20px;
+}
+
+.advanced-config-body {
+  position: relative;
+  z-index: 2;
+  background: #fff;
+}
+
+.advanced-option-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.advanced-option {
+  min-width: 0;
+  position: relative;
+}
+
+.advanced-label {
+  min-height: 24px;
+  margin-bottom: 8px;
+  color: #606266;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.advanced-option .el-select {
+  width: 100%;
+}
+
+.advanced-option /deep/ .el-input__inner {
+  height: 40px;
+  line-height: 40px;
+}
+
+.advanced-error {
+  position: absolute;
+  left: 0;
+  top: 69px;
+  color: #f56c6c;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.inline-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-height: 40px;
+  align-items: center;
+}
+
+.inline-checks .el-checkbox {
+  margin-right: 0;
+}
+
+.advanced-details {
+  position: relative;
+  z-index: 3;
+  margin-top: 16px;
+}
+
+/* 其他元素 */
+.spj-header-label {
+  margin-right: 8px;
+}
+
+.compile-button {
+  margin-left: 10px;
+}
+
 .difficulty-select {
-  width: 120px;
+  width: 100%;
 }
+
+.language-select {
+  width: 100% !important;
+}
+
+.mode-select {
+  width: 100%;
+}
+
+.spj-language-select {
+  width: 100%;
+}
+
+.template-editor {
+  margin-top: 16px;
+}
+
+.template-title {
+  margin-bottom: 8px;
+  color: #606266;
+  font-weight: 600;
+}
+
+.problem-editor-form /deep/ .el-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.problem-editor-form /deep/ .el-checkbox {
+  margin-right: 0;
+  line-height: 24px;
+}
+
+/* 标签输入 */
 .input-new-tag {
   width: 120px;
 }
+
 .button-new-tag {
   height: 24px;
   line-height: 22px;
@@ -1891,57 +1954,126 @@ export default {
   padding-bottom: 0;
 }
 
-.accordion {
-  margin-bottom: 10px;
+/* 向导操作 */
+.wizard-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: space-between;
 }
 
-.add-examples {
-  width: 100%;
-  background-color: #fff;
-  border: 1px dashed #2d8cf0;
-  outline: none;
-  cursor: pointer;
-  color: #2d8cf0;
-  height: 35px;
-  font-size: 14px;
-}
-.add-examples i {
-  margin-right: 10px;
-}
-.add-examples:hover {
-  border: 0px;
-  background-color: #2d8cf0 !important;
-  color: #fff;
-}
-.add-example-btn {
-  margin-bottom: 10px;
+.wizard-actions.single-action {
+  justify-content: flex-end;
 }
 
+.test-data-tip {
+  margin-bottom: 16px;
+}
+
+/* 示例添加按钮 */
+.add-examples,
 .add-samples {
   width: 100%;
   background-color: #fff;
-  border: 1px dashed #19be6b;
+  border: 1px dashed #409eff;
   outline: none;
   cursor: pointer;
-  color: #19be6b;
-  height: 35px;
+  color: #409eff;
+  height: 40px;
   font-size: 14px;
+  border-radius: 4px;
+  transition: all 0.2s;
 }
+
+.add-examples i,
 .add-samples i {
-  margin-right: 10px;
+  margin-right: 8px;
 }
-.add-samples:hover {
-  border: 0px;
-  background-color: #19be6b !important;
+
+.add-examples:hover {
+  border: 1px solid #409eff;
+  background-color: #409eff !important;
   color: #fff;
 }
+
+.add-samples {
+  border-color: #67c23a;
+  color: #67c23a;
+}
+
+.add-samples:hover {
+  border: 1px solid #67c23a;
+  background-color: #67c23a !important;
+  color: #fff;
+}
+
+.add-example-btn,
 .add-sample-btn {
   margin-bottom: 10px;
 }
 
+.accordion {
+  margin-bottom: 10px;
+}
+
+/* 编译错误对话框 */
 .dialog-compile-error {
   width: auto;
   max-width: 80%;
-  overflow-x: scroll;
+  overflow-x: auto;
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .problem-overview-grid {
+    display: contents;
+  }
+
+  .problem-quick-settings {
+    display: contents;
+  }
+
+  .problem-secondary-settings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .problem-header-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .problem-overview-grid .overview-field:nth-child(n),
+  .problem-quick-settings .quick-field {
+    grid-column: auto !important;
+  }
+
+  .advanced-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .problem {
+    padding: 10px;
+  }
+
+  .problem /deep/ .el-card__body {
+    padding: 16px;
+  }
+
+  .problem-overview-grid,
+  .problem-quick-settings,
+  .problem-secondary-settings,
+  .advanced-option-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .problem-header-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .problem-secondary-settings .secondary-middle-field,
+  .problem-secondary-settings .secondary-toggle-field {
+    grid-column: auto;
+  }
 }
 </style>

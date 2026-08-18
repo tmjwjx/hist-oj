@@ -62,78 +62,10 @@ module.exports={
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)
     port: 8066, // 开发服务器运行端口号
     proxy: {
-      // hist-oj APIs (battle, rating, judge, classroom, plagiarism)
-      // 注意：这些规则必须在通用 /api 规则之前，因为 webpack proxy 按顺序匹配
-      '/api/rating': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/judge': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/classroom': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/plagiarism': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/contest/question': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
-      '/api/contest-question': {
-        target: 'http://43.143.133.62:9527',
-        changeOrigin: true
-      },
       '/api': {                                //   以'/api'开头的请求会被代理进行转发
         target: 'http://43.143.133.62:6688',       //   要发向的后台服务器地址  如果后台服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
         changeOrigin: true
       },
-      '/registration-api': {                   //   报名系统Go后端服务代理
-        target: 'http://43.143.133.62:8080',   //   生产环境 Go后端服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/registration-api': '/api'         //   将 /registration-api 重写为 /api
-        }
-      },
-      '/rating-api': {                         //   Rating 服务代理
-        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/rating-api': ''                    //   去掉 /rating-api 前缀
-        }
-      },
-      '/judge-api': {                          //   判题终端服务代理
-        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/judge-api': ''                     //   去掉 /judge-api 前缀
-        }
-      },
-      '/battle-api': {                         //   代码对战服务代理
-        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/battle-api': ''                    //   去掉 /battle-api 前缀
-        }
-      },
-      '/training-api': {                       //   训练服务代理
-        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/training-api': ''                  //   去掉 /training-api 前缀
-        }
-      },
-      '/plagiarism-api': {                     //   代码查重服务代理
-        target: 'http://43.143.133.62:9527',   //   线上环境 hist-oj 服务
-        changeOrigin: true,
-        pathRewrite: {
-          '^/plagiarism-api': ''                //   去掉 /plagiarism-api 前缀
-        }
-      }
     },
     disableHostCheck: true,
   },

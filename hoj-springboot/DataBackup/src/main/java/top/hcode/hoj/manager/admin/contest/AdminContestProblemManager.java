@@ -26,6 +26,8 @@ import top.hcode.hoj.pojo.entity.contest.Contest;
 import top.hcode.hoj.pojo.entity.contest.ContestProblem;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.problem.Problem;
+import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
+import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
 
@@ -56,6 +58,9 @@ public class AdminContestProblemManager {
 
     @Autowired
     private ContestEntityService contestEntityService;
+
+    @Autowired
+    private ProblemVerificationLifecycle verificationLifecycle;
 
     public HashMap<String, Object> getProblemList(Integer limit, Integer currentPage, String keyword,
                                                   Long cid, Integer problemType, String oj) {
@@ -208,6 +213,11 @@ public class AdminContestProblemManager {
         problemDto.getProblem().setAuth(3);
         boolean isOk = problemEntityService.adminAddProblem(problemDto);
         if (isOk) { // 添加成功
+            Problem created = problemDto.getProblem();
+            if (!Boolean.TRUE.equals(created.getIsRemote())) {
+                verificationLifecycle.markTestCaseChanged(
+                        created.getId(), created.getCaseVersion(), created.getJudgeMode());
+            }
             // 顺便返回新的题目id，好下一步添加外键操作
             return MapUtil.builder().put("pid", problemDto.getProblem().getId()).map();
         } else {
@@ -226,6 +236,7 @@ public class AdminContestProblemManager {
             throw new StatusForbiddenException("对不起，你无权限修改题目！");
         }
 
+        Problem oldProblem = problemEntityService.getById(problemDto.getProblem().getId());
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemDto.getProblem().getProblemId().toUpperCase());
         Problem problem = problemEntityService.getOne(queryWrapper);
@@ -241,6 +252,12 @@ public class AdminContestProblemManager {
         boolean isOk = problemEntityService.adminUpdateProblem(problemDto);
         if (!isOk) {
             throw new StatusFailException("修改失败");
+        }
+        Problem updated = problemEntityService.getById(problemDto.getProblem().getId());
+        if (!Boolean.TRUE.equals(updated.getIsRemote())
+                && ProblemVerificationChangeDetector.changed(oldProblem, updated)) {
+            verificationLifecycle.markVerificationChanged(
+                    updated.getId(), updated.getCaseVersion(), updated.getJudgeMode());
         }
     }
 

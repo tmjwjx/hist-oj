@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const getBaseURL = () => '/rating-api/api'
+const getBaseURL = () => '/api'
 
 const learningMapRequest = axios.create({
   baseURL: getBaseURL(),
@@ -25,6 +25,10 @@ learningMapRequest.interceptors.request.use(
 learningMapRequest.interceptors.response.use(
   response => {
     const res = response.data
+    if (res && res.code === undefined && res.status !== undefined) {
+      res.code = res.status
+      res.message = res.msg
+    }
     if (res.code === 200) {
       return res.data
     }

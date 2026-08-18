@@ -7,6 +7,8 @@ import top.hcode.hoj.pojo.vo.AccessVO;
 import top.hcode.hoj.pojo.vo.ProblemVO;
 import top.hcode.hoj.pojo.vo.TrainingRankVO;
 import top.hcode.hoj.pojo.vo.TrainingVO;
+import top.hcode.hoj.pojo.vo.TrainingParticipantVO;
+import top.hcode.hoj.pojo.vo.TrainingProgressVO;
 
 import java.util.List;
 
@@ -29,4 +31,14 @@ public interface TrainingService {
     public CommonResult<AccessVO> getTrainingAccess(Long tid);
 
     public CommonResult<IPage<TrainingRankVO>> getTrainingRank(Long tid, Integer limit, Integer currentPage,String keyword);
+
+    CommonResult<TrainingParticipantVO> joinTraining(Long tid);
+
+    CommonResult<List<TrainingParticipantVO>> getTrainingParticipants(Long tid);
+
+    CommonResult<TrainingParticipantVO> getMyTrainingRecord(Long tid);
+
+    CommonResult<Void> refreshTrainingStatus(Long tid);
+
+    CommonResult<List<TrainingProgressVO>> getMyTrainingProgress();
 }

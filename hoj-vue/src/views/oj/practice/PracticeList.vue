@@ -118,22 +118,29 @@ export default {
 
 <style scoped>
 .practice-list-page {
-  max-width: 1080px;
-  margin: 20px auto;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 
 .search-card {
-  margin-bottom: 16px;
-  border-radius: 10px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .search-bar {
-  max-width: 560px;
+  max-width: 100%;
 }
 
 .list-card {
-  min-height: 360px;
-  border-radius: 10px;
+  min-height: 400px;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .paper-list {
@@ -145,9 +152,9 @@ export default {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  padding: 16px 8px;
-  border-bottom: 1px solid #eceff3;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid #e4e7ed;
   transition: background-color 0.2s ease;
 }
 
@@ -156,7 +163,7 @@ export default {
 }
 
 .paper-row:hover {
-  background: #f8fbff;
+  background: #f5f7fa;
 }
 
 .paper-main {
@@ -169,30 +176,36 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 12px;
-  color: #5f6368;
+  color: #909399;
 }
 
 .paper-origin {
-  color: #188038;
+  color: #67c23a;
+  font-weight: 500;
 }
 
 .paper-author {
-  color: #5f6368;
+  color: #909399;
 }
 
 .paper-title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.3;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  line-height: 1.4;
   font-weight: 600;
-  color: #1a73e8;
+  color: #303133;
+}
+
+.paper-title:hover {
+  color: #409eff;
 }
 
 .paper-desc {
-  margin: 8px 0 10px;
-  color: #3c4043;
+  margin: 0 0 8px 0;
+  color: #606266;
+  font-size: 13px;
   line-height: 1.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -205,36 +218,46 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #5f6368;
-  font-size: 13px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .meta-dot {
-  color: #9aa0a6;
+  color: #c0c4cc;
 }
 
 .paper-actions {
-  padding-top: 18px;
+  padding-top: 8px;
 }
 
 .pagination-wrap {
-  margin-top: 16px;
+  margin-top: 20px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
+  .practice-list-page {
+    padding: 10px;
+  }
+
   .paper-row {
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    padding: 12px;
   }
 
   .paper-title {
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .paper-actions {
     padding-top: 0;
+    width: 100%;
+  }
+
+  .paper-actions .el-button {
+    width: 100%;
   }
 }
 </style>

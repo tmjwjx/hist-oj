@@ -121,4 +121,34 @@ public class TrainingController {
         return trainingService.getTrainingRank(tid, limit, currentPage, keyword);
     }
 
+    @PostMapping("/training/{trainingId}/join")
+    @RequiresAuthentication
+    public CommonResult<TrainingParticipantVO> joinTraining(@PathVariable Long trainingId) {
+        return trainingService.joinTraining(trainingId);
+    }
+
+    @GetMapping("/training/{trainingId}/participants")
+    @RequiresAuthentication
+    public CommonResult<List<TrainingParticipantVO>> getTrainingParticipants(@PathVariable Long trainingId) {
+        return trainingService.getTrainingParticipants(trainingId);
+    }
+
+    @GetMapping("/training/{trainingId}/my-record")
+    @RequiresAuthentication
+    public CommonResult<TrainingParticipantVO> getMyTrainingRecord(@PathVariable Long trainingId) {
+        return trainingService.getMyTrainingRecord(trainingId);
+    }
+
+    @PutMapping("/training/{trainingId}/status")
+    @RequiresAuthentication
+    public CommonResult<Void> refreshTrainingStatus(@PathVariable Long trainingId) {
+        return trainingService.refreshTrainingStatus(trainingId);
+    }
+
+    @GetMapping("/training/my-progress")
+    @RequiresAuthentication
+    public CommonResult<List<TrainingProgressVO>> getMyTrainingProgress() {
+        return trainingService.getMyTrainingProgress();
+    }
+
 }

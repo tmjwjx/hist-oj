@@ -1332,7 +1332,7 @@
 <script>
 import teacherAuth from '@/mixins/teacherAuth'
 import moment from 'moment'
-import { getJudgeInfo } from '@/common/judgeTerminal'
+import { getClassroomProblem } from '@/common/classroomProblem'
 import api from '@/common/api'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
@@ -2122,7 +2122,7 @@ export default {
         }
         console.log('请求HOJ API, 参数:', { ...requestData, token: token.substring(0, 20) + '...' })
 
-        const res = await getJudgeInfo(requestData)
+        const res = await getClassroomProblem(requestData)
         console.log('HOJ API 响应:', res)
 
         if (res.code === 200 && res.data) {
@@ -2337,7 +2337,7 @@ export default {
           return
         }
 
-        const res = await getJudgeInfo({
+        const res = await getClassroomProblem({
           pid: problem.problemId,
           cid: '0',
           mode: 'normal',
@@ -2396,7 +2396,7 @@ export default {
           password: ''
         }
 
-        const res = await getJudgeInfo(requestData)
+        const res = await getClassroomProblem(requestData)
 
         if (res.code === 200 && res.data) {
           const problemData = res.data
@@ -2587,7 +2587,7 @@ export default {
 
       for (const problemId of uncachedIds) {
         try {
-          const res = await getJudgeInfo({
+          const res = await getClassroomProblem({
             pid: problemId,
             cid: '0',
             mode: 'normal',

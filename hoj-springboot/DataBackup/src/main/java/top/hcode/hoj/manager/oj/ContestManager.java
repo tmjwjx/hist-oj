@@ -19,7 +19,6 @@ import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.pojo.bo.Pair_;
 import top.hcode.hoj.pojo.dto.ContestPrintDTO;
 import top.hcode.hoj.pojo.dto.ContestRankDTO;
-import top.hcode.hoj.pojo.dto.RegisterContestDTO;
 import top.hcode.hoj.pojo.dto.UserReadContestAnnouncementDTO;
 import top.hcode.hoj.pojo.entity.common.Announcement;
 import top.hcode.hoj.pojo.entity.contest.*;
@@ -107,7 +106,9 @@ public class ContestManager {
         // 页数，每页题数若为空，设置默认值
         if (currentPage == null || currentPage < 1) currentPage = 1;
         if (limit == null || limit < 1) limit = 10;
-        return contestEntityService.getContestList(limit, currentPage, type, status, keyword);
+        IPage<ContestVO> page = contestEntityService.getContestList(limit, currentPage, type, status, keyword);
+        markRegistered(page.getRecords());
+        return page;
     }
 
 
@@ -131,60 +132,31 @@ public class ContestManager {
 
         // 设置当前服务器系统时间
         contestInfo.setNow(new Date());
+        if (Boolean.TRUE.equals(contestInfo.getUseRegistrationName())) {
+            contestInfo.setRankShowName("contestName");
+        }
+        if (userRolesVo != null) {
+            contestInfo.setRegistered(contestRegisterEntityService.count(new QueryWrapper<ContestRegister>()
+                    .eq("cid", cid).eq("uid", userRolesVo.getUid())) > 0);
+        }
 
         return contestInfo;
     }
 
-
-    public void toRegisterContest(RegisterContestDTO registerContestDto) throws StatusFailException, StatusForbiddenException {
-
-        Long cid = registerContestDto.getCid();
-        String password = registerContestDto.getPassword();
-        if (cid == null || StringUtils.isEmpty(password)) {
-            throw new StatusFailException("cid或者password不能为空！");
+    private void markRegistered(List<ContestVO> contests) {
+        AccountProfile user = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
+        if (contests == null || contests.isEmpty()) {
+            return;
         }
-
-        // 获取当前登录的用户
-        AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
-
-        boolean isRoot = SecurityUtils.getSubject().hasRole("root");
-
-        Contest contest = contestEntityService.getById(cid);
-
-        if (contest == null || !contest.getVisible()) {
-            throw new StatusFailException("对不起，该比赛不存在!");
+        if (user == null) {
+            contests.forEach(contest -> contest.setRegistered(false));
+            return;
         }
-
-        if (contest.getIsGroup()) {
-            if (!groupValidator.isGroupMember(userRolesVo.getUid(), contest.getGid()) && !isRoot) {
-                throw new StatusForbiddenException("对不起，您无权限操作！");
-            }
-        }
-
-        if (!contest.getPwd().equals(password)) { // 密码不对
-            throw new StatusFailException("比赛密码错误，请重新输入！");
-        }
-
-        // 需要校验当前比赛是否开启账号规则限制，如果有，需要对当前用户的用户名进行验证
-        if (contest.getOpenAccountLimit()
-                && !contestValidator.validateAccountRule(contest.getAccountLimitRule(), userRolesVo.getUsername())) {
-            throw new StatusFailException("对不起！本次比赛只允许特定账号规则的用户参赛！");
-        }
-
-
-        QueryWrapper<ContestRegister> wrapper = new QueryWrapper<ContestRegister>().eq("cid", cid)
-                .eq("uid", userRolesVo.getUid());
-        if (contestRegisterEntityService.getOne(wrapper, false) != null) {
-            throw new StatusFailException("您已注册过该比赛，请勿重复注册！");
-        }
-
-        boolean isOk = contestRegisterEntityService.saveOrUpdate(new ContestRegister()
-                .setCid(cid)
-                .setUid(userRolesVo.getUid()));
-
-        if (!isOk) {
-            throw new StatusFailException("校验比赛密码失败，请稍后再试");
-        }
+        Set<Long> registered = contestRegisterEntityService.list(new QueryWrapper<ContestRegister>()
+                        .select("cid").eq("uid", user.getUid())
+                        .in("cid", contests.stream().map(ContestVO::getId).collect(Collectors.toList())))
+                .stream().map(ContestRegister::getCid).collect(Collectors.toSet());
+        contests.forEach(contest -> contest.setRegistered(registered.contains(contest.getId())));
     }
 
     public AccessVO getContestAccess(Long cid) throws StatusFailException {
@@ -205,7 +177,7 @@ public class ContestManager {
             if (contest.getOpenAccountLimit()
                     && !contestValidator.validateAccountRule(contest.getAccountLimitRule(), userRolesVo.getUsername())) {
                 access = false;
-                contestRecordEntityService.removeById(contestRegister.getId());
+                contestRegisterEntityService.removeById(contestRegister.getId());
             }
         }
 

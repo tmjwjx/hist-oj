@@ -88,6 +88,7 @@ public class JudgeServiceImpl implements JudgeService {
                         "spj_code",
                         "spj_language",
                         "problem_id",
+                        "examples",
                         "is_remove_end_blank",
                         "is_file_io",
                         "io_read_file_name",
@@ -99,7 +100,8 @@ public class JudgeServiceImpl implements JudgeService {
         // 更新该次提交
         judgeEntityService.updateById(finalJudgeRes);
 
-        if (!Objects.equals(finalJudgeRes.getStatus(), Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus())) {
+        if (!Boolean.TRUE.equals(judge.getIsProblemVerification())
+                && !Objects.equals(finalJudgeRes.getStatus(), Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus())) {
             // 更新其它表
             judgeContext.updateOtherTable(finalJudgeRes.getSubmitId(),
                     finalJudgeRes.getStatus(),

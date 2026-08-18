@@ -187,7 +187,10 @@ public class StartupRunner implements CommandLineRunner {
      */
     private void initDefaultConfig() {
         if (judgeToken.equals("default")) {
-            configVo.setJudgeToken(IdUtil.fastSimpleUUID());
+            if (StrUtil.isBlank(configVo.getJudgeToken())
+                    || "no_judge_token".equals(configVo.getJudgeToken())) {
+                configVo.setJudgeToken(IdUtil.fastSimpleUUID());
+            }
         } else {
             configVo.setJudgeToken(judgeToken);
         }

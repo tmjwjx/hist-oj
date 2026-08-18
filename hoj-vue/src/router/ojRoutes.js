@@ -31,9 +31,6 @@ import DiscussionList from "@/views/oj/discussion/discussionList.vue"
 import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
-import Registration from "@/views/oj/registration/Registration.vue"
-import RegistrationList from "@/views/oj/registration/RegistrationList.vue"
-import CompetitionDetail from "@/views/oj/registration/CompetitionDetail.vue"
 import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
 import LearningMapList from "@/views/oj/learning-map/LearningMapList.vue"
 import LearningMapPage from "@/views/oj/learning-map/LearningMapPage.vue"
@@ -489,24 +486,6 @@ const ojRoutes = [
     name: 'LearningMapPage',
     component: LearningMapPage,
     meta: { title: 'Learning Map Detail', requireAuth: true }
-  },
-  {
-    path: '/registration',
-    name: 'Registration',
-    component: Registration,
-    meta: { title: 'Registration', requireAuth: true }
-  },
-  {
-    path: '/registration/list',
-    name: 'RegistrationList',
-    component: RegistrationList,
-    meta: { title: 'Registration List', requireAuth: true }
-  },
-  {
-    path: '/registration/competition/:id',
-    name: 'CompetitionDetail',
-    component: CompetitionDetail,
-    meta: { title: 'Competition Detail', requireAuth: true }
   },
   {
     path: '/battle',

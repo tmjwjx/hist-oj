@@ -21,7 +21,6 @@ export const m = {
   Toolbox: '工具箱',
   NavBar_Toolbox: '工具箱',
   Rating_Management: 'Rating管理',
-  Judge_Terminal: '判题终端',
   Battle_Records_Admin: '对战记录管理',
   Admin_Tag: '标签管理',
   Problem_Admin: '题目管理',

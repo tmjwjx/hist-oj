@@ -760,8 +760,17 @@ export default {
 <style scoped>
 .battle-room-container {
   padding: 20px;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
+}
+
+.battle-room-container /deep/ .el-card {
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: #fff;
 }
 
 .card-header {
@@ -789,13 +798,14 @@ export default {
 .player-card {
   text-align: center;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f5f7fa;
+  border: 1px solid #e4e7ed;
 }
 
 .player-avatar {
   margin-bottom: 15px;
-  color: #909399;
+  color: #606266;
 }
 
 .player-avatar.empty {
@@ -805,6 +815,7 @@ export default {
 .player-info h3 {
   margin: 10px 0;
   font-size: 18px;
+  font-weight: 600;
 }
 
 .vs-badge {
@@ -826,8 +837,9 @@ export default {
 .problem-section {
   text-align: center;
   padding: 20px;
-  background: #f0f9ff;
-  border-radius: 8px;
+  background: #ecf5ff;
+  border-radius: 4px;
+  border: 1px solid #d9ecff;
 }
 
 .players-status {
@@ -839,10 +851,10 @@ export default {
 .status-card {
   flex: 1;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f5f7fa;
   margin: 0 10px;
-  border: 2px solid transparent;
+  border: 1px solid #e4e7ed;
 }
 
 .status-card.winner {
@@ -903,6 +915,10 @@ export default {
 }
 
 @media screen and (max-width: 768px) {
+  .battle-room-container {
+    padding: 10px;
+  }
+
   .player-section {
     flex-direction: column;
     gap: 20px;

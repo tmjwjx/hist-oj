@@ -15,10 +15,13 @@ import top.hcode.hoj.pojo.dto.ContestProblemDTO;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
 import top.hcode.hoj.pojo.entity.contest.Contest;
 import top.hcode.hoj.pojo.entity.contest.ContestProblem;
+import top.hcode.hoj.pojo.entity.contest.ContestRegister;
+import top.hcode.hoj.pojo.dto.ContestRegistrationUpdateDTO;
 
 import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.vo.AdminContestVO;
 import top.hcode.hoj.pojo.vo.AnnouncementVO;
+import top.hcode.hoj.pojo.vo.ContestVerificationVO;
 
 import top.hcode.hoj.service.admin.contest.AdminContestAnnouncementService;
 import top.hcode.hoj.service.admin.contest.AdminContestProblemService;
@@ -105,6 +108,27 @@ public class AdminContestController {
                                                    @RequestParam(value = "visible", required = true) Boolean visible) {
 
         return adminContestService.changeContestVisible(cid, uid, visible);
+    }
+
+    @GetMapping("/registrations")
+    @RequiresAuthentication
+    @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
+    public CommonResult<List<ContestRegister>> getContestRegistrations(@RequestParam("cid") Long cid) {
+        return adminContestService.getContestRegistrations(cid);
+    }
+
+    @PutMapping("/registrations")
+    @RequiresAuthentication
+    @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
+    public CommonResult<Void> updateContestRegistration(@RequestBody ContestRegistrationUpdateDTO dto) {
+        return adminContestService.updateContestRegistration(dto);
+    }
+
+    @GetMapping("/problem-verification")
+    @RequiresAuthentication
+    @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
+    public CommonResult<ContestVerificationVO> getContestVerification(@RequestParam("cid") Long cid) {
+        return adminContestService.getContestVerification(cid);
     }
 
     /**

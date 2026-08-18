@@ -110,6 +110,20 @@ public class Judge implements Serializable {
     @ApiModelProperty(value = "是否人工评测")
     private Boolean isManual;
 
+    @ApiModelProperty(value = "是否为题目创建后的标准程序验题提交")
+    private Boolean isProblemVerification;
+
+    @ApiModelProperty(value = "评测来源：ai_validation、creator_validation、user_submission")
+    @TableField("submission_type")
+    private String submissionType;
+
+    /** 由后端根据评测点进度派生，不落库。 */
+    @TableField(exist = false)
+    private String statusText;
+
+    @TableField(exist = false)
+    private Integer currentTest;
+
     @TableField(fill = FieldFill.INSERT)
     private Date gmtCreate;
 

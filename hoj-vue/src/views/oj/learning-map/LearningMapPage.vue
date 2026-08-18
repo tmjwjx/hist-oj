@@ -405,18 +405,19 @@ export default {
 
 <style scoped>
 .learning-map-page {
-  max-width: 1660px;
+  max-width: 1600px;
   margin: 0 auto;
   position: relative;
-  padding: 8px 8px 14px;
-  font-family: 'Trebuchet MS', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 .toolbar-card {
-  margin-bottom: 12px;
-  border: 0;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #f4fbff 0%, #eef8ff 52%, #fff8e8 100%);
-  box-shadow: 0 10px 22px rgba(58, 113, 173, 0.12);
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 .toolbar-top {
   display: flex;
@@ -432,22 +433,24 @@ export default {
   align-items: center;
 }
 .summary-row {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #e4e7ed;
 }
 .next-box {
   margin-left: auto;
-  color: #0f3d66;
+  color: #606266;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .map-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 12px;
+  gap: 16px;
 }
 .map-layout.detail-expanded {
   grid-template-columns: minmax(0, 1fr) 620px;
@@ -456,11 +459,11 @@ export default {
   min-width: 0;
 }
 .detail-wrap {
-  border: 1px solid #d8e5f6;
-  border-radius: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
   overflow: hidden;
-  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
-  box-shadow: 0 8px 20px rgba(45, 108, 176, 0.12);
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   min-height: 520px;
 }
 @media (max-width: 1200px) {
@@ -479,26 +482,26 @@ export default {
 
 <style>
 .knowledge-dialog {
-  border-radius: 16px;
+  border-radius: 4px;
   overflow: hidden;
 }
 .knowledge-dialog .el-dialog__body {
-  padding-top: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding-top: 12px;
+  background: #fff;
 }
 .knowledge-dialog-title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  color: #1f3b60;
+  font-weight: 600;
+  color: #303133;
 }
 .knowledge-dialog-body {
   max-height: 82vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .knowledge-dialog-actions {
   display: flex;
@@ -506,16 +509,16 @@ export default {
   flex-wrap: wrap;
 }
 .knowledge-resources {
-  border: 1px dashed #a7caf8;
-  border-radius: 10px;
-  padding: 10px;
-  background: #f5f9ff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px;
+  background: #f5f7fa;
 }
 .knowledge-resources-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1d4c84;
-  margin-bottom: 6px;
+  color: #303133;
+  margin-bottom: 8px;
 }
 .knowledge-resources-list {
   display: flex;
@@ -526,17 +529,18 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 5px 10px;
-  background: #e8f3ff;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
 }
 .knowledge-md-wrap {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border-radius: 12px;
-  border: 1px solid #dbe8f8;
-  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  padding: 12px;
   background: #fff;
 }
 </style>

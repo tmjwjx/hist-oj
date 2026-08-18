@@ -40,7 +40,9 @@ const getters = {
     return state.isContainsAfterContestJudge;
   },
   canSubmit:(state, getters)=>{
-     return state.intoAccess||state.submitAccess || state.contest.auth === CONTEST_TYPE.PUBLIC ||getters.isContestAdmin
+     if (getters.isContestAdmin) return true
+     if (state.contest.openRegistration) return state.intoAccess
+     return state.intoAccess||state.submitAccess || state.contest.auth === CONTEST_TYPE.PUBLIC
   },
   contestMenuDisabled: (state, getters) => {
     // 比赛创建者或者超级管理员可以直接查看
@@ -52,6 +54,7 @@ const getters = {
      // 私有赛需要通过验证密码方可查看比赛
       return !state.intoAccess
     }
+    if (state.contest.openRegistration) return !state.intoAccess
     
   },
 
@@ -85,9 +88,9 @@ const getters = {
     return !rootGetters.isAuthenticated
   },
   // 是否需要显示密码验证框
-  passwordFormVisible: (state, getters) => {
-    // 如果是公开赛，保护赛，或已注册过，管理员都不用再显示
-    return state.contest.auth !== CONTEST_TYPE.PUBLIC &&state.contest.auth !== CONTEST_TYPE.PROTECTED &&!state.intoAccess && !getters.isContestAdmin 
+  registrationFormVisible: (state, getters) => {
+    if (getters.isContestAdmin || state.intoAccess) return false
+    return state.contest.status !== CONTEST_STATUS.ENDED
   },
   contestStartTime: (state) => {
     return moment(state.contest.startTime)
@@ -228,11 +231,10 @@ const actions = {
           dispatch('getGroupContestAuth', {gid: contest.gid})
         }
         commit('now', {now: moment(contest.now)})
-        if (contest.auth == CONTEST_TYPE.PRIVATE) {
-          dispatch('getContestAccess',{auth:CONTEST_TYPE.PRIVATE})
-        }else if(contest.auth == CONTEST_TYPE.PROTECTED){
-          dispatch('getContestAccess',{auth:CONTEST_TYPE.PROTECTED})
-        }
+        dispatch('getContestAccess', {
+          auth: CONTEST_TYPE.PRIVATE,
+          grantSubmit: contest.auth === CONTEST_TYPE.PROTECTED,
+        })
       }, err => {
         reject(err)
       })
@@ -267,6 +269,9 @@ const actions = {
       api.getContestAccess(rootState.route.params.contestID).then(res => {
         if(contestType.auth == CONTEST_TYPE.PRIVATE){
           commit('contestIntoAccess', {intoAccess: res.data.data.access})
+          if (contestType.grantSubmit) {
+            commit('contestSubmitAccess', {submitAccess: res.data.data.access})
+          }
         }else{
           commit('contestSubmitAccess', {submitAccess: res.data.data.access})
         }

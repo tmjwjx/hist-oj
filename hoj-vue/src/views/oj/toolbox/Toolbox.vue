@@ -12,6 +12,7 @@
       <div class="toolbox-content">
         <el-row :gutter="20">
           <el-col
+            :lg="6"
             :md="8"
             :sm="12"
             :xs="24"
@@ -60,13 +61,6 @@ export default {
           url: '/classroom'
         },
         {
-          title: '赛事报名系统',
-          description: '查看和管理赛事报名信息',
-          icon: 'fa fa-trophy',
-          iconColor: '#FFD700',
-          url: '/registration/list'
-        },
-        {
           title: '套卷练习',
           description: '公开套卷在线练习，支持按题查看标准答案',
           icon: 'el-icon-reading',
@@ -107,36 +101,44 @@ export default {
 
 <style scoped>
 .toolbox-container {
+  width: 100%;
+  box-sizing: border-box;
   padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  margin: 0;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 
 .toolbox-card {
-  border-radius: 8px;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .toolbox-header {
-  text-align: center;
+  background: #fff;
+  border-bottom: 2px solid #409eff;
+  padding: 20px;
 }
 
 .toolbox-title-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
+  gap: 12px;
 }
 
 .toolbox-logo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  background: #409eff;
+  border-radius: 4px;
   color: white;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .toolbox-logo i {
@@ -145,16 +147,27 @@ export default {
 }
 
 .toolbox-title {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #303133;
 }
 
 .toolbox-content {
-  padding: 20px 0;
+  padding: 24px 20px;
+  background: #fff;
+}
+
+.toolbox-content /deep/ .el-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.tool-item-col {
+  display: flex;
+}
+
+.tool-item-col /deep/ .el-card {
+  width: 100%;
 }
 
 .tool-item-col {
@@ -163,32 +176,32 @@ export default {
 
 .tool-card {
   cursor: pointer;
-  transition: all 0.3s;
-  border-radius: 8px;
+  transition: all 0.2s;
+  border-radius: 4px;
   height: 100%;
+  border: 1px solid #e4e7ed;
 }
 
 .tool-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 20px rgba(64, 158, 255, 0.3);
+  border-color: #409eff;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
 }
 
 .tool-icon {
   text-align: center;
-  font-size: 56px;
-  color: #409eff;
-  margin-bottom: 15px;
-  transition: all 0.3s ease;
+  font-size: 48px;
+  margin-bottom: 12px;
+  transition: transform 0.2s ease;
 }
 
 .tool-icon i {
-  font-size: 56px;
+  font-size: 48px;
   text-shadow: none;
   filter: none;
 }
 
 .tool-card:hover .tool-icon {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .tool-info {
@@ -196,17 +209,17 @@ export default {
 }
 
 .tool-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #303133;
-  margin: 0 0 10px 0;
+  margin: 0 0 8px 0;
 }
 
 .tool-description {
-  font-size: 14px;
-  color: #909399;
+  font-size: 13px;
+  color: #606266;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 @media screen and (max-width: 768px) {
@@ -215,7 +228,7 @@ export default {
   }
 
   .toolbox-title {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .tool-icon {
@@ -228,7 +241,7 @@ export default {
   }
 
   .tool-title {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .tool-description {

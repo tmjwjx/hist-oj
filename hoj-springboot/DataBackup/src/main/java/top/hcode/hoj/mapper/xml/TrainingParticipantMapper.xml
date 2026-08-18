@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.hcode.hoj.mapper.TrainingParticipantMapper">
+
+    <resultMap id="participantView" type="top.hcode.hoj.pojo.vo.TrainingParticipantVO">
+        <id property="id" column="participant_id"/>
+        <result property="trainingId" column="training_id"/>
+        <result property="uid" column="uid"/>
+        <result property="status" column="participant_status"/>
+        <result property="joinTime" column="join_time"/>
+        <result property="gmtCreate" column="gmt_create"/>
+        <result property="gmtModified" column="gmt_modified"/>
+        <association property="user" javaType="top.hcode.hoj.pojo.vo.TrainingParticipantUserVO">
+            <id property="uuid" column="uid"/>
+            <result property="username" column="username"/>
+            <result property="nickname" column="nickname"/>
+            <result property="realname" column="realname"/>
+            <result property="rating" column="hist_rating"/>
+        </association>
+        <association property="progress" javaType="top.hcode.hoj.pojo.vo.TrainingProgressVO">
+            <result property="trainingId" column="training_id"/>
+            <result property="solvedCount" column="solved_count"/>
+            <result property="totalCount" column="total_count"/>
+            <result property="status" column="participant_status"/>
+        </association>
+    </resultMap>
+
+    <sql id="participantColumns">
+        SELECT p.id AS participant_id, p.training_id, p.uid,
+               p.status AS participant_status, p.join_time, p.gmt_create, p.gmt_modified,
+               u.username, u.nickname, u.realname,
+               COALESCE(ur.hist_rating, 0) AS hist_rating,
+               COUNT(DISTINCT uap.pid) AS solved_count,
+               (SELECT COUNT(*) FROM training_problem all_tp
+                WHERE all_tp.tid = p.training_id) AS total_count
+        FROM training_participant p
+        LEFT JOIN user_info u ON u.uuid = p.uid
+        LEFT JOIN user_record ur ON ur.uid = p.uid
+        LEFT JOIN training_problem tp ON tp.tid = p.training_id
+        LEFT JOIN user_acproblem uap ON uap.uid = p.uid AND uap.pid = tp.pid
+    </sql>
+
+    <select id="getParticipants" resultMap="participantView">
+        <include refid="participantColumns"/>
+        WHERE p.training_id = #{tid}
+        <if test="uid != null and uid != ''">
+            AND p.uid = #{uid}
+        </if>
+        GROUP BY p.id, p.training_id, p.uid, p.status, p.join_time,
+                 p.gmt_create, p.gmt_modified, u.username, u.nickname,
+                 u.realname, ur.hist_rating
+        ORDER BY p.gmt_create ASC
+    </select>
+
+    <select id="getUserProgress" resultMap="participantView">
+        <include refid="participantColumns"/>
+        WHERE p.uid = #{uid}
+        GROUP BY p.id, p.training_id, p.uid, p.status, p.join_time,
+                 p.gmt_create, p.gmt_modified, u.username, u.nickname,
+                 u.realname, ur.hist_rating
+        ORDER BY p.gmt_create DESC
+    </select>
+</mapper>

@@ -164,7 +164,7 @@
 
 <script>
 import moment from 'moment'
-import { getJudgeInfo } from '@/common/judgeTerminal'
+import { getClassroomProblem } from '@/common/classroomProblem'
 import MarkdownIt from 'markdown-it'
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 
@@ -253,7 +253,7 @@ export default {
 
       for (const problemId of uncachedIds) {
         try {
-          const res = await getJudgeInfo({
+          const res = await getClassroomProblem({
             pid: problemId,
             cid: '0',
             mode: 'normal',

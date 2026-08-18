@@ -28,6 +28,8 @@ import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
 import top.hcode.hoj.pojo.entity.problem.Tag;
 import top.hcode.hoj.pojo.vo.ProblemVO;
+import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
+import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.validator.GroupValidator;
@@ -72,6 +74,9 @@ public class GroupProblemManager {
 
     @Autowired
     private ProblemValidator problemValidator;
+
+    @Autowired
+    private ProblemVerificationLifecycle verificationLifecycle;
 
     @Value("${hoj.judge.token:no_judge_token}")
     private String judgeToken;
@@ -149,7 +154,7 @@ public class GroupProblemManager {
         return problem;
     }
 
-    public void addProblem(ProblemDTO problemDto) throws StatusForbiddenException, StatusNotFoundException, StatusFailException {
+    public Long addProblem(ProblemDTO problemDto) throws StatusForbiddenException, StatusNotFoundException, StatusFailException {
 
         problemValidator.validateGroupProblem(problemDto.getProblem());
 
@@ -204,6 +209,10 @@ public class GroupProblemManager {
         if (!isOk) {
             throw new StatusFailException("添加失败");
         }
+        Problem created = problemDto.getProblem();
+        verificationLifecycle.markTestCaseChanged(
+                created.getId(), created.getCaseVersion(), created.getJudgeMode());
+        return created.getId();
     }
 
     public void updateProblem(ProblemDTO problemDto) throws StatusForbiddenException, StatusNotFoundException, StatusFailException {
@@ -275,6 +284,11 @@ public class GroupProblemManager {
 
         boolean isOk = problemEntityService.adminUpdateProblem(problemDto);
         if (isOk) {
+            Problem updated = problemEntityService.getById(pid);
+            if (ProblemVerificationChangeDetector.changed(problem, updated)) {
+                verificationLifecycle.markVerificationChanged(
+                        updated.getId(), updated.getCaseVersion(), updated.getJudgeMode());
+            }
             if (existedProblem == null) {
                 UpdateWrapper<Judge> judgeUpdateWrapper = new UpdateWrapper<>();
                 judgeUpdateWrapper.eq("pid", problemDto.getProblem().getId())

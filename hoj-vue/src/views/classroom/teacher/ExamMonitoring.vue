@@ -199,29 +199,26 @@ export default {
     }
   },
   computed: {
-    // 统一的 homeworkId：优先从 props 获取（管理员路由），否则从 route 获取（教师路由）
-    homeworkId() {
-      // 优先从 props 获取
-      if (this.$options.propsData && this.$options.propsData.homeworkId !== undefined) {
-        return this.$options.propsData.homeworkId
+    // 管理员页面通过 props 复用本组件，教师页面则从路由取值。
+    // 避免 computed 与同名 prop 冲突，否则 Vue 会忽略 computed，教师路由下 ID 始终为空。
+    resolvedHomeworkId() {
+      if (this.homeworkId !== undefined && this.homeworkId !== null && this.homeworkId !== '') {
+        return this.homeworkId
       }
-      // 否则从 route 获取
       return this.$route.query.homeworkId || this.$route.params.homeworkId
     },
-    classroomId() {
-      // 优先从 props 获取
-      if (this.$options.propsData && this.$options.propsData.classroomId !== undefined) {
-        return this.$options.propsData.classroomId
+    resolvedClassroomId() {
+      if (this.classroomId !== undefined && this.classroomId !== null && this.classroomId !== '') {
+        return this.classroomId
       }
-      // 否则从 route 获取
       return this.$route.query.classroomId || this.$route.params.classroomId
     },
-    // 确保从 route params 获取正确的 ID
+    // 保留原有属性名供强制收卷和返回导航使用，但统一走解析后的 ID。
     routeClassroomId() {
-      return this.$route.params.classroomId
+      return this.resolvedClassroomId
     },
     routeHomeworkId() {
-      return parseInt(this.$route.params.homeworkId)
+      return this.resolvedHomeworkId
     },
     violationCount() {
       return this.studentList.filter(s => s.violationCount > 0).length
@@ -240,7 +237,7 @@ export default {
   methods: {
     async loadMonitoringData() {
       // 使用 computed 中的 homeworkId（优先从 query 获取，再从 params 获取）
-      const homeworkId = this.homeworkId
+      const homeworkId = this.resolvedHomeworkId
 
       // 检查 homeworkId 是否有效
       if (!homeworkId) {
@@ -455,8 +452,8 @@ export default {
 
     goBack() {
       // 返回到作业详情页
-      const homeworkId = this.$route.params.homeworkId
-      const classroomId = this.$route.params.classroomId
+      const homeworkId = this.resolvedHomeworkId
+      const classroomId = this.resolvedClassroomId
       // 必须添加 tab=homework 参数，否则 ClassroomDetail 会使用默认的 students tab
       this.$router.push({
         name: 'TeacherHomeworkDetail',

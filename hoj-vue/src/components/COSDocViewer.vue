@@ -194,7 +194,7 @@ export default {
         // 如果没有有效缓存，请求后端
         if (!previewUrl) {
           const response = await this.$axios.get(
-            `/rating-api/api/classroom/material/${this.materialId}/cos-preview-url`
+            `/api/classroom/material/${this.materialId}/cos-preview-url`
           )
 
           if (response.data.code === 200) {
@@ -324,7 +324,7 @@ export default {
     },
 
     downloadFile() {
-      const downloadUrl = `/rating-api/api/classroom/material/${this.materialId}/download`
+      const downloadUrl = `/api/classroom/material/${this.materialId}/download`
       const link = document.createElement('a')
       link.href = downloadUrl
       link.download = this.fileName

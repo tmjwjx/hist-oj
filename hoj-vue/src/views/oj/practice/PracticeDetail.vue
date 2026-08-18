@@ -614,8 +614,22 @@ export default {
 
 <style scoped>
 .practice-detail-page {
-  max-width: 1100px;
-  margin: 20px auto;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
+}
+
+.practice-detail-page /deep/ .el-card {
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: #fff;
+}
+
+.practice-detail-page /deep/ .el-card__body {
+  background: #fff;
 }
 
 .header {
@@ -649,29 +663,29 @@ export default {
 }
 
 .start-tip {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .questions-wrap {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .global-status-card {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .global-status-top {
   display: grid;
   grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .status-item {
-  background: #ffffff;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  padding: 10px;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px;
 }
 
 .status-label {
@@ -683,13 +697,13 @@ export default {
 .status-value {
   display: block;
   margin-top: 4px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: #303133;
 }
 
 .global-nav-actions {
-  margin-top: 12px;
+  margin-top: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -702,17 +716,17 @@ export default {
 }
 
 .question-index-list {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 .question-card {
-  margin-bottom: 12px;
-  border: 1px solid #ebeef5;
-  border-left: 4px solid #dcdfe6;
-  border-radius: 10px;
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ed;
+  border-left: 3px solid #dcdfe6;
+  border-radius: 4px;
   background: #ffffff;
 }
 

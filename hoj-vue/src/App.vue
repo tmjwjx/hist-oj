@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <el-backtop :right="10"></el-backtop>
-    <div v-if="!isAdminView" class="full-height flex-column">
+    <div v-if="!isAdminView" class="full-height flex-column public-shell">
       <NavBar></NavBar>
       <div id="oj-content">
         <transition name="el-zoom-in-bottom">
@@ -248,6 +248,15 @@ body {
     "Microsoft YaHei", "微软雅黑", Arial, sans-serif !important;
   color: #495060 !important;
   font-size: 12px !important;
+}
+
+/* 公共页面按桌面端 80% 的视觉密度呈现，避免用户必须手动缩放浏览器。
+ * 通过补偿宽度保持内容铺满视口，同时不影响管理员端布局。 */
+@media screen and (min-width: 992px) {
+  .public-shell {
+    zoom: 0.8;
+    width: 100%;
+  }
 }
 code,
 kbd,

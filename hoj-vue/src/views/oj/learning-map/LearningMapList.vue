@@ -63,43 +63,67 @@ export default {
 
 <style scoped>
 .learning-map-list-page {
-  max-width: 1280px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 10px 8px 14px;
-  font-family: 'Trebuchet MS', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
+
 .header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: #fff;
+  border-bottom: 2px solid #409eff;
+  padding: 20px;
 }
+
+.panel-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.panel-title i {
+  color: #409eff;
+  margin-right: 8px;
+}
+
 .map-card-col {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
+
 .map-card {
-  min-height: 180px;
-  border-radius: 16px;
-  border: 1px solid #d8e7f7;
-  background: linear-gradient(145deg, #ffffff 0%, #f4fbff 62%, #fff9ea 100%);
-  box-shadow: 0 10px 20px rgba(32, 90, 147, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 160px;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+  padding: 20px;
 }
+
 .map-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 26px rgba(32, 90, 147, 0.18);
+  border-color: #409eff;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
 }
+
 .map-card-title {
-  font-size: 19px;
-  font-weight: 700;
-  color: #194772;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
   margin-bottom: 12px;
 }
+
 .map-card-desc {
-  min-height: 56px;
-  color: #4e6480;
-  line-height: 1.5;
-  margin-bottom: 18px;
+  min-height: 48px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 16px;
 }
+
 .map-card-footer {
   display: flex;
   align-items: center;

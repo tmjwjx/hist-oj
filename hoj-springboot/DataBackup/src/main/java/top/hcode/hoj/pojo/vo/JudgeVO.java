@@ -83,4 +83,13 @@ public class JudgeVO {
 
     @ApiModelProperty(value = "是否人工评测")
     private Boolean isManual;
+
+    @ApiModelProperty(value = "评测来源：ai_validation、creator_validation、user_submission")
+    private String submissionType;
+
+    @ApiModelProperty(value = "面向用户展示的评测状态，不落库")
+    private String statusText;
+
+    @ApiModelProperty(value = "当前评测点序号，不落库")
+    private Integer currentTest;
 }

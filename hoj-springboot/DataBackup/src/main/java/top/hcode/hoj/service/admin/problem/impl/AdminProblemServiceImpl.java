@@ -8,13 +8,20 @@ import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.result.CommonResult;
 import top.hcode.hoj.common.result.ResultStatus;
 import top.hcode.hoj.manager.admin.problem.AdminProblemManager;
+import top.hcode.hoj.manager.admin.problem.ProblemVerificationManager;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
 import top.hcode.hoj.pojo.dto.CompileDTO;
 import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
+import top.hcode.hoj.pojo.dto.ProblemVerificationSubmitDTO;
+import top.hcode.hoj.pojo.dto.LastAcceptedCodeVO;
+import top.hcode.hoj.pojo.vo.ProblemVerificationVO;
+import top.hcode.hoj.pojo.entity.problem.ProblemVerificationDraft;
 import top.hcode.hoj.service.admin.problem.AdminProblemService;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @Author: Himit_ZH
@@ -27,6 +34,9 @@ public class AdminProblemServiceImpl implements AdminProblemService {
 
     @Autowired
     private AdminProblemManager adminProblemManager;
+
+    @Autowired
+    private ProblemVerificationManager problemVerificationManager;
 
     @Override
     public CommonResult<IPage<Problem>> getProblemList(Integer limit, Integer currentPage, String keyword, Integer auth, String oj) {
@@ -57,10 +67,12 @@ public class AdminProblemServiceImpl implements AdminProblemService {
     }
 
     @Override
-    public CommonResult<Void> addProblem(ProblemDTO problemDto) {
+    public CommonResult<Map<String, Object>> addProblem(ProblemDTO problemDto) {
         try {
-            adminProblemManager.addProblem(problemDto);
-            return CommonResult.successResponse();
+            Long pid = adminProblemManager.addProblem(problemDto);
+            Map<String, Object> result = new HashMap<>();
+            result.put("pid", pid);
+            return CommonResult.successResponse(result);
         } catch (StatusFailException e) {
             return CommonResult.errorResponse(e.getMessage());
         }
@@ -115,5 +127,73 @@ public class AdminProblemServiceImpl implements AdminProblemService {
         } catch (StatusForbiddenException e) {
             return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
         }
+    }
+
+    @Override
+    public CommonResult<ProblemVerificationVO> getVerification(Long pid) {
+        try {
+            return CommonResult.successResponse(problemVerificationManager.getStatus(pid));
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<ProblemVerificationVO> submitVerification(ProblemVerificationSubmitDTO dto) {
+        try {
+            return CommonResult.successResponse(problemVerificationManager.submit(dto));
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<ProblemVerificationVO> retryVerificationSync(Long pid) {
+        try {
+            return CommonResult.successResponse(problemVerificationManager.retrySync(pid));
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<LastAcceptedCodeVO> getLastPassedVerificationCode(Long pid) {
+        try {
+            return CommonResult.successResponse(problemVerificationManager.getLastPassedCode(pid));
+        } catch (StatusForbiddenException e) {
+            return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
+        }
+    }
+
+    @Override
+    public CommonResult<ProblemVerificationDraft> getVerificationDraft(Long pid) {
+        try { return CommonResult.successResponse(problemVerificationManager.getDraft(pid)); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
+    }
+
+    @Override
+    public CommonResult<ProblemVerificationDraft> saveVerificationDraft(ProblemVerificationDraft draft) {
+        try { return CommonResult.successResponse(problemVerificationManager.saveDraft(draft)); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
+    }
+
+    @Override
+    public CommonResult<Void> deleteVerificationDraft(Long pid) {
+        try { problemVerificationManager.deleteDraft(pid); return CommonResult.successResponse(); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
+    }
+
+    @Override
+    public CommonResult<Void> clearVerificationDraft(Long pid) {
+        try { problemVerificationManager.clearDraft(pid); return CommonResult.successResponse(); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
     }
 }

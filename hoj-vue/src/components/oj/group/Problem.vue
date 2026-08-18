@@ -5,14 +5,22 @@
         <div slot="header">
           <span class="panel-title home-title">{{ title }}</span>
         </div>
+        <el-steps :active="editorStep" finish-status="success" align-center class="problem-steps">
+          <el-step title="题面与配置" description="题目 ID、描述、输入输出与判题配置" />
+          <el-step title="样例与测试数据" description="导入 ZIP 或手工测试点，仅数据变化时同步" />
+          <el-step title="验证题目" description="AI 验题与创建者标准程序验题" />
+        </el-steps>
         <el-form
+          v-show="editorStep < 2"
           ref="form"
           :model="problem"
           :rules="rules"
           label-position="top"
+          class="problem-editor-form"
         >
-          <el-row :gutter="20">
-            <el-col :span="24">
+          <div v-show="editorStep === 0">
+          <el-row :gutter="20" class="problem-overview-grid">
+            <el-col :md="4" :xs="24">
               <el-form-item
                 prop="problemId"
                 :label="$t('m.Problem_Display_ID')"
@@ -29,9 +37,7 @@
                 </el-input>
               </el-form-item>
             </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="24">
+            <el-col :md="10" :xs="24">
               <el-form-item
                 prop="title"
                 :label="$t('m.Title')"
@@ -80,6 +86,7 @@
           <el-row :gutter="20">
             <el-col :span="24">
               <el-form-item
+                class="compact-description"
                 prop="description"
                 :label="$t('m.Description')"
                 required
@@ -161,8 +168,9 @@
             </el-col>
           </el-row>
           <el-row :gutter="20">
-            <el-col :span="24">
+            <el-col :md="12" :xs="24">
               <el-form-item
+                class="compact-description"
                 prop="input_description"
                 :label="$t('m.Input')"
                 required
@@ -170,21 +178,14 @@
                 <Editor :value.sync="problem.input"></Editor>
               </el-form-item>
             </el-col>
-            <el-col :span="24">
+            <el-col :md="12" :xs="24">
               <el-form-item
+                class="compact-description"
                 prop="output_description"
                 :label="$t('m.Output')"
                 required
               >
                 <Editor :value.sync="problem.output"></Editor>
-              </el-form-item>
-            </el-col>
-            <el-col :span="24">
-              <el-form-item
-                style="margin-top: 20px"
-                :label="$t('m.Hint')"
-              >
-                <Editor :value.sync="problem.hint"></Editor>
               </el-form-item>
             </el-col>
           </el-row>
@@ -218,14 +219,11 @@
               :xs="24"
             >
               <el-form-item :label="$t('m.Type')">
-                <el-radio-group
-                  v-model="problem.type"
-                  :disabled="disableRuleType || problem.isRemote"
-                  @change="problemTypeChange"
-                >
-                  <el-radio :label="0">ACM</el-radio>
-                  <el-radio :label="1">OI</el-radio>
-                </el-radio-group>
+              <el-select v-model="problem.type" :disabled="disableRuleType || problem.isRemote"
+                @change="problemTypeChange">
+                <el-option label="ACM" :value="0" />
+                <el-option label="OI" :value="1" />
+              </el-select>
               </el-form-item>
             </el-col>
             <el-col
@@ -294,22 +292,19 @@
                 :error="error.languages"
                 required
               >
-                <el-checkbox-group v-model="problemLanguages">
-                  <el-tooltip
-                    class="spj-radio"
-                    v-for="lang in allLanguage"
-                    :key="lang.name"
-                    effect="dark"
-                    :content="lang.description"
-                    placement="top-start"
-                  >
-                    <el-checkbox :label="lang.name"></el-checkbox>
-                  </el-tooltip>
-                </el-checkbox-group>
+                <el-select v-model="problemLanguages" multiple collapse-tags filterable
+                  placeholder="选择允许运行的语言" class="wide-select">
+                  <el-option v-for="lang in allLanguage" :key="lang.name" :label="lang.name"
+                    :value="lang.name" />
+                </el-select>
               </el-form-item>
             </el-col>
           </el-row>
-          <div>
+          </div>
+          <div v-show="editorStep === 1">
+            <el-alert class="test-data-tip" title="测试数据按变更导入"
+              description="上传新 ZIP 或修改手工测试点时才会同步判题机；普通保存不会重复传输已同步的大数据包。"
+              type="info" :closable="false" show-icon />
             <div class="panel-title home-title">
               {{ $t('m.Problem_Examples') }}
               <el-popover
@@ -380,11 +375,17 @@
                       </el-input>
                     </el-form-item>
                   </el-col>
+                  <el-col :span="24">
+                    <el-form-item label="样例解释（可选）">
+                      <el-input v-model="example.explanation" type="textarea" :rows="3"
+                        placeholder="说明样例输入如何得到样例输出，可留空" />
+                    </el-form-item>
+                  </el-col>
                 </el-row>
               </Accordion>
             </el-form-item>
           </div>
-          <div class="add-example-btn">
+          <div v-show="editorStep === 1" class="add-example-btn">
             <el-button
               class="add-examples"
               @click="addExample()"
@@ -393,6 +394,9 @@
             >{{ $t('m.Add_Example') }}
             </el-button>
           </div>
+          <el-collapse v-show="editorStep === 0" v-model="advancedConfigOpen" class="advanced-config">
+            <el-collapse-item title="高级判题与代码配置" name="judge">
+          <div v-show="editorStep === 0">
           <template v-if="!problem.isRemote">
             <div class="panel-title home-title">
               {{ $t('m.Judge_Extra_File') }}
@@ -457,16 +461,10 @@
                 <el-form-item
                     required
                   >
-                    <el-radio-group
-                      v-model="problem.isFileIO"
-                    >
-                      <el-radio :label="false">
-                        {{  $t('m.Standard_IO')}}
-                      </el-radio>
-                      <el-radio :label="true">
-                        {{  $t('m.File_IO')}}
-                      </el-radio>
-                    </el-radio-group>
+                    <el-select v-model="problem.isFileIO" class="mode-select">
+                      <el-option :label="$t('m.Standard_IO')" :value="false" />
+                      <el-option :label="$t('m.File_IO')" :value="true" />
+                    </el-select>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :md="8">
@@ -507,18 +505,11 @@
               :error="error.spj"
             >
               <el-col :span="24">
-                <el-radio-group
-                  v-model="problem.judgeMode"
-                  @change="switchMode"
-                >
-                  <el-radio label="default">{{
-                    $t('m.General_Judge')
-                  }}</el-radio>
-                  <el-radio label="spj">{{ $t('m.Special_Judge') }}</el-radio>
-                  <el-radio label="interactive">{{
-                    $t('m.Interactive_Judge')
-                  }}</el-radio>
-                </el-radio-group>
+                <el-select v-model="problem.judgeMode" @change="switchMode" class="mode-select">
+                  <el-option label="普通判题" value="default" />
+                  <el-option label="特殊判题（SPJ）" value="spj" />
+                  <el-option label="交互判题" value="interactive" />
+                </el-select>
               </el-col>
             </el-form-item>
             <el-form-item v-if="problem.judgeMode != 'default'">
@@ -533,18 +524,10 @@
                         ? $t('m.SPJ_Language')
                         : $t('m.Interactive_Language')
                     }}：</span>
-                  <el-radio-group v-model="problem.spjLanguage">
-                    <el-tooltip
-                      class="spj-radio"
-                      v-for="lang in allSpjLanguage"
-                      :key="lang.name"
-                      effect="dark"
-                      :content="lang.description"
-                      placement="top-start"
-                    >
-                      <el-radio :label="lang.name">{{ lang.name }}</el-radio>
-                    </el-tooltip>
-                  </el-radio-group>
+                  <el-select v-model="problem.spjLanguage" class="spj-language-select">
+                    <el-option v-for="lang in allSpjLanguage" :key="lang.name" :label="lang.name"
+                      :value="lang.name" />
+                  </el-select>
                   <el-button
                     type="primary"
                     size="small"
@@ -564,27 +547,23 @@
           </template>
           <div class="panel-title home-title">{{ $t('m.Code_Template') }}</div>
           <el-form-item>
-            <el-row>
-              <el-col
-                :span="24"
-                v-for="(v, k) in codeTemplate"
-                :key="'template' + k"
-              >
-                <el-form-item>
-                  <el-checkbox v-model="v.status">{{ k }}</el-checkbox>
-                  <div v-if="v.status">
-                    <code-mirror
-                      v-model="v.code"
-                      :mode="v.mode"
-                    ></code-mirror>
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <el-select v-model="selectedTemplateLanguages" multiple collapse-tags filterable
+              placeholder="选择需要提供代码模板的语言" class="wide-select">
+              <el-option v-for="(v, k) in codeTemplate" :key="'template-option' + k"
+                :label="k" :value="k" />
+            </el-select>
+            <div v-for="(v, k) in codeTemplate" :key="'template' + k" v-show="v.status" class="template-editor">
+              <div class="template-title">{{ k }}</div>
+              <code-mirror v-model="v.code" :mode="v.mode" />
+            </div>
           </el-form-item>
+          </div>
+            </el-collapse-item>
+          </el-collapse>
           <el-row
             :gutter="20"
             v-if="!problem.isRemote"
+            v-show="editorStep === 1"
           >
             <div class="panel-title home-title">
               {{ $t('m.Judge_Samples') }}
@@ -601,21 +580,12 @@
             </div>
 
             <el-form-item required>
-              <el-radio-group
-                v-model="problem.judgeCaseMode"
-                @change="switchJudgeCaseMode"
-              >
-                <el-radio :label="JUDGE_CASE_MODE.DEFAULT">
-                  {{ problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode'): $t('m.ACM_Judge_Case_Default_Mode')}}
-                </el-radio>
-                <template v-if="problem.type == 1">
-                  <el-radio :label="JUDGE_CASE_MODE.SUBTASK_LOWEST">{{$t('m.Judge_Case_Subtask_Lowest_Mode')}}</el-radio>
-                  <el-radio :label="JUDGE_CASE_MODE.SUBTASK_AVERAGE">{{$t('m.Judge_Case_Subtask_Average_Mode')}}</el-radio>
-                </template>
-                <template v-else>
-                  <el-radio :label="JUDGE_CASE_MODE.ERGODIC_WITHOUT_ERROR">{{$t('m.Judge_Case_Ergodic_Without_Error_Mode')}}</el-radio>
-                </template>
-              </el-radio-group>
+              <el-select v-model="problem.judgeCaseMode" @change="switchJudgeCaseMode" class="mode-select">
+                <el-option :label="problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode') : $t('m.ACM_Judge_Case_Default_Mode')" :value="JUDGE_CASE_MODE.DEFAULT" />
+                <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Lowest_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_LOWEST" />
+                <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Average_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_AVERAGE" />
+                <el-option v-if="problem.type != 1" :label="$t('m.Judge_Case_Ergodic_Without_Error_Mode')" :value="JUDGE_CASE_MODE.ERGODIC_WITHOUT_ERROR" />
+              </el-select>
             </el-form-item>
 
             <el-switch
@@ -810,39 +780,29 @@
               </div>
             </div>
           </el-row>
-          <el-form-item :label="$t('m.Source')">
-            <el-input
-              :placeholder="$t('m.Source')"
-              v-model="problem.source"
-            ></el-input>
-          </el-form-item>
-          <el-form-item
-            :label="$t('m.Auto_Remove_the_Blank_at_the_End_of_Code')"
-            v-if="!problem.isRemote"
-          >
-            <el-switch
-              v-model="problem.isRemoveEndBlank"
-              active-text=""
-              inactive-text=""
-            >
-            </el-switch>
-          </el-form-item>
-          <el-form-item :label="$t('m.Publish_the_Judging_Result_of_Test_Data')">
-            <el-switch
-              v-model="problem.openCaseResult"
-              active-text=""
-              inactive-text=""
-            >
-            </el-switch>
-          </el-form-item>
-          <el-button
-            type="primary"
-            @click.native="submit()"
-            size="small"
-          >{{
-            $t('m.Save')
-          }}</el-button>
+          <div v-show="editorStep === 0">
+          <el-row :gutter="20" class="problem-publish-grid">
+            <el-col :md="10" :xs="24"><el-form-item :label="$t('m.Source')"><el-input :placeholder="$t('m.Source')" v-model="problem.source" /></el-form-item></el-col>
+            <el-col :md="7" :xs="12" v-if="!problem.isRemote"><el-form-item :label="$t('m.Auto_Remove_the_Blank_at_the_End_of_Code')"><el-switch v-model="problem.isRemoveEndBlank" /></el-form-item></el-col>
+            <el-col :md="7" :xs="12"><el-form-item :label="$t('m.Publish_the_Judging_Result_of_Test_Data')"><el-switch v-model="problem.openCaseResult" /></el-form-item></el-col>
+          </el-row>
+          </div>
+          <div class="wizard-actions">
+            <el-button v-if="editorStep === 0" type="primary" @click="nextToDataStep">下一步：样例与测试数据</el-button>
+            <template v-else>
+              <el-button @click="editorStep = 0">返回题面配置</el-button>
+              <el-button type="primary" :loading="saving" @click.native="submit()">保存并进入验题</el-button>
+            </template>
+          </div>
         </el-form>
+        <ProblemValidationStep
+          v-if="editorStep === 2 && verificationPid"
+          :pid="verificationPid"
+          :languages="problemLanguages"
+          :show-ai="false"
+          @back="editorStep = 1"
+          @passed="finishVerification"
+        />
       </el-card>
     </el-col>
   </el-row>
@@ -858,6 +818,8 @@ import Editor from "@/components/admin/Editor.vue";
 import Accordion from "@/components/admin/Accordion.vue";
 import AddExtraFile from "@/components/admin/AddExtraFile.vue";
 import CodeMirror from "@/components/admin/CodeMirror.vue";
+const ProblemValidationStep = () =>
+  import("@/components/admin/ProblemValidationStep.vue");
 export default {
   name: "GroupProblem",
   components: {
@@ -865,6 +827,7 @@ export default {
     AddExtraFile,
     CodeMirror,
     Editor,
+    ProblemValidationStep,
   },
   props: {
     mode: {
@@ -985,8 +948,15 @@ export default {
       addJudgeExtraFile: false,
       userExtraFile: null,
       judgeExtraFile: null,
+      judgeExtraFileRecord: null,
       judgeCaseModeRecord: "default",
       sampleIndex: 1,
+      needsVerification: false,
+      verificationPid: null,
+      editorStep: 0,
+      saving: false,
+      savedPid: null,
+      advancedConfigOpen: ['judge'],
     };
   },
   mounted() {
@@ -1115,6 +1085,20 @@ export default {
     },
   },
   methods: {
+    nextToDataStep() {
+      const required = [
+        [this.problem.problemId, this.$i18n.t("m.Problem_Display_ID")],
+        [this.problem.title, this.$i18n.t("m.Title")],
+        [this.problem.description, this.$i18n.t("m.Description")],
+        [this.problem.input, this.$i18n.t("m.Input")],
+        [this.problem.output, this.$i18n.t("m.Output")],
+      ];
+      const missing = required.find(([value]) => !value || !String(value).trim());
+      if (missing) return mMessage.error(missing[1] + " " + this.$i18n.t("m.is_required"));
+      if (!this.problemLanguages.length) return mMessage.error(this.$i18n.t("m.Language") + " " + this.$i18n.t("m.is_required"));
+      this.editorStep = 1;
+      this.$nextTick(() => window.scrollTo(0, 0));
+    },
     init() {
       if (this.mode === "edit") {
         api.getGroupProblem(this.pid).then((problemRes) => {
@@ -1129,7 +1113,8 @@ export default {
           data.problemId = data.problemId.slice(this.group.shortName.length);
           this.spjRecord.spjLanguage = data.spjLanguage;
           this.spjRecord.spjCode = data.spjCode;
-          this.judgeCaseModeRecord = data.judgeCaseModeRecord;
+          this.judgeExtraFileRecord = data.judgeExtraFile || null;
+          this.judgeCaseModeRecord = data.judgeCaseMode;
           this.problem = data;
           this.problem["examples"] = utils.stringToExamples(data.examples);
           this.problem["examples"][0]["isOpen"] = true;
@@ -1319,7 +1304,7 @@ export default {
       }
     },
     addExample() {
-      this.problem.examples.push({ input: "", output: "", isOpen: true });
+      this.problem.examples.push({ input: "", output: "", explanation: "", isOpen: true });
     },
     changeExampleVisible(index, isOpen) {
       this.problem.examples[index]["isOpen"] = isOpen;
@@ -1619,7 +1604,11 @@ export default {
       // }
       let isChangeModeCode =
         this.spjRecord.spjLanguage != this.problem.spjLanguage ||
-        this.spjRecord.spjCode != this.problem.spjCode;
+        this.spjRecord.spjCode != this.problem.spjCode ||
+        this.judgeExtraFileRecord !=
+          (Object.keys(this.judgeExtraFile || {}).length
+            ? JSON.stringify(this.judgeExtraFile)
+            : null);
       if (!this.problem.isRemote) {
         if (this.problem.judgeMode != "default") {
           if (!this.problem.spjCode) {
@@ -1740,41 +1729,66 @@ export default {
         problemDto["samples"] = this.problemSamples;
       }
 
-      if (this.judgeCaseModeRecord != this.problem.judgeCaseModeRecord) {
+      if (this.judgeCaseModeRecord != this.problem.judgeCaseMode) {
         problemDto["changeJudgeCaseMode"] = true;
       } else {
         problemDto["changeJudgeCaseMode"] = false;
       }
+      this.needsVerification = !this.problem.isRemote;
 
-      api[this.apiMethod](problemDto)
-        .then((res) => {
+      this.saving = true;
+      const saveMethod = this.savedPid ? "updateGroupProblem" : this.apiMethod;
+      api[saveMethod](problemDto)
+        .then(async (res) => {
+          const responseData = res.data.data;
+          const savedPid = (responseData && responseData.pid) || responseData || this.problem.id || this.pid;
           if (this.contestId) {
-            if (res.data.data) {
-              this.contestProblem["pid"] = res.data.data.pid;
+            if (savedPid) {
+              this.contestProblem["pid"] = savedPid;
               this.contestProblem["cid"] = this.contestId;
             }
-            api
-              .updateGroupContestProblem(this.contestProblem)
-              .then((res) => {});
+            await api.updateGroupContestProblem(this.contestProblem);
           }
-          if (this.mode === "edit") {
-            mMessage.success(this.$t("m.Update_Successfully"));
-            this.$emit("handleEditPage");
-          } else {
-            mMessage.success(this.$t("m.Create_Successfully"));
-            if (this.contestId) {
-              this.$emit("handleCreateProblemPage");
-            } else {
-              this.$emit("handleCreatePage");
-            }
-          }
-          this.$emit("currentChange", 1);
+          this.afterSave(savedPid);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { this.saving = false; });
+    },
+    afterSave(pid) {
+      if (this.needsVerification && pid) {
+        this.savedPid = pid;
+        this.problem.id = pid;
+        this.verificationPid = pid;
+        this.editorStep = 2;
+        this.$nextTick(() => window.scrollTo(0, 0));
+        return;
+      }
+      this.finishVerification();
+    },
+    finishVerification() {
+      if (this.mode === "edit") {
+        mMessage.success(this.$t("m.Update_Successfully"));
+        this.$emit("handleEditPage");
+      } else {
+        mMessage.success(this.$t("m.Create_Successfully"));
+        this.$emit(this.contestId ? "handleCreateProblemPage" : "handleCreatePage");
+      }
+      this.$emit("currentChange", 1);
     },
   },
   computed: {
     ...mapGetters(["userInfo", "group"]),
+    selectedTemplateLanguages: {
+      get() {
+        return Object.keys(this.codeTemplate).filter((key) => this.codeTemplate[key].status);
+      },
+      set(values) {
+        const selected = values || [];
+        Object.keys(this.codeTemplate).forEach((key) => {
+          this.codeTemplate[key].status = selected.indexOf(key) !== -1;
+        });
+      },
+    },
   },
 };
 </script>
@@ -1784,11 +1798,65 @@ export default {
   padding: 0 !important;
 }
 .el-form-item {
-  margin-bottom: 10px !important;
+  margin-bottom: 8px !important;
+}
+.problem-editor-form {
+  --editor-border: #e4e7ed;
+}
+.problem-overview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.problem-overview-grid .el-form-item {
+  margin-bottom: 6px !important;
+}
+.compact-description .mavon-editor,
+.compact-description /deep/ .v-note-wrapper {
+  min-height: 300px;
+  height: 340px;
+}
+.compact-description /deep/ .v-note-panel,
+.compact-description /deep/ .v-note-edit.divarea {
+  min-height: 286px;
+}
+.advanced-config {
+  margin-top: 4px;
+  border-top: 1px solid var(--editor-border);
+  border-bottom: 1px solid var(--editor-border);
+}
+.advanced-config /deep/ .el-collapse-item__header {
+  height: 38px;
+  line-height: 38px;
+  color: #606266;
+  font-weight: 600;
+}
+.advanced-config /deep/ .el-collapse-item__content {
+  padding-bottom: 8px;
+}
+.problem-editor-form /deep/ .el-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.problem-editor-form /deep/ .el-checkbox {
+  margin-right: 0;
+  line-height: 24px;
+}
+.problem-publish-grid {
+  margin-top: 8px;
 }
 .difficulty-select {
   width: 120px;
 }
+.wide-select { width: min(100%, 520px); }
+.mode-select { width: 220px; }
+.spj-language-select { width: 180px; }
+.template-editor { margin-top: 12px; }
+.template-title { margin-bottom: 6px; color: #606266; font-weight: 600; }
+.problem-steps { margin-bottom: 28px; }
+.test-data-tip { margin-bottom: 16px; }
+.wizard-actions { margin-top: 24px; display: flex; justify-content: space-between; }
 .input-new-tag {
   width: 120px;
 }

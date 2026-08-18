@@ -13,6 +13,10 @@ import top.hcode.hoj.pojo.dto.ProblemDTO;
 import top.hcode.hoj.pojo.dto.CompileDTO;
 import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
+import top.hcode.hoj.pojo.entity.problem.ProblemVerificationDraft;
+import top.hcode.hoj.pojo.dto.ProblemVerificationSubmitDTO;
+import top.hcode.hoj.pojo.dto.LastAcceptedCodeVO;
+import top.hcode.hoj.pojo.vo.ProblemVerificationVO;
 import top.hcode.hoj.service.admin.problem.AdminProblemService;
 
 import java.util.*;
@@ -57,7 +61,7 @@ public class AdminProblemController {
     @PostMapping("")
     @RequiresAuthentication
     @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
-    public CommonResult<Void> addProblem(@RequestBody ProblemDTO problemDto) {
+    public CommonResult<Map<String, Object>> addProblem(@RequestBody ProblemDTO problemDto) {
         return adminProblemService.addProblem(problemDto);
     }
 
@@ -103,6 +107,55 @@ public class AdminProblemController {
     @RequiresRoles(value = {"root", "problem_admin", "admin"}, logical = Logical.OR)
     public CommonResult<Void> changeProblemAuth(@RequestBody Problem problem) {
         return adminProblemService.changeProblemAuth(problem);
+    }
+
+    @GetMapping("/verification")
+    @RequiresAuthentication
+    public CommonResult<ProblemVerificationVO> getVerification(@RequestParam("pid") Long pid) {
+        return adminProblemService.getVerification(pid);
+    }
+
+    @GetMapping("/verification/last-passed-code")
+    @RequiresAuthentication
+    public CommonResult<LastAcceptedCodeVO> getLastPassedVerificationCode(@RequestParam("pid") Long pid) {
+        return adminProblemService.getLastPassedVerificationCode(pid);
+    }
+
+    @PostMapping("/verification/submit")
+    @RequiresAuthentication
+    public CommonResult<ProblemVerificationVO> submitVerification(
+            @RequestBody ProblemVerificationSubmitDTO dto) {
+        return adminProblemService.submitVerification(dto);
+    }
+
+    @PostMapping("/verification/sync")
+    @RequiresAuthentication
+    public CommonResult<ProblemVerificationVO> retryVerificationSync(@RequestParam("pid") Long pid) {
+        return adminProblemService.retryVerificationSync(pid);
+    }
+
+    @GetMapping("/verification/draft")
+    @RequiresAuthentication
+    public CommonResult<ProblemVerificationDraft> getVerificationDraft(@RequestParam("pid") Long pid) {
+        return adminProblemService.getVerificationDraft(pid);
+    }
+
+    @PostMapping("/verification/draft")
+    @RequiresAuthentication
+    public CommonResult<ProblemVerificationDraft> saveVerificationDraft(@RequestBody ProblemVerificationDraft draft) {
+        return adminProblemService.saveVerificationDraft(draft);
+    }
+
+    @DeleteMapping("/verification/draft")
+    @RequiresAuthentication
+    public CommonResult<Void> deleteVerificationDraft(@RequestParam("pid") Long pid) {
+        return adminProblemService.deleteVerificationDraft(pid);
+    }
+
+    @PostMapping("/verification/draft/clear")
+    @RequiresAuthentication
+    public CommonResult<Void> clearVerificationDraft(@RequestParam("pid") Long pid) {
+        return adminProblemService.clearVerificationDraft(pid);
     }
 
 }

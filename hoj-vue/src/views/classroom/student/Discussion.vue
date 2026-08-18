@@ -121,7 +121,7 @@ export default {
       newMessage: '',
       sending: false,
       pickedStudent: null,
-      uploadUrl: '/rating-api/api/classroom/message/upload-image',
+      uploadUrl: '/api/classroom/message/upload-image',
       uploadHeaders: {
         Authorization: localStorage.getItem('token') || ''
       },

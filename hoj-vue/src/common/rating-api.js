@@ -1,19 +1,8 @@
 import axios from 'axios'
 
-// 根据环境自动选择 API 地址
-// 开发环境：使用 /rating-api/api（通过 vue.config.js 代理到 hist-oj 的 /api）
-// 生产环境：使用 /api（通过 Nginx 代理到 hist-oj）
-const getRatingApiBaseURL = () => {
-  // 生产环境（已构建的静态文件）
-  if (process.env.NODE_ENV === 'production') {
-    return '/api'
-  }
-  // 开发环境（使用代理，需要加上 /api 前缀）
-  return '/rating-api/api'
-}
-
 const ratingApi = axios.create({
-  baseURL: getRatingApiBaseURL(),
+  // Rating 已迁入 Java 主后端，不再经过 Go 扩展层代理。
+  baseURL: '/api',
   timeout: 10000,
   headers: {
     'Cache-Control': 'no-cache',
@@ -51,10 +40,11 @@ ratingApi.interceptors.request.use(
 ratingApi.interceptors.response.use(
   response => {
     const res = response.data
-    if (res.code === 200) {
+    const status = res && res.code !== undefined ? res.code : res && res.status
+    if (status === 200) {
       return res.data
     } else {
-      return Promise.reject(new Error(res.message || 'Error'))
+      return Promise.reject(new Error((res && (res.message || res.msg)) || 'Error'))
     }
   },
   error => {

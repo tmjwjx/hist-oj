@@ -117,7 +117,7 @@ public class CheckinServiceImpl extends ServiceImpl<CheckinMapper, Checkin> impl
         }
 
         // 检查是否过期
-        if (new Date().after(checkin.getQrcodeExpiresAt())) {
+        if (checkin.getQrcodeExpiresAt() == null || new Date().after(checkin.getQrcodeExpiresAt())) {
             return false;
         }
 

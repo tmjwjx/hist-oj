@@ -49,7 +49,7 @@
               ：{{ $t('m.Compiling_Description') }}
             </li>
             <li>
-              <span :class="getStatusColor(7)">Judging</span>
+              <span :class="getStatusColor(7)">Running</span>
               ：{{ $t('m.Judging_Description') }}
             </li>
             <li>

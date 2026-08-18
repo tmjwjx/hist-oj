@@ -60,8 +60,14 @@ axios.interceptors.response.use(
     if (response.headers['refresh-token']) { // token续约！
       store.commit('changeUserToken', response.headers['authorization'])
     }
-    // 检查 code 字段（hist-oj 后端返回格式：{ code: 200, message: "success", data: ... }）
-    // 也兼容 status 字段（其他后端可能使用 status）
+    // Java 后端使用 status/msg，兼容仍按旧 Go 格式读取 code/message 的页面。
+    if (response.data && response.data.code === undefined && response.data.status !== undefined) {
+      response.data.code = response.data.status
+    }
+    if (response.data && response.data.message === undefined && response.data.msg !== undefined) {
+      response.data.message = response.data.msg
+    }
+    // 统一按 code/status 判断业务结果。
     const silentError = response.config && response.config.silentError
     const isSuccess = (response.data.code === 200 || response.data.code === undefined) &&
                      (response.data.status === 200 || response.data.status === undefined);
@@ -577,12 +583,33 @@ const ojApi = {
     })
   },
   // 注册私有比赛权限
-  registerContest(cid, password) {
+  registerContest(cid, password, registration = {}) {
     return ajax('/api/register-contest', 'post', {
       data: {
         cid,
-        password
+        password,
+        ...registration
       }
+    })
+  },
+
+  getMyContestRegistration(cid) {
+    return ajax('/api/get-my-contest-registration', 'get', {
+      params: { cid }
+    })
+  },
+
+  admin_getContestRegistrations(cid) {
+    return ajax('/api/admin/contest/registrations', 'get', {
+      params: { cid }
+    })
+  },
+  admin_updateContestRegistration(data) {
+    return ajax('/api/admin/contest/registrations', 'put', { data })
+  },
+  admin_getContestProblemVerification(cid) {
+    return ajax('/api/admin/contest/problem-verification', 'get', {
+      params: { cid }
     })
   },
   // 获取注册比赛权限
@@ -1588,6 +1615,54 @@ const adminApi = {
       data
     })
   },
+  admin_getProblemVerification(pid) {
+    return ajax('/api/admin/problem/verification', 'get', {
+      params: { pid }
+    })
+  },
+  admin_getLastPassedVerificationCode(pid) {
+    return ajax('/api/admin/problem/verification/last-passed-code', 'get', { params: { pid } })
+  },
+  admin_submitProblemVerification(data) {
+    return ajax('/api/admin/problem/verification/submit', 'post', {
+      data
+    })
+  },
+  admin_retryProblemVerificationSync(pid) {
+    return ajax('/api/admin/problem/verification/sync', 'post', {
+      params: { pid }
+    })
+  },
+  admin_getProblemVerificationDraft(pid) {
+    return ajax('/api/admin/problem/verification/draft', 'get', { params: { pid } })
+  },
+  admin_saveProblemVerificationDraft(data) {
+    return ajax('/api/admin/problem/verification/draft', 'post', { data, silentError: true })
+  },
+  admin_deleteProblemVerificationDraft(pid) {
+    return ajax('/api/admin/problem/verification/draft', 'delete', { params: { pid } })
+  },
+  admin_clearProblemVerificationDraft(pid) {
+    return ajax('/api/admin/problem/verification/draft/clear', 'post', { params: { pid } })
+  },
+  admin_getProblemAIConfig() {
+    return ajax('/api/admin/problem-ai/config', 'get')
+  },
+  admin_saveProblemAIConfig(data) {
+    return ajax('/api/admin/problem-ai/config', 'put', { data })
+  },
+  admin_getProblemAIRecords(pid) {
+    return ajax('/api/admin/problem-ai/records', 'get', { params: { pid } })
+  },
+  admin_problemAIChat(data) {
+    return ajax('/api/admin/problem-ai/chat', 'post', { data, timeout: 900000 })
+  },
+  admin_problemAIValidate(data) {
+    return ajax('/api/admin/problem-ai/validate', 'post', { data, timeout: 900000 })
+  },
+  admin_generateProblemAIStandardProgram(data) {
+    return ajax('/api/admin/problem-ai/generate-standard-program', 'post', { data, timeout: 900000 })
+  },
   admin_deleteProblem(pid) {
     return ajax('/api/admin/problem', 'delete', {
       params: {
@@ -1896,9 +1971,6 @@ const adminApi = {
       }
     })
   },
-  admin_getContestTerminalCheckStatus(cid) {
-    return ajax(`/api/judge/admin/contest/${cid}/terminal-check-status`, 'get', {})
-  },
   admin_getContestList(currentPage, limit, keyword) {
     let params = { currentPage, limit }
     if (keyword) {
@@ -1973,7 +2045,7 @@ export default api
  */
 function ajax(url, method, options) {
   if (options !== undefined) {
-    var { params = {}, data = {}, silentError = false } = options
+    var { params = {}, data = {}, silentError = false, timeout } = options
   } else {
     params = data = {}
     silentError = false
@@ -1984,7 +2056,8 @@ function ajax(url, method, options) {
       method,
       params,
       data,
-      silentError
+      silentError,
+      timeout
     }).then((res) => {
       resolve(res)
     }).catch(error => {

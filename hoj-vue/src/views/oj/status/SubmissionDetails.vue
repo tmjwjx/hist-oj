@@ -20,6 +20,9 @@
           <span class="title">{{ status.statusName }}</span>
         </template>
         <template slot>
+          <div v-if="submission.submissionType" class="submission-type-row">
+            <el-tag size="mini" effect="dark">评测类型：{{ submissionTypeLabel(submission.submissionType) }}</el-tag>
+          </div>
           <div
             v-if="isCE || isSE || isSF"
             class="content"
@@ -89,7 +92,7 @@
         >
           <template v-slot="{ row }">
             <span :class="getStatusColor(row.status)">{{
-              JUDGE_STATUS[row.status].name
+              row.statusText || JUDGE_STATUS[row.status].name
             }}</span>
           </template>
         </vxe-table-column>
@@ -380,6 +383,13 @@ export default {
     this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
   },
   methods: {
+    submissionTypeLabel(type) {
+      return {
+        ai_validation: 'AI 验题',
+        creator_validation: '题目创建验证',
+        user_submission: '用户题库提交',
+      }[type] || type;
+    },
     doCopy() {
       this.$copyText(this.submission.code).then(
         () => {
@@ -523,7 +533,7 @@ export default {
     status() {
       return {
         type: JUDGE_STATUS[this.submission.status].type,
-        statusName: JUDGE_STATUS[this.submission.status].name,
+        statusName: this.submission.statusText || JUDGE_STATUS[this.submission.status].name,
         color: JUDGE_STATUS[this.submission.status].rgb,
       };
     },
@@ -557,6 +567,7 @@ export default {
   margin-top: 10px;
   font-size: 14px;
 }
+.submission-type-row { margin-top: 8px; }
 #status .content span {
   margin-right: 10px;
 }

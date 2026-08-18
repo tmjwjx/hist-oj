@@ -15,8 +15,6 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -33,6 +31,7 @@ import top.hcode.hoj.pojo.vo.ImportProblemVO;
 import top.hcode.hoj.pojo.vo.ProblemCountVO;
 import top.hcode.hoj.pojo.vo.ProblemVO;
 import top.hcode.hoj.utils.Constants;
+import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -70,7 +69,7 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
     private ProblemTagEntityService problemTagEntityService;
 
     @Autowired
-    private ApplicationContext applicationContext;
+    private ProblemVerificationLifecycle verificationLifecycle;
 
     @Autowired
     private CodeTemplateEntityService codeTemplateEntityService;
@@ -338,20 +337,11 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
                 // 如果是选择上传测试文件的，则需要遍历对应文件夹，读取数据，写入数据库,先前的题目数据一并清空。
                 if (problemDto.getIsUploadTestCase()) {
                     // 获取代理bean对象执行异步方法===》根据测试文件初始info
-                    applicationContext.getBean(ProblemEntityServiceImpl.class)
-                            .initUploadTestCase(problemDto.getJudgeMode(),
-                                    problem.getJudgeCaseMode(),
-                                    caseVersion,
-                                    pid,
-                                    testcaseDir,
-                                    problemDto.getSamples());
+                    initUploadTestCase(problemDto.getJudgeMode(), problem.getJudgeCaseMode(), caseVersion,
+                            pid, testcaseDir, problemDto.getSamples());
                 } else {
-                    applicationContext.getBean(ProblemEntityServiceImpl.class)
-                            .initHandTestCase(problemDto.getJudgeMode(),
-                                    problem.getJudgeCaseMode(),
-                                    problem.getCaseVersion(),
-                                    pid,
-                                    problemDto.getSamples());
+                    initHandTestCase(problemDto.getJudgeMode(), problem.getJudgeCaseMode(), problem.getCaseVersion(),
+                            pid, problemDto.getSamples());
                 }
             }
             // 变化成spj或interactive或者取消 同时更新测试数据
@@ -359,20 +349,11 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
                 problem.setCaseVersion(caseVersion);
                 if (problemDto.getIsUploadTestCase()) {
                     // 获取代理bean对象执行异步方法===》根据测试文件初始info
-                    applicationContext.getBean(ProblemEntityServiceImpl.class)
-                            .initUploadTestCase(problemDto.getJudgeMode(),
-                                    problem.getJudgeCaseMode(),
-                                    caseVersion,
-                                    pid,
-                                    null,
-                                    problemDto.getSamples());
+                    initUploadTestCase(problemDto.getJudgeMode(), problem.getJudgeCaseMode(), caseVersion,
+                            pid, null, problemDto.getSamples(), false);
                 } else {
-                    applicationContext.getBean(ProblemEntityServiceImpl.class)
-                            .initHandTestCase(problemDto.getJudgeMode(),
-                                    problem.getJudgeCaseMode(),
-                                    problem.getCaseVersion(),
-                                    pid,
-                                    problemDto.getSamples());
+                    initHandTestCase(problemDto.getJudgeMode(), problem.getJudgeCaseMode(), problem.getCaseVersion(),
+                            pid, problemDto.getSamples(), false);
                 }
             }
         }
@@ -479,13 +460,8 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
             }
             addCasesToProblemResult = problemCaseEntityService.saveOrUpdateBatch(problemCases);
             // 获取代理bean对象执行异步方法===》根据测试文件初始info
-            applicationContext.getBean(ProblemEntityServiceImpl.class).initUploadTestCase(
-                    problemDto.getJudgeMode(),
-                    problem.getJudgeCaseMode(),
-                    problem.getCaseVersion(),
-                    pid,
-                    testcaseDir,
-                    problemDto.getSamples());
+            initUploadTestCase(problemDto.getJudgeMode(), problem.getJudgeCaseMode(), problem.getCaseVersion(),
+                    pid, testcaseDir, problemDto.getSamples());
         } else {
             // oi题目需要求取平均值，给每个测试点初始oi的score值，默认总分100分
             if (problem.getType().intValue() == Constants.Contest.TYPE_OI.getCode()) {
@@ -542,13 +518,18 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
     }
 
     // 初始化上传文件的测试数据，写成json文件
-    @Async
     public void initUploadTestCase(String judgeMode,
                                    String judgeCaseMode,
                                    String version,
                                    Long problemId,
                                    String tmpTestcaseDir,
                                    List<ProblemCase> problemCaseList) {
+        initUploadTestCase(judgeMode, judgeCaseMode, version, problemId, tmpTestcaseDir, problemCaseList, true);
+    }
+
+    private void initUploadTestCase(String judgeMode, String judgeCaseMode, String version,
+                                    Long problemId, String tmpTestcaseDir,
+                                    List<ProblemCase> problemCaseList, boolean syncFiles) {
 
         String testCasesDir = Constants.File.TESTCASE_BASE_FOLDER.getPath() + File.separator + "problem_" + problemId;
 
@@ -642,16 +623,22 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
                 FileUtil.del(testCasesDir + File.separator + filename);
             }
         }
+        if (syncFiles) verificationLifecycle.markTestCaseChanged(problemId, version, judgeMode);
+        else verificationLifecycle.markTestCaseMetadataChanged(problemId, version, judgeMode);
     }
 
 
     // 初始化手动输入上传的测试数据，写成json文件
-    @Async
     public void initHandTestCase(String judgeMode,
                                  String judgeCaseMode,
                                  String version,
                                  Long problemId,
                                  List<ProblemCase> problemCaseList) {
+        initHandTestCase(judgeMode, judgeCaseMode, version, problemId, problemCaseList, true);
+    }
+
+    private void initHandTestCase(String judgeMode, String judgeCaseMode, String version,
+                                  Long problemId, List<ProblemCase> problemCaseList, boolean syncFiles) {
 
         JSONObject result = new JSONObject();
         result.set("mode", judgeMode);
@@ -717,6 +704,8 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
         FileWriter infoFile = new FileWriter(testCasesDir + "/info", CharsetUtil.UTF_8);
         // 写入记录文件
         infoFile.write(JSONUtil.toJsonStr(result));
+        if (syncFiles) verificationLifecycle.markTestCaseChanged(problemId, version, judgeMode);
+        else verificationLifecycle.markTestCaseMetadataChanged(problemId, version, judgeMode);
     }
 
 

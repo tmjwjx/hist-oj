@@ -10,6 +10,10 @@ hoj-judge-server:
 server:
   port: ${hoj-judge-server.port}
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2048MB
+      max-request-size: 2048MB
   profiles:
     active: prod
   application:

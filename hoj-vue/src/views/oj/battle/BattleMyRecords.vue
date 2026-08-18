@@ -317,215 +317,159 @@ export default {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
 
 .records-card {
-  border-radius: 16px;
-  animation: fadeInUp 0.6s ease;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #e3f2fd;
-  padding: 25px 30px;
-  border-radius: 16px 16px 0 0;
-  position: relative;
+  background: #fff;
+  border-bottom: 2px solid #409eff;
+  padding: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   flex: 1;
 }
 
 .refresh-button {
-  background: linear-gradient(135deg, #67C23A 0%, #5daf34 100%);
-  border: none;
+  background: #67C23A;
+  border-color: #67C23A;
   color: white;
-  font-weight: 600;
-  transition: all 0.3s ease;
+  transition: all 0.2s;
 }
 
 .refresh-button:hover {
-  background: linear-gradient(135deg, #5daf34 0%, #4a9628 100%);
-  transform: scale(1.05);
+  background: #5daf34;
+  border-color: #5daf34;
 }
 
 .refresh-button i {
-  margin-right: 5px;
+  margin-right: 4px;
 }
 
 .back-button {
-  background: #ffffff;
-  border: 2px solid #bbdefb;
-  color: #1976d2;
-  font-weight: 600;
-  transition: all 0.3s ease;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  color: #606266;
+  transition: all 0.2s;
 }
 
 .back-button:hover {
-  background: #f5f5f5;
-  border-color: #90caf9;
-  transform: translateX(-3px);
+  color: #409eff;
+  border-color: #c6e2ff;
+  background: #ecf5ff;
 }
 
 .header-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 24px;
-  font-weight: 700;
-  color: #1565c0;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 24px;
-  font-weight: 700;
-  color: #1565c0;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .header-title i {
-  color: #1976d2;
-  font-size: 28px;
+  color: #409eff;
+  font-size: 20px;
 }
 
 .records-content {
-  padding: 30px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border-radius: 0 0 16px 16px;
+  padding: 24px 20px;
+  background: #fff;
 }
 
 .stats-row {
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   text-align: center;
-  border-radius: 12px;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border: 2px solid transparent;
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  opacity: 0;
-  transition: opacity 0.3s;
-  background: linear-gradient(135deg, rgba(79, 172, 254, 0.05) 0%, rgba(0, 242, 254, 0.05) 100%);
-}
-
-.stat-card:hover::before {
-  opacity: 1;
+  border-radius: 4px;
+  transition: all 0.2s;
+  border: 1px solid #e4e7ed;
 }
 
 .stat-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  border-color: #4facfe;
+  border-color: #409eff;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
 }
 
 .stat-card.win {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%);
+  background: #f0f9ff;
 }
 
 .stat-card.lose {
-  background: linear-gradient(135deg, #fef0f0 0%, #fde2e2 100%);
+  background: #fef0f0;
 }
 
 .stat-card.rate {
-  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+  background: #fdf6ec;
 }
 
 .stat-card.total {
-  background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%);
+  background: #f0f9ff;
 }
 
 .stat-item {
-  padding: 20px 10px;
-  position: relative;
-  z-index: 1;
+  padding: 16px;
 }
 
 .stat-value {
-  font-size: 36px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 600;
   color: #303133;
-  margin-bottom: 8px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  transition: all 0.3s ease;
-}
-
-.stat-card:hover .stat-value {
-  transform: scale(1.1);
+  margin-bottom: 6px;
 }
 
 .stat-label {
-  font-size: 15px;
-  color: #909399;
+  font-size: 13px;
+  color: #606266;
   font-weight: 500;
 }
 
 /* 美化表格 */
 ::v-deep .el-table {
   background: transparent;
-  border-radius: 12px;
+  border-radius: 4px;
   overflow: hidden;
-  margin-top: 20px;
-}
-
-::v-deep .el-table__header-wrapper {
-  border-radius: 12px 12px 0 0;
+  margin-top: 16px;
+  border: 1px solid #e4e7ed;
 }
 
 ::v-deep .el-table th {
-  background: #e3f2fd !important;
-  color: #1976d2 !important;
+  background: #f5f7fa !important;
+  color: #606266 !important;
   font-weight: 600;
-  font-size: 15px;
-  border: none;
-  padding: 18px 0;
+  font-size: 14px;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 12px 0;
 }
 
 ::v-deep .el-table td {
-  border: none;
-  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 0;
 }
 
 ::v-deep .el-table__row {
-  transition: all 0.3s ease;
+  transition: background-color 0.2s;
   background: white;
 }
 
 ::v-deep .el-table__row:hover {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e1f3ff 100%) !important;
-  transform: scale(1.01);
+  background: #f5f7fa !important;
 }
 
 ::v-deep .el-table--enable-row-hover .el-table__body tr:hover > td {
@@ -534,102 +478,79 @@ export default {
 
 /* 美化标签 */
 ::v-deep .el-tag {
-  border-radius: 20px;
-  padding: 10px 20px;
-  font-weight: 700;
-  font-size: 15px;
-  border: none;
-  letter-spacing: 1px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  border-radius: 2px;
+  padding: 4px 8px;
+  font-weight: 500;
+  font-size: 12px;
+  border: 1px solid;
 }
 
 ::v-deep .el-tag--success {
-  background: linear-gradient(135deg, #67C23A 0%, #5daf34 100%);
-  color: white !important;
+  background: #f0f9ff;
+  color: #67c23a;
+  border-color: #c2e7b0;
 }
 
 ::v-deep .el-tag--danger {
-  background: linear-gradient(135deg, #F56C6C 0%, #f15454 100%);
-  color: white !important;
+  background: #fef0f0;
+  color: #f56c6c;
+  border-color: #fbc4c4;
 }
 
 ::v-deep .el-tag--warning {
-  background: linear-gradient(135deg, #E6A23C 0%, #d9972a 100%);
-  color: white !important;
+  background: #fdf6ec;
+  color: #e6a23c;
+  border-color: #f5dab1;
 }
 
 ::v-deep .el-tag--info {
-  background: linear-gradient(135deg, #909399 0%, #7a7d82 100%);
-  color: white !important;
+  background: #f4f4f5;
+  color: #909399;
+  border-color: #d3d4d6;
 }
 
 ::v-deep .el-tag.el-tag--small {
-  padding: 6px 12px;
+  padding: 2px 6px;
   font-size: 12px;
+}
+
+::v-deep .el-tag.el-tag--medium {
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .opponent-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .opponent-username {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-table__row:hover .opponent-username {
-  transform: scale(1.05);
 }
 
 .opponent-avatar {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #e0e0e0;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-table__row:hover .opponent-avatar {
-  transform: scale(1.2) rotate(5deg);
-  border-color: #4facfe;
+  border: 1px solid #dcdfe6;
 }
 
 .opponent-avatar-placeholder {
-  font-size: 40px;
+  font-size: 32px;
   color: #c0c4cc;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-table__row:hover .opponent-avatar-placeholder {
-  transform: scale(1.2);
-  color: #4facfe;
 }
 
 .pagination {
-  margin-top: 30px;
+  margin-top: 20px;
   text-align: center;
 }
 
 ::v-deep .el-pagination.is-background .el-pager li:not(.disabled).active {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  border-radius: 8px;
-}
-
-::v-deep .el-pagination.is-background .el-pager li {
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-::v-deep .el-pagination.is-background .el-pager li:hover {
-  transform: scale(1.1);
+  background: #409eff;
 }
 
 @media screen and (max-width: 768px) {
@@ -642,28 +563,28 @@ export default {
   }
 
   .stats-row .el-col {
-    margin-bottom: 15px;
+    margin-bottom: 12px;
   }
 
   .stat-value {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .stat-label {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .header-title {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   ::v-deep .el-table th {
-    font-size: 13px;
-    padding: 12px 0;
+    font-size: 12px;
+    padding: 10px 0;
   }
 
   ::v-deep .el-table td {
-    padding: 10px 0;
+    padding: 8px 0;
   }
 }
 </style>

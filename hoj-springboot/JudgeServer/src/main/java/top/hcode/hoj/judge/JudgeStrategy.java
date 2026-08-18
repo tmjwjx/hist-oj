@@ -4,7 +4,9 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.file.FileReader;
 import cn.hutool.core.io.file.FileWriter;
 import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -46,11 +48,16 @@ public class JudgeStrategy {
     @Resource
     private JudgeRun judgeRun;
 
+    @Resource
+    private VerificationSampleCaseService verificationSampleCaseService;
+
     public HashMap<String, Object> judge(Problem problem, Judge judge) {
 
         HashMap<String, Object> result = new HashMap<>();
         // 编译好的临时代码文件id
         String userFileId = null;
+        String testCasesDir = null;
+        List<String> verificationSampleFiles = null;
         try {
             // 对用户源代码进行编译 获取tmpfs中的fileId
             LanguageConfig languageConfig = languageConfigLoader.getLanguageConfigByName(judge.getLanguage());
@@ -62,13 +69,17 @@ public class JudgeStrategy {
                         JudgeUtils.getProblemExtraFileMap(problem, "user"));
             }
             // 测试数据文件所在文件夹
-            String testCasesDir = Constants.JudgeDir.TEST_CASE_DIR.getContent() + File.separator + "problem_" + problem.getId();
+            testCasesDir = Constants.JudgeDir.TEST_CASE_DIR.getContent() + File.separator + "problem_" + problem.getId();
             // 从文件中加载测试数据json
             JSONObject testCasesInfo = problemTestCaseUtils.loadTestCaseInfo(problem.getId(),
                     testCasesDir,
                     problem.getCaseVersion(),
                     problem.getJudgeMode(),
                     problem.getJudgeCaseMode());
+            if (Boolean.TRUE.equals(judge.getIsProblemVerification())) {
+                verificationSampleFiles = verificationSampleCaseService.append(
+                        problem, judge.getSubmitId(), testCasesDir, testCasesInfo);
+            }
 
             // 检查是否为spj或者interactive，同时是否有对应编译完成的文件，若不存在，就先编译生成该文件，同时也要检查版本
             boolean isOk = checkOrCompileExtraProgram(problem);
@@ -88,6 +99,12 @@ public class JudgeStrategy {
             // 获取题目数据的评测模式
             String infoJudgeCaseMode = testCasesInfo.getStr("judgeCaseMode", Constants.JudgeCaseMode.DEFAULT.getMode());
             String judgeCaseMode = getFinalJudgeCaseMode(problem.getType(), problem.getJudgeCaseMode(), infoJudgeCaseMode);
+            if (Boolean.TRUE.equals(judge.getIsProblemVerification())) {
+                // 标准程序和 AI 验题必须执行全部测试点，不能因 subtask 或首个错误跳过后续数据。
+                judgeCaseMode = Constants.JudgeCaseMode.DEFAULT.getMode();
+            }
+
+            prepareJudgeCases(judge, problem, testCasesInfo, judgeCaseMode);
 
             // 开始测试每个测试点
             List<JSONObject> allCaseResultList = judgeRun.judgeAllCase(judge.getSubmitId(),
@@ -104,7 +121,9 @@ public class JudgeStrategy {
             return getJudgeInfo(allCaseResultList, problem, judge, judgeCaseMode);
         } catch (SystemError systemError) {
             result.put("code", Constants.Judge.STATUS_SYSTEM_ERROR.getStatus());
-            result.put("errMsg", "Oops, something has gone wrong with the judgeServer. Please report this to administrator.");
+            result.put("errMsg", Boolean.TRUE.equals(judge.getIsProblemVerification())
+                    ? systemError.getMessage()
+                    : "Oops, something has gone wrong with the judgeServer. Please report this to administrator.");
             result.put("time", 0);
             result.put("memory", 0);
             log.error("[Judge] [System Error] Submit Id:[{}] Problem Id:[{}], Error:[{}]",
@@ -139,6 +158,9 @@ public class JudgeStrategy {
             // 删除tmpfs内存中的用户代码可执行文件
             if (!StringUtils.isEmpty(userFileId)) {
                 SandboxRun.delFile(userFileId);
+            }
+            if (testCasesDir != null) {
+                verificationSampleCaseService.cleanup(testCasesDir, verificationSampleFiles);
             }
         }
         return result;
@@ -372,6 +394,7 @@ public class JudgeStrategy {
             String inputFileName = jsonObject.getStr("inputFileName");
             String outputFileName = jsonObject.getStr("outputFileName");
             String msg = jsonObject.getStr("errMsg");
+            String stderr = jsonObject.getStr("stderr", "");
             JudgeCase judgeCase = new JudgeCase();
             judgeCase.setTime(time)
                     .setMemory(memory)
@@ -384,6 +407,7 @@ public class JudgeStrategy {
                     .setSeq(seq)
                     .setGroupNum(groupNum)
                     .setMode(judgeCaseMode)
+                    .setStderr(stderr)
                     .setSubmitId(judge.getSubmitId());
 
             if (!StringUtils.isEmpty(msg) && !Objects.equals(status, Constants.Judge.STATUS_COMPILE_ERROR.getStatus())) {
@@ -416,7 +440,8 @@ public class JudgeStrategy {
             allCaseResList.add(judgeCase);
         });
 
-        // 更新到数据库
+        // 删除评测过程中的占位记录，再保存完整结果，避免同一提交产生重复测试点。
+        JudgeCaseEntityService.remove(new QueryWrapper<JudgeCase>().eq("submit_id", judge.getSubmitId()));
         boolean addCaseRes = JudgeCaseEntityService.saveBatch(allCaseResList);
         if (!addCaseRes) {
             log.error("题号为：" + problem.getId() + "，提交id为：" + judge.getSubmitId() + "的各个测试数据点的结果更新到数据库操作失败");
@@ -442,6 +467,33 @@ public class JudgeStrategy {
             result.put("code", Constants.Judge.STATUS_PARTIAL_ACCEPTED.getStatus());
         }
         return result;
+    }
+
+    private void prepareJudgeCases(Judge judge, Problem problem, JSONObject testCasesInfo, String judgeCaseMode) {
+        JSONArray cases = testCasesInfo.getJSONArray("testCases");
+        if (cases == null || cases.isEmpty()) {
+            return;
+        }
+        JudgeCaseEntityService.remove(new QueryWrapper<JudgeCase>().eq("submit_id", judge.getSubmitId()));
+        List<JudgeCase> placeholders = new ArrayList<>();
+        for (int i = 0; i < cases.size(); i++) {
+            JSONObject item = cases.getJSONObject(i);
+            placeholders.add(new JudgeCase()
+                    .setPid(problem.getId())
+                    .setSubmitId(judge.getSubmitId())
+                    .setUid(judge.getUid())
+                    .setCaseId(item.getLong("caseId", null))
+                    .setInputData(item.getStr("inputName"))
+                    .setOutputData(item.getStr("outputName"))
+                    .setGroupNum(item.getInt("groupNum", 1))
+                    .setScore(item.getInt("score", 0))
+                    .setSeq(i + 1)
+                    .setMode(judgeCaseMode)
+                    .setStatus(Constants.Judge.STATUS_PENDING.getStatus())
+                    .setTime(0)
+                    .setMemory(0));
+        }
+        JudgeCaseEntityService.saveBatch(placeholders);
     }
 
 

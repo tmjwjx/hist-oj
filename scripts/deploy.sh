@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# HOJ2 + 报名系统 + 代码对战 + 班级管理系统自动化部署脚本
-# 用途：一键构建、打包、上传、部署 hist-oj、hoj-frontend
-#       hist-oj 已包含：报名系统、Rating计算、代码对战、班级管理等功能
-#       hoj-frontend 已包含：报名系统前端
+# HOJ2 前端镜像自动化部署脚本
+# Java 主后端统一承载 OJ、赛事和课堂功能。
 
 set -e  # 遇到错误立即退出
 
@@ -20,10 +18,8 @@ SERVER_PASS="n208966737"
 PROJECT_DIR="/Users/zhuangqingjia/vscode/histoj/hist-oj"
 REMOTE_DIR="/opt"
 TARGET_PLATFORM="${TARGET_PLATFORM:-linux/amd64}"
-HIST_OJ_NO_CACHE="${HIST_OJ_NO_CACHE:-0}"
 FRONTEND_NO_CACHE="${FRONTEND_NO_CACHE:-0}"
 PRUNE_BEFORE_BUILD="${PRUNE_BEFORE_BUILD:-0}"
-GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD:-0}"
 PULL_BASE_IMAGES="${PULL_BASE_IMAGES:-0}"
 CLEAN_FRONTEND_LOCAL_CACHE="${CLEAN_FRONTEND_LOCAL_CACHE:-0}"
 TAR_COMPRESS_LEVEL="${TAR_COMPRESS_LEVEL:-1}"
@@ -71,10 +67,6 @@ pull_base_images() {
     }
     retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" nginx:alpine || {
         log_error "nginx:alpine 拉取失败"
-        return 1
-    }
-    retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" golang:1.24-alpine || {
-        log_error "golang:1.24-alpine 拉取失败"
         return 1
     }
     retry_cmd 3 5 docker pull --platform "${TARGET_PLATFORM}" alpine:3.18 || {
@@ -168,44 +160,11 @@ build_images() {
         log_info "跳过基础镜像预拉取（如需启用可设置 PULL_BASE_IMAGES=1）"
     fi
 
-    # 构建 hist-oj（包含报名系统、sim 代码查重工具）
-    log_info "构建 hist-oj 镜像（默认使用缓存，包含 sim 查重工具和报名系统）..."
-    cd hist-oj
-    # 删除旧镜像以避免冲突
-    docker rmi hist-oj:latest 2>/dev/null || true
-    local hist_no_cache_args=()
-    if [ "${HIST_OJ_NO_CACHE}" = "1" ]; then
-        hist_no_cache_args+=(--no-cache)
-    fi
-    # BuildKit 失败时自动降级 legacy builder（规避交叉编译 EOF 问题）
-    log_info "hist-oj 构建尝试 1/3（BuildKit）..."
-    if ! DOCKER_BUILDKIT=1 docker build "${hist_no_cache_args[@]}" --progress=plain --platform "${TARGET_PLATFORM}" \
-        --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
-        -t hist-oj:latest .; then
-        docker builder prune -af >/dev/null 2>&1 || true
-        sleep 5
-        log_warn "hist-oj 构建尝试 2/3（legacy builder）..."
-        if ! DOCKER_BUILDKIT=0 docker build "${hist_no_cache_args[@]}" --platform "${TARGET_PLATFORM}" \
-            --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
-            -t hist-oj:latest .; then
-            docker builder prune -af >/dev/null 2>&1 || true
-            sleep 5
-            log_warn "hist-oj 构建尝试 3/3（legacy builder）..."
-            if ! DOCKER_BUILDKIT=0 docker build "${hist_no_cache_args[@]}" --platform "${TARGET_PLATFORM}" \
-                --build-arg GO_BUILD_FORCE_REBUILD="${GO_BUILD_FORCE_REBUILD}" \
-                -t hist-oj:latest .; then
-                log_error "hist-oj 镜像构建失败"
-                exit 1
-            fi
-        fi
-    fi
-    log_info "✓ hist-oj 镜像构建成功（包含报名系统、sim_c, sim_java 查重工具）"
-
     # 构建前端（Docker 构建时会自动安装 package.json 中的所有依赖，包括 jsQR）
     if [ "${FRONTEND_NO_CACHE}" = "1" ]; then
-        log_info "构建 hoj-frontend 镜像（不使用缓存，包含 jsQR 二维码扫描功能和报名系统前端）..."
+        log_info "构建 hoj-frontend 镜像（不使用缓存，包含 jsQR 二维码扫描功能）..."
     else
-        log_info "构建 hoj-frontend 镜像（使用缓存加速，包含 jsQR 二维码扫描功能和报名系统前端）..."
+        log_info "构建 hoj-frontend 镜像（使用缓存加速，包含 jsQR 二维码扫描功能）..."
     fi
 
     # 切换到前端目录
@@ -242,7 +201,7 @@ build_images() {
         fi
     fi
 
-    log_info "✓ hoj-frontend 镜像构建成功（包含报名系统前端、jsQR 扫码功能）"
+    log_info "✓ hoj-frontend 镜像构建成功（包含 jsQR 扫码功能）"
 
     cd "$PROJECT_DIR"
 }
@@ -272,13 +231,6 @@ save_images() {
     log_info "保存 Docker 镜像..."
     log_info "压缩级别: ${TAR_COMPRESS_LEVEL}（1最快，9最小）"
 
-    log_info "保存 hist-oj 镜像..."
-    save_single_image hist-oj:latest hist-oj.tar.gz || {
-        log_error "hist-oj 镜像保存失败"
-        exit 1
-    }
-    log_info "✓ hist-oj 镜像已保存 ($(du -h hist-oj.tar.gz | cut -f1))"
-
     log_info "保存 hoj-frontend 镜像..."
     save_single_image hoj-frontend:latest hoj-frontend.tar.gz || {
         log_error "hoj-frontend 镜像保存失败"
@@ -290,14 +242,6 @@ save_images() {
 # 上传镜像和配置文件
 upload_files() {
     log_info "上传文件到服务器..."
-
-    # 上传 hist-oj 镜像
-    log_info "上传 hist-oj 镜像..."
-    sshpass -p "$SERVER_PASS" scp hist-oj.tar.gz ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/ || {
-        log_error "hist-oj 镜像上传失败"
-        exit 1
-    }
-    log_info "✓ hist-oj 镜像上传成功"
 
     # 上传 hoj-frontend 镜像
     log_info "上传 hoj-frontend 镜像..."
@@ -339,14 +283,11 @@ cd /opt
 # 1. 停止旧容器
 echo ""
 echo "[INFO] 停止旧容器..."
-docker stop hist-oj hoj-frontend 2>/dev/null || true
-docker rm hist-oj hoj-frontend 2>/dev/null || true
+docker stop hoj-frontend 2>/dev/null || true
+docker rm hoj-frontend 2>/dev/null || true
 
 # 2. 加载新镜像
 echo ""
-echo "[INFO] 加载 hist-oj 镜像..."
-gunzip -c hist-oj.tar.gz | docker load
-
 echo ""
 echo "[INFO] 加载 hoj-frontend 镜像..."
 gunzip -c hoj-frontend.tar.gz | docker load
@@ -364,7 +305,7 @@ sleep 10
 # 5. 检查容器状态
 echo ""
 echo "[INFO] 检查容器状态..."
-docker ps | grep -E "hist-oj|hoj-frontend"
+docker ps | grep -E "hoj-frontend"
 
 # 6. 配置网络连接（确保前端容器能连接到hoj-backend）
 echo ""
@@ -389,20 +330,8 @@ echo "验证服务"
 echo "======================================"
 
 echo ""
-echo "[INFO] 测试 hist-oj 健康检查..."
-docker exec hist-oj curl -s http://localhost:9527/health || echo "⚠️  hist-oj 健康检查失败"
-
-echo ""
-echo "[INFO] 测试报名系统 API..."
-docker exec hist-oj curl -s http://localhost:9527/api/registration/competitions || echo "⚠️  报名系统 API 测试失败"
-
-echo ""
 echo "[INFO] 测试前端服务..."
 docker exec hoj-frontend curl -s http://127.0.0.1/ || echo "⚠️  前端服务测试失败"
-
-echo ""
-echo "[INFO] 测试 hist-oj 到报名系统的连接..."
-docker exec hoj-frontend curl -s http://hist-oj:9527/api/registration/competitions || echo "⚠️  前端到hist-oj连接测试失败"
 
 echo ""
 echo "[INFO] 测试 hoj-frontend 到 hoj-backend 的连接..."
@@ -419,8 +348,7 @@ echo "======================================"
 echo ""
 echo "访问地址："
 echo "  - 前端: http://$SERVER_IP/"
-echo "  - 后端: http://$SERVER_IP:9527"
-echo "  - 报名系统: http://$SERVER_IP/registration/list"
+echo "  - 后端: http://$SERVER_IP:6688"
 echo ""
 echo "端口说明："
 echo "  - 前端容器使用 8081 端口"
@@ -441,7 +369,7 @@ ENDSSH
 # 清理本地临时文件
 cleanup_local() {
     log_info "清理本地临时文件..."
-    rm -f hist-oj.tar.gz hoj-frontend.tar.gz
+    rm -f hoj-frontend.tar.gz
     log_info "✓ 临时文件已清理"
 }
 
@@ -453,20 +381,12 @@ cleanup_remote() {
 cd /opt
 
 # 清理本地临时文件
-rm -f hist-oj.tar.gz hoj-frontend.tar.gz
+rm -f hoj-frontend.tar.gz
 
 # 列出当前镜像
 echo ""
 echo "[INFO] 当前镜像列表："
-docker images | grep -E "REPOSITORY|hist-oj|hoj-frontend"
-
-# 清理 hist-oj 旧镜像（保留最新的 2 个）
-echo ""
-echo "[INFO] 清理 hist-oj 旧镜像..."
-docker images hist-oj --format "{{.ID}} {{.CreatedAt}}" | sort -k2 -r | tail -n +3 | while read IMAGE_ID CREATED; do
-    echo "[INFO] 删除旧镜像: $IMAGE_ID"
-    docker rmi $IMAGE_ID 2>/dev/null || true
-done
+docker images | grep -E "REPOSITORY|hoj-frontend"
 
 # 清理 hoj-frontend 旧镜像（保留最新的 2 个）
 echo ""
@@ -478,7 +398,7 @@ done
 
 echo ""
 echo "[INFO] 清理后的镜像列表："
-docker images | grep -E "REPOSITORY|hist-oj|hoj-frontend"
+docker images | grep -E "REPOSITORY|hoj-frontend"
 
 ENDSSH
 
@@ -500,11 +420,9 @@ show_deployment_info() {
     log_info "  部署后远端清理: ${CLEANUP_REMOTE_AFTER_DEPLOY}"
     log_info ""
     log_info "部署的服务："
-    log_info "  1. hist-oj（后端 + 报名系统 + 对战 + Rating + 班级管理）"
-    log_info "  2. hoj-frontend（前端）"
+    log_info "  1. hoj-frontend（前端）"
     log_info ""
     log_info "端口映射："
-    log_info "  - hist-oj: 9527"
     log_info "  - hoj-frontend 容器: 8081"
     log_info "  - 宿主机 Nginx: 80, 443 (SSL)"
     log_info "======================================"
@@ -657,7 +575,7 @@ ENDSSH
 # 主函数
 main() {
     log_info "======================================"
-    log_info "HOJ + 报名系统一键部署"
+    log_info "HOJ 扩展服务一键部署"
     log_info "======================================"
     log_info ""
 
@@ -716,14 +634,10 @@ main() {
     log_info "访问地址："
     if [ "$DEPLOY_SSL" = true ] && [ $SSL_STATUS -eq 0 ]; then
         log_info "  - 前端: https://bingoj.cn/"
-        log_info "  - 报名系统: https://bingoj.cn/registration/list"
-        log_info "  - 管理后台: https://bingoj.cn/admin/registration"
         log_info ""
         log_info "  $SSL_MESSAGE"
     else
         log_info "  - 前端: http://${SERVER_IP}/"
-        log_info "  - 报名系统: http://${SERVER_IP}/registration/list"
-        log_info "  - 管理后台: http://${SERVER_IP}/admin/registration"
         log_info ""
         log_info "  $SSL_MESSAGE"
         log_info ""

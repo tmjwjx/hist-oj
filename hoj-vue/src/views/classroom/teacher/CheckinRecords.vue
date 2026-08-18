@@ -172,7 +172,7 @@ export default {
         // 并行加载签到记录和班级学生列表
         const [recordsRes, studentsRes] = await Promise.all([
           this.$store.dispatch('classroom/getCheckinRecords', this.checkinId),
-          this.$http.get(`/rating-api/api/classroom/${this.classroomId}/students`)
+          this.$http.get(`/api/classroom/${this.classroomId}/students`)
         ])
 
         if (recordsRes.code === 200) {
@@ -239,7 +239,7 @@ export default {
             'personal_leave': '事假'
           }
 
-          const createRes = await this.$http.post(`/rating-api/api/classroom/checkin/${record.checkinId}/record`, {
+          const createRes = await this.$http.post(`/api/classroom/checkin/${record.checkinId}/record`, {
             uid: record.uid,
             status: record.status
           })
@@ -257,7 +257,7 @@ export default {
           }
         } else {
           // 更新已有记录
-          const res = await this.$http.put(`/rating-api/api/classroom/checkin/record`, {
+          const res = await this.$http.put(`/api/classroom/checkin/record`, {
             recordId: record.id,
             status: record.status
           })

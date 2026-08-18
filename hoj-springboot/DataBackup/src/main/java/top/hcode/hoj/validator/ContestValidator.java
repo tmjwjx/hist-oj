@@ -112,12 +112,13 @@ public class ContestValidator {
             }
 
             // 如果是处于比赛正在进行阶段，需要判断该场比赛是否为私有赛，私有赛需要判断该用户是否已注册
-            if (contest.getAuth().intValue() == Constants.Contest.AUTH_PRIVATE.getCode()) {
+            if (contest.getAuth().intValue() == Constants.Contest.AUTH_PRIVATE.getCode()
+                    || Boolean.TRUE.equals(contest.getOpenRegistration())) {
                 QueryWrapper<ContestRegister> registerQueryWrapper = new QueryWrapper<>();
                 registerQueryWrapper.eq("cid", contest.getId()).eq("uid", userRolesVo.getUid());
                 ContestRegister register = contestRegisterEntityService.getOne(registerQueryWrapper);
                 if (register == null) { // 如果数据为空，表示未注册私有赛，不可访问
-                    throw new StatusForbiddenException("对不起，请先到比赛首页输入比赛密码进行注册！");
+                    throw new StatusForbiddenException("对不起，请先到比赛首页完成比赛报名！");
                 }
 
                 if (contest.getOpenAccountLimit()
@@ -133,7 +134,8 @@ public class ContestValidator {
     public void validateJudgeAuth(Contest contest, String uid) throws StatusForbiddenException {
 
         if (contest.getAuth().intValue() == Constants.Contest.AUTH_PRIVATE.getCode() ||
-                contest.getAuth().intValue() == Constants.Contest.AUTH_PROTECT.getCode()) {
+                contest.getAuth().intValue() == Constants.Contest.AUTH_PROTECT.getCode() ||
+                Boolean.TRUE.equals(contest.getOpenRegistration())) {
             QueryWrapper<ContestRegister> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("cid", contest.getId()).eq("uid", uid);
             ContestRegister register = contestRegisterEntityService.getOne(queryWrapper, false);

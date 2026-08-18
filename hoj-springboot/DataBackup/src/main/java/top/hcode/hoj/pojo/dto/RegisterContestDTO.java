@@ -1,8 +1,7 @@
 package top.hcode.hoj.pojo.dto;
 
 import lombok.Data;
-
-import javax.validation.constraints.NotBlank;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * @Author: Himit_ZH
@@ -12,9 +11,22 @@ import javax.validation.constraints.NotBlank;
 @Data
 public class RegisterContestDTO {
 
-    @NotBlank(message = "cid不能为空")
     private Long cid;
 
-    @NotBlank(message = "password不能为空")
     private String password;
+
+    private String name;
+
+    @JsonProperty("class")
+    private String clazz;
+
+    private String college;
+
+    private String studentId;
+
+    private String gender;
+
+    private String qq;
+
+    private String phone;
 }

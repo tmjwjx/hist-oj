@@ -8,7 +8,7 @@
       </div>
       <el-form label-position="top">
         <el-row :gutter="20">
-          <el-col :span="24">
+          <el-col :md="10" :xs="24">
             <el-form-item
               :label="$t('m.Contest_Title')"
               required
@@ -21,6 +21,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item
+              class="contest-description-editor"
               :label="$t('m.Contest_Description')"
               required
             >
@@ -78,8 +79,14 @@
           </el-col>
         </el-row>
 
+        <ContestRegistrationConfig :contest="contest" />
+
+        <section class="contest-options">
+          <div class="contest-options-title">赛制、榜单、权限与奖项</div>
+
         <el-row>
           <el-col
+            class="contest-grid-rule"
             :md="8"
             :xs="24"
           >
@@ -87,69 +94,36 @@
               :label="$t('m.Contest_Rule_Type')"
               required
             >
-              <el-radio
-                class="radio"
-                v-model="contest.type"
-                :label="0"
-                @change="setSealRankTimeDefaultValue"
-                :disabled="disableRuleType"
-              >ACM</el-radio>
-              <el-radio
-                class="radio"
-                v-model="contest.type"
-                :label="1"
-                :disabled="disableRuleType"
-                @change="setSealRankTimeDefaultValue"
-              >OI</el-radio>
+              <el-select v-model="contest.type" @change="setSealRankTimeDefaultValue"
+                :disabled="disableRuleType" class="compact-select">
+                <el-option label="ACM" :value="0" />
+                <el-option label="OI" :value="1" />
+              </el-select>
             </el-form-item>
           </el-col>
 
           <el-col
+            class="contest-grid-conditional"
             :md="8"
             :xs="24"
+            v-show="contest.type == 1"
           >
             <el-form-item
               :label="$t('m.OI_Rank_Score_Type')"
-              v-show="contest.type == 1"
             >
-              <el-radio
-                class="radio"
-                v-model="contest.oiRankScoreType"
-                label="Recent"
-              >{{ $t('m.OI_Rank_Score_Type_Recent') }}</el-radio>
-              <el-radio
-                class="radio"
-                v-model="contest.oiRankScoreType"
-                label="Highest"
-              >{{ $t('m.OI_Rank_Score_Type_Highest') }}</el-radio>
+              <el-select v-model="contest.oiRankScoreType" class="compact-select">
+                <el-option :label="$t('m.OI_Rank_Score_Type_Recent')" value="Recent" />
+                <el-option :label="$t('m.OI_Rank_Score_Type_Highest')" value="Highest" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-row>
           <el-col
+            class="contest-grid-seal"
             :md="8"
             :xs="24"
-            v-if="contest.sealRank"
-          >
-            <el-form-item
-              :label="$t('m.Timeliness_Of_Rank')"
-              required
-            >
-              <el-switch
-                v-model="contest.sealRank"
-                active-color="#13ce66"
-                :active-text="$t('m.Seal_Time_Rank')"
-                :inactive-text="$t('m.Real_Time_Rank')"
-              >
-              </el-switch>
-            </el-form-item>
-          </el-col>
-
-          <el-col
-            :md="24"
-            :xs="24"
-            v-else
           >
             <el-form-item
               :label="$t('m.Timeliness_Of_Rank')"
@@ -167,13 +141,14 @@
           </el-col>
 
           <el-col
+            class="contest-grid-conditional"
             :md="8"
             :xs="24"
+            v-show="contest.sealRank"
           >
             <el-form-item
               :label="$t('m.Seal_Rank_Time')"
               :required="contest.sealRank"
-              v-show="contest.sealRank"
             >
               <el-select v-model="seal_rank_time">
                 <el-option
@@ -195,13 +170,14 @@
           </el-col>
 
           <el-col
+            class="contest-grid-conditional"
             :md="8"
             :xs="24"
+            v-show="contest.sealRank"
           >
             <el-form-item
               :label="$t('m.Auto_Real_Rank')"
               required
-              v-show="contest.sealRank"
             >
               <el-switch
                 v-model="contest.autoRealRank"
@@ -215,6 +191,7 @@
 
         <el-row>
           <el-col
+            class="contest-grid-outside"
             :md="8"
             :xs="24"
           >
@@ -232,6 +209,7 @@
           </el-col>
 
           <el-col
+            class="contest-grid-end-submit"
             :md="8"
             :xs="24"
           >
@@ -249,6 +227,7 @@
           </el-col>
 
           <el-col
+            class="contest-grid-print"
             :md="8"
             :xs="24"
           >
@@ -267,26 +246,17 @@
         </el-row>
 
         <el-row>
-          <el-col :span="24">
-            <el-form-item
-              :label="$t('m.Rank_Show_Name')"
-              required
-            >
-              <el-radio-group v-model="contest.rankShowName">
-                <el-radio label="username">{{
-                  $t('m.Show_Username')
-                }}</el-radio>
-                <el-radio label="nickname">{{
-                  $t('m.Show_Nickname')
-                }}</el-radio>
-                <el-radio label="realname">{{
-                  $t('m.Show_Realname')
-                }}</el-radio>
-              </el-radio-group>
+          <el-col class="contest-grid-rank-name">
+            <el-form-item :label="$t('m.Rank_Show_Name')" required>
+              <el-select v-model="contest.rankShowName" class="compact-select">
+                <el-option label="用户名" value="username" />
+                <el-option label="昵称" value="nickname" />
+                <el-option label="真实姓名" value="realname" />
+              </el-select>
             </el-form-item>
           </el-col>
 
-          <el-col>
+          <el-col class="star-user-setting contest-grid-star">
             <el-form-item
               :label="$t('m.Star_User_UserName')"
               required
@@ -328,6 +298,7 @@
           </el-col>
 
           <el-col
+            class="contest-grid-auth"
             :md="8"
             :xs="24"
           >
@@ -352,12 +323,13 @@
             </el-form-item>
           </el-col>
           <el-col
+            class="contest-grid-conditional"
             :md="8"
             :xs="24"
+            v-show="contest.auth != 0"
           >
             <el-form-item
               :label="$t('m.Contest_Password')"
-              v-show="contest.auth != 0"
               :required="contest.auth != 0"
             >
               <el-input
@@ -367,12 +339,13 @@
             </el-form-item>
           </el-col>
           <el-col
+            class="contest-grid-conditional"
             :md="8"
             :xs="24"
+            v-show="contest.auth != 0"
           >
             <el-form-item
               :label="$t('m.Account_Limit')"
-              v-show="contest.auth != 0"
               :required="contest.auth != 0"
             >
               <el-switch v-model="contest.openAccountLimit"> </el-switch>
@@ -380,7 +353,7 @@
           </el-col>
 
           <template v-if="contest.openAccountLimit">
-            <el-form :model="formRule">
+            <el-form :model="formRule" class="account-rule-form contest-full-row">
               <el-col
                 :md="6"
                 :xs="24"
@@ -460,6 +433,7 @@
               <el-col
                 :md="24"
                 :xs="24"
+                class="extra-account-field"
               >
                 <el-form-item
                   :label="$t('m.Extra_Account')"
@@ -478,6 +452,7 @@
           </template>
 
           <el-col
+            class="contest-grid-award"
             :md="24"
             :xs="24"
           >
@@ -507,6 +482,7 @@
           <el-col
             :span="24"
             v-if="contest.awardType != 0"
+            class="contest-full-row award-config-table"
           >
             <div style="margin-bottom:10px">
               <el-button
@@ -621,6 +597,7 @@
             </vxe-table>
           </el-col>
         </el-row>
+        </section>
       </el-form>
       <el-button
         type="primary"
@@ -640,11 +617,14 @@ import { mapGetters } from "vuex";
 import myMessage from "@/common/message";
 const Editor = () => import("@/components/admin/Editor.vue");
 const RankBox = () => import("@/components/oj/common/RankBox");
+const ContestRegistrationConfig = () =>
+  import("@/components/admin/ContestRegistrationConfig.vue");
 export default {
   name: "CreateContest",
   components: {
     Editor,
     RankBox,
+    ContestRegistrationConfig,
   },
   data() {
     return {
@@ -668,6 +648,10 @@ export default {
         rankShowName: "username",
         openAccountLimit: false,
         allowEndSubmit: false,
+        openRegistration: false,
+        registrationFields: [],
+        useRegistrationName: false,
+        registrationNameFields: [],
         visible: false,
         accountLimitRule: "",
         starAccount: [],
@@ -740,7 +724,11 @@ export default {
         .admin_getContest(this.$route.params.contestId)
         .then((res) => {
           let data = res.data.data;
-          this.contest = data;
+      this.contest = data;
+          this.contest.registrationFields = this.contest.registrationFields || [];
+          this.contest.registrationNameFields = this.contest.registrationNameFields || [];
+          this.contest.openRegistration = Boolean(this.contest.openRegistration);
+          this.contest.useRegistrationName = Boolean(this.contest.useRegistrationName);
           this.changeDuration();
           // 封榜时间转换
           let halfHour = moment(this.contest.endTime)
@@ -812,6 +800,17 @@ export default {
             " " +
             this.$i18n.t("m.is_required")
         );
+        return;
+      }
+      if (this.contest.openRegistration && !this.contest.registrationFields.length) {
+        myMessage.error("开启比赛报名后，至少选择一个报名字段");
+        return;
+      }
+      if (
+        this.contest.useRegistrationName &&
+        !this.contest.registrationNameFields.length
+      ) {
+        myMessage.error("请选择比赛内名称的组合字段");
         return;
       }
 
@@ -1024,15 +1023,275 @@ export default {
 };
 </script>
 <style scoped>
-.userPreview {
-  padding-left: 10px;
-  padding-top: 20px;
-  padding-bottom: 20px;
-  color: red;
-  font-size: 16px;
-  margin-bottom: 10px;
+/* 页面整体 */
+.view {
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 60px);
 }
+
+.view /deep/ .el-card {
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.view /deep/ .el-card__header {
+  background: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+}
+
+.view /deep/ .el-card__body {
+  padding: 24px;
+}
+
+/* 表单项 */
+.view /deep/ .el-form-item {
+  margin-bottom: 18px;
+}
+
+.view /deep/ .el-form-item__label {
+  padding-bottom: 8px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #606266;
+}
+
+/* 编辑器 */
+.view /deep/ .mavon-editor,
+.view /deep/ .contest-description-editor .v-note-wrapper {
+  height: 300px;
+  min-height: 280px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.view /deep/ .v-note-panel,
+.view /deep/ .v-note-edit.divarea {
+  min-height: 250px;
+}
+
+/* 日期选择器 */
+.view /deep/ .el-date-editor.el-input,
+.view /deep/ .el-date-editor.el-input__inner {
+  width: 100%;
+}
+
+/* 分组标题 */
+.contest-options {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f9fafb;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+}
+
+.contest-options-title {
+  margin-bottom: 20px;
+  color: #303133;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.5;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #409eff;
+}
+
+/* 核心设置固定为四列两行，条件设置继续在下方按需显示。 */
+.contest-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 20px;
+  align-items: start;
+}
+
+.contest-options-title {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+
+.contest-options > .el-row {
+  display: contents;
+}
+
+.contest-options .el-col {
+  float: none;
+  width: auto !important;
+  min-width: 0;
+  padding: 0 !important;
+}
+
+.contest-options .contest-grid-rule,
+.contest-options .contest-grid-rank-name,
+.contest-options .contest-grid-auth,
+.contest-options .contest-grid-award,
+.contest-options .contest-grid-seal,
+.contest-options .contest-grid-outside,
+.contest-options .contest-grid-end-submit,
+.contest-options .contest-grid-print,
+.contest-options .contest-grid-star {
+  grid-row: auto;
+}
+
+.contest-options .contest-grid-rule { grid-column: 1; grid-row: 2; }
+.contest-options .contest-grid-rank-name { grid-column: 2; grid-row: 2; }
+.contest-options .contest-grid-auth { grid-column: 3; grid-row: 2; }
+.contest-options .contest-grid-award { grid-column: 4; grid-row: 2; }
+.contest-options .contest-grid-seal { grid-column: 1; grid-row: 3; }
+.contest-options .contest-grid-outside { grid-column: 2; grid-row: 3; }
+.contest-options .contest-grid-end-submit { grid-column: 3; grid-row: 3; }
+.contest-options .contest-grid-print { grid-column: 4; grid-row: 3; }
+.contest-options .contest-grid-star { grid-column: 1 / -1; grid-row: 4; }
+.contest-options .contest-grid-conditional { grid-column: 1 / -1; }
+
+.contest-options .contest-full-row,
+.contest-options .account-rule-form,
+.contest-options .award-config-table {
+  grid-column: 1 / -1;
+  min-width: 0 !important;
+}
+
+.contest-options .el-form-item {
+  margin-bottom: 4px;
+}
+
+.contest-options .el-select,
+.contest-options .el-input {
+  width: 100%;
+}
+
+.contest-options .el-switch {
+  white-space: nowrap;
+}
+
+/* 账号规则单独成一行，并在行内继续保持四列紧凑布局。 */
+.contest-options .account-rule-form {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 16px;
+  margin: 0;
+  padding: 12px 14px 4px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+
+.contest-options .account-rule-form > .el-col {
+  float: none;
+  width: auto !important;
+  min-width: 0;
+  padding: 0 !important;
+}
+
+.contest-options .account-rule-form .userPreview,
+.contest-options .account-rule-form .extra-account-field {
+  grid-column: 1 / -1;
+}
+
+.contest-options .account-rule-form .userPreview {
+  margin: 2px 0 10px;
+}
+
+/* 跨列元素 */
+.contest-options .userPreview {
+  width: 100%;
+}
+
+.contest-options .award-config-table {
+  overflow-x: auto;
+}
+
+.contest-options .star-user-setting {
+  min-width: 0;
+}
+
+/* 紧凑选择器 */
+.compact-select {
+  width: 100%;
+}
+
+/* 用户预览 */
+.userPreview {
+  padding: 12px 16px;
+  margin-top: 12px;
+  background: #fef0f0;
+  border: 1px solid #fbc4c4;
+  border-radius: 4px;
+  color: #f56c6c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 星标用户输入 */
 .input-new-star-user {
   width: 200px;
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .contest-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contest-options .account-rule-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contest-options .contest-grid-rule,
+  .contest-options .contest-grid-rank-name,
+  .contest-options .contest-grid-auth,
+  .contest-options .contest-grid-award,
+  .contest-options .contest-grid-seal,
+  .contest-options .contest-grid-outside,
+  .contest-options .contest-grid-end-submit,
+  .contest-options .contest-grid-print,
+  .contest-options .contest-grid-star,
+  .contest-options .contest-grid-conditional {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .view {
+    padding: 10px;
+  }
+
+  .view /deep/ .el-card__body {
+    padding: 16px;
+  }
+
+  .contest-options {
+    padding: 16px;
+    grid-template-columns: 1fr;
+  }
+
+  .contest-options .contest-full-row,
+  .contest-options .account-rule-form,
+  .contest-options .award-config-table,
+  .contest-options-title {
+    grid-column: 1;
+  }
+
+  .contest-options .account-rule-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 按钮样式优化 */
+.view /deep/ .el-button {
+  border-radius: 4px;
+}
+
+/* 输入框优化 */
+.view /deep/ .el-input__inner,
+.view /deep/ .el-textarea__inner {
+  border-radius: 4px;
+}
+
+/* 标签优化 */
+.view /deep/ .el-tag {
+  border-radius: 2px;
 }
 </style>

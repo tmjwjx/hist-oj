@@ -38,12 +38,19 @@ export default {
       return `${hours}:${minutes}:${seconds}`;
     },
     formattedDate() {
-      const year = this.currentTime.getFullYear();
-      const month = String(this.currentTime.getMonth() + 1).padStart(2, '0');
-      const day = String(this.currentTime.getDate()).padStart(2, '0');
-      const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-      const weekDay = weekDays[this.currentTime.getDay()];
-      return `${year}-${month}-${day} 星期${weekDay}`;
+      const localeMap = {
+        'zh-CN': 'zh-CN',
+        'zh-TW': 'zh-TW',
+        'en-US': 'en-US',
+        'ja-JP': 'ja-JP',
+        'ko-KR': 'ko-KR',
+      };
+      return new Intl.DateTimeFormat(localeMap[this.$i18n.locale] || 'en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        weekday: 'long',
+      }).format(this.currentTime);
     }
   },
   mounted() {

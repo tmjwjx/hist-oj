@@ -707,7 +707,10 @@ export default {
   methods: {
     ...mapActions(['changeModalStatus']),
     page_width() {
-      let screenWidth = window.screen.width;
+      // 使用浏览器 CSS 视口宽度，与 Element UI 的响应式断点保持一致。
+      // window.screen.width 在高 DPI/缩放环境下代表物理屏幕宽度，刷新后
+      // 可能错误地保持桌面导航而内容已经切换为窄屏布局。
+      let screenWidth = window.innerWidth || document.documentElement.clientWidth;
       if (screenWidth < 992) {
         this.mobileNar = true;
       } else {

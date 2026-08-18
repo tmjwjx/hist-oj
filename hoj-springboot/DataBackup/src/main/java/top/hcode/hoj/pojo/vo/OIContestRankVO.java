@@ -43,6 +43,9 @@ public class OIContestRankVO {
     @ApiModelProperty(value = "昵称")
     private String nickname;
 
+    @ApiModelProperty(value = "由报名字段组合的比赛内名称")
+    private String contestName;
+
     @ApiModelProperty(value = "性别")
     private String gender;
 

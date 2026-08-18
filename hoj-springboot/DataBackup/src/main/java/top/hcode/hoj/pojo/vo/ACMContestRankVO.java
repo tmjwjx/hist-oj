@@ -42,6 +42,9 @@ public class ACMContestRankVO {
     @ApiModelProperty(value = "昵称")
     private String nickname;
 
+    @ApiModelProperty(value = "由报名字段组合的比赛内名称")
+    private String contestName;
+
     @ApiModelProperty(value = "学校")
     private String school;
 

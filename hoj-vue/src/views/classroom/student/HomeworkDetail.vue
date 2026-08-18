@@ -690,7 +690,7 @@ export default {
     },
     // 图片上传URL
     uploadUrl() {
-      return '/rating-api/api/classroom/homework/upload-attachment'
+      return '/api/classroom/homework/upload-attachment'
     },
     // 上传请求头
     uploadHeaders() {
@@ -788,7 +788,10 @@ export default {
         // 如果作业已提交，强制刷新数据，不使用缓存
         // 这样可以立即显示最新的答案和分数
         const forceRefresh = this.isSubmitted
-        const res = await this.$store.dispatch('classroom/getHomeworkDetail', homeworkId, forceRefresh)
+        const res = await this.$store.dispatch('classroom/getHomeworkDetail', {
+          homeworkId,
+          forceRefresh
+        })
 
         if (res.code === 200) {
           // 安全措施：清空所有题目的答案和难度字段（防止前端泄露）

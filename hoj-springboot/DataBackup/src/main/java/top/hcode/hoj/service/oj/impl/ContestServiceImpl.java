@@ -8,11 +8,13 @@ import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.common.result.CommonResult;
 import top.hcode.hoj.common.result.ResultStatus;
 import top.hcode.hoj.manager.oj.ContestManager;
+import top.hcode.hoj.manager.oj.ContestRegistrationManager;
 import top.hcode.hoj.pojo.dto.ContestPrintDTO;
 import top.hcode.hoj.pojo.dto.ContestRankDTO;
 import top.hcode.hoj.pojo.dto.RegisterContestDTO;
 import top.hcode.hoj.pojo.dto.UserReadContestAnnouncementDTO;
 import top.hcode.hoj.pojo.entity.common.Announcement;
+import top.hcode.hoj.pojo.entity.contest.ContestRegister;
 import top.hcode.hoj.pojo.vo.*;
 import top.hcode.hoj.service.oj.ContestService;
 
@@ -29,6 +31,9 @@ public class ContestServiceImpl implements ContestService {
 
     @Resource
     private ContestManager contestManager;
+
+    @Resource
+    private ContestRegistrationManager contestRegistrationManager;
 
     @Override
     public CommonResult<IPage<ContestVO>> getContestList(Integer limit, Integer currentPage, Integer status, Integer type, String keyword) {
@@ -49,12 +54,21 @@ public class ContestServiceImpl implements ContestService {
     @Override
     public CommonResult<Void> toRegisterContest(RegisterContestDTO registerContestDto) {
         try {
-            contestManager.toRegisterContest(registerContestDto);
+            contestRegistrationManager.register(registerContestDto);
             return CommonResult.successResponse();
         } catch (StatusFailException e) {
             return CommonResult.errorResponse(e.getMessage());
         } catch (StatusForbiddenException e) {
             return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
+        }
+    }
+
+    @Override
+    public CommonResult<ContestRegister> getMyContestRegistration(Long cid) {
+        try {
+            return CommonResult.successResponse(contestRegistrationManager.getCurrentRegistration(cid));
+        } catch (StatusFailException e) {
+            return CommonResult.errorResponse(e.getMessage());
         }
     }
 

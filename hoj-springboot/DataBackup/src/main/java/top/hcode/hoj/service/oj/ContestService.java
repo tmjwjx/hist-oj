@@ -7,6 +7,7 @@ import top.hcode.hoj.pojo.dto.ContestRankDTO;
 import top.hcode.hoj.pojo.dto.RegisterContestDTO;
 import top.hcode.hoj.pojo.dto.UserReadContestAnnouncementDTO;
 import top.hcode.hoj.pojo.entity.common.Announcement;
+import top.hcode.hoj.pojo.entity.contest.ContestRegister;
 import top.hcode.hoj.pojo.vo.*;
 
 import java.util.List;
@@ -18,6 +19,8 @@ public interface ContestService {
     public CommonResult<ContestVO> getContestInfo(Long cid);
 
     public CommonResult<Void> toRegisterContest(RegisterContestDTO registerContestDto);
+
+    public CommonResult<ContestRegister> getMyContestRegistration(Long cid);
 
     public CommonResult<AccessVO> getContestAccess(Long cid);
 

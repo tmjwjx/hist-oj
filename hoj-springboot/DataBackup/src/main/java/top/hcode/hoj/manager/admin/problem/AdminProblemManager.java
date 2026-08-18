@@ -26,6 +26,8 @@ import top.hcode.hoj.pojo.dto.ProblemDTO;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
+import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
+import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.validator.ProblemValidator;
@@ -64,6 +66,9 @@ public class AdminProblemManager {
 
     @Autowired
     private RemoteProblemManager remoteProblemManager;
+
+    @Autowired
+    private ProblemVerificationLifecycle verificationLifecycle;
 
     public IPage<Problem> getProblemList(Integer limit, Integer currentPage, String keyword, Integer auth, String oj) {
         if (currentPage == null || currentPage < 1) currentPage = 1;
@@ -135,7 +140,7 @@ public class AdminProblemManager {
         }
     }
 
-    public void addProblem(ProblemDTO problemDto) throws StatusFailException {
+    public Long addProblem(ProblemDTO problemDto) throws StatusFailException {
 
         problemValidator.validateProblem(problemDto.getProblem());
 
@@ -150,6 +155,12 @@ public class AdminProblemManager {
         if (!isOk) {
             throw new StatusFailException("添加失败");
         }
+        Problem created = problemDto.getProblem();
+        if (!Boolean.TRUE.equals(created.getIsRemote())) {
+            verificationLifecycle.markTestCaseChanged(
+                    created.getId(), created.getCaseVersion(), created.getJudgeMode());
+        }
+        return problemDto.getProblem().getId();
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -168,6 +179,7 @@ public class AdminProblemManager {
         }
 
         String problemId = problemDto.getProblem().getProblemId().toUpperCase();
+        Problem oldProblem = problemEntityService.getById(problemDto.getProblem().getId());
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemId);
         Problem problem = problemEntityService.getOne(queryWrapper);
@@ -182,6 +194,12 @@ public class AdminProblemManager {
 
         boolean result = problemEntityService.adminUpdateProblem(problemDto);
         if (result) { // 更新成功
+            Problem updated = problemEntityService.getById(problemDto.getProblem().getId());
+            if (!Boolean.TRUE.equals(updated.getIsRemote())
+                    && ProblemVerificationChangeDetector.changed(oldProblem, updated)) {
+                verificationLifecycle.markVerificationChanged(
+                        updated.getId(), updated.getCaseVersion(), updated.getJudgeMode());
+            }
             if (problem == null) { // 说明改了problemId，同步一下judge表
                 UpdateWrapper<Judge> judgeUpdateWrapper = new UpdateWrapper<>();
                 judgeUpdateWrapper.eq("pid", problemDto.getProblem().getId())

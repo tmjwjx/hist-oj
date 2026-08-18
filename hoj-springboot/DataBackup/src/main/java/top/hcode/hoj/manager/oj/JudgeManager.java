@@ -38,6 +38,7 @@ import top.hcode.hoj.pojo.vo.*;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.utils.IpUtils;
+import top.hcode.hoj.utils.ProblemVerificationConstants;
 import top.hcode.hoj.utils.RedisUtils;
 import top.hcode.hoj.validator.AccessValidator;
 import top.hcode.hoj.validator.ContestValidator;
@@ -134,6 +135,7 @@ public class JudgeManager {
                 .setLength(judgeDto.getCode().length())
                 .setUid(userRolesVo.getUid())
                 .setUsername(userRolesVo.getUsername())
+                .setSubmissionType(ProblemVerificationConstants.USER_SUBMISSION)
                 .setStatus(Constants.Judge.STATUS_PENDING.getStatus()) // 开始进入判题队列
                 .setSubmitTime(new Date())
                 .setVersion(0)
@@ -418,6 +420,7 @@ public class JudgeManager {
                 judge.getStatus().intValue() != Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus()) {
             judge.setErrorMessage("The error message does not support viewing.");
         }
+        decorateJudgeStatus(judge);
         submissionInfoVo.setSubmission(judge);
         submissionInfoVo.setCodeShare(problem.getCodeShare());
 
@@ -496,7 +499,7 @@ public class JudgeManager {
             searchUsername = searchUsername.trim();
         }
 
-        return judgeEntityService.getCommonJudgeList(limit,
+        IPage<JudgeVO> page = judgeEntityService.getCommonJudgeList(limit,
                 currentPage,
                 searchPid,
                 searchStatus,
@@ -504,6 +507,8 @@ public class JudgeManager {
                 uid,
                 completeProblemID,
                 gid);
+        page.getRecords().forEach(this::decorateJudgeStatus);
+        return page;
     }
 
 
@@ -531,6 +536,7 @@ public class JudgeManager {
             judge.setVjudgeUsername(null);
             judge.setVjudgeSubmitId(null);
             judge.setVjudgePassword(null);
+            decorateJudgeStatus(judge);
             result.put(judge.getSubmitId(), judge);
         }
         return result;
@@ -582,6 +588,7 @@ public class JudgeManager {
                 judge.setMemory(null);
                 judge.setLength(null);
             }
+            decorateJudgeStatus(judge);
             result.put(judge.getSubmitId(), judge);
         }
         return result;
@@ -677,6 +684,82 @@ public class JudgeManager {
             judgeCaseVo.setJudgeCaseMode(Constants.JudgeCaseMode.DEFAULT.getMode());
         }
         return judgeCaseVo;
+    }
+
+    private void decorateJudgeStatus(Judge judge) {
+        StatusProgress progress = resolveStatusProgress(judge.getSubmitId(), judge.getStatus());
+        judge.setStatusText(progress.text);
+        judge.setCurrentTest(progress.test);
+    }
+
+    private void decorateJudgeStatus(JudgeVO judge) {
+        StatusProgress progress = resolveStatusProgress(judge.getSubmitId(), judge.getStatus());
+        judge.setStatusText(progress.text);
+        judge.setCurrentTest(progress.test);
+    }
+
+    private StatusProgress resolveStatusProgress(Long submitId, Integer status) {
+        if (status == null) {
+            return new StatusProgress("Unknown", null);
+        }
+        List<JudgeCase> cases = judgeCaseEntityService.list(new QueryWrapper<JudgeCase>()
+                .select("seq", "status")
+                .eq("submit_id", submitId)
+                .orderByAsc("seq"));
+        if (Objects.equals(status, Constants.Judge.STATUS_JUDGING.getStatus())) {
+            JudgeCase running = cases.stream()
+                    .filter(item -> isRunningCase(item.getStatus()))
+                    .findFirst()
+                    .orElse(null);
+            int test = running == null ? Math.max(1, cases.size() + 1) : running.getSeq();
+            return new StatusProgress("Running on test " + test, test);
+        }
+        if (!Objects.equals(status, Constants.Judge.STATUS_ACCEPTED.getStatus())) {
+            JudgeCase failed = cases.stream()
+                    .filter(item -> isFailedCase(item.getStatus()))
+                    .findFirst()
+                    .orElse(null);
+            if (failed != null) {
+                return new StatusProgress(statusName(status) + " on test " + failed.getSeq(), failed.getSeq());
+            }
+        }
+        return new StatusProgress(statusName(status), null);
+    }
+
+    private boolean isRunningCase(Integer status) {
+        return Objects.equals(status, Constants.Judge.STATUS_PENDING.getStatus())
+                || Objects.equals(status, Constants.Judge.STATUS_COMPILING.getStatus())
+                || Objects.equals(status, Constants.Judge.STATUS_JUDGING.getStatus());
+    }
+
+    private boolean isFailedCase(Integer status) {
+        return status != null
+                && !Objects.equals(status, Constants.Judge.STATUS_ACCEPTED.getStatus())
+                && !Objects.equals(status, Constants.Judge.STATUS_CANCELLED.getStatus())
+                && !isRunningCase(status);
+    }
+
+    private String statusName(Integer status) {
+        if (Objects.equals(status, Constants.Judge.STATUS_JUDGING.getStatus())) {
+            return "Running";
+        }
+        for (Constants.Judge value : Constants.Judge.values()) {
+            if (Objects.equals(value.getStatus(), status)) {
+                String name = value.getName();
+                return name.length() < 2 ? name : name.substring(0, 1) + name.substring(1).toLowerCase();
+            }
+        }
+        return "Unknown";
+    }
+
+    private static class StatusProgress {
+        private final String text;
+        private final Integer test;
+
+        private StatusProgress(String text, Integer test) {
+            this.text = text;
+            this.test = test;
+        }
     }
 
     private List<SubTaskJudgeCaseVO> buildSubTaskDetail(List<JudgeCase> judgeCaseList, Constants.JudgeCaseMode judgeCaseMode) {

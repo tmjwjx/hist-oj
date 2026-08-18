@@ -230,6 +230,12 @@ export const m = {
   Latest_Problem: 'Latest Problem',
   Supported_Remote_Online_Judge: 'Supported Remote Online Judge',
   Statistics_Submissions_In_The_Last_Week: 'Statistics: Submissions In The Last Week',
+  Rating_Rank: 'Rating Ranking',
+  View_All: 'View All',
+  Registered_Count: 'Registered',
+  Problem_Setter: 'Problem Setter',
+  Register: 'Register',
+  Registered: 'Registered',
 
   // 表格通用列名,按钮，搜索框等
   Enter_keyword: 'Enter keyword',
@@ -295,7 +301,7 @@ export const m = {
   Submit: 'Submit',
   Online_Test:'Online Test',
   Submitting: 'Submitting',
-  Judging: 'Judging',
+  Judging: 'Running',
   Wrong_Answer: 'Wrong Answer',
   View_Contest: 'View Contest',
   Are_you_sure_you_want_to_reset_your_code: 'Are you sure you want to reset the original code? If the problem has a code template, it will be restored to the code of the original template, otherwise the code being edited will be cleared.',

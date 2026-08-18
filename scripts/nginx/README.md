@@ -101,7 +101,7 @@ Docker 容器 (hoj-frontend)
     ↓
     ↓ 内部网络
     ↓
-hist-oj 容器 (9527端口)
+    hoj-backend 容器 (6688端口)
 ```
 
 ### 端口映射
@@ -111,8 +111,7 @@ hist-oj 容器 (9527端口)
 | Nginx (HTTPS) | 443 | 对外提供 HTTPS 服务 |
 | Nginx (HTTP) | 80 | HTTP 重定向到 HTTPS |
 | hoj-frontend | 80 (容器内部) | 前端静态文件服务 |
-| hist-oj API | 9527 | 后端 API 服务 |
-| registration-backend | 8080 | 报名系统 API |
+| hoj-backend API | 6688 | Java 主后端 API 服务 |
 
 ## 重要提示
 

@@ -61,6 +61,9 @@ public class ContestScoreboardManager {
         }
 
         contestInfo.setNow(new Date());
+        if (Boolean.TRUE.equals(contestInfo.getUseRegistrationName())) {
+            contestInfo.setRankShowName("contestName");
+        }
         ContestOutsideInfoVO contestOutsideInfoVO = new ContestOutsideInfoVO();
         contestOutsideInfoVO.setContest(contestInfo);
 

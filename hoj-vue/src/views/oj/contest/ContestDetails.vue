@@ -59,7 +59,11 @@
                   class="el-icon-user-solid"
                   style="color:rgb(48, 145, 242);"
                 ></i
-                >x{{ contest.count }}
+                >{{ $t('m.Registered_Count') }}: {{ contest.count }}
+              </el-button>
+              <el-button size="small" plain>
+                <i class="el-icon-user"></i>
+                {{ $t('m.Problem_Setter') }}: {{ contest.author }}
               </el-button>
               <template v-if="contest.type == 0">
                 <el-button size="small" :type="'primary'">
@@ -156,37 +160,19 @@
           <span slot="label"
             ><i class="el-icon-s-home"></i>&nbsp;{{ $t('m.Overview') }}</span
           >
-          <el-card
-            v-if="passwordFormVisible"
-            class="password-form-card"
-            style="text-align:center;margin-bottom:15px"
-          >
-            <div slot="header">
-              <span class="panel-title" style="color: #e6a23c;"
-                ><i class="el-icon-warning">
-                  {{ $t('m.Password_Required') }}</i
-                ></span
-              >
-            </div>
-            <p class="password-form-tips">
-              {{ $t('m.To_Enter_Need_Password') }}
-            </p>
-            <el-form>
-              <el-input
-                v-model="contestPassword"
-                type="password"
-                :placeholder="$t('m.Enter_the_contest_password')"
-                @keydown.enter.native="checkPassword"
-                style="width:70%"
-              />
-              <el-button
-                type="primary"
-                @click="checkPassword"
-                style="float:right;"
-                >{{ $t('m.Enter') }}</el-button
-              >
-            </el-form>
-          </el-card>
+          <ContestRegistrationForm
+            v-if="registrationFormVisible"
+            :contest="contest"
+            :loading="btnLoading"
+            @submit="submitRegistration"
+          />
+          <ContestRegistrationInfo
+            v-if="myRegistration"
+            :contest="contest"
+            :registration="myRegistration"
+            :loading="registrationInfoLoading"
+            @refresh="loadMyRegistration"
+          />
           <el-card class="box-card">
             <Markdown 
               :isAvoidXss="contest.gid != null" 
@@ -416,10 +402,14 @@ import {
 import myMessage from '@/common/message';
 import storage from '@/common/storage';
 import Markdown from "@/components/oj/common/Markdown";
+import ContestRegistrationForm from "@/components/oj/contest/ContestRegistrationForm.vue";
+import ContestRegistrationInfo from "@/components/oj/contest/ContestRegistrationInfo.vue";
 export default {
   name: 'ContestDetails',
   components: {
-    Markdown
+    Markdown,
+    ContestRegistrationForm,
+    ContestRegistrationInfo,
   },
   data() {
     return {
@@ -430,7 +420,8 @@ export default {
       CONTEST_TYPE_REVERSE: {},
       RULE_TYPE: {},
       btnLoading: false,
-      contestPassword: '',
+      registrationInfoLoading: false,
+      myRegistration: null,
       isRating: false, // 是否为 Rating 比赛
     };
   },
@@ -450,6 +441,7 @@ export default {
     this.$store.dispatch('getContest').then((res) => {
       this.changeDomTitle({ title: res.data.data.title });
       let data = res.data.data;
+      this.loadMyRegistration(data.registered);
       // 获取比赛 Rating 信息
       this.fetchContestRatingInfo(data.id);
       let endTime = moment(data.endTime);
@@ -511,22 +503,42 @@ export default {
         return time.secondFormat(this.contest.duration);
       }
     },
-    checkPassword() {
-      if (this.contestPassword === '') {
-        myMessage.warning(this.$i18n.t('m.Enter_the_contest_password'));
-        return;
-      }
+    submitRegistration(form) {
       this.btnLoading = true;
-      api.registerContest(this.contestID + '', this.contestPassword).then(
+      const password = form.password || '';
+      const registration = { ...form };
+      delete registration.password;
+      api.registerContest(this.contestID + '', password, registration).then(
         (res) => {
           myMessage.success(this.$i18n.t('m.Register_contest_successfully'));
           this.$store.commit('contestIntoAccess', { intoAccess: true });
+          this.contest.registered = true;
+          this.contest.count = Number(this.contest.count || 0) + 1;
+          if (this.contest.auth === 2) {
+            this.$store.commit('contestSubmitAccess', { submitAccess: true });
+          }
           this.btnLoading = false;
+          this.loadMyRegistration(true);
         },
         (res) => {
           this.btnLoading = false;
         }
       );
+    },
+    async loadMyRegistration(registered = true) {
+      if (!registered) {
+        this.myRegistration = null;
+        return;
+      }
+      this.registrationInfoLoading = true;
+      try {
+        const res = await api.getMyContestRegistration(this.contestID + '');
+        this.myRegistration = res.data.data || null;
+      } catch (e) {
+        this.myRegistration = null;
+      } finally {
+        this.registrationInfoLoading = false;
+      }
     },
     tabClick(tab) {
       let name = tab.name;
@@ -608,7 +620,7 @@ export default {
       'isContestAdmin',
       'isSuperAdmin',
       'ContestRealTimePermission',
-      'passwordFormVisible',
+      'registrationFormVisible',
       'userInfo',
       'websiteConfig',
     ]),

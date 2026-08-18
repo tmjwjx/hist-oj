@@ -90,7 +90,7 @@ export const JUDGE_STATUS = {
     rgb:'#25bb9b'
   },
   '7': {
-    name: 'Judging',
+    name: 'Running',
     color: 'blue',
     type: '',
     rgb:'#2d8cf0'

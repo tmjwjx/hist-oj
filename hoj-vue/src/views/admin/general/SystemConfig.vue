@@ -101,6 +101,27 @@
     </el-card>
 
     <el-card style="margin-top:15px">
+      <div slot="header"><span class="panel-title home-title">AI 验题配置</span></div>
+      <el-alert
+        title="系统已内置完整验题提示词"
+        description="默认覆盖题面、约束、样例推演、标准程序、普通/SPJ/交互模式、全部测试点正式结果与每点 stderr，并统一使用 xhigh 思考水平；此处可继续追加学校自己的验题规则。"
+        type="info" :closable="false" show-icon style="margin-bottom:16px"
+      />
+      <el-form label-width="120px" :model="aiConfig">
+        <el-row :gutter="20">
+          <el-col :md="12" :xs="24"><el-form-item label="启用 AI"><el-switch v-model="aiConfig.enabled" /></el-form-item></el-col>
+          <el-col :md="12" :xs="24"><el-form-item label="模型"><el-input v-model="aiConfig.model" /></el-form-item></el-col>
+          <el-col :md="12" :xs="24"><el-form-item label="接口 URL"><el-input v-model="aiConfig.apiUrl" placeholder="可填写 OpenAI 兼容的 /v1 基础地址或完整地址" /></el-form-item></el-col>
+          <el-col :md="12" :xs="24"><el-form-item label="API Key"><el-input v-model="aiConfig.apiKey" type="password" show-password /></el-form-item></el-col>
+          <el-col :md="8" :xs="24"><el-form-item label="单请求超时"><el-input v-model="aiConfig.timeoutSeconds" type="number"><template slot="append">秒</template></el-input></el-form-item></el-col>
+          <el-col :md="24" :xs="24"><el-form-item label="系统提示词"><el-input v-model="aiConfig.systemPrompt" type="textarea" :rows="8" /></el-form-item></el-col>
+          <el-col :md="24" :xs="24"><el-form-item label="验题提示词"><el-input v-model="aiConfig.validationPrompt" type="textarea" :rows="10" /></el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <el-button type="primary" size="small" @click="saveAIConfig">{{ $t('m.Save') }}</el-button>
+    </el-card>
+
+    <el-card style="margin-top:15px">
       <div slot="header">
         <span class="panel-title home-title">{{
           $t('m.Home_Rotation_Chart')
@@ -365,6 +386,10 @@ export default {
       dialogVisible: false,
       disabled: false,
       carouselImgList: [],
+      aiConfig: {
+        enabled: false, apiUrl: '', apiKey: '', model: 'gpt-4o-mini', timeoutSeconds: 120,
+        systemPrompt: '', validationPrompt: ''
+      },
     };
   },
   mounted() {
@@ -386,7 +411,8 @@ export default {
       .then((res) => {
         this.websiteConfig = res.data.data;
       })
-      .catch(() => {}),
+        .catch(() => {}),
+      api.admin_getProblemAIConfig().then((res) => { this.aiConfig = Object.assign(this.aiConfig, res.data.data || {}) }).catch(() => {}),
       api
         .admin_getDataBaseConfig()
         .then((res) => {
@@ -468,6 +494,11 @@ export default {
           myMessage.success(this.$i18n.t('m.Update_Successfully'));
         })
         .catch(() => {});
+    },
+    saveAIConfig() {
+      api.admin_saveProblemAIConfig(this.aiConfig).then(() => {
+        myMessage.success(this.$i18n.t('m.Update_Successfully'));
+      });
     },
   },
 };

@@ -135,6 +135,7 @@ CREATE TABLE `contest` (
   `author` varchar(255) DEFAULT NULL COMMENT '比赛创建者的用户名',
   `title` varchar(255) DEFAULT NULL COMMENT '比赛标题',
   `type` int(11) NOT NULL DEFAULT '0' COMMENT '0为acm赛制，1为比分赛制',
+  `is_rating` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否计入站内 Rating',
   `description` longtext COMMENT '比赛说明',
   `source` int(11) DEFAULT '0' COMMENT '比赛来源，原创为0，克隆赛为比赛id',
   `auth` int(11) NOT NULL COMMENT '0为公开赛，1为私有赛（访问有密码），2为保护赛（提交有密码）',
@@ -159,6 +160,10 @@ CREATE TABLE `contest` (
   `award_type` int(11) DEFAULT '0' COMMENT '奖项类型：0(不设置),1(设置占比),2(设置人数)',
   `award_config` text DEFAULT NULL COMMENT '奖项配置 json',
   `allow_end_submit` tinyint(1) DEFAULT '0' COMMENT '是否允许比赛结束后进行提交',
+  `open_registration` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否要求填写比赛报名信息',
+  `registration_fields` text COMMENT '报名字段配置 JSON',
+  `use_registration_name` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否使用报名信息组合比赛内名称',
+  `registration_name_fields` text COMMENT '比赛内名称组合字段 JSON',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`,`uid`),
@@ -288,6 +293,13 @@ CREATE TABLE `contest_register` (
   `cid` bigint(20) unsigned NOT NULL COMMENT '比赛id',
   `uid` varchar(32) NOT NULL COMMENT '用户id',
   `status` int(11) DEFAULT '0' COMMENT '默认为0表示正常，1为失效。',
+  `name` varchar(100) DEFAULT NULL COMMENT '姓名',
+  `class` varchar(100) DEFAULT NULL COMMENT '班级',
+  `college` varchar(100) DEFAULT NULL COMMENT '学院',
+  `student_id` varchar(50) DEFAULT NULL COMMENT '学号',
+  `gender` varchar(10) DEFAULT NULL COMMENT '性别',
+  `qq` varchar(20) DEFAULT NULL COMMENT 'QQ',
+  `phone` varchar(30) DEFAULT NULL COMMENT '电话号码',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`,`cid`,`uid`),
@@ -296,6 +308,43 @@ CREATE TABLE `contest_register` (
   CONSTRAINT `contest_register_ibfk_1` FOREIGN KEY (`cid`) REFERENCES `contest` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `contest_register_ibfk_2` FOREIGN KEY (`uid`) REFERENCES `user_info` (`uuid`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `contest_question` */
+
+DROP TABLE IF EXISTS `contest_question_reply`;
+DROP TABLE IF EXISTS `contest_question`;
+
+CREATE TABLE `contest_question` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `contest_id` bigint(20) unsigned NOT NULL,
+  `questioner_id` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+  `title` varchar(200) NOT NULL,
+  `content` text NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `priority` int(11) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_contest_question_contest` (`contest_id`),
+  KEY `idx_contest_question_user` (`questioner_id`),
+  KEY `idx_contest_question_status` (`status`),
+  CONSTRAINT `fk_contest_question_contest` FOREIGN KEY (`contest_id`) REFERENCES `contest` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_contest_question_user` FOREIGN KEY (`questioner_id`) REFERENCES `user_info` (`uuid`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `contest_question_reply` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `sender_id` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+  `content` text NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_contest_question_reply_question` (`question_id`),
+  KEY `idx_contest_question_reply_sender` (`sender_id`),
+  KEY `idx_contest_question_reply_time` (`created_at`),
+  CONSTRAINT `fk_contest_question_reply_question` FOREIGN KEY (`question_id`) REFERENCES `contest_question` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_contest_question_reply_sender` FOREIGN KEY (`sender_id`) REFERENCES `user_info` (`uuid`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 /*Table structure for table `contest_score` */
 
@@ -438,6 +487,8 @@ CREATE TABLE `judge` (
   `vjudge_username` varchar(255) NULL  COMMENT 'vjudge判题在其它oj的提交用户名',
   `vjudge_password` varchar(255) NULL  COMMENT 'vjudge判题在其它oj的提交账号密码',
   `is_manual` tinyint(1) DEFAULT '0' COMMENT '是否为人工评测',
+  `is_problem_verification` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否为标准程序验题提交',
+  `submission_type` varchar(32) NOT NULL DEFAULT 'user_submission' COMMENT '评测来源',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`submit_id`,`pid`,`display_pid`,`uid`,`cid`),
@@ -470,6 +521,7 @@ CREATE TABLE `judge_case` (
   `input_data` longtext COMMENT '样例输入，比赛不可看',
   `output_data` longtext COMMENT '样例输出，比赛不可看',
   `user_output` longtext COMMENT '用户样例输出，比赛不可看',
+  `stderr` longtext COMMENT '该测试点用户程序与判题程序的标准错误流',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`,`submit_id`,`uid`,`pid`),
@@ -593,6 +645,30 @@ CREATE TABLE `problem_case` (
   KEY `pid` (`pid`),
   CONSTRAINT `problem_case_ibfk_1` FOREIGN KEY (`pid`) REFERENCES `problem` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+
+/*Table structure for table `problem_verification` */
+
+DROP TABLE IF EXISTS `problem_verification`;
+
+CREATE TABLE `problem_verification` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `pid` bigint(20) unsigned NOT NULL,
+  `case_version` varchar(40) NOT NULL,
+  `judge_mode` varchar(32) NOT NULL DEFAULT 'default',
+  `sync_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0待同步,1同步成功,2同步失败',
+  `sync_message` varchar(1000) DEFAULT NULL,
+  `verification_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0待验题,1判题中,2通过,3失败',
+  `submit_id` bigint(20) unsigned DEFAULT NULL,
+  `verified_uid` varchar(32) DEFAULT NULL,
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_problem_verification_pid` (`pid`),
+  KEY `idx_problem_verification_submit_id` (`submit_id`),
+  CONSTRAINT `problem_verification_ibfk_1` FOREIGN KEY (`pid`) REFERENCES `problem` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `problem_verification_ibfk_2` FOREIGN KEY (`submit_id`) REFERENCES `judge` (`submit_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 /*Table structure for table `problem_language` */
@@ -792,6 +868,7 @@ CREATE TABLE `user_record` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `uid` varchar(32) NOT NULL COMMENT '用户id',
   `rating` int(11) DEFAULT NULL COMMENT 'cf得分',
+  `hist_rating` int(11) DEFAULT NULL COMMENT '站内比赛 Rating',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`,`uid`),
@@ -997,6 +1074,303 @@ CREATE TABLE `training_register` (
   CONSTRAINT `training_register_ibfk_1` FOREIGN KEY (`tid`) REFERENCES `training` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `training_register_ibfk_2` FOREIGN KEY (`uid`) REFERENCES `user_info` (`uuid`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `training_participant` */
+
+DROP TABLE IF EXISTS `training_participant`;
+
+CREATE TABLE `training_participant` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `training_id` bigint unsigned NOT NULL,
+  `uid` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'not_started',
+  `join_time` datetime DEFAULT NULL,
+  `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_training_participant` (`training_id`,`uid`),
+  KEY `idx_training_participant_uid` (`uid`),
+  CONSTRAINT `fk_training_participant_training` FOREIGN KEY (`training_id`) REFERENCES `training` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_training_participant_user` FOREIGN KEY (`uid`) REFERENCES `user_info` (`uuid`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*Table structure for table `learning_map` */
+
+DROP TABLE IF EXISTS `learning_map_permission`;
+DROP TABLE IF EXISTS `user_learning_progress`;
+DROP TABLE IF EXISTS `learning_map_edge`;
+DROP TABLE IF EXISTS `learning_map_node`;
+DROP TABLE IF EXISTS `learning_map`;
+
+CREATE TABLE `learning_map` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(120) NOT NULL,
+  `description` text,
+  `status` varchar(20) NOT NULL DEFAULT 'draft',
+  `access_mode` varchar(20) NOT NULL DEFAULT 'all_open',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_status` (`status`), KEY `idx_access_mode` (`access_mode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `learning_map_node` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `map_id` bigint unsigned NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `title` varchar(160) NOT NULL,
+  `description` text,
+  `difficulty` varchar(20) DEFAULT 'beginner',
+  `tags` text,
+  `x` double NOT NULL DEFAULT 0,
+  `y` double NOT NULL DEFAULT 0,
+  `level` int DEFAULT 0,
+  `region` varchar(100) DEFAULT NULL,
+  `published` tinyint(1) NOT NULL DEFAULT 1,
+  `knowledge_content` longtext,
+  `problem_id` bigint unsigned DEFAULT NULL,
+  `problem_display_id` varchar(80) DEFAULT NULL,
+  `metadata` longtext,
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_map_id` (`map_id`), KEY `idx_type` (`type`),
+  KEY `idx_problem_id` (`problem_id`), KEY `idx_problem_display_id` (`problem_display_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `learning_map_edge` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `map_id` bigint unsigned NOT NULL,
+  `source_node_id` bigint unsigned NOT NULL,
+  `target_node_id` bigint unsigned NOT NULL,
+  `type` varchar(20) NOT NULL DEFAULT 'prerequisite',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_map_id` (`map_id`), KEY `idx_source_node_id` (`source_node_id`),
+  KEY `idx_target_node_id` (`target_node_id`), KEY `idx_edge_type` (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `user_learning_progress` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(32) NOT NULL,
+  `map_id` bigint unsigned NOT NULL,
+  `node_id` bigint unsigned NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'locked',
+  `completed_at` datetime DEFAULT NULL,
+  `mastered_at` datetime DEFAULT NULL,
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_user_map_node` (`user_id`,`map_id`,`node_id`),
+  KEY `idx_user_id` (`user_id`), KEY `idx_map_id` (`map_id`), KEY `idx_node_id` (`node_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `learning_map_permission` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `map_id` bigint unsigned NOT NULL,
+  `user_id` varchar(32) NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_map_user` (`map_id`,`user_id`),
+  KEY `idx_map_id` (`map_id`), KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*Table structure for Java Rating */
+
+CREATE TABLE `rating_history` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `uid` varchar(32) NOT NULL,
+  `contest_id` bigint unsigned DEFAULT NULL,
+  `related_contest_id` bigint unsigned DEFAULT NULL,
+  `old_rating` int DEFAULT NULL,
+  `new_rating` int NOT NULL,
+  `rating_change` int NOT NULL,
+  `rank` int NOT NULL DEFAULT 0,
+  `participants` int NOT NULL DEFAULT 0,
+  `reason` varchar(255) NOT NULL DEFAULT '',
+  `is_manual` tinyint(1) NOT NULL DEFAULT 0,
+  `is_skip` tinyint(1) NOT NULL DEFAULT 0,
+  `skip_reason` varchar(500) NOT NULL DEFAULT '',
+  `operator_uid` varchar(32) NOT NULL DEFAULT '',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_rating_uid_contest` (`uid`,`contest_id`),
+  KEY `idx_rating_uid` (`uid`), KEY `idx_rating_contest` (`contest_id`),
+  KEY `idx_rating_related_contest` (`related_contest_id`), KEY `idx_rating_manual` (`is_manual`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `contest_rating_status` (
+  `contest_id` bigint unsigned NOT NULL,
+  `is_rated` tinyint(1) NOT NULL DEFAULT 0,
+  `rating_calculated` tinyint(1) NOT NULL DEFAULT 0,
+  `calculated_at` datetime DEFAULT NULL,
+  `skip_count` int NOT NULL DEFAULT 0,
+  `has_pending_skip` tinyint(1) NOT NULL DEFAULT 0,
+  `recalculate_status` varchar(20) NOT NULL DEFAULT 'none',
+  `last_recalculate_at` datetime DEFAULT NULL,
+  `recalculate_lock` tinyint(1) NOT NULL DEFAULT 0,
+  `skip_data_changed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`contest_id`), KEY `idx_rating_calculated` (`rating_calculated`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `contest_skip_users` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `contest_id` bigint unsigned NOT NULL,
+  `uid` varchar(32) NOT NULL,
+  `username` varchar(100) NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `operator_uid` varchar(32) NOT NULL,
+  `operator_username` varchar(100) DEFAULT NULL,
+  `is_applied` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_contest_skip_uid` (`contest_id`,`uid`),
+  KEY `idx_contest_skip_uid` (`uid`), KEY `idx_contest_skip_applied` (`contest_id`,`is_applied`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `rating_recalculate_queue` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `contest_id` bigint unsigned NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `total_contests` int NOT NULL DEFAULT 0,
+  `processed_contests` int NOT NULL DEFAULT 0,
+  `error_message` text,
+  `created_by` varchar(32) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `started_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), KEY `idx_rating_queue_status` (`status`), KEY `idx_rating_queue_contest` (`contest_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `rating_operation_logs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `operator_uid` varchar(32) NOT NULL,
+  `operator_username` varchar(100) DEFAULT NULL,
+  `operation_type` varchar(50) NOT NULL,
+  `target_type` varchar(50) DEFAULT NULL,
+  `target_id` varchar(100) DEFAULT NULL,
+  `operation_detail` text,
+  `ip` varchar(50) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_rating_log_operator` (`operator_uid`),
+  KEY `idx_rating_log_type` (`operation_type`), KEY `idx_rating_log_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*Table structure for table `battle_room` */
+
+DROP TABLE IF EXISTS `battle_room`;
+
+CREATE TABLE `battle_room` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `room_id` varchar(10) NOT NULL,
+  `host_id` varchar(64) NOT NULL,
+  `host_username` varchar(255) NOT NULL,
+  `challenger_id` varchar(64) DEFAULT NULL,
+  `challenger_username` varchar(255) DEFAULT NULL,
+  `challenger_ready` tinyint(1) NOT NULL DEFAULT 0,
+  `problem_id` varchar(255) DEFAULT NULL,
+  `status` tinyint NOT NULL DEFAULT 0,
+  `winner_id` varchar(64) DEFAULT NULL,
+  `end_reason` varchar(20) DEFAULT NULL,
+  `start_time` datetime DEFAULT NULL,
+  `end_time` datetime DEFAULT NULL,
+  `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_battle_room_id` (`room_id`),
+  KEY `idx_battle_host` (`host_id`),
+  KEY `idx_battle_challenger` (`challenger_id`),
+  KEY `idx_battle_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*Table structure for table `battle_record` */
+
+DROP TABLE IF EXISTS `battle_record`;
+
+CREATE TABLE `battle_record` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `battle_pair_id` varchar(64) NOT NULL,
+  `room_id` varchar(10) NOT NULL,
+  `user_id` varchar(64) NOT NULL,
+  `username` varchar(255) NOT NULL,
+  `opponent_id` varchar(64) NOT NULL,
+  `opponent_username` varchar(255) NOT NULL,
+  `opponent_rating` int DEFAULT NULL,
+  `problem_id` varchar(255) NOT NULL,
+  `problem_title` varchar(255) NOT NULL,
+  `is_winner` tinyint(1) NOT NULL,
+  `end_reason` varchar(20) NOT NULL,
+  `submit_count` int NOT NULL DEFAULT 0,
+  `battle_time` int DEFAULT NULL,
+  `is_excluded` tinyint(1) NOT NULL DEFAULT 0,
+  `gmt_create` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_battle_pair` (`battle_pair_id`),
+  KEY `idx_battle_record_user` (`user_id`),
+  KEY `idx_battle_record_excluded` (`is_excluded`),
+  KEY `idx_battle_record_created` (`gmt_create`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*Table structure for table `plagiarism_check_config` */
+
+DROP TABLE IF EXISTS `plagiarism_result`;
+DROP TABLE IF EXISTS `plagiarism_check`;
+DROP TABLE IF EXISTS `plagiarism_check_config`;
+
+CREATE TABLE `plagiarism_check_config` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `cid` bigint unsigned NOT NULL,
+  `pid` bigint unsigned NOT NULL,
+  `cpid` bigint unsigned NOT NULL,
+  `threshold` int NOT NULL DEFAULT 50,
+  `created_by` varchar(32) DEFAULT NULL,
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_plagiarism_cid_pid` (`cid`,`pid`),
+  KEY `idx_plagiarism_config_cid` (`cid`), KEY `idx_plagiarism_config_cpid` (`cpid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `plagiarism_check` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `cid` bigint unsigned NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `total_pairs` int NOT NULL DEFAULT 0,
+  `checked_pairs` int NOT NULL DEFAULT 0,
+  `total_submissions` int NOT NULL DEFAULT 0,
+  `progress` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `error_message` varchar(500) DEFAULT NULL,
+  `started_by` varchar(32) DEFAULT NULL,
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `started_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), KEY `idx_plagiarism_check_cid` (`cid`), KEY `idx_plagiarism_check_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `plagiarism_result` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `check_id` bigint unsigned NOT NULL,
+  `cid` bigint unsigned NOT NULL,
+  `cpid` bigint unsigned NOT NULL,
+  `pid` bigint unsigned NOT NULL,
+  `display_id` varchar(255) DEFAULT NULL,
+  `problem_title` varchar(255) DEFAULT NULL,
+  `submit_id_1` bigint unsigned NOT NULL,
+  `submit_id_2` bigint unsigned NOT NULL,
+  `contest_record_id_1` bigint unsigned DEFAULT NULL,
+  `contest_record_id_2` bigint unsigned DEFAULT NULL,
+  `uid_1` varchar(32) NOT NULL,
+  `uid_2` varchar(32) NOT NULL,
+  `username_1` varchar(255) DEFAULT NULL,
+  `username_2` varchar(255) DEFAULT NULL,
+  `language` varchar(50) DEFAULT NULL,
+  `similarity_1_to_2` int DEFAULT 0,
+  `similarity_2_to_1` int DEFAULT 0,
+  `max_similarity` int DEFAULT 0,
+  `is_over_threshold` tinyint(1) DEFAULT 0,
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_plagiarism_result_check` (`check_id`),
+  KEY `idx_plagiarism_result_max` (`max_similarity`), KEY `idx_plagiarism_result_threshold` (`is_over_threshold`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 DROP TABLE IF EXISTS `mapping_training_category`;
@@ -1225,3 +1599,35 @@ insert  into `user_info`(`uuid`,`username`,`password`,`gmt_create`,`gmt_modified
 insert  into `user_record`(`uid`,`gmt_create`,`gmt_modified`) values('1',NOW(),NOW());
 
 insert  into `user_role`(`uid`,`role_id`,`gmt_create`,`gmt_modified`) values('1',00000000000000001000,NOW(),NOW());
+
+-- Java 主后端课堂模块（完整增量字段见 migrations/031_classroom_java.sql）。
+-- 保证全新安装执行单一 hoj.sql 时也能创建课堂运行所需表。
+CREATE TABLE IF NOT EXISTS `classroom_user_role` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`uid` varchar(32) NOT NULL,`role` varchar(20) NOT NULL,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_classroom_user_role` (`uid`,`role`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`class_name` varchar(100) NOT NULL,`class_belong` varchar(100) NOT NULL,`class_code` varchar(8) NOT NULL,`teacher_id` varchar(32) NOT NULL,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_class_code` (`class_code`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_teacher` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`teacher_id` varchar(32) NOT NULL,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_classroom_teacher` (`classroom_id`,`teacher_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_student` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`uid` varchar(32) NOT NULL,`real_name` varchar(50) NOT NULL,`gender` varchar(10),`student_class` varchar(100),`student_no` varchar(50),`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_classroom_user` (`classroom_id`,`uid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_role_request` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`uid` varchar(32) NOT NULL,`role` varchar(20) NOT NULL,`reason` text,`status` tinyint NOT NULL DEFAULT 0,`reviewer_uid` varchar(32),`review_time` datetime,`review_note` text,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_checkin` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`checkin_code` varchar(20) NOT NULL,`checkin_name` varchar(100),`checkin_type` varchar(20) NOT NULL DEFAULT 'code',`qrcode_token` varchar(255),`qrcode_expires_at` datetime,`qrcode_refresh_interval` int NOT NULL DEFAULT 15,`start_time` datetime NOT NULL,`end_time` datetime,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_checkin_record` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`checkin_id` bigint unsigned NOT NULL,`uid` varchar(32) NOT NULL,`status` varchar(20) NOT NULL DEFAULT 'present',`checkin_time` datetime,`remark` varchar(200),`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_checkin_student` (`checkin_id`,`uid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `question_bank` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`title` varchar(200) NOT NULL,`type` varchar(20) NOT NULL,`content` text NOT NULL,`options` json,`answer` text,`analysis` text,`tags` json,`course` varchar(100),`difficulty` int NOT NULL DEFAULT 1,`score` int NOT NULL DEFAULT 2,`creator_id` varchar(32) NOT NULL,`is_shared` tinyint NOT NULL DEFAULT 0,`problem_id` varchar(50),`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_homework` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`title` varchar(200) NOT NULL,`description` text,`start_time` datetime NOT NULL,`end_time` datetime NOT NULL,`show_score` tinyint NOT NULL DEFAULT 1,`show_homework` tinyint NOT NULL DEFAULT 0,`show_answer` tinyint NOT NULL DEFAULT 0,`show_rank` tinyint NOT NULL DEFAULT 0,`status` tinyint NOT NULL DEFAULT 1,`is_exam_mode` tinyint NOT NULL DEFAULT 0,`exam_duration` int NOT NULL DEFAULT 60,`allow_submit_after_minutes` int NOT NULL DEFAULT 0,`disable_copy_paste` tinyint NOT NULL DEFAULT 1,`require_fullscreen` tinyint NOT NULL DEFAULT 1,`disallow_tab_switch` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `homework_question` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`homework_id` bigint unsigned NOT NULL,`question_id` bigint unsigned,`problem_id` varchar(50),`question_order` int NOT NULL,`score` int NOT NULL DEFAULT 2,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_homework_order` (`homework_id`,`question_order`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `homework_submit` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`homework_id` bigint unsigned NOT NULL,`question_id` bigint unsigned,`problem_id` varchar(50),`uid` varchar(32) NOT NULL,`answer` text,`attachment` varchar(1000),`submit_id` bigint unsigned,`score` decimal(5,2) NOT NULL DEFAULT 0,`is_scored` tinyint NOT NULL DEFAULT 0,`is_officially_submitted` tinyint NOT NULL DEFAULT 0,`judge_result` varchar(50),`exam_start_time` datetime,`exam_end_time` datetime,`is_forced_submit` tinyint NOT NULL DEFAULT 0,`tab_switch_count` int NOT NULL DEFAULT 0,`fullscreen_exit_count` int NOT NULL DEFAULT 0,`copy_paste_attempt_count` int NOT NULL DEFAULT 0,`device_info` varchar(500),`browser_info` varchar(500),`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_exam_paper` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`title` varchar(255) NOT NULL,`creator_id` varchar(32) NOT NULL,`is_shared` tinyint NOT NULL DEFAULT 0,`is_public` tinyint NOT NULL DEFAULT 0,`total_score` int NOT NULL DEFAULT 0,`question_count` int NOT NULL DEFAULT 0,`description` text,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_exam_paper_question` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`exam_paper_id` bigint unsigned NOT NULL,`question_id` bigint unsigned,`problem_id` varchar(64),`question_order` int NOT NULL,`question_type` varchar(50) NOT NULL,`score` int NOT NULL DEFAULT 0,PRIMARY KEY (`id`),UNIQUE KEY `uk_paper_question_order` (`exam_paper_id`,`question_order`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_folder` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`folder_name` varchar(100) NOT NULL,`parent_id` bigint unsigned NOT NULL DEFAULT 0,`creator_id` varchar(32) NOT NULL,`sort_order` int NOT NULL DEFAULT 0,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_material` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL DEFAULT 0,`folder_id` bigint unsigned NOT NULL,`file_name` varchar(255) NOT NULL,`file_type` varchar(20) NOT NULL,`file_path` varchar(500) NOT NULL,`file_size` bigint unsigned,`creator_id` varchar(32) NOT NULL,`is_shared` tinyint NOT NULL DEFAULT 0,`download_count` int NOT NULL DEFAULT 0,`status` tinyint NOT NULL DEFAULT 1,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_material_permission` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`material_id` bigint unsigned NOT NULL,`student_uid` varchar(32) NOT NULL,`can_preview` tinyint NOT NULL DEFAULT 0,`can_download` tinyint NOT NULL DEFAULT 0,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_material_student` (`material_id`,`student_uid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_random_pick` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`picked_uid` varchar(32) NOT NULL,`pick_time` datetime DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `classroom_message` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`classroom_id` bigint unsigned NOT NULL,`sender_id` varchar(32) NOT NULL,`content` text,`image_url` varchar(500),`msg_type` varchar(20) NOT NULL DEFAULT 'text',`create_time` datetime DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `student_question_order` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`homework_id` bigint unsigned NOT NULL,`uid` varchar(32) NOT NULL,`order_mapping` text NOT NULL,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,`update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_order_homework_uid` (`homework_id`,`uid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `exam_violation_log` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`homework_id` bigint unsigned NOT NULL,`uid` varchar(32) NOT NULL,`violation_type` varchar(50) NOT NULL,`description` text,`create_time` datetime DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `problem_verification_draft` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`pid` bigint unsigned NOT NULL,`uid` varchar(32) NOT NULL,`language` varchar(40) NOT NULL,`code` mediumtext NOT NULL,`case_version` varchar(40),`gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,`gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_verification_draft_user_problem` (`pid`,`uid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE `problem_verification` ADD COLUMN IF NOT EXISTS `sample_verified` tinyint(1) NOT NULL DEFAULT 0;
+ALTER TABLE `judge` ADD COLUMN IF NOT EXISTS `is_problem_verification` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否为标准程序验题提交';
+ALTER TABLE `judge` ADD COLUMN IF NOT EXISTS `submission_type` varchar(32) NOT NULL DEFAULT 'user_submission' COMMENT '评测来源';
+UPDATE `judge` SET `submission_type` = 'creator_validation'
+ WHERE COALESCE(`is_problem_verification`, 0) = 1
+   AND (`submission_type` IS NULL OR `submission_type` = 'user_submission');
+CREATE TABLE IF NOT EXISTS `problem_ai_config` (`id` bigint unsigned NOT NULL,`enabled` tinyint(1) NOT NULL DEFAULT 0,`api_url` varchar(500) NOT NULL,`api_key` varchar(500),`model` varchar(100),`timeout_seconds` int NOT NULL DEFAULT 120,`system_prompt` text,`validation_prompt` text,`gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,`gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `problem_ai_record` (`id` bigint unsigned NOT NULL AUTO_INCREMENT,`pid` bigint unsigned NOT NULL,`session_id` varchar(64) NOT NULL,`uid` varchar(32) NOT NULL,`question` text NOT NULL,`response` mediumtext,`status` varchar(20) NOT NULL DEFAULT 'running',`duration_ms` int,`error_message` varchar(1000),`gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,`gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),KEY `idx_problem_ai_record_pid` (`pid`,`gmt_create`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

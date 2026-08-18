@@ -48,7 +48,7 @@ public class GroupProblemController {
     }
 
     @PostMapping("/problem")
-    public CommonResult<Void> addProblem(@RequestBody ProblemDTO problemDto) {
+    public CommonResult<Long> addProblem(@RequestBody ProblemDTO problemDto) {
         return groupProblemService.addProblem(problemDto);
     }
 
