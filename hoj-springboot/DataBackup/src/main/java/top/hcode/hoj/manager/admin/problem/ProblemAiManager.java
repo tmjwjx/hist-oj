@@ -124,9 +124,8 @@ public class ProblemAiManager {
         recordService.save(record);
         long started = System.currentTimeMillis();
         try {
-            int caseCount = problemCases(problem.getId()).size();
-            String prompt = promptFactory.standardProgramPrompt(config, problem, dto.getLanguage(), caseCount);
-            String content = request(config, problem, prompt, session, record.getId(), false);
+            String prompt = promptFactory.standardProgramPrompt(config, problem, dto.getLanguage(), 0);
+            String content = request(config, problem, prompt, session, record.getId(), false, true);
             ProblemAiGeneratedProgramVO program = parseProgram(content, dto.getLanguage()).setRecordId(record.getId());
             record.setResponse(JSONUtil.toJsonStr(program)).setStatus("success")
                     .setDurationMs((int) (System.currentTimeMillis() - started));
@@ -142,8 +141,16 @@ public class ProblemAiManager {
 
     private String request(ProblemAiConfig config, Problem problem, String prompt,
                            String sessionId, Long currentRecordId, boolean includeHistory) throws Exception {
+        return request(config, problem, prompt, sessionId, currentRecordId, includeHistory, false);
+    }
+
+    private String request(ProblemAiConfig config, Problem problem, String prompt,
+                           String sessionId, Long currentRecordId, boolean includeHistory,
+                           boolean generation) throws Exception {
         List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(message("system", promptFactory.systemPrompt(config.getSystemPrompt())));
+        messages.add(message("system", generation
+                ? promptFactory.programSystemPrompt(config.getSystemPrompt())
+                : promptFactory.systemPrompt(config.getSystemPrompt())));
         if (includeHistory) {
             List<ProblemAiRecord> history = recordService.list(new QueryWrapper<ProblemAiRecord>()
                     .eq("pid", problem.getId()).eq("session_id", sessionId).eq("status", "success")

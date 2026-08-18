@@ -43,6 +43,13 @@ public class ProblemAiPromptFactory {
         return appendCustom(defaultSystemPrompt(), custom, defaultSystemPrompt());
     }
 
+    public String programSystemPrompt(String custom) {
+        String builtIn = "你是 HistOJ 的 ACM/OI 标准程序生成器。只根据题目定义生成可提交源码，"
+                + "先在内部检查算法、复杂度、边界、溢出和语言兼容性，再严格返回一个 JSON 对象，"
+                + "字段为 language、code、algorithm、warnings；不要返回 Markdown 或额外解释。";
+        return appendCustom(builtIn, custom, defaultSystemPrompt());
+    }
+
     public String validationPrompt(ProblemAiConfig config, Problem problem, List<ProblemCase> cases,
                                    ProblemAiValidateDTO input,
                                    ProblemAiValidationContext.Snapshot snapshot) {
@@ -66,8 +73,8 @@ public class ProblemAiPromptFactory {
                 + "严格只返回 JSON，不要使用 Markdown 代码块："
                 + "{\"language\":\"指定语言\",\"code\":\"完整源码\","
                 + "\"algorithm\":\"算法、正确性与复杂度摘要\",\"warnings\":\"仍需人工注意的事项，没有则为空\"}。\n"
-                + problemOverview(problem, caseCount) + "\n指定语言：" + safe(language);
-        return appendCustom(prompt, config.getValidationPrompt(), defaultValidationPrompt());
+                + programOverview(problem) + "\n指定语言：" + safe(language);
+        return prompt;
     }
 
     public String testPointPrompt(ProblemAiConfig config, Problem problem, ProblemAiValidateDTO input,
@@ -136,6 +143,24 @@ public class ProblemAiPromptFactory {
         if (!"default".equals(p.getJudgeMode())) {
             text.append("\n判题程序语言：").append(safe(p.getSpjLanguage()))
                     .append("\n判题程序源码：\n").append(limit(p.getSpjCode(), 12000));
+        }
+        return text.toString();
+    }
+
+    private String programOverview(Problem p) {
+        StringBuilder text = new StringBuilder("题目定义：")
+                .append("\n标题：").append(safe(p.getTitle()))
+                .append("\n类型：").append(p.getType())
+                .append("\n判题模式：").append(safe(p.getJudgeMode()))
+                .append("\n时间限制(ms)：").append(p.getTimeLimit())
+                .append("\n内存限制(MB)：").append(p.getMemoryLimit())
+                .append("\n题面：").append(limit(p.getDescription(), 8000))
+                .append("\n输入说明：").append(limit(p.getInput(), 4000))
+                .append("\n输出说明：").append(limit(p.getOutput(), 4000))
+                .append("\n样例：").append(limit(p.getExamples(), 6000));
+        if (!"default".equals(p.getJudgeMode())) {
+            text.append("\n判题程序语言：").append(safe(p.getSpjLanguage()))
+                    .append("\n判题程序源码：\n").append(limit(p.getSpjCode(), 8000));
         }
         return text.toString();
     }

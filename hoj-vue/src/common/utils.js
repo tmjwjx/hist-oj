@@ -123,6 +123,28 @@ function getLanguages (all=true) {
   })
 }
 
+function decodeExampleExplanation(value) {
+  return String(value || "").replace(
+    /&(lt|gt|amp|quot|apos);/g,
+    (entity, name) => ({
+      lt: "<",
+      gt: ">",
+      amp: "&",
+      quot: '"',
+      apos: "'"
+    }[name] || entity)
+  );
+}
+
+function encodeExampleExplanation(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 function stringToExamples(value){
   if (!value) return [];
   // Keep compatibility with legacy examples while accepting an optional
@@ -132,7 +154,11 @@ function stringToExamples(value){
   let objList = []
   let tmp;
   while(tmp=re.exec(value)){
-    objList.push({input:tmp[1],output:tmp[2],explanation:tmp[3] || ""})
+    objList.push({
+      input: tmp[1],
+      output: tmp[2],
+      explanation: decodeExampleExplanation(tmp[3])
+    })
   }
   return objList
 }
@@ -145,7 +171,7 @@ function examplesToString(objList){
   for(let obj of objList){
     result+= "<input>"+obj.input+"</input><output>"+obj.output+"</output>"
     if (obj.explanation && obj.explanation.trim()) {
-      result += "<explanation>" + obj.explanation + "</explanation>"
+      result += "<explanation>" + encodeExampleExplanation(obj.explanation) + "</explanation>"
     }
   }
   return result

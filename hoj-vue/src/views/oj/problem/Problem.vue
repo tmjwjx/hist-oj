@@ -285,7 +285,7 @@
                         <p class="title">样例解释 {{ index + 1 }}</p>
                         <Markdown
                           class="md-content"
-                          :isAvoidXss="problemData.problem.gid != null"
+                          :isAvoidXss="true"
                           :content="example.explanation">
                         </Markdown>
                       </div>
@@ -1259,7 +1259,14 @@ export default {
       try {
         let headerHeight = document.getElementById("header").offsetHeight;
         let headerWidth = document.getElementById("header").offsetWidth;
-        let totalHeight = window.innerHeight;
+        // The public shell is rendered at 80% desktop zoom. Measurements from
+        // window.innerHeight are in the unzoomed viewport, so convert them to
+        // the shell's coordinate space before sizing the split panes.
+        const publicShell = document.querySelector(".public-shell");
+        const shellZoom = publicShell
+          ? parseFloat(window.getComputedStyle(publicShell).zoom) || 1
+          : 1;
+        let totalHeight = window.innerHeight / shellZoom;
 
         let left = document.getElementById(
             "problem-left" + "-" + this.$route.name
@@ -2271,6 +2278,11 @@ a {
   .problem-body {
     margin-left: -2% ;
     margin-right: -2%;
+    height: calc(125vh - 20px);
+    min-height: calc(125vh - 20px);
+  }
+  #problem-main {
+    height: 100%;
   }
   .js-left {
     height: 730px !important;

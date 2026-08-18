@@ -229,8 +229,19 @@ export default {
       catch (e) { return { overall: 'WARN', summary: response, steps: [], issues: [], sampleResults: [] } }
     },
     errorMessage(error) {
-      return (error && error.data && (error.data.msg || error.data.message))
-        || (error && error.message)
+      const response = error && error.response
+      const status = Number((response && response.status) || (error && error.status) || 0)
+      const responseData = response && response.data
+      const backendMessage = error && error.data && (error.data.msg || error.data.message)
+      const responseMessage = responseData && (responseData.msg || responseData.message)
+      if (status === 524) return 'AI 上游网关生成超时（HTTP 524），请稍后重试或检查管理员配置的 AI 直连地址'
+      if (status === 502 || status === 503 || status === 504) {
+        return `AI 上游服务暂时不可用（HTTP ${status}），请稍后重试`
+      }
+      if (status === 408 || /timed?\s*out|timeout|超时/i.test((error && error.message) || '')) {
+        return 'AI 服务连接或生成超时，请稍后重试'
+      }
+      return backendMessage || responseMessage || (error && error.message)
         || 'AI 验题失败，请检查判题机和管理员 AI 配置'
     },
     hasProblems(result) {

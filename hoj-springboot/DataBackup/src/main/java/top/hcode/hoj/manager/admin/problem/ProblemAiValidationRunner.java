@@ -28,53 +28,70 @@ public class ProblemAiValidationRunner {
     public String run(ProblemAiConfig config, Problem problem, List<ProblemCase> cases,
                       ProblemAiValidateDTO input) throws Exception {
         ProblemAiValidationContext.Snapshot snapshot = contextService.load(input);
-        CompletableFuture<String> overview = CompletableFuture.supplyAsync(() -> complete(config,
-                promptFactory.validationPrompt(config, problem, cases, input, snapshot)), AI_BATCH_POOL);
-
+        CompletionService<Object> completions = new ExecutorCompletionService<>(AI_BATCH_POOL);
+        Future<Object> overview = completions.submit((Callable<Object>) () -> complete(config,
+                promptFactory.validationPrompt(config, problem, cases, input, snapshot)));
         Map<Integer, JSONObject> aiResults = new HashMap<>();
         List<ProblemAiTestPoint> points = snapshot.getPoints();
-        List<CompletableFuture<JSONObject>> batches = new ArrayList<>();
+        List<Future<Object>> batches = new ArrayList<>();
         for (int start = 0; start < points.size(); start += POINTS_PER_BATCH) {
             List<ProblemAiTestPoint> batch = new ArrayList<>(
                     points.subList(start, Math.min(points.size(), start + POINTS_PER_BATCH)));
-            batches.add(CompletableFuture.supplyAsync(() -> parseObject(complete(config,
-                    promptFactory.testPointPrompt(config, problem, input, batch, points.size()))), AI_BATCH_POOL));
+            batches.add(completions.submit((Callable<Object>) () -> parseObject(complete(config,
+                    promptFactory.testPointPrompt(config, problem, input, batch, points.size())))));
         }
-        for (CompletableFuture<JSONObject> future : batches) {
-            JSONObject batchResult = future.get();
-            JSONArray items = batchResult.getJSONArray("testPointResults");
-            if (items == null) continue;
-            for (Object value : items) {
-                JSONObject item = JSONUtil.parseObj(value);
-                Integer index = item.getInt("index");
-                if (index != null) aiResults.put(index, item);
+        try {
+            String overviewContent = null;
+            int remaining = batches.size() + 1;
+            while (remaining-- > 0) {
+                Future<Object> completed = completions.take();
+                if (completed == overview) {
+                    overviewContent = (String) completed.get();
+                    continue;
+                }
+                JSONObject batchResult = (JSONObject) completed.get();
+                JSONArray items = batchResult.getJSONArray("testPointResults");
+                if (items == null) continue;
+                for (Object value : items) {
+                    JSONObject item = JSONUtil.parseObj(value);
+                    Integer index = item.getInt("index");
+                    if (index != null) aiResults.put(index, item);
+                }
             }
-        }
-        JSONObject result = normalized(overview.get());
+            JSONObject result = normalized(overviewContent);
 
-        JSONArray merged = new JSONArray();
-        for (ProblemAiTestPoint point : points) {
-            JSONObject item = aiResults.getOrDefault(point.getIndex(), new JSONObject());
-            item.set("index", point.getIndex())
-                    .set("judgeStatus", point.getJudgeStatusText())
-                    .set("timeMs", point.getTime())
-                    .set("memoryKb", point.getMemory())
-                    .set("executed", point.getExecuted())
-                    .set("stderr", emptyAsMarker(point.getStderr()));
-            if (!item.containsKey("status")) item.set("status", "WARN");
-            if (!item.containsKey("detail")) item.set("detail", "AI 未返回该点的完整分析，已保留正式判题数据供人工复核");
-            merged.add(item);
+            JSONArray merged = new JSONArray();
+            for (ProblemAiTestPoint point : points) {
+                JSONObject item = aiResults.getOrDefault(point.getIndex(), new JSONObject());
+                item.set("index", point.getIndex())
+                        .set("judgeStatus", point.getJudgeStatusText())
+                        .set("timeMs", point.getTime())
+                        .set("memoryKb", point.getMemory())
+                        .set("executed", point.getExecuted())
+                        .set("stderr", emptyAsMarker(point.getStderr()));
+                if (!item.containsKey("status")) item.set("status", "WARN");
+                if (!item.containsKey("detail")) item.set("detail", "AI 未返回该点的完整分析，已保留正式判题数据供人工复核");
+                merged.add(item);
+            }
+            result.set("testPointResults", merged);
+            result.set("execution", new JSONObject().set("submitId", snapshot.getSubmitId())
+                    .set("status", snapshot.getStatusText()).set("testPointCount", points.size())
+                    .set("judgeError", snapshot.getJudgeError()));
+            result.set("standardProgram", new JSONObject().set("language", input.getLanguage())
+                    .set("code", input.getStandardProgram()).set("aiGenerated", input.getAiGenerated())
+                    .set("algorithm", input.getAlgorithmSummary()));
+            mergeTestPointConclusion(result, points, merged);
+            enforceRuntimeFailure(result, snapshot);
+            return result.toString();
+        } catch (Exception e) {
+            cancel(overview);
+            for (Future<Object> future : batches) cancel(future);
+            throw unwrap(e);
         }
-        result.set("testPointResults", merged);
-        result.set("execution", new JSONObject().set("submitId", snapshot.getSubmitId())
-                .set("status", snapshot.getStatusText()).set("testPointCount", points.size())
-                .set("judgeError", snapshot.getJudgeError()));
-        result.set("standardProgram", new JSONObject().set("language", input.getLanguage())
-                .set("code", input.getStandardProgram()).set("aiGenerated", input.getAiGenerated())
-                .set("algorithm", input.getAlgorithmSummary()));
-        mergeTestPointConclusion(result, points, merged);
-        enforceRuntimeFailure(result, snapshot);
-        return result.toString();
+    }
+
+    private void cancel(Future<?> future) {
+        if (future != null && !future.isDone()) future.cancel(true);
     }
 
     private String complete(ProblemAiConfig config, String prompt) {
@@ -146,5 +163,14 @@ public class ProblemAiValidationRunner {
 
     private String emptyAsMarker(String value) {
         return value == null || value.trim().isEmpty() ? "[stderr 为空]" : value;
+    }
+
+    private Exception unwrap(Exception error) {
+        Throwable cause = error;
+        while ((cause instanceof ExecutionException || cause instanceof CompletionException)
+                && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause instanceof Exception ? (Exception) cause : error;
     }
 }

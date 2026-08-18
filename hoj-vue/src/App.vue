@@ -256,6 +256,13 @@ body {
   .public-shell {
     zoom: 0.8;
     width: 100%;
+    /*
+     * `zoom` scales the element's 100vh as well as its contents. Keep the
+     * compact desktop density, but give the shell 1 / 0.8 viewport height so
+     * it still fills the visible window instead of stopping at about 80%.
+     */
+    height: 125vh;
+    min-height: 125vh;
   }
 }
 code,

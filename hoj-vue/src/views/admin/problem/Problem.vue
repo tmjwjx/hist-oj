@@ -238,8 +238,7 @@
                 </el-col>
                 <el-col :span="24">
                   <el-form-item label="样例解释（可选）">
-                    <el-input v-model="example.explanation" type="textarea" :rows="3"
-                      placeholder="说明样例输入如何得到样例输出，可留空" />
+                    <SampleExplanationEditor v-model="example.explanation" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -615,6 +614,8 @@ const Editor = () => import("@/components/admin/Editor.vue");
 const Accordion = () => import("@/components/admin/Accordion.vue");
 const AddExtraFile = () => import("@/components/admin/AddExtraFile.vue");
 const CodeMirror = () => import("@/components/admin/CodeMirror.vue");
+const SampleExplanationEditor = () =>
+  import("@/components/admin/SampleExplanationEditor.vue");
 const ProblemValidationStep = () =>
   import("@/components/admin/ProblemValidationStep.vue");
 export default {
@@ -624,6 +625,7 @@ export default {
     AddExtraFile,
     CodeMirror,
     Editor,
+    SampleExplanationEditor,
     ProblemValidationStep,
   },
   data() {
