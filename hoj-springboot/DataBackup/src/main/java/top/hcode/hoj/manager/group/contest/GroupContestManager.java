@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @Author: LengYun
@@ -75,7 +77,16 @@ public class GroupContestManager {
         if (currentPage == null || currentPage < 1) currentPage = 1;
         if (limit == null || limit < 1) limit = 10;
 
-        return groupContestEntityService.getContestList(limit, currentPage, gid);
+        IPage<ContestVO> page = groupContestEntityService.getContestList(limit, currentPage, gid);
+        List<ContestVO> contests = page.getRecords();
+        if (contests == null || contests.isEmpty()) return page;
+        Set<Long> registered = contestRegisterEntityService.list(
+                        new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<ContestRegister>()
+                                .select("cid").eq("uid", userRolesVo.getUid())
+                                .in("cid", contests.stream().map(ContestVO::getId).collect(Collectors.toList())))
+                .stream().map(ContestRegister::getCid).collect(Collectors.toSet());
+        contests.forEach(contest -> contest.setRegistered(registered.contains(contest.getId())));
+        return page;
     }
 
     public IPage<Contest> getAdminContestList(Integer limit, Integer currentPage, Long gid) throws StatusNotFoundException, StatusForbiddenException {

@@ -9,6 +9,7 @@ import top.hcode.hoj.manager.admin.problem.ProblemAiManager;
 import top.hcode.hoj.pojo.dto.ProblemAiChatDTO;
 import top.hcode.hoj.pojo.dto.ProblemAiGenerateProgramDTO;
 import top.hcode.hoj.pojo.dto.ProblemAiValidateDTO;
+import top.hcode.hoj.pojo.dto.ProblemAiRecheckDTO;
 import top.hcode.hoj.pojo.entity.problem.ProblemAiConfig;
 import top.hcode.hoj.pojo.entity.problem.ProblemAiRecord;
 import top.hcode.hoj.pojo.vo.ProblemAiConfigVO;
@@ -42,6 +43,12 @@ public class ProblemAiController {
         catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
     }
 
+    @GetMapping("/records/{id}")
+    public CommonResult<ProblemAiRecord> record(@PathVariable Long id) {
+        try { return CommonResult.successResponse(manager.record(id)); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
+    }
+
     @PostMapping("/chat")
     public CommonResult<ProblemAiRecord> chat(@RequestBody ProblemAiChatDTO dto) {
         try { return CommonResult.successResponse(manager.chat(dto)); }
@@ -51,6 +58,12 @@ public class ProblemAiController {
     @PostMapping("/validate")
     public CommonResult<ProblemAiRecord> validate(@RequestBody ProblemAiValidateDTO dto) {
         try { return CommonResult.successResponse(manager.validate(dto)); }
+        catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
+    }
+
+    @PostMapping("/recheck")
+    public CommonResult<ProblemAiRecord> recheck(@RequestBody ProblemAiRecheckDTO dto) {
+        try { return CommonResult.successResponse(manager.recheck(dto)); }
         catch (Exception e) { return CommonResult.errorResponse(e.getMessage()); }
     }
 

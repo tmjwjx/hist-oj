@@ -106,20 +106,84 @@ public class ProblemVerificationManager {
             throw new StatusFailException("无效的验题来源");
         }
 
+        AccountProfile profile = ShiroUtils.getProfile();
+        submitInternal(problem, dto, submissionType, profile.getUid(), profile.getUsername(), record);
+        return toVO(problem, record);
+    }
+
+    /**
+     * 后台 AI 验题专用提交入口。调用方已经在请求线程完成管理员鉴权，
+     * 因此后台线程不依赖 Shiro 的请求线程 Subject。
+     */
+    Long submitForAi(ProblemVerificationSubmitDTO dto, String uid, String username)
+            throws StatusFailException {
+        if (dto == null || dto.getPid() == null || StringUtils.isEmpty(dto.getLanguage())
+                || StringUtils.isEmpty(dto.getCode()) || dto.getCode().length() > 65535) {
+            throw new StatusFailException("题目、语言和标准程序不能为空，代码不能超过 65535 个字符");
+        }
+        Problem problem = requireProblem(dto.getPid());
+        ProblemVerification record = find(dto.getPid());
+        if (record == null || !Objects.equals(record.getCaseVersion(), problem.getCaseVersion())) {
+            throw new StatusFailException("题目测试数据尚未同步，请先重新保存题目");
+        }
+        if (!Objects.equals(record.getSyncStatus(), ProblemVerificationConstants.SYNC_SUCCESS)) {
+            throw new StatusFailException("测试数据同步失败：" + record.getSyncMessage());
+        }
+        String submissionType = StringUtils.isEmpty(dto.getVerificationType())
+                ? ProblemVerificationConstants.AI_VALIDATION : dto.getVerificationType();
+        if (!ProblemVerificationConstants.AI_VALIDATION.equals(submissionType)) {
+            throw new StatusFailException("后台 AI 验题提交来源无效");
+        }
+        return submitInternal(problem, dto, submissionType, uid, username, record);
+    }
+
+    private Long submitInternal(Problem problem, ProblemVerificationSubmitDTO dto,
+                                String submissionType, String uid, String username,
+                                ProblemVerification record) throws StatusFailException {
         Judge judge = new Judge().setPid(problem.getId()).setDisplayPid(problem.getProblemId())
-                .setUid(ShiroUtils.getProfile().getUid()).setUsername(ShiroUtils.getProfile().getUsername())
-                .setCode(dto.getCode()).setLanguage(dto.getLanguage()).setLength(dto.getCode().length())
-                .setCid(0L).setCpid(0L).setGid(problem.getGid()).setShare(false)
-                .setIsProblemVerification(true)
-                .setSubmissionType(submissionType)
+                .setUid(uid).setUsername(username).setCode(dto.getCode()).setLanguage(dto.getLanguage())
+                .setLength(dto.getCode().length()).setCid(0L).setCpid(0L).setGid(problem.getGid())
+                .setShare(false).setIsProblemVerification(true).setSubmissionType(submissionType)
                 .setStatus(Constants.Judge.STATUS_PENDING.getStatus()).setSubmitTime(new Date()).setVersion(0);
         judgeEntityService.save(judge);
 
-        record.setSubmitId(judge.getSubmitId()).setVerifiedUid(ShiroUtils.getProfile().getUid())
+        record.setSubmitId(judge.getSubmitId()).setVerifiedUid(uid)
                 .setVerificationStatus(ProblemVerificationConstants.JUDGING);
         verificationService.updateById(record);
         judgeDispatcher.sendTask(judge.getSubmitId(), problem.getId(), false);
-        return toVO(problem, record);
+        return judge.getSubmitId();
+    }
+
+    /** 等待已有标准程序判题结束，供后台 AI 任务串行化使用。 */
+    void waitForAiJudge(Long pid, long timeoutMs) throws StatusFailException {
+        ProblemVerification record = find(pid);
+        if (record == null || record.getSubmitId() == null
+                || !Objects.equals(record.getVerificationStatus(), ProblemVerificationConstants.JUDGING)) {
+            return;
+        }
+        waitForAiJudge(pid, record.getSubmitId(), timeoutMs);
+    }
+
+    /** 等待指定标准程序提交完成，整个过程不依赖前端轮询。 */
+    void waitForAiJudge(Long pid, Long submitId, long timeoutMs) throws StatusFailException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (true) {
+            Judge judge = judgeEntityService.getById(submitId);
+            if (judge != null && !ProblemVerificationConstants.isJudgeRunning(judge.getStatus())) {
+                ProblemVerification record = find(pid);
+                if (record != null) refreshJudgeStatus(record);
+                return;
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                throw new StatusFailException("正式判题等待超时，请检查判题机状态后重试");
+            }
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new StatusFailException("后台 AI 验题任务被中断");
+            }
+        }
     }
 
     public ProblemVerificationVO retrySync(Long pid)
@@ -256,6 +320,20 @@ public class ProblemVerificationManager {
         checkOperator(problem);
         return draftService.getOne(new QueryWrapper<ProblemVerificationDraft>().eq("pid", pid)
                 .eq("uid", ShiroUtils.getProfile().getUid()), false);
+    }
+
+    /**
+     * Read the current verification binding for report-only AI rechecks.
+     * The caller still performs the administrator authorization check through
+     * this manager, while the returned record lets the recheck prompt explain
+     * whether the historical formal submission is bound to the current case
+     * version instead of guessing from the test-point count.
+     */
+    public ProblemVerification getVerification(Long pid)
+            throws StatusFailException, StatusForbiddenException {
+        Problem problem = requireProblem(pid);
+        checkOperator(problem);
+        return find(problem.getId());
     }
 
     public ProblemVerificationDraft saveDraft(ProblemVerificationDraft draft)

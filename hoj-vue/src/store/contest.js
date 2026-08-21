@@ -87,11 +87,6 @@ const getters = {
     // 未登录不可交题
     return !rootGetters.isAuthenticated
   },
-  // 是否需要显示密码验证框
-  registrationFormVisible: (state, getters) => {
-    if (getters.isContestAdmin || state.intoAccess) return false
-    return state.contest.status !== CONTEST_STATUS.ENDED
-  },
   contestStartTime: (state) => {
     return moment(state.contest.startTime)
   },

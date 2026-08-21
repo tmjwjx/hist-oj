@@ -91,8 +91,13 @@
                   :key="contest.title"
                   :style="getborderColor(contest)"
                 >
-                  <el-row type="flex" justify="space-between" align="middle">
-                    <el-col :xs="10" :sm="4" :md="3" :lg="2">
+                  <el-row
+                    class="contest-row"
+                    type="flex"
+                    justify="space-between"
+                    align="middle"
+                  >
+                    <el-col :xs="7" :sm="4" :md="3" :lg="2">
                       <template v-if="contest.type == 0">
                         <el-image 
                         :src="acmSrc" 
@@ -111,10 +116,10 @@
                       </template>
                     </el-col>
                     <el-col
-                      :xs="10"
-                      :sm="16"
-                      :md="19"
-                      :lg="20"
+                      :xs="17"
+                      :sm="15"
+                      :md="17"
+                      :lg="18"
                       class="contest-main"
                     >
                       <p class="title">
@@ -257,24 +262,48 @@
                       </ul>
                     </el-col>
                     <el-col
-                      :xs="4"
-                      :sm="4"
-                      :md="2"
-                      :lg="2"
-                      style="text-align: center"
+                      :xs="24"
+                      :sm="5"
+                      :md="4"
+                      :lg="4"
+                      class="contest-actions"
                     >
-                      <el-tag v-if="contest.registered" size="small" type="success" class="register-state">
-                        {{ $t('m.Registered') }}
-                      </el-tag>
-                      <el-button
-                        v-else-if="contest.status != CONTEST_STATUS.ENDED"
-                        size="mini"
-                        type="primary"
-                        plain
-                        class="register-state"
-                        @click.stop="registerContest(contest)"
-                      >{{ $t('m.Register') }}</el-button>
+                      <div class="registration-actions">
+                        <el-tag
+                          v-if="contest.registered"
+                          size="small"
+                          type="success"
+                          class="registration-state"
+                        >
+                          {{ $t('m.Registered') }}
+                        </el-tag>
+                        <el-tag
+                          v-else
+                          size="small"
+                          type="info"
+                          class="registration-state"
+                        >未报名</el-tag>
+                        <el-button
+                          v-if="contest.registered"
+                          type="primary"
+                          plain
+                          size="mini"
+                          icon="el-icon-document"
+                          class="registration-info-button"
+                          @click.stop="viewRegistration(contest)"
+                        >查看报名信息</el-button>
+                        <el-button
+                          v-if="!contest.registered && contest.status != CONTEST_STATUS.ENDED"
+                          size="mini"
+                          type="primary"
+                          plain
+                          class="register-button"
+                          :loading="registrationSubmitting && selectedContest && selectedContest.id === contest.id"
+                          @click.stop="registerContest(contest)"
+                        >{{ $t('m.Register') }}</el-button>
+                      </div>
                       <el-tag
+                        class="contest-status-tag"
                         effect="dark"
                         :color="CONTEST_STATUS_REVERSE[contest.status]['color']"
                         size="medium"
@@ -298,6 +327,37 @@
           ></Pagination>
         </el-col>
       </el-row>
+      <el-dialog
+        title="比赛报名"
+        width="520px"
+        :visible.sync="registrationDialogVisible"
+        :close-on-click-modal="false"
+        :destroy-on-close="true"
+      >
+        <ContestRegistrationForm
+          v-if="registrationDialogVisible && selectedContest"
+          :contest="selectedContest"
+          :loading="registrationSubmitting"
+          @submit="submitRegistration"
+        />
+      </el-dialog>
+      <el-dialog
+        title="我的报名信息"
+        width="620px"
+        :visible.sync="registrationInfoVisible"
+        :close-on-click-modal="false"
+      >
+        <div v-loading="registrationInfoLoading" class="registration-info-loading">
+          <ContestRegistrationInfo
+            v-if="registrationInfo && selectedContest"
+            :contest="selectedContest"
+            :registration="registrationInfo"
+            :loading="registrationInfoLoading"
+            @refresh="loadRegistrationInfo"
+          />
+          <el-empty v-else-if="!registrationInfoLoading" description="暂无报名信息"></el-empty>
+        </div>
+      </el-dialog>
   </div>
 </template>
 
@@ -314,6 +374,8 @@ import {
 } from '@/common/constants';
 import myMessage from '@/common/message';
 const Pagination = () => import('@/components/oj/common/Pagination');
+const ContestRegistrationForm = () => import('@/components/oj/contest/ContestRegistrationForm.vue');
+const ContestRegistrationInfo = () => import('@/components/oj/contest/ContestRegistrationInfo.vue');
 // const ContestListAttention = () => import('@/components/oj/contest/ContestListAttention');
 const limit = 10;
 
@@ -321,6 +383,8 @@ export default {
   name: 'contest-list',
   components: {
     Pagination,
+    ContestRegistrationForm,
+    ContestRegistrationInfo,
     // ContestListAttention
   },
   data() {
@@ -342,6 +406,12 @@ export default {
       acmSrc: require('@/assets/acm.jpg'),
       oiSrc: require('@/assets/oi.jpg'),
       loading: true,
+      registrationDialogVisible: false,
+      registrationInfoVisible: false,
+      registrationSubmitting: false,
+      registrationInfoLoading: false,
+      selectedContest: null,
+      registrationInfo: null,
     };
   },
   created() {
@@ -534,15 +604,63 @@ export default {
         this.$store.dispatch('changeModalStatus', { visible: true });
         return;
       }
-      if (contest.auth !== 0 || contest.openRegistration) {
-        this.toContest(contest);
+      if (this.registrationSubmitting) return;
+      this.selectedContest = contest;
+      if (!this.requiresRegistrationInput(contest)) {
+        this.submitRegistration({});
         return;
       }
-      api.registerContest(String(contest.id), '').then(() => {
+      this.registrationDialogVisible = true;
+    },
+    requiresRegistrationInput(contest) {
+      if (!contest) return false;
+      if (contest.auth !== 0) return true;
+      if (!contest.openRegistration) return false;
+      try {
+        return JSON.parse(contest.registrationFields || '[]').length > 0;
+      } catch (e) {
+        return false;
+      }
+    },
+    submitRegistration(form) {
+      const contest = this.selectedContest;
+      if (!contest) return;
+      this.registrationSubmitting = true;
+      const payload = { ...(form || {}) };
+      const password = payload.password || '';
+      delete payload.password;
+      api.registerContest(String(contest.id), password, payload).then(() => {
         contest.registered = true;
         contest.count = Number(contest.count || 0) + 1;
+        this.registrationDialogVisible = false;
+        this.registrationSubmitting = false;
         myMessage.success(this.$i18n.t('m.Register_contest_successfully'));
+      }).catch(() => {
+        this.registrationSubmitting = false;
       });
+    },
+    viewRegistration(contest) {
+      if (!this.isAuthenticated) {
+        myMessage.warning(this.$i18n.t('m.Please_login_first'));
+        this.$store.dispatch('changeModalStatus', { visible: true });
+        return;
+      }
+      this.selectedContest = contest;
+      this.registrationInfo = null;
+      this.registrationInfoVisible = true;
+      this.loadRegistrationInfo();
+    },
+    async loadRegistrationInfo() {
+      if (!this.selectedContest) return;
+      this.registrationInfoLoading = true;
+      try {
+        const res = await api.getMyContestRegistration(String(this.selectedContest.id));
+        this.registrationInfo = res.data.data || null;
+      } catch (e) {
+        this.registrationInfo = null;
+      } finally {
+        this.registrationInfoLoading = false;
+      }
     },
     toContestOutsideScoreBoard(cid, type) {
       if (type == 0) {
@@ -649,8 +767,45 @@ export default {
   padding-left: 0;
   padding-bottom: 10px;
 }
-.register-state {
-  margin-bottom: 8px;
+.contest-row {
+  flex-wrap: wrap;
+}
+.contest-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+.registration-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.registration-actions .el-button {
+  margin-left: 0;
+}
+.registration-state,
+.contest-status-tag {
+  flex: none;
+}
+@media screen and (max-width: 767px) {
+  .contest-actions {
+    flex-direction: row;
+    margin-top: 6px;
+    padding: 10px 8px 6px;
+    border-top: 1px dashed #ebeef5;
+  }
+  .registration-actions {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+  .registration-info-button {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
 }
 #contest-list .contest-main li {
   display: inline-block;

@@ -826,31 +826,6 @@
       </div>
     </el-dialog>
 
-    <el-dialog
-      :visible.sync="submitPwdVisible"
-      width="340px"
-    >
-      <el-form>
-        <el-form-item
-          :label="$t('m.Enter_the_contest_password')"
-          required
-        >
-          <el-input
-            :placeholder="$t('m.Enter_the_contest_password')"
-            v-model="submitPwd"
-            show-password
-          ></el-input>
-        </el-form-item>
-        <el-button
-          type="primary"
-          round
-          style="margin-left:130px"
-          @click="checkContestPassword"
-        >
-          {{ $t('m.Submit') }}
-        </el-button>
-      </el-form>
-    </el-dialog>
   </div>
 </template>
 
@@ -910,8 +885,6 @@ export default {
       submissionId: "",
       submitted: false,
       submitDisabled: false,
-      submitPwdVisible: false,
-      submitPwd: "",
       result: {
         status: 9,
       },
@@ -1658,22 +1631,6 @@ export default {
       this.refreshStatus = setTimeout(checkStatus, 2000);
     },
 
-    checkContestPassword() {
-      // 密码为空，需要重新输入
-      if (!this.submitPwd) {
-        myMessage.warning(this.$i18n.t("m.Enter_the_contest_password"));
-        return;
-      }
-      api.registerContest(this.contestID + "", this.submitPwd).then(
-        (res) => {
-          this.$store.commit("contestSubmitAccess", { submitAccess: true });
-          this.submitPwdVisible = false;
-          this.submitCode();
-        },
-        (res) => {}
-      );
-    },
-
     submitCode() {
       if (this.code.trim() === "") {
         myMessage.error(this.$i18n.t("m.Code_can_not_be_empty"));
@@ -1687,15 +1644,8 @@ export default {
 
       // 比赛题目需要检查是否有权限提交
       if (!this.canSubmit && this.$route.params.contestID) {
-        if (this.contest.openRegistration) {
-          myMessage.warning("请先在比赛概览页完成报名信息填写");
-          this.$router.push({
-            name: "ContestDetails",
-            params: { contestID: this.contestID },
-          });
-          return;
-        }
-        this.submitPwdVisible = true;
+        myMessage.warning("请先在比赛列表完成报名");
+        this.$router.push({ name: "ContestList" });
         return;
       }
 

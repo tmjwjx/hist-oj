@@ -24,10 +24,13 @@ public class ProblemAiValidationRunner {
     @Resource private ProblemAiGateway gateway;
     @Resource private ProblemAiPromptFactory promptFactory;
     @Resource private ProblemAiValidationContext contextService;
+    @Resource private ProblemAiTestlibRunner testlibRunner;
+    @Resource private ProblemAiMultiLanguageRunner multiLanguageRunner;
 
     public String run(ProblemAiConfig config, Problem problem, List<ProblemCase> cases,
                       ProblemAiValidateDTO input) throws Exception {
         ProblemAiValidationContext.Snapshot snapshot = contextService.load(input);
+        testlibRunner.run(problem, input.getValidatorLanguage(), input.getValidatorCode(), snapshot.getPoints());
         CompletionService<Object> completions = new ExecutorCompletionService<>(AI_BATCH_POOL);
         Future<Object> overview = completions.submit((Callable<Object>) () -> complete(config,
                 promptFactory.validationPrompt(config, problem, cases, input, snapshot)));
@@ -63,14 +66,51 @@ public class ProblemAiValidationRunner {
             JSONArray merged = new JSONArray();
             for (ProblemAiTestPoint point : points) {
                 JSONObject item = aiResults.getOrDefault(point.getIndex(), new JSONObject());
+                String aiStatus = item.getStr("status", "WARN");
+                String aiDetail = item.getStr("detail", "AI 未返回该点的完整分析");
                 item.set("index", point.getIndex())
                         .set("judgeStatus", point.getJudgeStatusText())
                         .set("timeMs", point.getTime())
                         .set("memoryKb", point.getMemory())
                         .set("executed", point.getExecuted())
+                        .set("inputAvailable", point.getInputAvailable())
+                        .set("expectedOutputAvailable", point.getExpectedOutputAvailable())
+                        .set("testlibValidator", new JSONObject()
+                                .set("status", point.getValidatorStatus())
+                                .set("statusText", point.getValidatorStatusText())
+                                .set("timeMs", point.getValidatorTime())
+                                .set("memoryKb", point.getValidatorMemory())
+                                .set("stderr", emptyAsMarker(point.getValidatorStderr())))
                         .set("stderr", emptyAsMarker(point.getStderr()));
-                if (!item.containsKey("status")) item.set("status", "WARN");
-                if (!item.containsKey("detail")) item.set("detail", "AI 未返回该点的完整分析，已保留正式判题数据供人工复核");
+                boolean concrete = Boolean.TRUE.equals(point.getConcrete());
+                boolean formallyAccepted = isFormallyAccepted(point);
+                item.set("aiStatus", aiStatus)
+                        .set("formalValidation", new JSONObject()
+                                .set("mode", "testlib_registerValidation_strict")
+                                .set("status", formallyAccepted ? "PASS" : "FAIL")
+                                .set("reason", formallyAccepted
+                                        ? "正式判题 Accepted 且未发生 Runtime Error（RE）"
+                                        : "正式判题未 Accepted、未执行或发生 Runtime Error（RE）"));
+                if (!concrete && Boolean.TRUE.equals(point.getExecuted()) && Objects.equals(point.getJudgeStatus(), 0)) {
+                    item.set("status", "PASS")
+                            .set("detail", "该点是动态或样例占位测试点，没有独立输入文件，已跳过 testlib 校验；正式判题状态为 Accepted。原始分析：" + aiDetail);
+                } else if (formallyAccepted) {
+                    // A missing/truncated testcase payload is not a defect when
+                    // the concrete testcase has already passed the formal judge.
+                    // The formal result also takes precedence over an AI FAIL
+                    // caused by the same unavailable evidence.
+                    item.set("status", "PASS")
+                            .set("detail", "正式判题 Accepted 且无 RE；按 testlib/registerValidation 严格规则该测试点通过。"
+                                    + " AI 未展开文件内容不构成 WARN。原始提示：" + aiDetail);
+                } else if (!formallyAccepted) {
+                    // Never hide a concrete formal failure behind an AI WARN.
+                    item.set("status", "FAIL")
+                            .set("detail", "正式判题状态为 " + point.getJudgeStatusText()
+                                    + "，testlib 校验器状态为 " + point.getValidatorStatusText()
+                                    + "（或该点未执行），按严格测试点规则判定失败。原始分析：" + aiDetail);
+                } else {
+                    item.set("status", aiStatus).set("detail", aiDetail);
+                }
                 merged.add(item);
             }
             result.set("testPointResults", merged);
@@ -79,7 +119,19 @@ public class ProblemAiValidationRunner {
                     .set("judgeError", snapshot.getJudgeError()));
             result.set("standardProgram", new JSONObject().set("language", input.getLanguage())
                     .set("code", input.getStandardProgram()).set("aiGenerated", input.getAiGenerated())
-                    .set("algorithm", input.getAlgorithmSummary()));
+                    .set("algorithm", input.getAlgorithmSummary())
+                    .set("validatorLanguage", input.getValidatorLanguage())
+                    .set("validatorCode", input.getValidatorCode())
+                    .set("multiLanguagePrograms", input.getMultiLanguagePrograms()));
+            if (input.getMultiLanguagePrograms() != null && !input.getMultiLanguagePrograms().isEmpty()) {
+                JSONArray multiLanguageResults = multiLanguageRunner.run(problem,
+                        input.getMultiLanguagePrograms(), points);
+                result.set("multiLanguageResults", multiLanguageResults);
+                enforceMultiLanguageFailure(result, multiLanguageResults);
+            }
+            result.set("testPointValidation", new JSONObject()
+                    .set("mode", "testlib_registerValidation_strict")
+                    .set("rule", "Accepted 且无 RE 通过；RE、非 Accepted 或未执行不通过；不因拿不到文件内容而 WARN"));
             mergeTestPointConclusion(result, points, merged);
             enforceRuntimeFailure(result, snapshot);
             return result.toString();
@@ -102,23 +154,45 @@ public class ProblemAiValidationRunner {
     }
 
     private void enforceRuntimeFailure(JSONObject result, ProblemAiValidationContext.Snapshot snapshot) {
-        boolean failed = snapshot.getPoints().stream().anyMatch(point -> Boolean.FALSE.equals(point.getExecuted())
-                || (point.getJudgeStatus() != null && point.getJudgeStatus() != 0));
+        boolean failed = snapshot.getPoints().stream().filter(point -> Boolean.TRUE.equals(point.getConcrete())).anyMatch(point -> Boolean.FALSE.equals(point.getExecuted())
+                || (point.getJudgeStatus() != null && point.getJudgeStatus() != 0)
+                || !"PASS".equals(point.getValidatorStatus()));
         if (!failed) return;
         result.set("overall", "FAIL");
         JSONArray issues = result.getJSONArray("issues");
         if (issues == null) issues = new JSONArray();
         issues.add(new JSONObject().set("severity", "ERROR").set("location", "正式全测试点判题")
-                .set("detail", "至少一个测试点未执行或未通过，不能发布题目")
-                .set("suggestion", "结合逐测试点状态和 stderr 修复标准程序、数据或判题程序后重新验题"));
+                .set("detail", "至少一个测试点未通过正式判题或 testlib 输入校验，不能发布题目")
+                .set("suggestion", "结合正式判题、testlib 校验器编译/运行状态和 stderr 修复题目后重新验题"));
         result.set("issues", issues);
     }
 
+    private void enforceMultiLanguageFailure(JSONObject result, JSONArray results) {
+        if (results == null) return;
+        for (Object value : results) {
+            JSONObject item = JSONUtil.parseObj(value);
+            if (!"PASS".equals(item.getStr("status"))) {
+                result.set("overall", "FAIL");
+                JSONArray issues = result.getJSONArray("issues");
+                if (issues == null) issues = new JSONArray();
+                issues.add(new JSONObject().set("severity", "ERROR")
+                        .set("location", "多语言全测试点判题")
+                        .set("detail", item.getStr("language", "未知语言") + " 未通过全部具体测试点（"
+                                + item.getInt("passed", 0) + "/" + item.getInt("total", 0) + "）")
+                        .set("suggestion", "检查该语言的源码、输入输出格式及运行时兼容性后重新验题"));
+            }
+        }
+    }
+
     private void mergeTestPointConclusion(JSONObject result, List<ProblemAiTestPoint> points, JSONArray merged) {
-        int accepted = 0, stderrCount = 0, warn = 0, fail = 0;
+        int accepted = 0, formalAccepted = 0, validatorPassed = 0, stderrCount = 0, warn = 0, fail = 0;
+        int concreteCount = 0;
         for (int i = 0; i < points.size(); i++) {
             ProblemAiTestPoint point = points.get(i);
-            if (Boolean.TRUE.equals(point.getExecuted()) && Objects.equals(point.getJudgeStatus(), 0)) accepted++;
+            if (Boolean.TRUE.equals(point.getConcrete())) concreteCount++;
+            if (Boolean.TRUE.equals(point.getExecuted()) && Objects.equals(point.getJudgeStatus(), 0)) formalAccepted++;
+            if (Boolean.TRUE.equals(point.getConcrete()) && "PASS".equals(point.getValidatorStatus())) validatorPassed++;
+            if (isFormallyAccepted(point)) accepted++;
             if (point.getStderr() != null && !point.getStderr().trim().isEmpty()) stderrCount++;
             String aiStatus = merged.getJSONObject(i).getStr("status", "WARN");
             if ("FAIL".equals(aiStatus)) fail++;
@@ -126,8 +200,13 @@ public class ProblemAiValidationRunner {
         }
         if (fail > 0) result.set("overall", "FAIL");
         else if (warn > 0 && "PASS".equals(result.getStr("overall"))) result.set("overall", "WARN");
-        String evidence = "正式判题已核验 " + accepted + "/" + points.size()
-                + " 个测试点 Accepted；逐点 stderr 已全部采集，其中 " + stderrCount + " 个非空。";
+        else if (warn == 0 && concreteCount > 0 && accepted == concreteCount
+                && !hasErrorIssue(result) && !"FAIL".equals(result.getStr("overall"))) {
+            result.set("overall", "PASS");
+        }
+        String evidence = "正式判题已核验 " + formalAccepted + "/" + points.size()
+                + " 个测试点 Accepted；独立正式测试点的 testlib 输入校验器通过 " + validatorPassed + "/" + concreteCount
+                + "；逐点 stderr 已全部采集，其中 " + stderrCount + " 个非空。";
         result.set("summary", evidence + " " + result.getStr("summary", ""));
         JSONArray steps = result.getJSONArray("steps");
         if (steps == null) steps = new JSONArray();
@@ -135,6 +214,24 @@ public class ProblemAiValidationRunner {
                 .set("status", fail > 0 ? "FAIL" : warn > 0 ? "WARN" : "PASS")
                 .set("detail", evidence + " AI 逐点结论：" + fail + " 个 FAIL，" + warn + " 个 WARN。"));
         result.set("steps", steps);
+    }
+
+    private boolean isFormallyAccepted(ProblemAiTestPoint point) {
+        if (!Boolean.TRUE.equals(point.getConcrete())) {
+            return Boolean.TRUE.equals(point.getExecuted()) && Objects.equals(point.getJudgeStatus(), 0);
+        }
+        return Boolean.TRUE.equals(point.getExecuted()) && Objects.equals(point.getJudgeStatus(), 0)
+                && "PASS".equals(point.getValidatorStatus());
+    }
+
+    private boolean hasErrorIssue(JSONObject result) {
+        JSONArray issues = result.getJSONArray("issues");
+        if (issues == null) return false;
+        for (Object value : issues) {
+            JSONObject issue = JSONUtil.parseObj(value);
+            if ("ERROR".equalsIgnoreCase(issue.getStr("severity"))) return true;
+        }
+        return false;
     }
 
     private JSONObject normalized(String content) {

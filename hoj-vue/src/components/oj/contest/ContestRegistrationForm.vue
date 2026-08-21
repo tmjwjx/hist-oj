@@ -1,8 +1,5 @@
 <template>
-  <el-card class="registration-form-card">
-    <div slot="header">
-      <span class="panel-title"><i class="el-icon-edit"></i> 比赛报名</span>
-    </div>
+  <div class="registration-form-card">
     <p class="registration-tip">{{ registrationTip }}</p>
     <el-form label-width="90px" @submit.native.prevent>
       <el-form-item v-if="passwordRequired" label="比赛密码" required>
@@ -24,7 +21,7 @@
         <el-button type="primary" :loading="loading" @click="submit">提交报名</el-button>
       </el-form-item>
     </el-form>
-  </el-card>
+  </div>
 </template>
 
 <script>
@@ -46,7 +43,7 @@ export default {
   },
   data() {
     return {
-      form: { password: "" },
+      form: this.emptyForm(),
     };
   },
   computed: {
@@ -70,6 +67,9 @@ export default {
     },
   },
   methods: {
+    emptyForm() {
+      return { password: "", name: "", class: "", college: "", studentId: "", gender: "", qq: "", phone: "" };
+    },
     submit() {
       if (this.passwordRequired && !this.form.password) {
         this.$message.warning("请输入比赛密码");

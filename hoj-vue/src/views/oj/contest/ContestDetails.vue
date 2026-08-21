@@ -160,19 +160,6 @@
           <span slot="label"
             ><i class="el-icon-s-home"></i>&nbsp;{{ $t('m.Overview') }}</span
           >
-          <ContestRegistrationForm
-            v-if="registrationFormVisible"
-            :contest="contest"
-            :loading="btnLoading"
-            @submit="submitRegistration"
-          />
-          <ContestRegistrationInfo
-            v-if="myRegistration"
-            :contest="contest"
-            :registration="myRegistration"
-            :loading="registrationInfoLoading"
-            @refresh="loadMyRegistration"
-          />
           <el-card class="box-card">
             <Markdown 
               :isAvoidXss="contest.gid != null" 
@@ -399,17 +386,12 @@ import {
   RULE_TYPE,
   buildContestAnnounceKey,
 } from '@/common/constants';
-import myMessage from '@/common/message';
 import storage from '@/common/storage';
 import Markdown from "@/components/oj/common/Markdown";
-import ContestRegistrationForm from "@/components/oj/contest/ContestRegistrationForm.vue";
-import ContestRegistrationInfo from "@/components/oj/contest/ContestRegistrationInfo.vue";
 export default {
   name: 'ContestDetails',
   components: {
     Markdown,
-    ContestRegistrationForm,
-    ContestRegistrationInfo,
   },
   data() {
     return {
@@ -419,9 +401,6 @@ export default {
       CONTEST_STATUS_REVERSE: {},
       CONTEST_TYPE_REVERSE: {},
       RULE_TYPE: {},
-      btnLoading: false,
-      registrationInfoLoading: false,
-      myRegistration: null,
       isRating: false, // 是否为 Rating 比赛
     };
   },
@@ -441,7 +420,6 @@ export default {
     this.$store.dispatch('getContest').then((res) => {
       this.changeDomTitle({ title: res.data.data.title });
       let data = res.data.data;
-      this.loadMyRegistration(data.registered);
       // 获取比赛 Rating 信息
       this.fetchContestRatingInfo(data.id);
       let endTime = moment(data.endTime);
@@ -501,43 +479,6 @@ export default {
         return time.secondFormat(this.BeginToNowDuration); // 格式化时间
       } else {
         return time.secondFormat(this.contest.duration);
-      }
-    },
-    submitRegistration(form) {
-      this.btnLoading = true;
-      const password = form.password || '';
-      const registration = { ...form };
-      delete registration.password;
-      api.registerContest(this.contestID + '', password, registration).then(
-        (res) => {
-          myMessage.success(this.$i18n.t('m.Register_contest_successfully'));
-          this.$store.commit('contestIntoAccess', { intoAccess: true });
-          this.contest.registered = true;
-          this.contest.count = Number(this.contest.count || 0) + 1;
-          if (this.contest.auth === 2) {
-            this.$store.commit('contestSubmitAccess', { submitAccess: true });
-          }
-          this.btnLoading = false;
-          this.loadMyRegistration(true);
-        },
-        (res) => {
-          this.btnLoading = false;
-        }
-      );
-    },
-    async loadMyRegistration(registered = true) {
-      if (!registered) {
-        this.myRegistration = null;
-        return;
-      }
-      this.registrationInfoLoading = true;
-      try {
-        const res = await api.getMyContestRegistration(this.contestID + '');
-        this.myRegistration = res.data.data || null;
-      } catch (e) {
-        this.myRegistration = null;
-      } finally {
-        this.registrationInfoLoading = false;
       }
     },
     tabClick(tab) {
@@ -620,7 +561,6 @@ export default {
       'isContestAdmin',
       'isSuperAdmin',
       'ContestRealTimePermission',
-      'registrationFormVisible',
       'userInfo',
       'websiteConfig',
     ]),

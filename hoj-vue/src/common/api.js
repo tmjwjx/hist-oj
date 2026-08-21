@@ -1654,6 +1654,12 @@ const adminApi = {
   admin_getProblemAIRecords(pid) {
     return ajax('/api/admin/problem-ai/records', 'get', { params: { pid } })
   },
+  admin_getProblemAIRecord(id) {
+    return ajax(`/api/admin/problem-ai/records/${id}`, 'get')
+  },
+  admin_recheckProblemAIReport(data) {
+    return ajax('/api/admin/problem-ai/recheck', 'post', { data, timeout: 900000 })
+  },
   admin_problemAIChat(data) {
     return ajax('/api/admin/problem-ai/chat', 'post', { data, timeout: 900000 })
   },

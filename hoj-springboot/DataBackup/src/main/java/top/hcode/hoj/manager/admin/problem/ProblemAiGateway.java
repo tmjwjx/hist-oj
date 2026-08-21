@@ -24,6 +24,7 @@ public class ProblemAiGateway {
     private static final Logger log = LoggerFactory.getLogger(ProblemAiGateway.class);
     private static final String REASONING_EFFORT = "xhigh";
     private static final int CONNECT_TIMEOUT_MS = 15_000;
+    private static final int MAX_READ_TIMEOUT_SECONDS = 3_600;
     private static final int MAX_OUTPUT_TOKENS = 16_384;
     private static final int MAX_ATTEMPTS = 2;
     private static final Set<Integer> RETRYABLE_STATUS =
@@ -83,9 +84,38 @@ public class ProblemAiGateway {
         throw new IllegalStateException("AI 服务暂时不可用，请稍后重试");
     }
 
+    /**
+     * Report-only operations should have a bounded, single upstream request.
+     * The normal streaming/retry path can otherwise spend the configured read
+     * timeout once for SSE and once again for the non-stream fallback.
+     */
+    public String completeOnce(ProblemAiConfig config, List<Map<String, String>> messages,
+                               int timeoutSeconds) {
+        int bounded = Math.max(30, Math.min(timeoutSeconds, MAX_READ_TIMEOUT_SECONDS));
+        try {
+            return execute(config, messages, false, bounded, "medium");
+        } catch (RestClientResponseException e) {
+            throw upstreamFailure(e.getRawStatusCode());
+        } catch (ResourceAccessException e) {
+            throw new IllegalStateException("AI 复检请求超时（超过 " + bounded + " 秒），请稍后重试", e);
+        }
+    }
+
     private String execute(ProblemAiConfig config, List<Map<String, String>> messages, boolean stream) {
-        byte[] payload = JSONUtil.toJsonStr(requestBody(config, messages, stream)).getBytes(StandardCharsets.UTF_8);
-        RestTemplate client = new RestTemplate(requestFactory(config));
+        int readSeconds = config.getTimeoutSeconds() == null ? 120 : config.getTimeoutSeconds();
+        return execute(config, messages, stream, readSeconds);
+    }
+
+    private String execute(ProblemAiConfig config, List<Map<String, String>> messages, boolean stream,
+                           int timeoutSeconds) {
+        return execute(config, messages, stream, timeoutSeconds, REASONING_EFFORT);
+    }
+
+    private String execute(ProblemAiConfig config, List<Map<String, String>> messages, boolean stream,
+                           int timeoutSeconds, String reasoningEffort) {
+        byte[] payload = JSONUtil.toJsonStr(requestBody(config, messages, stream, reasoningEffort))
+                .getBytes(StandardCharsets.UTF_8);
+        RestTemplate client = new RestTemplate(requestFactory(timeoutSeconds));
         return client.execute(chatCompletionsUrl(config.getApiUrl()), HttpMethod.POST, request -> {
             HttpHeaders headers = request.getHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -100,11 +130,16 @@ public class ProblemAiGateway {
 
     private Map<String, Object> requestBody(ProblemAiConfig config, List<Map<String, String>> messages,
                                             boolean stream) {
+        return requestBody(config, messages, stream, REASONING_EFFORT);
+    }
+
+    private Map<String, Object> requestBody(ProblemAiConfig config, List<Map<String, String>> messages,
+                                            boolean stream, String reasoningEffort) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", config.getModel());
         body.put("messages", messages);
         if (!isReasoningModel(config.getModel())) body.put("temperature", 0.1);
-        body.put("reasoning_effort", REASONING_EFFORT);
+        body.put("reasoning_effort", reasoningEffort);
         body.put(completionTokenField(config.getModel()), MAX_OUTPUT_TOKENS);
         body.put("stream", stream);
         return body;
@@ -121,9 +156,8 @@ public class ProblemAiGateway {
                 || value.contains("invalid") || value.contains("unknown"));
     }
 
-    private SimpleClientHttpRequestFactory requestFactory(ProblemAiConfig config) {
-        int readSeconds = config.getTimeoutSeconds() == null ? 120 : config.getTimeoutSeconds();
-        readSeconds = Math.max(30, Math.min(readSeconds, 900));
+    private SimpleClientHttpRequestFactory requestFactory(int timeoutSeconds) {
+        int readSeconds = Math.max(30, Math.min(timeoutSeconds, MAX_READ_TIMEOUT_SECONDS));
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
         factory.setReadTimeout(readSeconds * 1000);

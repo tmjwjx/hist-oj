@@ -9,6 +9,10 @@
         <span class="registration-info-label">OJ名称</span>
         <span>{{ registration.username || registration.uid }}</span>
       </div>
+      <div class="registration-info-item">
+        <span class="registration-info-label">报名时间</span>
+        <span>{{ registration.gmtCreate | localtime }}</span>
+      </div>
       <div
         v-for="field in enabledFields"
         :key="field.value"

@@ -113,7 +113,7 @@
           <el-col :md="12" :xs="24"><el-form-item label="模型"><el-input v-model="aiConfig.model" /></el-form-item></el-col>
           <el-col :md="12" :xs="24"><el-form-item label="接口 URL"><el-input v-model="aiConfig.apiUrl" placeholder="可填写 OpenAI 兼容的 /v1 基础地址或完整地址" /></el-form-item></el-col>
           <el-col :md="12" :xs="24"><el-form-item label="API Key"><el-input v-model="aiConfig.apiKey" type="password" show-password /></el-form-item></el-col>
-          <el-col :md="8" :xs="24"><el-form-item label="单请求超时"><el-input v-model="aiConfig.timeoutSeconds" type="number"><template slot="append">秒</template></el-input></el-form-item></el-col>
+          <el-col :md="8" :xs="24"><el-form-item label="单请求超时"><el-input v-model.number="aiConfig.timeoutSeconds" type="number" :min="1" :max="3600" :step="30"><template slot="append">秒</template></el-input><div style="color:#909399;font-size:12px;line-height:20px">允许 1–3600 秒，保存后立即用于新的 AI 请求</div></el-form-item></el-col>
           <el-col :md="24" :xs="24"><el-form-item label="系统提示词"><el-input v-model="aiConfig.systemPrompt" type="textarea" :rows="8" /></el-form-item></el-col>
           <el-col :md="24" :xs="24"><el-form-item label="验题提示词"><el-input v-model="aiConfig.validationPrompt" type="textarea" :rows="10" /></el-form-item></el-col>
         </el-row>
@@ -496,9 +496,18 @@ export default {
         .catch(() => {});
     },
     saveAIConfig() {
-      api.admin_saveProblemAIConfig(this.aiConfig).then(() => {
-        myMessage.success(this.$i18n.t('m.Update_Successfully'));
-      });
+      const timeoutSeconds = Number(this.aiConfig.timeoutSeconds);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
+        myMessage.warning('单请求超时必须在 1–3600 秒之间');
+        return;
+      }
+      this.aiConfig.timeoutSeconds = Math.round(timeoutSeconds);
+      api.admin_saveProblemAIConfig(this.aiConfig)
+        .then(() => api.admin_getProblemAIConfig())
+        .then((res) => {
+          this.aiConfig = Object.assign(this.aiConfig, res.data.data || {});
+          myMessage.success(this.$i18n.t('m.Update_Successfully'));
+        });
     },
   },
 };

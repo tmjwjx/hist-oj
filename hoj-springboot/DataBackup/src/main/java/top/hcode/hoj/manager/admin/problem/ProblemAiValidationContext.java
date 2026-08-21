@@ -19,6 +19,11 @@ import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.utils.ProblemVerificationConstants;
 
 import javax.annotation.Resource;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.MessageDigest;
 import java.util.*;
 
 @Component
@@ -56,10 +61,18 @@ public class ProblemAiValidationContext {
             ProblemCase problemCase = i < cases.size() ? cases.get(i) : null;
             JudgeCase result = resultBySeq.get(i + 1);
             String stderr = result == null ? "" : firstNonBlank(result.getStderr(), result.getUserOutput());
+            String inputValue = problemCase == null ? "验证样例或动态测试点，输入内容见题面样例" : problemCase.getInput();
+            String expectedOutputValue = problemCase == null ? "验证样例或动态测试点，输出内容见题面样例" : problemCase.getOutput();
+            String resolvedInput = resolveTestcaseFile(inputValue, input.getPid());
+            String resolvedOutput = resolveTestcaseFile(expectedOutputValue, input.getPid());
+            boolean concrete = problemCase != null;
             points.add(new ProblemAiTestPoint().setIndex(i + 1)
                     .setCaseId(problemCase == null ? result == null ? null : result.getCaseId() : problemCase.getId())
-                    .setInput(problemCase == null ? "验证样例或动态测试点，输入内容见题面样例" : problemCase.getInput())
-                    .setExpectedOutput(problemCase == null ? "验证样例或动态测试点，输出内容见题面样例" : problemCase.getOutput())
+                    .setInput(resolvedInput)
+                    .setExpectedOutput(resolvedOutput)
+                    .setInputAvailable(concrete && isContentAvailable(inputValue, resolvedInput))
+                    .setExpectedOutputAvailable(concrete && isContentAvailable(expectedOutputValue, resolvedOutput))
+                    .setConcrete(concrete)
                     .setGroupNum(problemCase == null ? result == null ? null : result.getGroupNum() : problemCase.getGroupNum())
                     .setScore(problemCase == null ? result == null ? null : result.getScore() : problemCase.getScore())
                     .setExecuted(result != null && !isPending(result.getStatus()))
@@ -71,6 +84,115 @@ public class ProblemAiValidationContext {
         }
         return new Snapshot(judge.getSubmitId(), judge.getStatus(), statusName(judge.getStatus()),
                 judge.getErrorMessage(), points);
+    }
+
+    /**
+     * Build read-only evidence for a report recheck.  The normal AI validation
+     * path already resolves file-backed cases, but report-only rechecks used to
+     * receive only values such as {@code 1.in}/{@code 1.out}.  Include the
+     * resolved content and hashes so the model can distinguish an unchanged
+     * case set from genuinely missing evidence without rerunning the judge.
+     */
+    public String currentTestcaseEvidence(Long pid, List<ProblemCase> cases, Long submitId) {
+        StringBuilder text = new StringBuilder("当前实体测试点数量：").append(cases == null ? 0 : cases.size());
+        if (cases == null) return text.toString();
+        Map<Integer, JudgeCase> judgeCases = new HashMap<>();
+        if (submitId != null) {
+            List<JudgeCase> results = judgeCaseService.list(new QueryWrapper<JudgeCase>()
+                    .eq("submit_id", submitId).orderByAsc("seq"));
+            for (JudgeCase item : results) judgeCases.put(item.getSeq(), item);
+        }
+        boolean allMatch = !cases.isEmpty() && judgeCases.size() >= cases.size();
+        for (int i = 0; i < cases.size(); i++) {
+            ProblemCase item = cases.get(i);
+            String input = resolveTestcaseFile(item.getInput(), pid);
+            String output = resolveTestcaseFile(item.getOutput(), pid);
+            JudgeCase formal = judgeCases.get(i + 1);
+            String formalInput = formal == null ? "" : resolveTestcaseFile(formal.getInputData(), pid);
+            String formalOutput = formal == null ? "" : resolveTestcaseFile(formal.getOutputData(), pid);
+            boolean inputMatchesFormal = formal != null && Objects.equals(normalizeEvidence(input), normalizeEvidence(formalInput));
+            boolean outputMatchesFormal = formal != null && Objects.equals(normalizeEvidence(output), normalizeEvidence(formalOutput));
+            allMatch = allMatch && inputMatchesFormal && outputMatchesFormal;
+            text.append("\n测试点 ").append(i + 1)
+                    .append("，caseId=").append(item.getId())
+                    .append("，inputName=").append(item.getInput())
+                    .append("，outputName=").append(item.getOutput())
+                    .append("，inputAvailable=").append(isContentAvailable(item.getInput(), input))
+                    .append("，outputAvailable=").append(isContentAvailable(item.getOutput(), output))
+                    .append("，formalJudgeStatus=").append(formal == null ? "NOT_RUN" : formal.getStatus())
+                    .append("，matchesFormalSubmission=").append(inputMatchesFormal && outputMatchesFormal)
+                    .append("，inputSha256=").append(sha256(input))
+                    .append("，outputSha256=").append(sha256(output))
+                    .append("\n输入内容：").append(limitEvidence(input))
+                    .append("\n标准输出内容：").append(limitEvidence(output));
+        }
+        text.append("\n当前文件与 submitId=").append(submitId)
+                .append(" 的正式判题输入/标准输出逐点完全一致：").append(allMatch);
+        return text.toString();
+    }
+
+    /**
+     * ProblemCase.input/output are either the actual content (database
+     * fallback) or a testcase filename/path (normal file-backed judging).  The
+     * AI prompt must receive the concrete file content whenever it is safely
+     * available; showing "1.in" made the model report a spurious WARN even
+     * though the formal judge had already Accepted the point.
+     */
+    private String resolveTestcaseFile(String value, Long pid) {
+        if (isEmpty(value) || pid == null) return value;
+        File root = new File(Constants.File.TESTCASE_BASE_FOLDER.getPath(), "problem_" + pid);
+        List<File> candidates = new ArrayList<>();
+        File supplied = new File(value.trim());
+        if (supplied.isAbsolute()) candidates.add(supplied);
+        candidates.add(new File(root, supplied.getName()));
+        for (File candidate : candidates) {
+            try {
+                File canonicalRoot = root.getCanonicalFile();
+                File canonical = candidate.getCanonicalFile();
+                String rootPath = canonicalRoot.getPath() + File.separator;
+                if (!canonical.getPath().startsWith(rootPath) || !canonical.isFile()) continue;
+                byte[] content = Files.readAllBytes(canonical.toPath());
+                return new String(content, StandardCharsets.UTF_8);
+            } catch (IOException ignored) {
+                // Keep the original DB value as a last-resort evidence marker.
+            }
+        }
+        return value;
+    }
+
+    private boolean isEmpty(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private boolean isContentAvailable(String original, String resolved) {
+        if (isEmpty(resolved)) return false;
+        if (!Objects.equals(original, resolved)) return true;
+        String text = original.trim();
+        return !(text.matches("[^\\s]{1,160}\\.(?:in|out)")
+                || text.startsWith(Constants.File.TESTCASE_BASE_FOLDER.getPath()));
+    }
+
+    private String limitEvidence(String value) {
+        if (isEmpty(value)) return "[为空]";
+        String text = value.trim();
+        return text.length() > 1200 ? text.substring(0, 1200) + "…[截断]" : text;
+    }
+
+    private String sha256(String value) {
+        if (value == null) return "";
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte item : digest) hex.append(String.format("%02x", item));
+            return hex.toString();
+        } catch (Exception ignored) {
+            return "不可用";
+        }
+    }
+
+    private String normalizeEvidence(String value) {
+        return value == null ? "" : value.replace("\r\n", "\n").trim();
     }
 
     private boolean isPending(Integer status) {
