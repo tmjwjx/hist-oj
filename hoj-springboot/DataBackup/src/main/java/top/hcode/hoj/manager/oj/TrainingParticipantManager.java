@@ -71,13 +71,16 @@ public class TrainingParticipantManager {
         requireTraining(tid);
         List<TrainingParticipantVO> records = participantEntityService.getParticipants(tid, currentUid());
         if (records.isEmpty()) {
-            throw new StatusNotFoundException("未找到训练记录");
+            return null;
         }
         return records.get(0);
     }
 
     public void refreshStatus(Long tid) throws StatusNotFoundException, StatusFailException {
         TrainingParticipantVO record = getMyRecord(tid);
+        if (record == null) {
+            throw new StatusNotFoundException("未找到训练记录");
+        }
         TrainingParticipant update = new TrainingParticipant()
                 .setId(record.getId())
                 .setStatus(calculateStatus(record.getProgress()))

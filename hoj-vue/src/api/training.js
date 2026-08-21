@@ -36,5 +36,8 @@ export function getTrainingParticipants(trainingId) {
  * @returns
  */
 export function getMyTrainingRecord(trainingId) {
-  return javaResponse(axios.get(`${BASE_URL}/training/${trainingId}/my-record`))
+  return javaResponse(axios.get(`${BASE_URL}/training/${trainingId}/my-record`, {
+    // 兼容尚未更新后端的节点：未参加训练的 404 不应触发全局错误提示。
+    silentError: true
+  }))
 }

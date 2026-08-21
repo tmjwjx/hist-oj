@@ -136,7 +136,9 @@ public class ContestManager {
             contestInfo.setRankShowName("contestName");
         }
         if (userRolesVo != null) {
-            contestInfo.setRegistered(contestRegisterEntityService.count(new QueryWrapper<ContestRegister>()
+            boolean creator = userRolesVo.getUid().equals(contest.getUid());
+            contestInfo.setCreator(creator);
+            contestInfo.setRegistered(creator || contestRegisterEntityService.count(new QueryWrapper<ContestRegister>()
                     .eq("cid", cid).eq("uid", userRolesVo.getUid())) > 0);
         }
 
@@ -152,11 +154,18 @@ public class ContestManager {
             contests.forEach(contest -> contest.setRegistered(false));
             return;
         }
+        List<Long> contestIds = contests.stream().map(ContestVO::getId).collect(Collectors.toList());
         Set<Long> registered = contestRegisterEntityService.list(new QueryWrapper<ContestRegister>()
                         .select("cid").eq("uid", user.getUid())
-                        .in("cid", contests.stream().map(ContestVO::getId).collect(Collectors.toList())))
+                        .in("cid", contestIds))
                 .stream().map(ContestRegister::getCid).collect(Collectors.toSet());
-        contests.forEach(contest -> contest.setRegistered(registered.contains(contest.getId())));
+        Map<Long, String> contestOwners = contestEntityService.listByIds(contestIds).stream()
+                .collect(Collectors.toMap(Contest::getId, Contest::getUid, (left, right) -> left));
+        contests.forEach(contest -> {
+            boolean creator = user.getUid().equals(contestOwners.get(contest.getId()));
+            contest.setCreator(creator);
+            contest.setRegistered(creator || registered.contains(contest.getId()));
+        });
     }
 
     public AccessVO getContestAccess(Long cid) throws StatusFailException {

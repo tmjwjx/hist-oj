@@ -270,7 +270,13 @@
                     >
                       <div class="registration-actions">
                         <el-tag
-                          v-if="contest.registered"
+                          v-if="contest.creator"
+                          size="small"
+                          type="warning"
+                          class="registration-state"
+                        >创建者</el-tag>
+                        <el-tag
+                          v-else-if="contest.registered"
                           size="small"
                           type="success"
                           class="registration-state"
@@ -284,7 +290,7 @@
                           class="registration-state"
                         >未报名</el-tag>
                         <el-button
-                          v-if="contest.registered"
+                          v-if="contest.registered && !contest.creator"
                           type="primary"
                           plain
                           size="mini"
@@ -293,7 +299,7 @@
                           @click.stop="viewRegistration(contest)"
                         >查看报名信息</el-button>
                         <el-button
-                          v-if="!contest.registered && contest.status != CONTEST_STATUS.ENDED"
+                          v-if="!contest.registered && !contest.creator && contest.status != CONTEST_STATUS.ENDED"
                           size="mini"
                           type="primary"
                           plain

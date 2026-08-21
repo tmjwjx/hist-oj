@@ -81,6 +81,9 @@ public class ContestVO implements Serializable {
     @ApiModelProperty(value = "当前登录用户是否已报名")
     private Boolean registered;
 
+    @ApiModelProperty(value = "当前登录用户是否为比赛创建者")
+    private Boolean creator;
+
     @ApiModelProperty(value = "团队ID")
     private Long gid;
 

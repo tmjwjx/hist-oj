@@ -56,6 +56,13 @@ public class ContestRegistrationManager {
 
         AccountProfile user = currentUser();
         Contest contest = contestEntityService.getById(dto.getCid());
+        if (contest == null || !Boolean.TRUE.equals(contest.getVisible())) {
+            throw new StatusFailException("对不起，该比赛不存在！");
+        }
+        if (user.getUid().equals(contest.getUid())) {
+            // 比赛创建者天然拥有比赛管理、查看和提交权限，无需生成报名记录。
+            return;
+        }
         validateContestAccess(contest, user, dto.getPassword());
         if (new Date().after(contest.getEndTime())) {
             throw new StatusFailException("比赛已经结束，无法报名！");

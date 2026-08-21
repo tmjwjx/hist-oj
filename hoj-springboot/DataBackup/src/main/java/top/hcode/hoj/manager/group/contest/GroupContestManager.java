@@ -30,6 +30,7 @@ import top.hcode.hoj.validator.GroupValidator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -80,12 +81,19 @@ public class GroupContestManager {
         IPage<ContestVO> page = groupContestEntityService.getContestList(limit, currentPage, gid);
         List<ContestVO> contests = page.getRecords();
         if (contests == null || contests.isEmpty()) return page;
+        List<Long> contestIds = contests.stream().map(ContestVO::getId).collect(Collectors.toList());
         Set<Long> registered = contestRegisterEntityService.list(
                         new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<ContestRegister>()
                                 .select("cid").eq("uid", userRolesVo.getUid())
-                                .in("cid", contests.stream().map(ContestVO::getId).collect(Collectors.toList())))
+                                .in("cid", contestIds))
                 .stream().map(ContestRegister::getCid).collect(Collectors.toSet());
-        contests.forEach(contest -> contest.setRegistered(registered.contains(contest.getId())));
+        Map<Long, String> contestOwners = contestEntityService.listByIds(contestIds).stream()
+                .collect(Collectors.toMap(Contest::getId, Contest::getUid, (left, right) -> left));
+        contests.forEach(contest -> {
+            boolean creator = userRolesVo.getUid().equals(contestOwners.get(contest.getId()));
+            contest.setCreator(creator);
+            contest.setRegistered(creator || registered.contains(contest.getId()));
+        });
         return page;
     }
 

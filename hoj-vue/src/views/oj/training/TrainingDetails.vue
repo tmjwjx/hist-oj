@@ -258,8 +258,7 @@ export default {
   },
   methods: {
     ...mapActions(['changeDomTitle']),
-    // 检查是否已参加训练
-    // 检查是否已参加训练
+    // 查询不到个人记录表示尚未参加，是正常页面状态。
     checkJoinStatus() {
       // 如果需要密码验证，不检查参加状态
       if (this.trainingPasswordFormVisible) {
@@ -271,12 +270,9 @@ export default {
       const trainingId = this.$route.params.trainingID;
       getMyTrainingRecord(trainingId).then(
         (res) => {
-          // 成功响应（code=200），用户在 training_participant 表中
-          if (res.data && res.data.code === 200) {
-            this.hasJoined = true;
-          } else {
-            this.hasJoined = false;
-          }
+          this.hasJoined = Boolean(
+            res.data && res.data.code === 200 && res.data.data
+          );
         },
         (err) => {
           // 404 错误，用户不在 training_participant 表中（未报名）
