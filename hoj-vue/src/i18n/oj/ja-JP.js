@@ -6,6 +6,7 @@ export const m = {
   Request_timed_out_please_try_again_later: 'リクエストがタイムアウトしました、後ほど再試行してください！',
   Network_error_abnormal_link_with_server_please_try_again_later: 'ネットワークエラー、サーバーとの接続に異常があります、後ほど再試行してください！',
   Error:'エラー',
+  Current_Time: '現在時刻',
   Success:'成功',
   No_Access_There_is_no_open_discussion_area_on_the_website: 'アクセス禁止：現在ウェブサイトではディスカッションエリアが開かれていません！',
   No_Access_There_is_no_open_group_discussion_area_on_the_website: 'アクセス禁止：現在ウェブサイトではチームディスカッションエリアが開かれていません！',

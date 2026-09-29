@@ -1,24 +1,15 @@
 <template>
-  <div class="time-widget">
-    <div class="time-container">
-      <!-- 时分秒部分 -->
-      <div class="time-main">
-        <div class="time-display">
-          <i class="el-icon-time time-icon"></i>
-          <span class="time-text">{{ formattedTime }}</span>
-        </div>
-      </div>
-
-      <!-- 年月日部分 -->
-      <div class="date-display">
-        <i class="el-icon-date date-icon"></i>
-        <span class="date-text">{{ formattedDate }}</span>
-      </div>
-
-      <!-- 装饰元素 -->
-      <div class="decoration-line"></div>
+  <el-card class="time-card card-top">
+    <div slot="header" class="clearfix">
+      <span class="panel-title home-title">
+        <i class="el-icon-time"></i> {{ $t('m.Current_Time') }}
+      </span>
     </div>
-  </div>
+    <div class="time-body">
+      <div class="time-text">{{ formattedTime }}</div>
+      <div class="date-text">{{ formattedDate }}</div>
+    </div>
+  </el-card>
 </template>
 
 <script>
@@ -47,8 +38,8 @@ export default {
       };
       return new Intl.DateTimeFormat(localeMap[this.$i18n.locale] || 'en-US', {
         year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
+        month: 'long',
+        day: 'numeric',
         weekday: 'long',
       }).format(this.currentTime);
     }
@@ -71,164 +62,57 @@ export default {
 </script>
 
 <style scoped>
-.time-widget {
-  width: 100%;
+.time-card {
   margin-bottom: 20px;
 }
 
-.time-container {
-  background: linear-gradient(135deg, #e0f7fa 0%, #e8f5e9 100%);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+/* 与首页其他卡片标题保持一致（panel-title/home-title 在 Home.vue 中为 scoped 样式） */
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
 }
 
-.time-container::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-  animation: rotate 20s linear infinite;
-}
-
-@keyframes rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.time-container:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.12);
-}
-
-/* 时分秒部分 */
-.time-main {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 16px;
-}
-
-.time-display {
+.home-title {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  gap: 6px;
 }
 
-.time-icon {
-  font-size: 32px;
-  color: #26a69a;
-  animation: pulse 2s ease-in-out infinite;
+.home-title i {
+  color: #409eff;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.05);
-  }
+.time-body {
+  text-align: center;
+  padding: 8px 0 4px;
 }
 
 .time-text {
-  font-size: 48px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #26a69a 0%, #66bb6a 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-family: 'Arial', 'Helvetica', monospace;
-  letter-spacing: 3px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* 年月日部分 */
-.date-display {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding-top: 8px;
-}
-
-.date-icon {
-  font-size: 20px;
-  color: #66bb6a;
+  font-size: 40px;
+  font-weight: 600;
+  color: #409eff;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+  line-height: 1.2;
 }
 
 .date-text {
-  font-size: 18px;
-  font-weight: 500;
-  color: #4db6ac;
-  font-family: 'Arial', sans-serif;
-  letter-spacing: 1px;
-}
-
-/* 装饰线 */
-.decoration-line {
-  position: relative;
-  z-index: 1;
-  height: 3px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    #26a69a 20%,
-    #66bb6a 50%,
-    #26a69a 80%,
-    transparent 100%
-  );
-  margin-top: 16px;
-  border-radius: 2px;
-}
-
-.decoration-line::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 8px;
-  height: 8px;
-  background: #fff;
-  border: 2px solid #26a69a;
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(38, 166, 154, 0.5);
+  margin-top: 6px;
+  font-size: 14px;
+  color: #909399;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .time-container {
-    padding: 16px;
-  }
-
-  .time-icon {
-    font-size: 24px;
-  }
-
   .time-text {
-    font-size: 36px;
-    letter-spacing: 2px;
-  }
-
-  .date-icon {
-    font-size: 18px;
+    font-size: 30px;
+    letter-spacing: 1px;
   }
 
   .date-text {
-    font-size: 16px;
+    font-size: 13px;
   }
 }
 </style>

@@ -6,6 +6,7 @@ export const m = {
   Request_timed_out_please_try_again_later: '請求超時，請稍後再嘗試！',
   Network_error_abnormal_link_with_server_please_try_again_later: '網路錯誤，與伺服器連結出現異常，請稍後再嘗試！',
   Error:'錯誤',
+  Current_Time: '當前時間',
   Success:'成功',
   No_Access_There_is_no_open_discussion_area_on_the_website: '禁止存取：當前網站未開啟討論區！',
   No_Access_There_is_no_open_group_discussion_area_on_the_website: '禁止存取：當前網站未開啟團隊討論區！',

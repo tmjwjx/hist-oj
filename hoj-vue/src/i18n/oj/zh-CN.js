@@ -6,6 +6,7 @@ export const m = {
   Request_timed_out_please_try_again_later: '请求超时，请稍后再尝试！',
   Network_error_abnormal_link_with_server_please_try_again_later: '网络错误，与服务器链接出现异常，请稍后再尝试！',
   Error:'错误',
+  Current_Time: '当前时间',
   Success:'成功',
   No_Access_There_is_no_open_discussion_area_on_the_website: '禁止访问：当前网站未开启讨论区！',
   No_Access_There_is_no_open_group_discussion_area_on_the_website: '禁止访问：当前网站未开启团队讨论区！',

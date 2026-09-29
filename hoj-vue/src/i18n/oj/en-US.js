@@ -6,6 +6,7 @@ export const m = {
   Request_timed_out_please_try_again_later: 'Request timed out! Please try again later!',
   Network_error_abnormal_link_with_server_please_try_again_later: 'Network error! Abnormal link with server, Please try again later!',
   Error:'Error',
+  Current_Time: 'Current Time',
   Success:'Success',
   No_Access_There_is_no_open_discussion_area_on_the_website: 'No Access: There is no open discussion area on the website!',
   No_Access_There_is_no_open_group_discussion_area_on_the_website: 'No Access: There is no open group discussion area on the website!',

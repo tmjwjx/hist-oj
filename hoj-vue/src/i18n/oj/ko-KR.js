@@ -6,6 +6,7 @@ export const m = {
   Request_timed_out_please_try_again_later: '요청 시간 초과, 잠시 후 다시 시도해주세요!',
   Network_error_abnormal_link_with_server_please_try_again_later: '네트워크 오류, 서버와의 연결에 이상이 있습니다. 잠시 후 다시 시도해주세요!',
   Error:'오류',
+  Current_Time: '현재 시간',
   Success:'성공',
   No_Access_There_is_no_open_discussion_area_on_the_website: '접근 금지: 현재 웹사이트에서 토론 영역이 열려있지 않습니다!',
   No_Access_There_is_no_open_group_discussion_area_on_the_website: '접근 금지: 현재 웹사이트에서 그룹 토론 영역이 열려있지 않습니다!',
