@@ -360,7 +360,10 @@ export default {
 </script>
 
 <style scoped>
-.ai-history-page { padding: 20px; background: #f5f7fa; min-height: calc(100vh - 60px); }
+.ai-history-page {
+  padding: 20px;
+  min-height: calc(100vh - 60px);
+}
 .page-header, .page-actions, .record-main, .report-header { display: flex; align-items: center; }
 .page-header, .report-header { justify-content: space-between; gap: 20px; }
 .page-subtitle, .record-meta, .report-time { color: #909399; font-size: 13px; }

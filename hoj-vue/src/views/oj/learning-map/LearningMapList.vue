@@ -66,7 +66,6 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 

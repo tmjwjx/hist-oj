@@ -317,7 +317,6 @@ export default {
 
 .teacher-dashboard {
   padding: 24px;
-  background: var(--classroom-bg);
   min-height: 100vh;
   margin: 0;
   --workspace-surface-bg: var(--classroom-card-bg);

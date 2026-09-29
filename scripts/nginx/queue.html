@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="hoj-queue-page" content="true">
+<title>BingOJ - 正在排队进入</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #eff3f5; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    color: #303133; padding: 20px;
+  }
+  .card {
+    background: #fff; border: 1px solid #e4e7ed; border-left: 3px solid #409eff;
+    border-radius: 8px; padding: 40px 48px; max-width: 460px; width: 100%;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: center;
+  }
+  .logo { font-size: 20px; font-weight: 700; color: #409eff; margin-bottom: 18px; }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 22px; }
+  .position { font-size: 52px; font-weight: 700; color: #409eff; line-height: 1.1; margin-bottom: 6px; }
+  .position-label { font-size: 13px; color: #909399; margin-bottom: 24px; }
+  .stats { display: flex; gap: 10px; margin-bottom: 22px; }
+  .stat { flex: 1; background: #f5f7fa; border-radius: 6px; padding: 12px 4px; }
+  .stat b { display: block; font-size: 20px; color: #303133; }
+  .stat span { font-size: 12px; color: #909399; }
+  .status { font-size: 13px; color: #409eff; }
+  .status.err { color: #e6a23c; }
+  button { margin-top: 18px; padding: 9px 20px; border: 1px solid #dcdfe6; border-radius: 5px; background: #fff; color: #606266; cursor: pointer; }
+  button:disabled { cursor: wait; opacity: .6; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #409eff;
+         margin-right: 6px; animation: blink 1.2s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">BingOJ</div>
+  <h1>当前访问人数较多，正在排队进入</h1>
+  <div class="position" id="position">-</div>
+  <div class="position-label">我的排位</div>
+  <div class="stats" id="stats">
+    <div class="stat"><b id="waiting">-</b><span>排队等待</span></div>
+    <div class="stat"><b id="reserved">-</b><span>已分配名额</span></div>
+    <div class="stat"><b id="loading">-</b><span>首屏加载中</span></div>
+    <div class="stat"><b id="total">-</b><span>当前总数</span></div>
+  </div>
+  <div class="status" id="status" role="status" aria-live="polite">正在加入队列…</div>
+  <button id="queue-action" type="button">退出排队</button>
+</div>
+<script>
+(function () {
+  'use strict';
+  var storageKey = 'hoj_queue_tab_id';
+  var validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var statusEl = document.getElementById('status');
+  var action = document.getElementById('queue-action');
+  var myId = '', ready = false, stopped = false, suspended = false, navigating = false;
+  var generation = 0, timer = null, request = null, unlock = null, channel = null;
+  var failures = 0, lastRevision = -1;
+
+  function newId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    var bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    return Array.prototype.map.call(bytes, function (b, i) {
+      return ([4, 6, 8, 10].indexOf(i) >= 0 ? '-' : '') + ('0' + b.toString(16)).slice(-2);
+    }).join('');
+  }
+  function savedId() {
+    try { return sessionStorage.getItem(storageKey) || ''; } catch (e) { return ''; }
+  }
+  function saveId(id) {
+    try {
+      if (id) sessionStorage.setItem(storageKey, id);
+      else sessionStorage.removeItem(storageKey);
+    } catch (e) { /* Storage may be disabled; this page still has its own identity. */ }
+  }
+  function message(text, error) {
+    statusEl.className = error ? 'status err' : 'status';
+    statusEl.textContent = text;
+  }
+  function cancel() {
+    generation++;
+    clearTimeout(timer);
+    if (request) request.abort();
+    request = null;
+    ready = false;
+    if (unlock) { unlock(); unlock = null; }
+    if (channel) { channel.close(); channel = null; }
+  }
+  function releaseOldSlot(id) {
+    var url = '/api/queue/release?qid=' + encodeURIComponent(id);
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(url)) return;
+    } catch (e) { /* Try keepalive when beacon is unavailable. */ }
+    fetch(url, { method: 'POST', keepalive: true, cache: 'no-store' }).catch(function () {});
+  }
+  function schedule(delay) {
+    clearTimeout(timer);
+    if (!stopped && !suspended && !navigating) timer = setTimeout(poll, delay);
+  }
+  function render(data) {
+    ['waiting', 'reserved', 'loading', 'total'].forEach(function (key) {
+      document.getElementById(key).textContent = Number.isInteger(data[key]) && data[key] >= 0 ? data[key] : '-';
+    });
+    document.getElementById('position').textContent = data.state === 'waiting' ? (Number.isInteger(data.position) && data.position > 0 ? data.position : '-') : '✓';
+  }
+  function enter() {
+    navigating = true;
+    saveId('');
+    action.disabled = true;
+    message('已轮到，正在加载页面…');
+    var target = new URL(location.href);
+    target.searchParams.delete('hoj_cold');
+    target.searchParams.set('hoj_ticket', myId);
+    if (target.pathname === '/__queue.html') target.pathname = '/home';
+    location.replace(target.href);
+  }
+  function poll() {
+    if (stopped || suspended || navigating || !ready || request) return;
+    var epoch = generation;
+    var startedAt = performance.now();
+    var controller = new AbortController();
+    request = controller;
+    var timeout = setTimeout(function () { controller.abort(); }, 4000);
+    var nextDelay = 1000;
+    fetch('/api/queue/status?qid=' + encodeURIComponent(myId), {
+      cache: 'no-store', signal: controller.signal, priority: 'high'
+    }).then(function (response) {
+      if (!response.ok) throw new Error('Queue request failed');
+      return response.json();
+    }).then(function (json) {
+      if (epoch !== generation || stopped || suspended || navigating) return;
+      if (json.status !== 200) throw new Error('Queue request failed');
+      var data = json.data;
+      if (!data || data.myId !== myId || ['waiting', 'reserved', 'loading', 'closed', 'disabled'].indexOf(data.state) < 0) {
+        throw new Error('Invalid queue response');
+      }
+      if (typeof data.revision === 'number' && data.revision < lastRevision) return;
+      if (typeof data.revision === 'number') lastRevision = data.revision;
+      failures = 0;
+      if (data.state === 'closed' || data.state === 'loading') {
+        if (data.state === 'loading') releaseOldSlot(myId);
+        message('原名额已结束，正在重新加入…');
+        acquire(true);
+        return;
+      }
+      render(data);
+      if (data.admitted && (data.state === 'reserved' || data.state === 'disabled')) {
+        enter();
+      } else {
+        message('状态实时更新中');
+        // 队尾降低轮询频率，扣除请求耗时并错开发送，避免高峰同步重试。
+        var interval = Math.max(1000, Math.min(5000, Number(data.retryAfterMs) || 1000));
+        nextDelay = Math.max(100, interval - (performance.now() - startedAt)) + Math.random() * 200;
+      }
+    }).catch(function () {
+      if (epoch !== generation || stopped || suspended || navigating) return;
+      failures++;
+      nextDelay = Math.min(5000, 1000 * Math.pow(2, Math.min(failures - 1, 3)));
+      message('连接暂时中断，正在重试；显示人数为上次收到的状态。', true);
+    }).then(function () {
+      clearTimeout(timeout);
+      if (request === controller) request = null;
+      if (epoch === generation) schedule(nextDelay);
+    });
+  }
+  function acquire(forceNew) {
+    cancel();
+    var existing = forceNew ? '' : savedId();
+    myId = validId.test(existing) ? existing : newId();
+    saveId(myId);
+    lastRevision = -1;
+    var epoch = generation;
+    function start() {
+      if (epoch !== generation || stopped || suspended) return;
+      ready = true;
+      poll();
+    }
+    function coordinate() {
+      if (epoch !== generation || stopped || suspended) return;
+      if (!window.BroadcastChannel) { start(); return; }
+      var owner = newId();
+      try { channel = new BroadcastChannel('hoj-queue-tabs'); } catch (e) { start(); return; }
+      channel.onmessage = function (event) {
+        var data = event.data;
+        if (!data || data.id !== myId || data.owner === owner || epoch !== generation) return;
+        if (data.type === 'probe') {
+          if (ready || owner < data.owner) channel.postMessage({ type: 'occupied', id: myId, owner: owner, ready: ready });
+          else acquire(true);
+        } else if (data.type === 'occupied' && (data.ready || owner > data.owner)) {
+          acquire(true);
+        }
+      };
+      channel.postMessage({ type: 'probe', id: myId, owner: owner });
+      timer = setTimeout(start, 150);
+    }
+    if (navigator.locks && navigator.locks.request) {
+      navigator.locks.request('hoj-queue-' + myId, { ifAvailable: true }, function (lock) {
+        if (epoch !== generation || stopped || suspended) return;
+        if (!lock) { acquire(true); return; }
+        return new Promise(function (resolve) { unlock = resolve; start(); });
+      }).catch(coordinate);
+    } else {
+      coordinate();
+    }
+  }
+  action.addEventListener('click', function () {
+    if (stopped) {
+      stopped = false;
+      navigating = false;
+      action.textContent = '退出排队';
+      message('正在重新加入队列…');
+      acquire(true);
+      return;
+    }
+    stopped = true;
+    var oldId = myId;
+    cancel();
+    saveId('');
+    action.textContent = '重新加入队列';
+    document.getElementById('position').textContent = '-';
+    ['waiting', 'reserved', 'loading', 'total'].forEach(function (key) { document.getElementById(key).textContent = '-'; });
+    message('正在确认退出…');
+    var epoch = generation, attempts = 0;
+    function leave() {
+      attempts++;
+      var controller = new AbortController();
+      var timeout = setTimeout(function () { controller.abort(); }, 4000);
+      fetch('/api/queue/leave?qid=' + encodeURIComponent(oldId) + '&immediate=true', {
+        method: 'POST', cache: 'no-store', keepalive: true, signal: controller.signal
+      }).then(function (response) {
+        if (!response.ok) throw new Error('Queue leave failed');
+        return response.json();
+      }).then(function (json) {
+        if (json.status !== 200) throw new Error('Queue leave failed');
+        if (epoch === generation && stopped) message('已退出排队。');
+      }).catch(function () {
+        if (epoch !== generation || !stopped) return;
+        if (attempts < 3) timer = setTimeout(leave, 1000);
+        else message('已停止排队，退出通知未确认；服务端将在心跳超时后清除名额。', true);
+      }).then(function () { clearTimeout(timeout); });
+    }
+    leave();
+  });
+  window.addEventListener('pagehide', function () {
+    suspended = true;
+    cancel();
+  });
+  window.addEventListener('pageshow', function (event) {
+    if (!event.persisted) return;
+    suspended = false;
+    if (!stopped) {
+      var fresh = navigating;
+      navigating = false;
+      action.disabled = false;
+      acquire(fresh);
+    }
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && ready) schedule(0);
+  });
+  acquire(false);
+})();
+</script>
+</body>
+</html>

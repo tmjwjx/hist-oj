@@ -232,6 +232,10 @@ export default {
     console.log(LOGO);
     console.log(MOTTO);
     this.autoChangeLanguge();
+    // 入口脚本在首屏请求、图片和字体完成后释放加载名额。
+    this.$nextTick(() => {
+      if (window.__hojQueueLoad) window.__hojQueueLoad.appReady();
+    });
   },
 };
 </script>

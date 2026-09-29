@@ -193,8 +193,6 @@ export default {
     return {
       loading: false,
       checkins: [],
-      checkinRecords: {}, // 存储每个签到表的记录 { checkinId: [records] }
-      classStudents: [], // 班级学生列表
       showCheckinDialog: false,
       showQrcodeDialog: false,
       checkinForm: {
@@ -211,8 +209,6 @@ export default {
         initializing: false,
         scanning: false
       },
-      // 标记是否正在加载记录，用于避免闪烁
-      loadingRecords: false,
       // 实时同步配置
       realtimeSyncConfig: {
         enabled: true,
@@ -226,17 +222,9 @@ export default {
     // 计算属性：检查学生是否已签到（用于模板显示）
     hasCheckined() {
       return function(checkinId) {
-        // 优先使用后端返回的状态
+        // 学生端使用安全接口返回的 userCheckinStatus（records 接口为教师专用）
         const checkin = this.checkins.find(c => c.id === checkinId)
-        if (checkin && checkin.userCheckinStatus) {
-          return true
-        }
-
-        // 降级到本地查询
-        const records = this.checkinRecords[checkinId] || []
-        const userId = this.$store.getters.userInfo?.uid
-        const myRecord = records.find(r => r.uid === userId)
-        return !!myRecord
+        return !!(checkin && checkin.userCheckinStatus)
       }
     }
   },
@@ -277,9 +265,6 @@ export default {
         if (checkinsResult.code === 200) {
           const newCheckins = (checkinsResult.data || []).map(c => ({ ...c, submitting: false }))
           this.checkins = newCheckins
-
-          // 立即并行加载所有签到记录
-          await this.loadAllRecords()
         }
       } catch (error) {
         if (isFirstLoad) {
@@ -291,91 +276,11 @@ export default {
         }
       }
     },
-    async loadAllRecords(forceRefresh = false) {
-      // 学生端不需要加载全班学生列表
-      // await this.loadClassStudents()  // 注释掉，学生端不需要
-
-      // 使用 Promise.all 并行加载所有签到的记录
-      const recordPromises = this.checkins.map(async (checkin) => {
-        try {
-          const records = await this.$store.dispatch('classroom/getCheckinRecords', checkin.id)
-          return {
-            checkinId: checkin.id,
-            data: records
-          }
-        } catch (error) {
-          console.error(`加载签到记录失败: ${checkin.id}`, error)
-          return {
-            checkinId: checkin.id,
-            data: { code: 500, data: [] }
-          }
-        }
-      })
-
-      // 等待所有请求完成
-      const results = await Promise.all(recordPromises)
-
-      // 批量更新签到记录
-      const userInfo = this.$store.getters.userInfo
-      const userId = userInfo?.uid
-
-      for (const result of results) {
-        if (result.data.code === 200) {
-          const newRecords = result.data.data || []
-          const oldRecords = this.checkinRecords[result.checkinId] || []
-
-          const oldMyRecord = oldRecords.find(r => r.uid === userId)
-          const newMyRecord = newRecords.find(r => r.uid === userId)
-
-          // 强制刷新或状态变化时才更新
-          if (forceRefresh || !oldMyRecord || !newMyRecord ||
-              !oldMyRecord !== !newMyRecord || oldMyRecord.status !== newMyRecord.status) {
-            this.$set(this.checkinRecords, result.checkinId, newRecords)
-          }
-        }
-      }
-
-      // 合并学生列表和签到记录
-      this.mergeStudentsAndRecords()
-    },
-
-    // 获取班级学生列表
-    async loadClassStudents() {
-      if (this.classStudents.length > 0) {
-        return
-      }
-
-      try {
-        const res = await this.$http.get(`/api/classroom/${this.classroomId}/students`)
-        if (res.data.code === 200) {
-          this.classStudents = res.data.data || []
-        }
-      } catch (error) {
-        console.error('加载学生列表失败:', error)
-        this.classStudents = []
-      }
-    },
-
-    // 合并学生列表和签到记录
-    // 注意：学生端只显示已签到的记录，不显示缺勤列表
-    mergeStudentsAndRecords() {
-      // 学生端不需要合并全班学生列表
-      // 只保留真实的签到记录即可
-      // 不做任何处理，避免将未签到的学生标记为缺勤
-    },
     // 获取当前用户在该签到表的状态
     getCheckinStatus(checkinId) {
-      // 优先使用后端返回的状态
+      // 学生端使用安全接口返回的 userCheckinStatus
       const checkin = this.checkins.find(c => c.id === checkinId)
-      if (checkin && checkin.userCheckinStatus) {
-        return checkin.userCheckinStatus
-      }
-
-      // 降级到本地查询
-      const records = this.checkinRecords[checkinId] || []
-      const userId = this.$store.getters.userInfo?.uid
-      const myRecord = records.find(r => r.uid === userId)
-      return myRecord ? myRecord.status : null
+      return (checkin && checkin.userCheckinStatus) || null
     },
 
     // 判断签到是否处于活跃状态（可以签到）
@@ -454,8 +359,8 @@ export default {
         if (res.code === 200) {
           this.$message.success(this.$t('m.Checkin_Success'))
           this.showCheckinDialog = false
-          // 重新加载记录（强制刷新，不检查是否变化）
-          await this.loadAllRecords(true)
+          // 重新加载签到列表以刷新本人的 userCheckinStatus
+          await this.loadCheckins()
         } else {
           this.$message.error(res.message || this.$t('m.Checkin_Failed'))
         }
@@ -504,8 +409,8 @@ export default {
         if (res.code === 200) {
           this.$message.success(this.$t('m.Checkin_Success'))
           this.showQrcodeDialog = false
-          // 重新加载记录
-          await this.loadAllRecords()
+          // 重新加载签到列表以刷新本人的 userCheckinStatus
+          await this.loadCheckins()
         } else {
           this.$message.error(res.message || this.$t('m.Checkin_Failed'))
         }
@@ -635,8 +540,6 @@ export default {
                 this.showQrcodeDialog = false
                 // 重新加载签到列表（强制刷新）
                 this.loadCheckins()
-                // 强制刷新签到记录
-                this.loadAllRecords(true)
               }, 1500)
             }).catch((error) => {
               // 失败也延迟关闭对话框
@@ -754,7 +657,6 @@ export default {
 .student-checkin {
   padding: 8px;
   min-height: 100vh;
-  background: var(--classroom-bg, #f5f7fa);
 }
 
 /* 二维码扫描器样式 */

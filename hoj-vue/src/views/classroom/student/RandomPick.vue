@@ -195,7 +195,6 @@ export default {
   gap: 10px;
   padding: 8px;
   min-height: 100vh;
-  background: var(--classroom-bg, #f5f7fa);
 }
 
 .result-card {

@@ -1011,7 +1011,7 @@
                   <div class="paper-meta">
                     <span class="creator">
                       <i class="el-icon-user"></i>
-                      {{ paper.creator ? paper.creator.username : '未知' }}
+                      {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '未知') }}
                     </span>
                     <span class="create-time">
                       <i class="el-icon-time"></i>
@@ -2913,7 +2913,6 @@ export default {
 /* 整体布局 - 清爽浅色主题 */
 .create-homework-wrapper {
   min-height: 100vh;
-  background: #f5f7fa;
 }
 
 /* 顶部固定导航栏 - 柔和蓝色 */

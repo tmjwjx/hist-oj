@@ -33,7 +33,6 @@ public class RatingAdminController {
     @PostMapping("/admin/contest/{cid}/sync-skip") public CommonResult<?> sync(@PathVariable Long cid) { return service.syncSkip(cid); }
     @PostMapping("/admin/contest/{cid}/reset-recalculate-lock") public CommonResult<?> reset(@PathVariable Long cid) { return service.resetLock(cid); }
     @PostMapping("/admin/migrate-logs") public CommonResult<?> migrate() { return CommonResult.successResponse(java.util.Collections.singletonMap("migrated", 0)); }
-    @PostMapping("/admin/fix-logs-username") public CommonResult<?> fix() { return CommonResult.successResponse(); }
 
     private static Integer number(Object value, int fallback) { return value instanceof Number ? ((Number) value).intValue() : fallback; }
 }

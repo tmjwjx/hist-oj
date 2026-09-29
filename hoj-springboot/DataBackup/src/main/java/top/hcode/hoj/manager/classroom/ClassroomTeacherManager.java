@@ -10,9 +10,11 @@ import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.mapper.classroom.ClassroomMapper;
 import top.hcode.hoj.mapper.classroom.ClassroomStudentMapper;
 import top.hcode.hoj.mapper.classroom.ClassroomTeacherMapper;
+import top.hcode.hoj.mapper.classroom.ClassroomUserRoleMapper;
 import top.hcode.hoj.pojo.entity.classroom.Classroom;
 import top.hcode.hoj.pojo.entity.classroom.ClassroomStudent;
 import top.hcode.hoj.pojo.entity.classroom.ClassroomTeacher;
+import top.hcode.hoj.pojo.entity.classroom.ClassroomUserRole;
 import top.hcode.hoj.pojo.entity.user.UserInfo;
 import top.hcode.hoj.pojo.vo.classroom.ClassroomTeacherVO;
 import top.hcode.hoj.pojo.vo.classroom.ClassroomUserVO;
@@ -28,6 +30,8 @@ public class ClassroomTeacherManager {
     @Resource private ClassroomMapper classroomMapper;
     @Resource private ClassroomTeacherMapper teacherMapper;
     @Resource private ClassroomStudentMapper studentMapper;
+    @Resource(name = "classroomUserRoleMapper")
+    private ClassroomUserRoleMapper roleMapper;
     @Resource private UserInfoEntityService userInfoService;
     @Resource private ClassroomAccessManager accessManager;
     @Resource private ClassroomViewBuilder viewBuilder;
@@ -44,6 +48,10 @@ public class ClassroomTeacherManager {
         }
         if (teacherId.isEmpty() || userInfoService.getById(teacherId) == null)
             throw new StatusNotFoundException("用户不存在");
+        // 必须拥有班级教师角色才能被添加为班级教师
+        if (roleMapper.selectCount(new QueryWrapper<ClassroomUserRole>()
+                .eq("uid", teacherId).eq("role", "teacher")) == 0)
+            throw new StatusFailException("该用户没有教师角色，无法添加为班级教师，请先在角色管理中授予教师角色");
         if (classroom.getTeacherId().equals(teacherId)) throw new StatusFailException("该用户已经是班级的主教师");
         if (studentMapper.selectCount(new QueryWrapper<ClassroomStudent>()
                 .eq("classroom_id", classroomId).eq("uid", teacherId).eq("status", 1)) > 0)
@@ -84,9 +92,19 @@ public class ClassroomTeacherManager {
 
     public List<ClassroomUserVO> search(String keyword) throws StatusFailException {
         if (keyword == null || keyword.trim().isEmpty()) throw new StatusFailException("关键词不能为空");
-        return userInfoService.list(new QueryWrapper<UserInfo>().eq("status", 0)
+        List<ClassroomUserVO> users = userInfoService.list(new QueryWrapper<UserInfo>().eq("status", 0)
                 .and(q -> q.like("username", keyword).or().like("realname", keyword).or().like("nickname", keyword))
                 .orderByAsc("username").last("LIMIT 20")).stream().map(viewBuilder::user).collect(Collectors.toList());
+        if (!users.isEmpty()) {
+            // 批量附带班级角色，供管理端下拉展示（同一用户多角色时拼接）
+            List<String> uids = users.stream().map(ClassroomUserVO::getUid).collect(Collectors.toList());
+            Map<String, String> roleMap = roleMapper.selectList(new QueryWrapper<ClassroomUserRole>()
+                    .in("uid", uids)).stream()
+                    .collect(Collectors.toMap(ClassroomUserRole::getUid, ClassroomUserRole::getRole,
+                            (a, b) -> a + "/" + b));
+            users.forEach(u -> u.setRole(roleMap.getOrDefault(u.getUid(), "")));
+        }
+        return users;
     }
 
     private Long number(Object value) throws StatusFailException {

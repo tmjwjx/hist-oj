@@ -621,11 +621,14 @@ export default {
         // 代码折叠
         foldGutter: true,
         gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        foldOptions: {
+          minFoldSize: 1,
+        },
         lineWrapping: true,
         // 选中文本自动高亮，及高亮方式
         styleSelectedText: true,
         showCursorWhenSelecting: true,
-        highlightSelectionMatches: { showToken: /\w/, annotateScrollbar: true },
+        highlightSelectionMatches: { showToken: false, annotateScrollbar: true },
         // extraKeys: { Ctrl: 'autocomplete' }, //自定义快捷键
         matchBrackets: true, //括号匹配
         indentUnit: this.tabSize, //一个块（编辑语言中的含义）应缩进多少个空格
@@ -662,6 +665,8 @@ export default {
       testJudgeLoding: false,
       refreshStatus: null,
       equalsExpectedOuput: null,
+      editorResizeObserver: null,
+      editorRefreshFrame: null,
     };
   },
   mounted() {
@@ -691,10 +696,56 @@ export default {
       // }
     });
     this.$nextTick(() => {
+      this.syncEditorCursorScale();
       this.editor.refresh();
+      this.observeEditorResize();
     })
+    window.addEventListener("resize", this.handleEditorViewportResize);
   },
   methods: {
+    syncEditorCursorScale() {
+      if (!this.$refs.myEditor || !this.$refs.myEditor.editor) {
+        return;
+      }
+      const wrapper = this.$refs.myEditor.editor.getWrapperElement();
+      const publicShell = wrapper && wrapper.closest(".public-shell");
+      const shellZoom = publicShell
+        ? parseFloat(window.getComputedStyle(publicShell).zoom) || 1
+        : 1;
+      wrapper.style.setProperty(
+        "--codemirror-cursor-scale",
+        String(1 / Math.max(shellZoom, 0.01))
+      );
+    },
+    handleEditorViewportResize() {
+      this.syncEditorCursorScale();
+      this.scheduleEditorRefresh();
+    },
+    scheduleEditorRefresh() {
+      if (this.editorRefreshFrame !== null) {
+        return;
+      }
+      this.editorRefreshFrame = requestAnimationFrame(() => {
+        this.editorRefreshFrame = null;
+        if (this.$refs.myEditor && this.$refs.myEditor.editor) {
+          this.$refs.myEditor.editor.refresh();
+        }
+      });
+    },
+    observeEditorResize() {
+      if (typeof ResizeObserver === "undefined" || this.editorResizeObserver) {
+        return;
+      }
+      const wrapper = this.editor.getWrapperElement();
+      const container = wrapper && wrapper.parentElement;
+      if (!container) {
+        return;
+      }
+      this.editorResizeObserver = new ResizeObserver(() => {
+        this.handleEditorViewportResize();
+      });
+      this.editorResizeObserver.observe(container);
+    },
     onEditorCodeChange(newCode) {
       this.$emit("update:value", newCode);
     },
@@ -890,6 +941,15 @@ export default {
   beforeDestroy() {
     // 防止切换组件后仍然不断请求
     clearInterval(this.refreshStatus);
+    window.removeEventListener("resize", this.handleEditorViewportResize);
+    if (this.editorResizeObserver) {
+      this.editorResizeObserver.disconnect();
+      this.editorResizeObserver = null;
+    }
+    if (this.editorRefreshFrame !== null) {
+      cancelAnimationFrame(this.editorRefreshFrame);
+      this.editorRefreshFrame = null;
+    }
   },
 };
 </script>
@@ -1032,5 +1092,9 @@ export default {
 }
 .cm-s-material .cm-matchhighlight {
   background-color: rgba(128, 203, 196, 0.2);
+}
+.CodeMirror .CodeMirror-cursors {
+  transform: scale(var(--codemirror-cursor-scale, 1));
+  transform-origin: top left;
 }
 </style>

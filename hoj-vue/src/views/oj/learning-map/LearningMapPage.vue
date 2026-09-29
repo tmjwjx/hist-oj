@@ -409,7 +409,6 @@ export default {
   margin: 0 auto;
   position: relative;
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 .toolbar-card {

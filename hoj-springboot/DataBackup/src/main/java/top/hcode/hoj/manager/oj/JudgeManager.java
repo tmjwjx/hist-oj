@@ -139,7 +139,9 @@ public class JudgeManager {
                 .setStatus(Constants.Judge.STATUS_PENDING.getStatus()) // 开始进入判题队列
                 .setSubmitTime(new Date())
                 .setVersion(0)
-                .setIp(IpUtils.getUserIpAddr(request));
+                .setIp(IpUtils.getUserIpAddr(request))
+                .setDeviceId(normalizeDeviceId(request.getHeader("X-Device-Id")))
+                .setUserAgent(truncateUserAgent(request.getHeader("User-Agent")));
 
         // 如果比赛id不等于0，则说明为比赛提交
         if (isContestSubmission) {
@@ -165,6 +167,29 @@ public class JudgeManager {
         }
 
         return judge;
+    }
+
+    /**
+     * 设备ID仅做长度与空白清洗，不做任何格式改写；缺失时返回null，查询侧按"未采集"处理。
+     */
+    private String normalizeDeviceId(String rawDeviceId) {
+        if (rawDeviceId == null) {
+            return null;
+        }
+        String deviceId = rawDeviceId.trim();
+        if (deviceId.isEmpty()) {
+            return null;
+        }
+        return deviceId.length() > 64 ? deviceId.substring(0, 64) : deviceId;
+    }
+
+    private String truncateUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return null;
+        }
+        String trimmed = userAgent.trim();
+        return trimmed.isEmpty() ? null
+                : (trimmed.length() > 255 ? trimmed.substring(0, 255) : trimmed);
     }
 
     public String submitProblemTestJudge(TestJudgeDTO testJudgeDto) throws AccessException,
@@ -299,6 +324,11 @@ public class JudgeManager {
                 .setJudger("")
                 .setMemory(null);
         judgeEntityService.updateById(judge);
+
+        // 清除旧测试点结果，避免重判等待期间展示上一次的评测数据（与重判管理行为对齐）
+        QueryWrapper<JudgeCase> judgeCaseQueryWrapper = new QueryWrapper<>();
+        judgeCaseQueryWrapper.eq("submit_id", submitId);
+        judgeCaseEntityService.remove(judgeCaseQueryWrapper);
 
         // 将提交加入任务队列
         if (problem.getIsRemote()) { // 如果是远程oj判题
@@ -707,12 +737,20 @@ public class JudgeManager {
                 .eq("submit_id", submitId)
                 .orderByAsc("seq"));
         if (Objects.equals(status, Constants.Judge.STATUS_JUDGING.getStatus())) {
-            JudgeCase running = cases.stream()
-                    .filter(item -> isRunningCase(item.getStatus()))
-                    .findFirst()
-                    .orElse(null);
-            int test = running == null ? Math.max(1, cases.size() + 1) : running.getSeq();
-            return new StatusProgress("Running on test " + test, test);
+            // 并行判题下各测试点乱序完成，"第一条未完成的 seq" 会长期停留在小序号；
+            // 改为按完成数显示进度：已完成 k 个 / 共 N 个
+            int total = cases.size();
+            if (total == 0) {
+                // 占位行尚未写入或远程判题（无占位行），无测试点进度可显示
+                return new StatusProgress("Judging", null);
+            }
+            int done = 0;
+            for (JudgeCase item : cases) {
+                if (!isRunningCase(item.getStatus())) {
+                    done++;
+                }
+            }
+            return new StatusProgress("Judging: " + done + "/" + total, Math.min(done + 1, total));
         }
         if (!Objects.equals(status, Constants.Judge.STATUS_ACCEPTED.getStatus())) {
             JudgeCase failed = cases.stream()

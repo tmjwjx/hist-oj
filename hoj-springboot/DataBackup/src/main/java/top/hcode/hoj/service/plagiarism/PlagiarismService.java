@@ -9,6 +9,7 @@ import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheck;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheckConfig;
 import top.hcode.hoj.pojo.vo.PlagiarismResultPageVO;
+import top.hcode.hoj.pojo.vo.plagiarism.DeviceAnomalyVO;
 
 import java.util.List;
 
@@ -21,5 +22,6 @@ public interface PlagiarismService {
     CommonResult<PlagiarismCheck> latest(Long cid);
     CommonResult<PlagiarismResultPageVO> results(Long checkId, String displayId);
     CommonResult<Judge> submission(Long submitId);
+    CommonResult<DeviceAnomalyVO> deviceAnomalies(Long cid);
     byte[] export(Long checkId) throws StatusNotFoundException, StatusForbiddenException;
 }

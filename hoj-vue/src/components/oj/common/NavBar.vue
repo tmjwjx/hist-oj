@@ -68,14 +68,20 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
-            <el-menu-item index="/toolbox"
-              ><i class="fa fa-briefcase"></i>{{ $t('m.NavBar_Toolbox') }}</el-menu-item
-            >
+            <el-menu-item index="/battle">
+              <i class="fa fa-gamepad"></i>{{ $t('m.NavBar_Battle') }}
+            </el-menu-item>
+            <el-menu-item index="/classroom">
+              <i class="el-icon-s-operation"></i>{{ $t('m.NavBar_Classroom') }}
+            </el-menu-item>
+            <el-menu-item index="/practice">
+              <i class="el-icon-reading"></i>{{ $t('m.NavBar_Practice') }}
+            </el-menu-item>
+            <el-menu-item index="/learning-map">
+              <i class="fa fa-sitemap"></i>{{ $t('m.NavBar_Learning_Map') }}
+            </el-menu-item>
             <el-menu-item index="/introduction"
               ><i class="el-icon-document"></i>{{ $t('m.NavBar_Compile_Environment') }}</el-menu-item
-            >
-            <el-menu-item index="/about-us"
-              ><i class="el-icon-user"></i>{{ $t('m.NavBar_About_Us') }}</el-menu-item
             >
         </template>
         <template v-else-if="mode == 'training'">
@@ -572,15 +578,50 @@
 
           <mu-list-item
             button
-            :ripple="false"
-            to="/toolbox"
+            to="/battle"
             @click="opendrawer = !opendrawer"
             active-class="mobile-menu-active"
           >
             <mu-list-item-action>
-              <mu-icon value=":fa fa-briefcase" size="24"></mu-icon>
+              <mu-icon value=":fa fa-gamepad" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>{{ $t('m.NavBar_Toolbox') }}</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.NavBar_Battle') }}</mu-list-item-title>
+          </mu-list-item>
+
+          <mu-list-item
+            button
+            to="/classroom"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":el-icon-s-operation" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.NavBar_Classroom') }}</mu-list-item-title>
+          </mu-list-item>
+
+          <mu-list-item
+            button
+            to="/practice"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":el-icon-reading" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.NavBar_Practice') }}</mu-list-item-title>
+          </mu-list-item>
+
+          <mu-list-item
+            button
+            to="/learning-map"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-sitemap" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.NavBar_Learning_Map') }}</mu-list-item-title>
           </mu-list-item>
 
           <mu-list-item
@@ -596,18 +637,6 @@
             <mu-list-item-title>{{ $t('m.NavBar_Compile_Environment') }}</mu-list-item-title>
           </mu-list-item>
 
-          <mu-list-item
-            button
-            :ripple="false"
-            to="/about-us"
-            @click="opendrawer = !opendrawer"
-            active-class="mobile-menu-active"
-          >
-            <mu-list-item-action>
-              <mu-icon value=":el-icon-user" size="24"></mu-icon>
-            </mu-list-item-action>
-            <mu-list-item-title>{{ $t('m.NavBar_About_Us') }}</mu-list-item-title>
-          </mu-list-item>
         </mu-list>
       </mu-drawer>
     </div>
@@ -651,24 +680,6 @@ export default {
     };
   },
   mounted() {
-    // 首次加载时强制刷新一次，解决手机浏览器和 webpack 缓存问题
-    const refreshKey = 'navbar_refreshed_v2';
-    const versionKey = 'navbar_version';
-    const currentVersion = '1.0.2';
-
-    const lastVersion = localStorage.getItem(versionKey);
-    if (!sessionStorage.getItem(refreshKey) && lastVersion !== currentVersion) {
-      sessionStorage.setItem(refreshKey, 'true');
-      localStorage.setItem(versionKey, currentVersion);
-
-      setTimeout(() => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('_t', Date.now());
-        window.location.href = url.toString();
-      }, 100);
-      return;
-    }
-
     // 使用 $nextTick 确保 DOM 渲染完成后再设置模式
     this.$nextTick(() => {
       this.switchMode();
@@ -886,7 +897,7 @@ export default {
       } else if (firstPath == 'discussion-detail') {
         return '/discussion';
       } else if (firstPath == 'practice' || firstPath == 'learning-map') {
-        return '/toolbox';
+        return '/' + firstPath;
       }
       return '/' + firstPath;
     },

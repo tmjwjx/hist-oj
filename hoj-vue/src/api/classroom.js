@@ -134,6 +134,9 @@ export default {
   getQuestionDetail(questionId) {
     return axios.get(`${BASE_URL}/question/${questionId}`)
   },
+  deleteQuestionImages(urls) {
+    return axios.post(`${BASE_URL}/question/delete-image`, { urls })
+  },
 
   // ==================== 作业功能 ====================
   createHomework(data) {
@@ -280,6 +283,10 @@ export default {
   addClassroomTeacher(data) {
     return axios.post(`${BASE_URL}/admin/teacher/add`, data)
   },
+  // 管理端搜索用户（附带班级角色，用于添加教师下拉）
+  searchTeachersForAdmin(keyword) {
+    return axios.get(`${BASE_URL}/admin/teachers/search`, { params: { keyword } })
+  },
   // 移除班级教师
   removeClassroomTeacher(data) {
     return axios.delete(`${BASE_URL}/admin/teacher/remove`, { data })
@@ -343,6 +350,15 @@ export default {
   // 管理员获取题库（所有题目，包括私有）
   adminGetQuestionBank(params) {
     return axios.get(`${BASE_URL}/admin/question-bank`, { params })
+  },
+  adminCreateQuestion(data) {
+    return axios.post(`${BASE_URL}/admin/question`, data)
+  },
+  adminUpdateQuestion(questionId, data) {
+    return axios.put(`${BASE_URL}/admin/question/${questionId}`, data)
+  },
+  adminDeleteQuestion(questionId) {
+    return axios.delete(`${BASE_URL}/admin/question/${questionId}`)
   },
 
   // ==================== 权限申请管理 ====================

@@ -96,3 +96,6 @@ scripts/nginx/ssl/*.key
 scripts/nginx/ssl/*.pem
 scripts/nginx/ssl/*.csr
 scripts/*_nginx/
+
+# ZCode local session data
+.zcode/

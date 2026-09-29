@@ -44,7 +44,8 @@ public class QuestionBankManager {
         QueryWrapper<QuestionBank> query = new QueryWrapper<QuestionBank>().eq("status", 1);
         if (!admin) query.and(q -> q.eq("creator_id", accessManager.uid()).or().eq("is_shared", 1));
         filter(query, params);
-        IPage<QuestionBank> result = questionMapper.selectPage(new Page<>(page, limit), query.orderByDesc("create_time"));
+        applySort(query, params);
+        IPage<QuestionBank> result = questionMapper.selectPage(new Page<>(page, limit), query);
         Map<String, Object> data = new LinkedHashMap<>(); data.put("total", result.getTotal()); data.put("page", page); data.put("limit", limit);
         data.put("questions", result.getRecords().stream().map(this::view).collect(Collectors.toList())); return data;
     }
@@ -76,12 +77,67 @@ public class QuestionBankManager {
         QuestionBank row = questionMapper.selectOne(new QueryWrapper<QuestionBank>().eq("id", id).eq("status", 1));
         if (row == null) throw new StatusNotFoundException("题目不存在"); return row;
     }
-    private void checkOwner(QuestionBank row, boolean admin) throws StatusForbiddenException { if (!admin && !accessManager.uid().equals(row.getCreatorId())) throw new StatusForbiddenException("无权操作该题目"); }
+    private void checkOwner(QuestionBank row, boolean admin) throws StatusForbiddenException {
+        if (!admin && !accessManager.uid().equals(row.getCreatorId())) {
+            throw new StatusForbiddenException("无权操作该题目");
+        }
+    }
+
     private void filter(QueryWrapper<QuestionBank> q, Map<String, String> p) {
-        if (notBlank(p.get("type"))) q.eq("type", p.get("type")); if (notBlank(p.get("isShared"))) q.eq("is_shared", p.get("isShared"));
-        if (notBlank(p.get("course"))) q.eq("course", p.get("course")); if (notBlank(p.get("difficulty"))) q.eq("difficulty", p.get("difficulty"));
-        if (notBlank(p.get("keyword"))) q.like("title", p.get("keyword")); if (notBlank(p.get("questionId"))) q.eq("id", p.get("questionId"));
-        if (notBlank(p.get("tag"))) q.apply("JSON_CONTAINS(tags, {0})", "\"" + p.get("tag") + "\"");
+        if (notBlank(p.get("type"))) q.eq("type", p.get("type"));
+        if (notBlank(p.get("isShared"))) q.eq("is_shared", p.get("isShared"));
+        if (notBlank(p.get("course"))) q.eq("course", p.get("course"));
+        if (notBlank(p.get("difficulty"))) q.eq("difficulty", p.get("difficulty"));
+        if (notBlank(p.get("questionId"))) q.eq("id", p.get("questionId"));
+        if (notBlank(p.get("tag"))) {
+            q.apply("JSON_CONTAINS(tags, {0})", "\"" + p.get("tag") + "\"");
+        }
+
+        String keyword = text(p.get("keyword")).trim();
+        if (keyword.isEmpty()) return;
+
+        String searchField = text(p.get("searchField")).trim();
+        if ("id".equals(searchField)) {
+            try {
+                q.eq("id", Long.parseLong(keyword));
+            } catch (NumberFormatException ignored) {
+                q.eq("id", -1L);
+            }
+            return;
+        }
+        if ("creator".equals(searchField)) {
+            List<String> creatorIds = userInfoService.list(
+                    new QueryWrapper<UserInfo>().like("username", keyword)
+            ).stream().map(UserInfo::getUuid).collect(Collectors.toList());
+            if (creatorIds.isEmpty()) q.eq("id", -1L);
+            else q.in("creator_id", creatorIds);
+            return;
+        }
+        q.like("title", keyword);
+    }
+
+    private void applySort(QueryWrapper<QuestionBank> query, Map<String, String> params) {
+        String sortBy = text(params.get("sortBy"));
+        String column;
+        switch (sortBy) {
+            case "id":
+                column = "id";
+                break;
+            case "title":
+                column = "title";
+                break;
+            case "difficulty":
+                column = "difficulty";
+                break;
+            case "score":
+                column = "score";
+                break;
+            case "createTime":
+            default:
+                column = "create_time";
+                break;
+        }
+        query.orderBy(true, "asc".equalsIgnoreCase(params.get("sortOrder")), column);
     }
     private QuestionBankVO view(QuestionBank row) {
         UserInfo user = userInfoService.getById(row.getCreatorId()); ClassroomUserVO creator = viewBuilder.user(user);

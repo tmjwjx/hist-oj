@@ -666,7 +666,6 @@ export default {
 .student-materials {
   padding: 8px;
   min-height: 100vh;
-  background: var(--classroom-bg, #f5f7fa);
 }
 
 .header {

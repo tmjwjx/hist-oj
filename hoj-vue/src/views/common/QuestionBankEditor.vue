@@ -296,10 +296,19 @@
 
 <script>
 import Editor from '@/components/admin/Editor'
+import classroomApi from '@/api/classroom'
 
 const QUESTION_IMAGE_UPLOAD_PREFIX = '/uploads/classroom/questions/'
 const QUESTION_IMAGE_MARKDOWN_REGEX = /!\[[^\]]*]\(([^)]+)\)/g
 const QUESTION_IMAGE_HTML_REGEX = /<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi
+const OBJECTIVE_QUESTION_TYPES = [
+  'single_choice',
+  'multiple_choice',
+  'judge',
+  'fill_blank',
+  'subjective',
+  'composite'
+]
 
 export default {
   name: 'QuestionBankEditor',
@@ -312,6 +321,13 @@ export default {
       default: 'teacher',
       validator(value) {
         return ['teacher', 'admin'].includes(value)
+      }
+    },
+    initialType: {
+      type: String,
+      default: 'single_choice',
+      validator(value) {
+        return OBJECTIVE_QUESTION_TYPES.includes(value)
       }
     }
   },
@@ -363,9 +379,6 @@ export default {
     submitButtonText() {
       return this.isEdit ? '保存修改' : '创建题目'
     },
-    backRouteName() {
-      return this.isAdmin ? 'admin-question-bank' : 'QuestionBank'
-    },
     optionEditorTitle() {
       if (!this.optionEditor.mode) {
         return '编辑内容'
@@ -393,6 +406,15 @@ export default {
     this.hasSavedQuestion = false
     if (this.isEdit) {
       this.loadQuestionDetail()
+    } else {
+      this.applyInitialType(this.initialType)
+    }
+  },
+  watch: {
+    initialType(nextType) {
+      if (!this.isEdit) {
+        this.applyInitialType(nextType)
+      }
     }
   },
   beforeDestroy() {
@@ -439,11 +461,19 @@ export default {
       this.form.score = total > 0 ? total : 1
     },
     goBack(forceRefresh = false) {
-      const route = { name: this.backRouteName }
+      const route = this.isAdmin
+        ? { name: 'admin-problem-list', query: { category: 'objective' } }
+        : { name: 'QuestionBank' }
       if (forceRefresh) {
-        route.query = { refreshTs: Date.now() }
+        route.query = { ...(route.query || {}), refreshTs: Date.now() }
       }
       this.$router.push(route)
+    },
+    applyInitialType(type) {
+      const nextType = OBJECTIVE_QUESTION_TYPES.includes(type) ? type : 'single_choice'
+      if (this.form.type === nextType) return
+      this.form.type = nextType
+      this.handleTypeChange()
     },
     normalizeQuestionImageUrl(rawUrl) {
       let value = String(rawUrl || '').trim()
@@ -557,7 +587,7 @@ export default {
       if (!targetUrls.length) return true
 
       try {
-        const res = await this.$http.post('/api/classroom/question/delete-image', { urls: targetUrls })
+        const res = await classroomApi.deleteQuestionImages(targetUrls)
         if (res.data.code !== 200) {
           if (!silent) this.$message.warning(res.data.message || '图片回收失败')
           return false
@@ -584,7 +614,7 @@ export default {
       const targetUrls = this.uniqueQuestionImageUrls(this.sessionUploadedQuestionImageUrls)
       if (!targetUrls.length) return
 
-      this.$http.post('/api/classroom/question/delete-image', { urls: targetUrls }).catch(() => {})
+      classroomApi.deleteQuestionImages(targetUrls).catch(() => {})
     },
     handleTypeChange() {
       if (this.form.type === 'single_choice') {
@@ -620,6 +650,7 @@ export default {
       if (this.form.type !== 'fill_blank') {
         this.form.fillBlankAnswers = ['']
       }
+      this.$emit('type-change', this.form.type)
     },
     normalizeFillBlankStorageValue(raw) {
       const trimmed = String(raw || '').trim()
@@ -867,7 +898,7 @@ export default {
     async loadQuestionDetail() {
       this.loading = true
       try {
-        const res = await this.$http.get(`/api/classroom/question/${this.questionId}`)
+        const res = await classroomApi.getQuestionDetail(this.questionId)
         if (res.data.code !== 200 || !res.data.data) {
           this.$message.error(res.data.message || '加载题目失败')
           this.goBack()
@@ -1001,14 +1032,14 @@ export default {
         let res
         if (this.isAdmin) {
           if (this.isEdit) {
-            res = await this.$http.put(`/api/classroom/admin/question/${this.questionId}`, submitData)
+            res = await classroomApi.adminUpdateQuestion(this.questionId, submitData)
           } else {
-            res = await this.$http.post('/api/classroom/admin/question', submitData)
+            res = await classroomApi.adminCreateQuestion(submitData)
           }
         } else if (this.isEdit) {
-          res = await this.$http.put(`/api/classroom/question/${this.questionId}`, submitData)
+          res = await classroomApi.updateQuestion(this.questionId, submitData)
         } else {
-          res = await this.$http.post('/api/classroom/question', submitData)
+          res = await classroomApi.createQuestion(submitData)
         }
 
         if (res.data.code === 200) {

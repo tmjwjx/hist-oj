@@ -608,9 +608,9 @@ export default {
 @import '../classroom-theme.css';
 
 .checkin-panel {
-  padding: 24px;
-  background: var(--classroom-bg);
-  min-height: 100vh;
+  padding: 0;
+  background: transparent;
+  min-height: auto;
   max-width: none;
   width: 100%;
   margin: 0;
@@ -620,11 +620,11 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding: 20px 24px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  margin-bottom: 20px;
+  padding: 0 0 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--classroom-border);
+  box-shadow: none;
 }
 
 .header h3 {
@@ -681,7 +681,7 @@ export default {
   padding: 16px 24px;
   background: white;
   border: 1px solid var(--classroom-border);
-  border-radius: 12px;
+  border-radius: 6px;
   gap: 20px;
 }
 

@@ -4,7 +4,7 @@
       <div slot="header" class="card-header">
         <div class="header-left">
           <i class="el-icon-document-copy"></i>
-          <span>试卷库管理</span>
+          <span>试卷列表</span>
         </div>
         <div class="header-right">
           <el-button type="primary" icon="el-icon-plus" @click="openCreateDialog" size="small">创建试卷</el-button>
@@ -69,10 +69,10 @@
 
         <el-table-column prop="creator.username" label="创建者" width="150">
           <template slot-scope="{ row }">
-            <div v-if="row.creator">
+            <div v-if="row.creator && row.creator.username">
               {{ row.creator.username }}
             </div>
-            <div v-else>-</div>
+            <div v-else>{{ row.creatorId || '-' }}</div>
           </template>
         </el-table-column>
 
@@ -158,14 +158,8 @@
         <el-divider>题目列表</el-divider>
 
         <div v-if="isEditMode" class="selected-questions-toolbar">
-          <el-button icon="el-icon-plus" type="primary" @click="openQuestionSelectorDialog">添加题目</el-button>
-          <el-button
-            type="success"
-            size="small"
-            icon="el-icon-plus"
-            @click="showAddProgrammingDialog = true"
-          >
-            添加编程题
+          <el-button icon="el-icon-plus" type="primary" @click="openQuestionSelectorDialog('objective')">
+            添加题目
           </el-button>
           <el-tag size="small" type="info">已选 {{ selectedEditQuestions.length }} 题</el-tag>
           <el-tag size="small" type="success">总分 {{ getTotalScore() }} 分</el-tag>
@@ -367,8 +361,16 @@
       width="1200px"
       append-to-body
       class="question-selector-dialog-wrapper"
+      @opened="handleQuestionSelectorOpened"
+      @close="handleQuestionSelectorClose"
     >
       <div class="question-selector-dialog">
+        <el-tabs
+          v-model="questionSelectorTab"
+          class="question-selector-tabs"
+          @tab-click="handleQuestionSelectorTabChange"
+        >
+          <el-tab-pane label="客观题" name="objective">
         <div class="filter-section selector-filter-section">
           <el-row :gutter="10">
             <el-col :xs="24" :sm="12" :md="8">
@@ -543,175 +545,121 @@
             </el-pagination>
           </div>
         </div>
-      </div>
-      <span slot="footer">
-        <el-button @click="showQuestionSelectorDialog = false">关闭</el-button>
-      </span>
-    </el-dialog>
+          </el-tab-pane>
 
-    <!-- 添加编程题对话框 -->
-    <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
-      <el-form :model="programmingForm" label-width="120px">
-        <el-form-item label="方式选择">
-          <el-radio-group v-model="programmingInputMode" @change="handleProgrammingInputModeChange">
-            <el-radio label="manual">手动输入题目ID</el-radio>
-            <el-radio label="tag">按标签选择题目</el-radio>
-          </el-radio-group>
-        </el-form-item>
+          <el-tab-pane label="编程题" name="programming">
+            <el-form :model="programmingForm" label-width="100px" class="programming-selector-form">
+              <el-form-item label="添加方式">
+                <el-radio-group v-model="programmingInputMode" @change="handleProgrammingInputModeChange">
+                  <el-radio label="manual">按题目 ID 添加</el-radio>
+                  <el-radio label="tag">按标签选择</el-radio>
+                </el-radio-group>
+              </el-form-item>
 
-        <!-- 手动输入模式 -->
-        <template v-if="programmingInputMode === 'manual'">
-          <el-form-item label="题目ID" required>
-            <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
-            <el-button
-              type="primary"
-              icon="el-icon-search"
-              style="margin-left: 10px;"
-              @click="fetchProgrammingProblemInfo"
-              :loading="fetchingProblem"
-            >
-              获取题目信息
-            </el-button>
-          </el-form-item>
-        </template>
+              <template v-if="programmingInputMode === 'manual'">
+                <el-form-item label="题目 ID" required>
+                  <el-input
+                    v-model.trim="programmingForm.problemId"
+                    placeholder="请输入 BingOJ 编程题 ID"
+                    style="width: 320px;"
+                    @keyup.enter.native="fetchProgrammingProblemInfo"
+                  />
+                  <el-button
+                    type="primary"
+                    icon="el-icon-search"
+                    :loading="fetchingProblem"
+                    style="margin-left: 10px;"
+                    @click="fetchProgrammingProblemInfo"
+                  >获取题目信息</el-button>
+                </el-form-item>
+              </template>
 
-        <!-- 标签选择模式 -->
-        <template v-if="programmingInputMode === 'tag'">
-          <el-form-item label="选择标签">
-            <div v-if="problemTagsLoading" v-loading="true" style="min-height: 100px;"></div>
-            <div v-else>
-              <div v-for="(tagsAndClassification, index) in problemTagsAndClassificationList" :key="index" style="margin-bottom: 15px;">
-                <div style="margin-bottom: 8px; font-weight: bold; color: #606266;">
-                  {{ tagsAndClassification.classification ? tagsAndClassification.classification.name : '未分类' }}
-                </div>
-                <el-tag
-                  v-for="tag in tagsAndClassification.tagList"
-                  :key="tag.id"
-                  :type="isTagSelected(tag.id) ? 'primary' : 'info'"
-                  :color="isTagSelected(tag.id) ? (tag.color || '#409eff') : ''"
-                  effect="dark"
-                  @click="toggleProblemTag(tag)"
-                  style="margin-right: 10px; margin-bottom: 10px; cursor: pointer;"
-                  size="medium"
-                >
-                  {{ tag.name }}
-                </el-tag>
+              <template v-else>
+                <el-form-item label="题目标签">
+                  <div v-loading="problemTagsLoading" class="programming-tag-list">
+                    <div
+                      v-for="group in problemTagsAndClassificationList"
+                      :key="group.classification ? group.classification.id : 'uncategorized'"
+                      class="programming-tag-group"
+                    >
+                      <div class="programming-tag-group-title">
+                        {{ group.classification ? group.classification.name : '未分类' }}
+                      </div>
+                      <el-tag
+                        v-for="tag in group.tagList"
+                        :key="tag.id"
+                        :type="isTagSelected(tag.id) ? 'primary' : 'info'"
+                        :color="isTagSelected(tag.id) ? (tag.color || '#409eff') : ''"
+                        effect="dark"
+                        size="small"
+                        class="programming-tag"
+                        @click="toggleProblemTag(tag)"
+                      >{{ tag.name }}</el-tag>
+                    </div>
+                  </div>
+                </el-form-item>
+                <el-form-item v-if="selectedProblemTagIds.length" label="已选标签">
+                  <el-tag
+                    v-for="tagId in selectedProblemTagIds"
+                    :key="tagId"
+                    closable
+                    type="primary"
+                    class="selected-programming-tag"
+                    @close="removeSelectedTag(tagId)"
+                  >{{ getTagName(tagId) }}</el-tag>
+                  <el-button type="text" size="small" @click="clearAllTags">清空</el-button>
+                </el-form-item>
+                <el-form-item v-if="filteredProblemsTotal" label="题目列表">
+                  <el-table :data="filteredProblemsByTag" stripe border max-height="280">
+                    <el-table-column prop="problemId" label="题号" width="120" />
+                    <el-table-column prop="title" label="题目" min-width="220" show-overflow-tooltip />
+                    <el-table-column label="操作" width="100" align="center">
+                      <template slot-scope="{ row }">
+                        <el-button type="primary" size="mini" @click="selectProblemByTag(row)">添加</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <el-pagination
+                    small
+                    layout="prev, pager, next"
+                    :current-page="filteredProblemsCurrentPage"
+                    :page-size="filteredProblemsPageSize"
+                    :total="filteredProblemsTotal"
+                    class="programming-pagination"
+                    @current-change="handleFilteredProblemsPageChange"
+                  />
+                </el-form-item>
+              </template>
+
+              <div v-if="programmingProblemPreview" class="problem-preview compact-problem-preview">
+                <el-divider content-position="left">题目预览</el-divider>
+                <el-card shadow="never">
+                  <h3>{{ programmingProblemPreview.problem.title }}</h3>
+                  <div class="problem-description" v-html="renderMarkdown(programmingProblemPreview.problem.description)"></div>
+                  <div class="problem-meta">
+                    <el-tag size="small">题目 ID：{{ programmingProblemPreview.problem.problemId }}</el-tag>
+                    <el-tag size="small" type="info">时间限制：{{ programmingProblemPreview.problem.timeLimit }}ms</el-tag>
+                    <el-tag size="small" type="warning">内存限制：{{ programmingProblemPreview.problem.memoryLimit }}MB</el-tag>
+                  </div>
+                </el-card>
               </div>
-            </div>
-          </el-form-item>
 
-          <!-- 已选标签显示 -->
-          <el-form-item v-if="selectedProblemTagIds.length > 0" label="已选标签">
-            <el-tag
-              v-for="tagId in selectedProblemTagIds"
-              :key="tagId"
-              closable
-              @close="removeSelectedTag(tagId)"
-              style="margin-right: 10px;"
-              type="primary"
-            >
-              {{ getTagName(tagId) }}
-            </el-tag>
-            <el-button type="text" size="small" @click="clearAllTags" style="margin-left: 10px;">清空</el-button>
-          </el-form-item>
-
-          <!-- 标签筛选结果 -->
-          <el-form-item v-if="filteredProblemsByTag.length > 0" label="题目列表">
-            <el-alert
-              type="info"
-              :closable="false"
-              style="margin-bottom: 10px;"
-            >
-              <span slot="title">
-                已选标签下共有 {{ filteredProblemsTotal }} 道题目（当前显示前 {{ filteredProblemsByTag.length }} 道），点击题号查看详情
-              </span>
-            </el-alert>
-            <el-table
-              :data="filteredProblemsByTag"
-              stripe
-              border
-              max-height="300"
-              style="width: 100%"
-            >
-              <el-table-column prop="problemId" label="题号" width="120">
-                <template slot-scope="{ row }">
-                  <el-link type="primary" @click="viewTagProblemDetail(row)">{{ row.problemId }}</el-link>
-                </template>
-              </el-table-column>
-              <el-table-column prop="title" label="题名" min-width="200" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="difficulty" label="难度" width="80" align="center">
-                <template slot-scope="{ row }">
-                  <el-tag :type="getDifficultyTagType(row.difficulty)" size="mini">
-                    {{ getDifficultyName(row.difficulty) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="120" align="center">
-                <template slot-scope="{ row }">
-                  <el-button type="primary" size="mini" @click="selectProblemByTag(row)">
-                    添加此题
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <!-- 分页 -->
-            <div style="margin-top: 15px; text-align: center;">
-              <el-pagination
-                v-if="filteredProblemsTotal > 0"
-                @current-change="handleFilteredProblemsPageChange"
-                :current-page="filteredProblemsCurrentPage"
-                :page-size="filteredProblemsPageSize"
-                :total="filteredProblemsTotal"
-                layout="prev, pager, next, total"
-                small
-              >
-              </el-pagination>
-            </div>
-          </el-form-item>
-        </template>
-
-        <!-- 题目预览区域 -->
-        <div v-if="programmingProblemPreview" class="problem-preview">
-          <el-divider content-position="left">题目预览</el-divider>
-          <el-card>
-            <h3>{{ programmingProblemPreview.problem.title }}</h3>
-            <div class="problem-description" v-html="renderMarkdown(programmingProblemPreview.problem.description)"></div>
-            <div class="problem-meta">
-              <el-tag size="small">题目ID: {{ programmingProblemPreview.problem.problemId }}</el-tag>
-              <el-tag size="small" type="info">时间限制: {{ programmingProblemPreview.problem.timeLimit }}ms</el-tag>
-              <el-tag size="small" type="warning">内存限制: {{ programmingProblemPreview.problem.memoryLimit }}MB</el-tag>
-              <el-tag size="small" type="success">判题模式: {{ programmingProblemPreview.problem.judgeMode }}</el-tag>
-            </div>
-            <div v-if="programmingProblemPreview.problem.input" class="problem-section">
-              <h4>输入格式</h4>
-              <div v-html="renderMarkdown(programmingProblemPreview.problem.input)"></div>
-            </div>
-            <div v-if="programmingProblemPreview.problem.output" class="problem-section">
-              <h4>输出格式</h4>
-              <div v-html="renderMarkdown(programmingProblemPreview.problem.output)"></div>
-            </div>
-            <div v-if="programmingProblemPreview.problem.hint" class="problem-section">
-              <h4>提示</h4>
-              <div v-html="renderMarkdown(programmingProblemPreview.problem.hint)"></div>
-            </div>
-          </el-card>
-        </div>
-
-        <el-form-item label="分值" required>
-          <el-input-number v-model="programmingForm.score" :min="1" :max="100" />
-        </el-form-item>
-      </el-form>
-
-      <span slot="footer">
-        <el-button @click="showAddProgrammingDialog = false">取消</el-button>
+              <el-form-item label="分值" required>
+                <el-input-number v-model="programmingForm.score" :min="1" :max="100" />
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+      <span
+        v-if="questionSelectorTab === 'programming' && programmingInputMode === 'manual'"
+        slot="footer"
+      >
         <el-button
-          v-if="programmingInputMode === 'manual'"
           type="primary"
-          @click="confirmAddProgrammingQuestion"
           :disabled="!programmingProblemPreview"
-        >
-          确定添加
-        </el-button>
+          @click="confirmAddProgrammingQuestion"
+        >确定添加</el-button>
       </span>
     </el-dialog>
 
@@ -896,6 +844,12 @@ md.use(katex, {
 
 export default {
   name: 'ExamPaperAdmin',
+  props: {
+    startInCreateMode: {
+      type: Boolean,
+      default: false
+    }
+  },
   data() {
     return {
       loading: false,
@@ -921,6 +875,7 @@ export default {
       // 题库相关
       showAddQuestionPanel: false,
       showQuestionSelectorDialog: false,
+      questionSelectorTab: 'objective',
       questionBank: [],
       questionsLoading: false,
       questionFilters: {
@@ -935,6 +890,8 @@ export default {
       questionCurrentPage: 1,
       questionPageSize: 10,
       questionBankTotal: 0,
+      questionLoadRetryTimer: null,
+      questionRequestId: 0,
       quickAddQuestionId: '',
       quickAddQuestionLoading: false,
       commonCourses: [
@@ -949,7 +906,6 @@ export default {
         '英语'
       ],
       // 编程题相关
-      showAddProgrammingDialog: false,
       programmingInputMode: 'manual', // 'manual' 或 'tag'
       programmingForm: {
         problemId: '',
@@ -1005,8 +961,24 @@ export default {
   mounted() {
     this.loadPapers()
     this.loadProblemTagsAndClassification()
+    if (this.startInCreateMode) {
+      this.$nextTick(() => this.openCreateDialog())
+    }
+  },
+  beforeDestroy() {
+    if (this.questionLoadRetryTimer) {
+      clearTimeout(this.questionLoadRetryTimer)
+      this.questionLoadRetryTimer = null
+    }
   },
   watch: {
+    startInCreateMode(enabled) {
+      if (enabled && !this.showEditDialog) {
+        this.openCreateDialog()
+      } else if (!enabled && this.isCreateMode) {
+        this.showEditDialog = false
+      }
+    },
     showEditDialog(newVal, oldVal) {
       if (oldVal === true && newVal === false) {
         this.resetEditForm()
@@ -1042,13 +1014,40 @@ export default {
       this.pagination.currentPage = val
       this.loadPapers()
     },
-    openQuestionSelectorDialog() {
+    openQuestionSelectorDialog(tab = 'objective') {
       if (!this.isEditMode) {
         return
       }
-      this.showQuestionSelectorDialog = true
+      this.questionSelectorTab = tab === 'programming' ? 'programming' : 'objective'
       this.questionCurrentPage = 1
-      this.loadQuestionBank()
+      this.resetProgrammingForm()
+      this.programmingInputMode = 'manual'
+      this.clearAllTags()
+      this.showQuestionSelectorDialog = true
+    },
+    handleQuestionSelectorOpened() {
+      const activeTab = this.questionSelectorTab === 'programming' ? 'programming' : 'objective'
+      this.questionSelectorTab = activeTab
+      this.$nextTick(() => {
+        if (activeTab === 'objective') this.loadQuestionBank()
+        else this.loadProblemTagsAndClassification()
+      })
+    },
+    handleQuestionSelectorClose() {
+      this.questionRequestId += 1
+      this.questionsLoading = false
+      if (this.questionLoadRetryTimer) {
+        clearTimeout(this.questionLoadRetryTimer)
+        this.questionLoadRetryTimer = null
+      }
+    },
+    handleQuestionSelectorTabChange(tabPane) {
+      const activeTab = tabPane && tabPane.name === 'programming' ? 'programming' : 'objective'
+      if (activeTab === 'programming') {
+        this.loadProblemTagsAndClassification()
+      } else {
+        this.loadQuestionBank()
+      }
     },
     resetQuestionSelectorFilters() {
       this.questionFilters = {
@@ -1081,10 +1080,15 @@ export default {
       this.loadQuestionBank()
     },
     openCreateDialog() {
+      if (!this.startInCreateMode && this.$route.name !== 'admin-create-exam-paper') {
+        this.$router.push({ name: 'admin-create-exam-paper' })
+        return
+      }
       this.currentPaper = null
       this.isEditMode = true
       this.showAddQuestionPanel = false
       this.showQuestionSelectorDialog = false
+      this.questionSelectorTab = 'objective'
       this.resetQuestionSelectorFilters()
       this.questionCurrentPage = 1
       this.quickAddQuestionId = ''
@@ -1098,7 +1102,6 @@ export default {
         questions: []
       }
       this.showEditDialog = true
-      this.loadQuestionBank()
       this.$nextTick(() => {
         if (this.$refs.editForm) {
           this.$refs.editForm.clearValidate()
@@ -1167,6 +1170,7 @@ export default {
       this.isEditMode = false
       this.showAddQuestionPanel = false
       this.showQuestionSelectorDialog = false
+      this.questionSelectorTab = 'objective'
       this.resetQuestionSelectorFilters()
       this.quickAddQuestionId = ''
       this.quickAddQuestionLoading = false
@@ -1259,6 +1263,9 @@ export default {
           this.loadPapers()
           if (isCreateOperation) {
             this.questionCurrentPage = 1
+            if (this.$route.name === 'admin-create-exam-paper') {
+              this.$router.push({ name: 'admin-exam-paper' })
+            }
           }
         } catch (error) {
           this.$message.error(isCreateOperation ? '创建失败' : '更新失败')
@@ -1268,6 +1275,10 @@ export default {
       })
     },
     closeEditPage() {
+      if (this.$route.name === 'admin-create-exam-paper') {
+        this.$router.push({ name: 'admin-exam-paper' })
+        return
+      }
       this.showEditDialog = false
     },
     handleSharedChange(newValue) {
@@ -1400,7 +1411,8 @@ export default {
       return md.render(this.normalizeQuestionImagePath(text))
     },
     // 加载题库（管理员可以查看所有题目，包括私有的）
-    async loadQuestionBank() {
+    async loadQuestionBank({ retry = true } = {}) {
+      const requestId = ++this.questionRequestId
       this.questionsLoading = true
       try {
         const questionId = String(this.questionFilters.questionId || '').trim()
@@ -1419,18 +1431,31 @@ export default {
           sortBy: sortParams.sortBy,
           sortOrder: sortParams.sortOrder
         })
-        if (res && res.data && res.data.code === 200) {
+        const responseData = res && res.data ? res.data : null
+        const responseCode = responseData && (responseData.code || responseData.status)
+        if (responseCode === 200 && responseData.data) {
           // 过滤掉 undefined 或 null 的题目
-          this.questionBank = (res.data.data.questions || []).filter(q => {
+          this.questionBank = (responseData.data.questions || []).filter(q => {
             const isValid = q && q.id
             return isValid
           })
-          this.questionBankTotal = res.data.data.total || 0
+          this.questionBankTotal = responseData.data.total || 0
+        } else {
+          throw new Error((responseData && (responseData.message || responseData.msg)) || '题库响应格式错误')
         }
       } catch (error) {
-        this.$message.error('加载题库失败')
+        if (requestId !== this.questionRequestId) return
+        if (retry && this.showQuestionSelectorDialog && this.questionSelectorTab === 'objective') {
+          if (this.questionLoadRetryTimer) clearTimeout(this.questionLoadRetryTimer)
+          this.questionLoadRetryTimer = setTimeout(() => {
+            this.questionLoadRetryTimer = null
+            this.loadQuestionBank({ retry: false })
+          }, 500)
+        } else {
+          this.$message.error('加载题库失败，请点击“刷新题库”重试')
+        }
       } finally {
-        this.questionsLoading = false
+        if (requestId === this.questionRequestId) this.questionsLoading = false
       }
     },
     handleQuestionPageChange(page) {
@@ -1755,7 +1780,7 @@ export default {
       })
 
       this.$message.success('添加成功')
-      this.showAddProgrammingDialog = false
+      this.showQuestionSelectorDialog = false
       this.resetProgrammingForm()
     },
     resetProgrammingForm() {
@@ -2914,5 +2939,41 @@ export default {
 
 .problem-empty span {
   font-size: 14px;
+}
+
+.programming-selector-form {
+  padding: 8px 4px 0;
+}
+
+.programming-tag-list {
+  min-height: 90px;
+}
+
+.programming-tag-group {
+  margin-bottom: 14px;
+}
+
+.programming-tag-group-title {
+  margin-bottom: 8px;
+  color: #606266;
+  font-weight: 600;
+}
+
+.programming-tag {
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+}
+
+.selected-programming-tag {
+  margin: 0 8px 8px 0;
+}
+
+.programming-pagination {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.compact-problem-preview {
+  margin: 10px 0 18px;
 }
 </style>

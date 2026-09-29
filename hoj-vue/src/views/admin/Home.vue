@@ -54,6 +54,12 @@
           <el-menu-item index="/admin/problem/create">{{
             $t('m.Create_Problem')
           }}</el-menu-item>
+          <el-menu-item index="/admin/exam-paper">{{
+            $t('m.Exam_Paper_List')
+          }}</el-menu-item>
+          <el-menu-item index="/admin/exam-paper/create">{{
+            $t('m.Create_Exam_Paper')
+          }}</el-menu-item>
           <el-menu-item index="/admin/problem/tag">{{
             $t('m.Admin_Tag')
           }}</el-menu-item>
@@ -101,18 +107,33 @@
           }}</el-menu-item>
         </el-submenu>
 
-        <el-submenu index="discussion">
+        <el-submenu index="classroom-and-roles">
           <template slot="title"
-            ><i class="fa fa-comments fa-size" aria-hidden="true"></i
-            >{{ $t('m.Discussion') }}</template
+            ><i class="fa fa-graduation-cap fa-size" aria-hidden="true"></i
+            >{{ $t('m.Classroom_And_Roles') }}</template
           >
-          <el-menu-item index="/admin/discussion">{{
-            $t('m.Discussion_Admin')
+          <el-menu-item v-if="isSuperAdmin" index="/admin/classroom">{{
+            $t('m.Classroom_Management')
+          }}</el-menu-item>
+          <el-menu-item index="/admin/user-role-management">{{
+            $t('m.User_Role_Management')
           }}</el-menu-item>
         </el-submenu>
 
-        <el-menu-item index="/admin/toolbox">
-          <i class="fa fa-briefcase fa-size"></i>{{ $t('m.NavBar_Toolbox') }}
+        <el-menu-item v-if="isSuperAdmin" index="/admin/rating">
+          <i class="fa fa-line-chart fa-size"></i>{{ $t('m.Rating_Management') }}
+        </el-menu-item>
+        <el-menu-item v-if="isSuperAdmin" index="/admin/battle-records">
+          <i class="fa fa-gamepad fa-size"></i>{{ $t('m.Battle_Records_Admin') }}
+        </el-menu-item>
+        <el-menu-item index="/admin/learning-map">
+          <i class="fa fa-sitemap fa-size"></i>{{ $t('m.Learning_Map_Management') }}
+        </el-menu-item>
+        <el-menu-item index="/admin/discussion">
+          <i class="fa fa-comments fa-size"></i>{{ $t('m.Discussion_Admin') }}
+        </el-menu-item>
+        <el-menu-item index="/admin/permission-docs">
+          <i class="fa fa-key fa-size"></i>{{ $t('m.Permission_Docs') }}
         </el-menu-item>
       </el-menu>
       <div id="header">
@@ -285,16 +306,6 @@
                 $t('m.System_Switch')
               }}</mu-list-item-title>
             </mu-list-item>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/admin/switch"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>系统开关</mu-list-item-title>
-            </mu-list-item>
           </mu-list-item>
 
           <mu-list-item
@@ -338,6 +349,26 @@
               <mu-list-item-title>{{
                 $t('m.Create_Problem')
               }}</mu-list-item-title>
+            </mu-list-item>
+            <mu-list-item
+              button
+              :ripple="false"
+              slot="nested"
+              to="/admin/exam-paper"
+              @click="opendrawer = !opendrawer"
+              active-class="mobile-menu-active"
+            >
+              <mu-list-item-title>{{ $t('m.Exam_Paper_List') }}</mu-list-item-title>
+            </mu-list-item>
+            <mu-list-item
+              button
+              :ripple="false"
+              slot="nested"
+              to="/admin/exam-paper/create"
+              @click="opendrawer = !opendrawer"
+              active-class="mobile-menu-active"
+            >
+              <mu-list-item-title>{{ $t('m.Create_Exam_Paper') }}</mu-list-item-title>
             </mu-list-item>
             <mu-list-item
               v-if="isSuperAdmin || isProblemAdmin"
@@ -485,45 +516,100 @@
             button
             :ripple="false"
             nested
-            :open="openSideMenu === 'discussion'"
-            @toggle-nested="openSideMenu = arguments[0] ? 'discussion' : ''"
+            :open="openSideMenu === 'classroom-and-roles'"
+            @toggle-nested="openSideMenu = arguments[0] ? 'classroom-and-roles' : ''"
           >
             <mu-list-item-action>
-              <mu-icon value=":fa fa-comments fa-size" size="24"></mu-icon>
+              <mu-icon value=":fa fa-graduation-cap" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>{{ $t('m.Discussion') }}</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.Classroom_And_Roles') }}</mu-list-item-title>
             <mu-list-item-action>
-              <mu-icon
-                class="toggle-icon"
-                size="24"
-                value=":el-icon-arrow-down"
-              ></mu-icon>
+              <mu-icon class="toggle-icon" size="24" value=":el-icon-arrow-down"></mu-icon>
             </mu-list-item-action>
+            <mu-list-item
+              v-if="isSuperAdmin"
+              button
+              :ripple="false"
+              slot="nested"
+              to="/admin/classroom"
+              @click="opendrawer = !opendrawer"
+              active-class="mobile-menu-active"
+            >
+              <mu-list-item-title>{{ $t('m.Classroom_Management') }}</mu-list-item-title>
+            </mu-list-item>
             <mu-list-item
               button
               :ripple="false"
               slot="nested"
-              to="/admin/discussion"
+              to="/admin/user-role-management"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
-              <mu-list-item-title>{{
-                $t('m.Discussion_Admin')
-              }}</mu-list-item-title>
+              <mu-list-item-title>{{ $t('m.User_Role_Management') }}</mu-list-item-title>
             </mu-list-item>
           </mu-list-item>
 
           <mu-list-item
+            v-if="isSuperAdmin"
             button
             :ripple="true"
-            to="/admin/toolbox"
+            to="/admin/rating"
             @click="opendrawer = !opendrawer"
             active-class="mobile-menu-active"
           >
             <mu-list-item-action>
-              <mu-icon value=":fa fa-briefcase fa-size" size="24"></mu-icon>
+              <mu-icon value=":fa fa-line-chart" size="24"></mu-icon>
             </mu-list-item-action>
-            <mu-list-item-title>{{ $t('m.Toolbox') }}</mu-list-item-title>
+            <mu-list-item-title>{{ $t('m.Rating_Management') }}</mu-list-item-title>
+          </mu-list-item>
+          <mu-list-item
+            v-if="isSuperAdmin"
+            button
+            :ripple="true"
+            to="/admin/battle-records"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-gamepad" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.Battle_Records_Admin') }}</mu-list-item-title>
+          </mu-list-item>
+          <mu-list-item
+            button
+            :ripple="true"
+            to="/admin/learning-map"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-sitemap" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.Learning_Map_Management') }}</mu-list-item-title>
+          </mu-list-item>
+          <mu-list-item
+            button
+            :ripple="true"
+            to="/admin/discussion"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-comments" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.Discussion_Admin') }}</mu-list-item-title>
+          </mu-list-item>
+          <mu-list-item
+            button
+            :ripple="true"
+            to="/admin/permission-docs"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
+          >
+            <mu-list-item-action>
+              <mu-icon value=":fa fa-key" size="24"></mu-icon>
+            </mu-list-item-action>
+            <mu-list-item-title>{{ $t('m.Permission_Docs') }}</mu-list-item-title>
           </mu-list-item>
         </mu-list>
       </mu-drawer>
@@ -586,35 +672,11 @@ export default {
     }
   },
   mounted() {
-    window.onresize = () => {
-      this.page_width();
-    };
+    window.addEventListener('resize', this.page_width);
     this.page_width();
-
-    // 首次加载时自动刷新一次，确保菜单正确显示（解决 webpack 缓存问题）
-    const refreshKey = 'admin_home_refreshed_v3';
-    const versionKey = 'admin_home_version';
-    const currentVersion = '1.0.3';  // 每次修改代码时更新此版本号
-
-    // 检查是否需要刷新
-    const lastVersion = localStorage.getItem(versionKey);
-    const needsRefresh = !this.hasRefreshed &&
-                        !sessionStorage.getItem(refreshKey) &&
-                        lastVersion !== currentVersion;
-
-    if (needsRefresh) {
-      sessionStorage.setItem(refreshKey, 'true');
-      localStorage.setItem(versionKey, currentVersion);
-      this.hasRefreshed = true;
-
-      // 强制刷新页面，清除所有缓存
-      setTimeout(() => {
-        // 添加时间戳参数破坏浏览器缓存
-        const url = new URL(window.location.href);
-        url.searchParams.set('_t', Date.now());
-        window.location.href = url.toString();
-      }, 100);
-    }
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.page_width);
   },
   data() {
     return {
@@ -626,8 +688,7 @@ export default {
       currentPath: '',
       routeList: [],
       imgUrl: require('@/assets/backstage.png'),
-      languages:[],
-      hasRefreshed: false  // 标记是否已经刷新过
+      languages:[]
     };
   },
   components: {
@@ -646,12 +707,7 @@ export default {
       }
     },
     page_width() {
-      let screenWidth = window.screen.width;
-      if (screenWidth < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
-      }
+      this.mobileNar = window.innerWidth < 992;
     },
     getBreadcrumb() {
       let matched = this.$route.matched.filter((item) => item.meta.title); //获取路由信息，并过滤保留路由标题信息存入数组
@@ -673,16 +729,10 @@ export default {
       'websiteConfig',
       'webLanguage',
     ]),
-    'window.screen.width'(newVal, oldVal) {
-      if (newVal < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
-      }
-    },
   },
   watch: {
     $route(to, from) {
+      this.currentPath = to.path;
       this.getBreadcrumb();
 
       // 如果是从登录页跳转到管理员页面，重新获取权限信息

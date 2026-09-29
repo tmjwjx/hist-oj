@@ -32,7 +32,7 @@ public class PlagiarismQueryManager {
         manager.check(checkId);
         List<PlagiarismResult> results = manager.results().list(new QueryWrapper<PlagiarismResult>()
                 .eq("check_id", checkId).orderByDesc("max_similarity"));
-        StringBuilder csv = new StringBuilder("\uFEFF题目编号,题目标题,用户1,用户2,语言,相似度1to2(%),相似度2to1(%),最大相似度(%),超过阈值\n");
+        StringBuilder csv = new StringBuilder("\uFEFF题目编号,题目标题,用户1,用户2,语言,相似度1to2(%),相似度2to1(%),最大相似度(%),双向均超过阈值\n");
         for (PlagiarismResult result : results) {
             csv.append(row(result.getDisplayId(), result.getProblemTitle(), result.getUsername1(),
                     result.getUsername2(), result.getLanguage(), result.getSimilarity1to2(),

@@ -21,12 +21,12 @@
           <article
             v-for="paper in papers"
             :key="paper.id"
-            class="paper-row answer-info compact-answer-info"
+            class="paper-row"
           >
             <div class="paper-main" @click="goDetail(paper.id)">
               <div class="paper-topline">
                 <span class="paper-origin">套卷练习 · 试卷</span>
-                <span class="paper-author">作者 {{ paper.creator ? paper.creator.username : '-' }}</span>
+                <span class="paper-author">作者 {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
               </div>
               <h3 class="paper-title">{{ paper.title }}</h3>
               <p class="paper-desc">{{ paper.description || '暂无简介' }}</p>
@@ -121,7 +121,6 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 
@@ -146,6 +145,7 @@ export default {
 .paper-list {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
 .paper-row {
@@ -153,17 +153,16 @@ export default {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
-  border-bottom: 1px solid #e4e7ed;
-  transition: background-color 0.2s ease;
-}
-
-.paper-row:last-child {
-  border-bottom: none;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .paper-row:hover {
-  background: #f5f7fa;
+  border-color: #c6e2ff;
+  background: #f5f9ff;
 }
 
 .paper-main {
@@ -182,7 +181,7 @@ export default {
 }
 
 .paper-origin {
-  color: #67c23a;
+  color: #909399;
   font-weight: 500;
 }
 

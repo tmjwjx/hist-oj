@@ -1026,7 +1026,6 @@ export default {
 /* 页面整体 */
 .view {
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 

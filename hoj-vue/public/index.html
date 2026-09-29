@@ -3,6 +3,275 @@
 
 <head>
   <meta charset="utf-8">
+  <meta name="hoj-asset-version" content="<%- htmlWebpackPlugin.files.js.concat(htmlWebpackPlugin.files.css).join('|') %>">
+  <!-- Queue loading lifecycle: install before any page resources. -->
+  <script>
+    (function () {
+      'use strict';
+      var url = new URL(location.href);
+      var ticket = url.searchParams.get('hoj_ticket');
+      var versionKey = 'hoj_loaded_asset_version';
+      var versionMeta = document.querySelector('meta[name="hoj-asset-version"]');
+      var assetVersion = versionMeta ? versionMeta.content : '';
+      if (!ticket) {
+        // The hint only detects stale cached assets; admission is verified server-side.
+        if (/(?:^|;\s*)hoj_loaded_hint=1(?:;|$)/.test(document.cookie)) {
+          var savedVersion = '';
+          try { savedVersion = localStorage.getItem(versionKey) || ''; } catch (e) {}
+          if (!assetVersion || savedVersion !== assetVersion) {
+            if (url.searchParams.get('hoj_cold') !== '1') {
+              window.stop();
+              url.searchParams.set('hoj_cold', '1');
+              location.replace(url.href);
+            }
+          }
+        }
+        return;
+      }
+      url.searchParams.delete('hoj_ticket');
+      url.searchParams.delete('hoj_cold');
+      history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticket)) return;
+
+      var originalFetch = window.fetch;
+      var originalOpen = XMLHttpRequest.prototype.open;
+      var originalSend = XMLHttpRequest.prototype.send;
+      var pending = 0, xhrs = [], loaded = document.readyState === 'complete', appReady = false;
+      var finished = false, releaseConfirmed = false, lastActivity = Date.now(), imageState = '';
+      var checkTimer, heartbeatTimer, heartbeatRequest, loadingTimeout, releaseAttempts = 0, releaseCompleted = false;
+      function activity() { lastActivity = Date.now(); }
+      function isQueueRequest(value) {
+        try { return new URL(value, location.href).pathname.indexOf('/api/queue/') === 0; }
+        catch (e) { return false; }
+      }
+      function begin() { pending++; activity(); }
+      function end() { pending--; activity(); }
+      // Vue may request asynchronous chunks after window.load has already fired.
+      var resources = new Map();
+      function watchResource(element) {
+        if (finished || element.nodeType !== 1) return;
+        var resourceUrl = '';
+        if (element.tagName === 'SCRIPT') resourceUrl = element.src;
+        if (element.tagName === 'LINK' && !element.disabled &&
+            (element.rel === 'stylesheet' || element.rel === 'modulepreload' ||
+             (element.rel === 'preload' && /^(script|style)$/.test(element.as)))) resourceUrl = element.href;
+        var previous = resources.get(element);
+        if (previous && previous.url === resourceUrl) return;
+        if (previous) previous.done();
+        if (!resourceUrl) return;
+        var record = { url: resourceUrl, done: done, completed: false };
+        function done() {
+          if (resources.get(element) !== record || record.completed) return;
+          record.completed = true;
+          element.removeEventListener('load', done);
+          element.removeEventListener('error', done);
+          end();
+        }
+        resources.set(element, record);
+        element.addEventListener('load', done);
+        element.addEventListener('error', done);
+        begin();
+      }
+      function scanResources(node) {
+        watchResource(node);
+        if (node.querySelectorAll) {
+          var descendants = node.querySelectorAll('script[src], link[href]');
+          for (var i = 0; i < descendants.length; i++) watchResource(descendants[i]);
+        }
+      }
+      var resourceObserver = new MutationObserver(function (changes) {
+        changes.forEach(function (change) {
+          if (change.type === 'attributes') watchResource(change.target);
+          else for (var i = 0; i < change.addedNodes.length; i++) scanResources(change.addedNodes[i]);
+        });
+      });
+      resourceObserver.observe(document.documentElement, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'href', 'rel', 'as', 'disabled']
+      });
+      function trackedOpen(method, value) {
+        this.__hojQueueTracked = !isQueueRequest(value);
+        return originalOpen.apply(this, arguments);
+      }
+      function trackedSend() {
+        if (finished || !this.__hojQueueTracked) return originalSend.apply(this, arguments);
+        var xhr = this, completed = false;
+        begin();
+        xhrs.push(xhr);
+        function done() {
+          if (completed) return;
+          completed = true;
+          xhr.removeEventListener('loadend', done);
+          xhrs.splice(xhrs.indexOf(xhr), 1);
+          end();
+        }
+        xhr.addEventListener('loadend', done);
+        try { return originalSend.apply(xhr, arguments); }
+        catch (e) { done(); throw e; }
+      }
+      var fetches = [];
+      function trackedFetch(input, options) {
+        if (finished || isQueueRequest(typeof input === 'string' || input instanceof URL ? input : input.url)) {
+          return originalFetch.apply(this, arguments);
+        }
+        var controller = new AbortController();
+        var signal = (options && options.signal) || (input && input.signal);
+        function abort() { controller.abort(); }
+        if (signal) {
+          if (signal.aborted) abort();
+          else signal.addEventListener('abort', abort, { once: true });
+        }
+        fetches.push(controller);
+        begin();
+        function done() {
+          if (signal) signal.removeEventListener('abort', abort);
+          fetches.splice(fetches.indexOf(controller), 1);
+          end();
+        }
+        try {
+          return originalFetch.call(this, input, Object.assign({}, options, { signal: controller.signal })).then(function (response) {
+            // A fetch promise resolves at headers; retain the slot until its body arrives.
+            try { response.clone().arrayBuffer().then(done, done); } catch (e) { done(); }
+            return response;
+          }, function (error) { done(); throw error; });
+        } catch (e) { done(); throw e; }
+      }
+      XMLHttpRequest.prototype.open = trackedOpen;
+      XMLHttpRequest.prototype.send = trackedSend;
+      window.fetch = trackedFetch;
+      function cleanup() {
+        if (finished) return;
+        finished = true;
+        clearTimeout(heartbeatTimer);
+        clearTimeout(loadingTimeout);
+        clearInterval(checkTimer);
+        resourceObserver.disconnect();
+        resources.forEach(function (record, element) {
+          element.removeEventListener('load', record.done);
+          element.removeEventListener('error', record.done);
+        });
+        resources.clear();
+        if (heartbeatRequest) heartbeatRequest.abort();
+        if (window.fetch === trackedFetch) window.fetch = originalFetch;
+        if (XMLHttpRequest.prototype.open === trackedOpen) XMLHttpRequest.prototype.open = originalOpen;
+        if (XMLHttpRequest.prototype.send === trackedSend) XMLHttpRequest.prototype.send = originalSend;
+        window.removeEventListener('error', startupError, true);
+        window.removeEventListener('unhandledrejection', startupError);
+      }
+      function releaseBeacon() {
+        if (releaseConfirmed) return;
+        var target = '/api/queue/release?qid=' + encodeURIComponent(ticket);
+        try { if (navigator.sendBeacon && navigator.sendBeacon(target)) return; } catch (e) {}
+        originalFetch.call(window, target, { method: 'POST', keepalive: true, cache: 'no-store' }).catch(function () {});
+      }
+      function sendRelease() {
+        if (releaseConfirmed || releaseAttempts >= 3) return;
+        releaseAttempts++;
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, 4000);
+        originalFetch.call(window, '/api/queue/release?qid=' + encodeURIComponent(ticket) + (releaseCompleted ? '&completed=true' : ''), {
+          method: 'POST', keepalive: true, cache: 'no-store', signal: controller.signal
+        }).then(function (response) {
+          if (!response.ok) throw new Error('Queue release failed');
+          return response.json();
+        }).then(function (json) {
+          if (json.status !== 200) throw new Error('Queue release failed');
+          releaseConfirmed = true;
+          if (releaseCompleted && json.data && json.data.completed === true) {
+            try { localStorage.setItem(versionKey, assetVersion); } catch (e) {}
+          }
+        }).catch(function () {
+          if (!releaseConfirmed) setTimeout(sendRelease, 1000);
+        }).then(function () { clearTimeout(timeout); });
+      }
+      function release(completed) {
+        if (finished) return;
+        // Never grant cache admission if the version cannot be remembered locally.
+        if (completed === true && assetVersion) {
+          try {
+            localStorage.setItem(versionKey + ':probe', '1');
+            localStorage.removeItem(versionKey + ':probe');
+            releaseCompleted = true;
+          } catch (e) {}
+        }
+        cleanup();
+        sendRelease();
+      }
+      function heartbeat() {
+        if (finished) return;
+        var controller = new AbortController();
+        heartbeatRequest = controller;
+        var timeout = setTimeout(function () { controller.abort(); }, 4000);
+        originalFetch.call(window, '/api/queue/heartbeat?qid=' + encodeURIComponent(ticket), {
+          method: 'POST', cache: 'no-store', signal: controller.signal
+        }).then(function (response) {
+          if (!response.ok) throw new Error('Queue heartbeat failed');
+          return response.json();
+        }).then(function (json) {
+          if (json.status !== 200) throw new Error('Queue heartbeat failed');
+          if (json.data && json.data.state === 'disabled') cleanup();
+          else if (json.data && json.data.state && json.data.state !== 'loading') failLoading();
+        }).catch(function () { /* An existing lease survives a short network interruption. */ })
+          .then(function () {
+            clearTimeout(timeout);
+            if (heartbeatRequest === controller) heartbeatRequest = null;
+            if (!finished) heartbeatTimer = setTimeout(heartbeat, 5000);
+          });
+      }
+      function checkComplete() {
+        if (finished || !loaded || !appReady) return;
+        var waitingForImage = false, state = [];
+        for (var i = 0; i < document.images.length; i++) {
+          var img = document.images[i];
+          if (img.loading === 'lazy') {
+            var box = img.getBoundingClientRect();
+            if (box.top >= innerHeight || box.bottom <= 0 || box.left >= innerWidth || box.right <= 0) continue;
+          }
+          state.push((img.currentSrc || img.src) + ':' + img.complete);
+          if (!img.complete) waitingForImage = true;
+        }
+        var current = state.join('|');
+        if (current !== imageState) { imageState = current; activity(); }
+        if (pending || waitingForImage || (document.fonts && document.fonts.status === 'loading')) {
+          activity();
+          return;
+        }
+        if (Date.now() - lastActivity >= 500) release(true);
+      }
+      function startupError(event) {
+        if (finished) return;
+        var tag = event.target && event.target.tagName;
+        if (tag === 'LINK' && !resources.has(event.target)) return;
+        if (tag !== 'SCRIPT' && tag !== 'LINK' && (appReady || (event.type === 'error' && event.target !== window))) return;
+        failLoading();
+      }
+      function failLoading(reason) {
+        if (finished) return;
+        window.stop();
+        xhrs.slice().forEach(function (xhr) { xhr.abort(); });
+        fetches.slice().forEach(function (controller) { controller.abort(); });
+        release(false);
+        var panel = document.createElement('div');
+        panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#f5f7fa;display:flex;flex-direction:column;align-items:center;justify-content:center;font:16px sans-serif;color:#303133';
+        var text = document.createElement('p');
+        text.textContent = reason || '页面加载失败，请重新加载。';
+        var button = document.createElement('button');
+        button.textContent = '重新加载';
+        button.style.cssText = 'padding:10px 24px;margin-top:16px;cursor:pointer';
+        button.onclick = function () { location.reload(); };
+        panel.appendChild(text);
+        panel.appendChild(button);
+        document.documentElement.appendChild(panel);
+      }
+      window.__hojQueueLoad = { appReady: function () { appReady = true; activity(); } };
+      window.addEventListener('load', function () { loaded = true; activity(); });
+      window.addEventListener('pagehide', function () { cleanup(); releaseBeacon(); });
+      window.addEventListener('error', startupError, true);
+      window.addEventListener('unhandledrejection', startupError);
+      checkTimer = setInterval(checkComplete, 200);
+      loadingTimeout = setTimeout(function () { failLoading('页面加载超过 120 秒，请重新加载。'); }, 120000);
+      heartbeat();
+    })();
+  </script>
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <link rel="icon" href="<%= BASE_URL %>favicon.ico">

@@ -4,6 +4,7 @@ import mMessage from '@/common/message'
 import router from '@/router'
 import store from "@/store"
 import utils from '@/common/utils'
+import { getDeviceId } from '@/common/device'
 import i18n from '@/i18n'
 // import NProgress from 'nprogress' // nprogress插件
 // import 'nprogress/nprogress.css' // nprogress样式
@@ -36,6 +37,8 @@ axios.interceptors.request.use(
     } else {
       config.headers['Url-Type'] = 'general'
     }
+    // 设备ID：每台电脑/浏览器独立的随机UUID，用于比赛违规查询的设备异常筛查
+    config.headers['X-Device-Id'] = getDeviceId();
 
     return config;
   },
@@ -142,12 +145,15 @@ axios.interceptors.response.use(
               });
             }
           }
-          let isAdminApi = error.response.config.url.startsWith('/api/admin');
-          store.dispatch('refreshUserAuthInfo').then((res)=>{
-            if(isAdminApi){
-              router.push("/admin")
-            }
-          })
+          // 页面级静默请求自行呈现错误，避免权限刷新请求再次触发全局提示。
+          if (!silentError) {
+            let isAdminApi = error.response.config.url.startsWith('/api/admin');
+            store.dispatch('refreshUserAuthInfo').then((res)=>{
+              if(isAdminApi){
+                router.push("/admin")
+              }
+            })
+          }
           break;
         // 404请求不存在
         case 404:

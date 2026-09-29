@@ -12,6 +12,7 @@ import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheck;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheckConfig;
 import top.hcode.hoj.pojo.vo.PlagiarismResultPageVO;
+import top.hcode.hoj.pojo.vo.plagiarism.DeviceAnomalyVO;
 import top.hcode.hoj.service.plagiarism.PlagiarismService;
 
 import javax.annotation.Resource;
@@ -77,5 +78,10 @@ public class PlagiarismController {
     @GetMapping("/submission/{submitId}")
     public CommonResult<Judge> submission(@PathVariable Long submitId) {
         return service.submission(submitId);
+    }
+
+    @GetMapping("/contest/{cid}/device-anomalies")
+    public CommonResult<DeviceAnomalyVO> deviceAnomalies(@PathVariable Long cid) {
+        return service.deviceAnomalies(cid);
     }
 }

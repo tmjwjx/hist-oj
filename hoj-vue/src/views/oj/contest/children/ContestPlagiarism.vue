@@ -1,5 +1,15 @@
 <template>
   <div class="plagiarism-container">
+    <el-alert
+      v-if="errorMessage"
+      :title="errorMessage"
+      type="error"
+      show-icon
+      closable
+      class="page-error"
+      @close="errorMessage = ''"
+    />
+
     <!-- 加载中 -->
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
@@ -50,7 +60,7 @@
                 size="small"
               />
               <span style="margin-left: 10px; color: #909399">
-                超过此值将被记录
+                两个方向都达到此值才记录
               </span>
             </template>
           </el-table-column>
@@ -176,9 +186,9 @@
           style="margin-bottom: 20px"
         >
           <template slot="default">
-            <div>当前页面仅显示<strong>超过阈值</strong>的查重结果（共 {{ totalCount }} 条）。</div>
+            <div>当前页面仅显示<strong>两个方向都达到阈值</strong>的查重结果（共 {{ totalCount }} 条）。</div>
             <div style="margin-top: 8px">
-              如需查看<strong>所有查重结果</strong>（包括未超过阈值的），请点击右上角的「导出Excel」按钮下载完整数据。
+              如需查看<strong>所有查重结果</strong>（包括未满足双向阈值的），请点击右上角的「导出Excel」按钮下载完整数据。
             </div>
           </template>
         </el-alert>
@@ -200,7 +210,7 @@
             <el-card shadow="hover">
               <div class="stat-item">
                 <div class="stat-value">{{ totalCount }}</div>
-                <div class="stat-label">超过阈值结果数</div>
+            <div class="stat-label">双向均达到阈值结果数</div>
               </div>
             </el-card>
           </el-col>
@@ -396,7 +406,7 @@ export default {
       exporting: false, // 导出状态
       checkStatus: null,
       results: [],
-      totalCount: 0, // 超过阈值的结果总数
+      totalCount: 0, // 双向均达到阈值的结果总数
       displayIdFilter: '', // 题号筛选
       progressTimer: null,
       codeDialogVisible: false,
@@ -415,7 +425,12 @@ export default {
       },
       currentPage: 1,
       pageSize: 20,
-      loadingCode: false // 查看代码的加载状态
+      loadingCode: false, // 查看代码的加载状态
+      errorMessage: '',
+      dataLoading: false,
+      loadingResults: false,
+      progressRequestPending: false,
+      progressErrorCount: 0
     }
   },
   computed: {
@@ -427,6 +442,9 @@ export default {
     // 判断 contest 数据是否已加载
     isContestLoaded() {
       return this.contest && this.contest.id !== undefined
+    },
+    contestId() {
+      return this.contest && this.contest.id
     },
     isContestEnded() {
       return this.contest && Number(this.contest.status) === CONTEST_STATUS.ENDED
@@ -449,12 +467,6 @@ export default {
       return this.checkStatus && (this.checkStatus.status === 'running' || this.checkStatus.status === 'pending')
     }
   },
-  mounted() {
-    // 如果 contest 已经加载，直接加载数据
-    if (this.isContestLoaded) {
-      this.loadData()
-    }
-  },
   beforeDestroy() {
     if (this.progressTimer) {
       clearInterval(this.progressTimer)
@@ -462,13 +474,26 @@ export default {
   },
   methods: {
     ...mapActions(['getContestProblems']),
+    getErrorMessage(error, fallback = '请求失败') {
+      return error?.message || error?.response?.data?.msg || error?.response?.data?.message || fallback
+    },
+    showError(prefix, error, fallback) {
+      const detail = this.getErrorMessage(error, fallback)
+      this.errorMessage = prefix ? `${prefix}：${detail}` : detail
+    },
+    clearError() {
+      this.errorMessage = ''
+    },
     async loadData() {
+      if (this.dataLoading) return
       // 如果比赛未结束，设置 loading 为 false 并返回
       if (!this.isContestEnded) {
         this.loading = false
         return
       }
 
+      this.dataLoading = true
+      this.clearError()
       try {
         // 确保 contestProblems 已加载
         if (!this.contestProblems || this.contestProblems.length === 0) {
@@ -545,18 +570,17 @@ export default {
           }
         }
       } catch (error) {
-        // 如果是 404 错误，说明权限不足，静默处理（不显示错误消息）
-        // 其他错误也静默处理，避免干扰用户体验
-        // 可以选择性地显示提示
-        // this.$message.warning('您没有查重权限')
         console.error('加载数据失败:', error)
+        this.showError('加载查重数据失败', error, '请稍后重试')
       } finally {
+        this.dataLoading = false
         this.loading = false
       }
     },
 
     async saveConfig() {
       this.saving = true
+      this.clearError()
       try {
         const configs = this.problems.map(p => ({
           cpid: p.cpid,
@@ -585,7 +609,7 @@ export default {
           this.currentStep = 'check'
         }
       } catch (error) {
-        this.$message.error('配置保存失败: ' + error.message)
+        this.showError('配置保存失败', error, '请稍后重试')
       } finally {
         this.saving = false
       }
@@ -602,6 +626,7 @@ export default {
       }
 
       this.starting = true
+      this.clearError()
       try {
         const res = await api.startPlagiarismCheck(this.contest.id)
         this.$message.success('查重任务已启动')
@@ -624,13 +649,10 @@ export default {
         // 切换到 check 步骤并开始轮询
         this.currentStep = 'check'
 
-        // 立即轮询一次，避免等待2秒才显示进度
-        await this.pollProgress()
-
         // 启动定时轮询
         this.startPolling()
       } catch (error) {
-        this.$message.error('启动查重失败: ' + (error.response?.data?.message || error.message))
+        this.showError('启动查重失败', error, '请稍后重试')
       } finally {
         this.starting = false
       }
@@ -652,6 +674,7 @@ export default {
         }
 
         this.starting = true
+        this.clearError()
         try {
           const res = await api.startPlagiarismCheck(this.contest.id)
           this.$message.success('查重任务已重新启动')
@@ -677,13 +700,10 @@ export default {
           // 切换到 check 步骤
           this.currentStep = 'check'
 
-          // 立即轮询一次获取真实进度
-          await this.pollProgress()
-
           // 启动定时轮询
           this.startPolling()
         } catch (error) {
-          this.$message.error('重新查重失败: ' + (error.response?.data?.message || error.message))
+          this.showError('重新查重失败', error, '请稍后重试')
         } finally {
           this.starting = false
         }
@@ -697,6 +717,7 @@ export default {
       if (this.progressTimer) {
         clearInterval(this.progressTimer)
       }
+      this.progressErrorCount = 0
 
       // 立即执行一次
       this.pollProgress()
@@ -708,8 +729,11 @@ export default {
     },
 
     async pollProgress() {
+      if (this.progressRequestPending) return
+      this.progressRequestPending = true
       try {
         const res = await api.getPlagiarismProgress(this.contest.id)
+        this.progressErrorCount = 0
 
         if (!res.data.data) {
           console.warn('未获取到查重进度数据')
@@ -737,26 +761,33 @@ export default {
             clearInterval(this.progressTimer)
             this.progressTimer = null
           }
-          this.$message.error('查重失败: ' + (this.checkStatus.errorMessage || '未知错误'))
+          this.errorMessage = '查重失败：' + (this.checkStatus.errorMessage || '未知错误')
         }
         // 如果是 running 状态，继续轮询（由定时器处理）
       } catch (error) {
         console.error('获取进度失败:', error)
-        // 如果 checkStatus 不存在或状态不明确，不清除定时器，继续尝试获取进度
-        if (!this.checkStatus || this.checkStatus.status !== 'running') {
-          console.warn('checkStatus 状态异常，停止轮询')
+        this.progressErrorCount += 1
+        if (this.progressErrorCount === 1) {
+          this.showError('获取查重进度失败', error, '系统将自动重试')
+        }
+        // 连续失败三次再停止，避免一次瞬时网络错误中断任务状态更新。
+        if (this.progressErrorCount >= 3) {
           if (this.progressTimer) {
             clearInterval(this.progressTimer)
             this.progressTimer = null
           }
         }
+      } finally {
+        this.progressRequestPending = false
       }
     },
 
     async loadResults() {
-      if (!this.checkStatus) return
+      if (!this.checkStatus || this.loadingResults) return
 
+      this.loadingResults = true
       this.loading = true
+      this.clearError()
       try {
         const res = await api.getPlagiarismResults(this.checkStatus.id, this.displayIdFilter)
         this.results = res.data.data || []
@@ -765,8 +796,9 @@ export default {
         this.currentPage = 1
       } catch (error) {
         console.error('加载结果失败:', error)
-        this.$message.error('加载查重结果失败: ' + error.message)
+        this.showError('加载查重结果失败', error, '请稍后重试')
       } finally {
+        this.loadingResults = false
         this.loading = false
       }
     },
@@ -823,7 +855,7 @@ export default {
           }
         })
       } catch (error) {
-        this.$message.error('获取代码失败: ' + error.message)
+        this.showError('获取代码失败', error, '请稍后重试')
       } finally {
         this.loadingCode = false
       }
@@ -868,7 +900,7 @@ export default {
         // 关闭加载提示
         loadingMessage.close()
 
-        this.$message.error('导出失败: ' + (error.message || '未知错误'))
+        this.showError('导出失败', error, '请稍后重试')
       } finally {
         // 恢复按钮状态
         this.exporting = false
@@ -887,6 +919,7 @@ export default {
       this.results = []
       this.starting = false
       this.exporting = false // 重置导出状态
+      this.clearError()
     },
 
     handleSizeChange(val) {
@@ -1028,16 +1061,13 @@ export default {
     }
   },
   watch: {
-    contest: {
-      handler(newVal) {
-        // 当 contest 数据加载完成后
-        if (newVal && newVal.id !== undefined) {
-          // 不要在这里设置 loading = false，让 loadData() 自己管理
+    contestId: {
+      handler(newVal, oldVal) {
+        if (newVal && newVal !== oldVal) {
           this.loadData()
         }
       },
-      deep: true,
-      immediate: true  // 立即执行一次，确保 contest 已存在时也能触发
+      immediate: true
     }
   }
 }
@@ -1046,6 +1076,10 @@ export default {
 <style scoped>
 .plagiarism-container {
   padding: 20px;
+}
+
+.page-error {
+  margin-bottom: 20px;
 }
 
 .loading-container {

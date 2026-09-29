@@ -1,9 +1,22 @@
 <template>
   <div>
-    <el-card>
+    <el-tabs
+      v-if="isMainProblemList"
+      v-model="activeProblemCategory"
+      type="card"
+      class="problem-category-tabs"
+      @tab-click="handleProblemCategoryChange"
+    >
+      <el-tab-pane label="编程题" name="programming" />
+      <el-tab-pane v-if="isSuperAdmin" label="客观题" name="objective" />
+    </el-tabs>
+
+    <ObjectiveProblemList v-if="isMainProblemList && activeProblemCategory === 'objective'" />
+
+    <el-card v-else>
       <div slot="header">
         <span class="panel-title home-title">{{
-          query.contestId ? $t('m.Contest_Problem_List') : $t('m.Problem_List')
+          query.contestId ? $t('m.Contest_Problem_List') : '编程题列表'
         }}</span>
         <div class="filter-row">
           <span>
@@ -94,6 +107,11 @@
         :loading="loading"
         align="center"
       >
+        <vxe-table-column min-width="96" title="题目类型" v-if="!isContest">
+          <template>
+            <el-tag type="primary" size="mini">编程题</el-tag>
+          </template>
+        </vxe-table-column>
         <vxe-table-column min-width="64" field="id" title="ID">
         </vxe-table-column>
         <vxe-table-column
@@ -356,10 +374,12 @@ import AddPublicProblem from '@/components/admin/AddPublicProblem.vue';
 import myMessage from '@/common/message';
 import { REMOTE_OJ } from '@/common/constants';
 import { mapGetters } from 'vuex';
+import ObjectiveProblemList from '@/views/admin/problem/ObjectiveProblemList.vue';
 export default {
   name: 'ProblemList',
   components: {
     AddPublicProblem,
+    ObjectiveProblemList,
   },
   data() {
     return {
@@ -376,6 +396,7 @@ export default {
       contestProblemMap: {},
       loading: false,
       routeName: '',
+      activeProblemCategory: 'programming',
       // for make public use
       currentProblemID: '',
       currentRow: {},
@@ -405,6 +426,9 @@ export default {
   },
   computed: {
     ...mapGetters(['userInfo', 'isSuperAdmin', 'isProblemAdmin']),
+    isMainProblemList() {
+      return this.routeName === 'admin-problem-list' && !this.query.contestId;
+    },
     isContest() {
       return !(this.routeName == 'admin-problem-list' && !this.query.contestId);
     },
@@ -421,9 +445,25 @@ export default {
         : 0;
       this.query.oj = query.oj || 'All';
       this.query.contestId = this.$route.params.contestId;
+      this.activeProblemCategory =
+        !this.query.contestId && this.isSuperAdmin && query.category === 'objective'
+          ? 'objective'
+          : 'programming';
       this.contestProblemMap = {};
-      this.getProblemList();
+      if (this.activeProblemCategory === 'programming' || this.query.contestId) {
+        this.getProblemList();
+      }
       this.REMOTE_OJ = Object.assign({}, REMOTE_OJ);
+    },
+
+    handleProblemCategoryChange() {
+      const query = { ...this.$route.query };
+      if (this.activeProblemCategory === 'objective') {
+        query.category = 'objective';
+      } else {
+        delete query.category;
+      }
+      this.$router.push({ name: 'admin-problem-list', query }).catch(() => {});
     },
 
     goEdit(problemId) {
@@ -655,6 +695,16 @@ export default {
 </script>
 
 <style scoped>
+.problem-category-tabs {
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+/* 标签本身已经承担导航边界，移除 Element UI 默认的重复底线。 */
+/deep/ .problem-category-tabs .el-tabs__header {
+  margin-bottom: 0;
+}
+
 .filter-row span button {
   margin-top: 5px;
   margin-bottom: 5px;

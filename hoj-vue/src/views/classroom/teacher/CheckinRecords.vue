@@ -333,7 +333,6 @@ export default {
 
 .checkin-records-panel {
   padding: 24px;
-  background: var(--classroom-bg);
   min-height: 100vh;
 }
 

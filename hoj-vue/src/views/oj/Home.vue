@@ -464,7 +464,6 @@ export default {
   padding: 20px;
   box-sizing: border-box;
   overflow-x: hidden;
-  background: #f5f7fa;
 }
 
 .phone-margin,

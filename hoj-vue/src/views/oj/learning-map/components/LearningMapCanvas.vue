@@ -186,7 +186,9 @@ export default {
       draggingStartWorld: null,
       localNodePositions: {},
       viewHistory: [],
-      lastTouchDistance: 0
+      lastTouchDistance: 0,
+      stageResizeObserver: null,
+      viewportAnimationFrame: null
     }
   },
   computed: {
@@ -266,22 +268,33 @@ export default {
     }
   },
   mounted() {
-    this.updateStageSize()
-    window.addEventListener('resize', this.updateStageSize)
+    this.updateStageSize(false)
+    window.addEventListener('resize', this.onWindowResize)
     window.addEventListener('mousemove', this.onPointerMove)
     window.addEventListener('mouseup', this.onPointerUp)
     window.addEventListener('touchmove', this.onTouchMove, { passive: false })
     window.addEventListener('touchend', this.onPointerUp)
+    if (typeof ResizeObserver !== 'undefined' && this.$refs.stage) {
+      this.stageResizeObserver = new ResizeObserver(() => {
+        this.updateStageSize(true)
+      })
+      this.stageResizeObserver.observe(this.$refs.stage)
+    }
     this.$nextTick(() => {
       this.fitToContent()
     })
   },
   beforeDestroy() {
-    window.removeEventListener('resize', this.updateStageSize)
+    window.removeEventListener('resize', this.onWindowResize)
     window.removeEventListener('mousemove', this.onPointerMove)
     window.removeEventListener('mouseup', this.onPointerUp)
     window.removeEventListener('touchmove', this.onTouchMove)
     window.removeEventListener('touchend', this.onPointerUp)
+    if (this.stageResizeObserver) {
+      this.stageResizeObserver.disconnect()
+      this.stageResizeObserver = null
+    }
+    this.cancelViewportAnimation()
   },
   methods: {
     getNodeTypeLabel(type) {
@@ -389,11 +402,55 @@ export default {
     setNodePosition(nodeId, x, y) {
       this.$set(this.localNodePositions, nodeId, { x, y })
     },
-    updateStageSize() {
-      if (!this.$refs.stage) return
-      const rect = this.$refs.stage.getBoundingClientRect()
-      this.stageSize.width = Math.max(320, Math.floor(rect.width))
-      this.stageSize.height = Math.max(260, Math.floor(rect.height))
+    getStageMetrics() {
+      const stage = this.$refs.stage
+      if (!stage) return null
+      const rect = stage.getBoundingClientRect()
+      const layoutWidth = Math.max(320, Math.floor(stage.clientWidth || stage.offsetWidth || rect.width))
+      const layoutHeight = Math.max(260, Math.floor(stage.clientHeight || stage.offsetHeight || rect.height))
+      return {
+        rect,
+        width: layoutWidth,
+        height: layoutHeight,
+        visualScaleX: rect.width > 0 ? rect.width / layoutWidth : 1,
+        visualScaleY: rect.height > 0 ? rect.height / layoutHeight : 1
+      }
+    },
+    clientToStage(clientX, clientY) {
+      const metrics = this.getStageMetrics()
+      if (!metrics) return { x: 0, y: 0 }
+      return {
+        x: (clientX - metrics.rect.left) / Math.max(metrics.visualScaleX, 0.0001),
+        y: (clientY - metrics.rect.top) / Math.max(metrics.visualScaleY, 0.0001)
+      }
+    },
+    updateStageSize(preserveCenter = true) {
+      const metrics = this.getStageMetrics()
+      if (!metrics) return false
+      const previousWidth = this.stageSize.width
+      const previousHeight = this.stageSize.height
+      if (metrics.width === previousWidth && metrics.height === previousHeight) {
+        return false
+      }
+      let centerWorld = null
+      if (preserveCenter && this.viewport.scale > 0) {
+        centerWorld = {
+          x: (previousWidth / 2 - this.viewport.x) / this.viewport.scale,
+          y: (previousHeight / 2 - this.viewport.y) / this.viewport.scale
+        }
+      }
+      this.stageSize.width = metrics.width
+      this.stageSize.height = metrics.height
+      if (centerWorld) {
+        this.cancelViewportAnimation()
+        this.viewport.x = metrics.width / 2 - centerWorld.x * this.viewport.scale
+        this.viewport.y = metrics.height / 2 - centerWorld.y * this.viewport.scale
+        this.emitViewport()
+      }
+      return true
+    },
+    onWindowResize() {
+      this.updateStageSize(true)
     },
     recalculateWorldSize() {
       if (!this.nodes.length) {
@@ -428,14 +485,17 @@ export default {
       this.zoomAt(delta, e.clientX, e.clientY)
     },
     zoom(factor) {
-      const cx = this.$refs.stage.getBoundingClientRect().left + this.stageSize.width / 2
-      const cy = this.$refs.stage.getBoundingClientRect().top + this.stageSize.height / 2
+      const metrics = this.getStageMetrics()
+      if (!metrics) return
+      const cx = metrics.rect.left + metrics.rect.width / 2
+      const cy = metrics.rect.top + metrics.rect.height / 2
       this.zoomAt(factor, cx, cy)
     },
     zoomAt(factor, clientX, clientY) {
-      const rect = this.$refs.stage.getBoundingClientRect()
-      const pointX = clientX - rect.left
-      const pointY = clientY - rect.top
+      this.cancelViewportAnimation()
+      const point = this.clientToStage(clientX, clientY)
+      const pointX = point.x
+      const pointY = point.y
       const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.viewport.scale * factor))
       const worldX = (pointX - this.viewport.x) / this.viewport.scale
       const worldY = (pointY - this.viewport.y) / this.viewport.scale
@@ -447,10 +507,12 @@ export default {
     onStageMouseDown(e) {
       if (this.draggingNodeId) return
       if (e.button !== 0) return
+      this.cancelViewportAnimation()
+      const point = this.clientToStage(e.clientX, e.clientY)
       this.panning = true
       this.dragStart = {
-        x: e.clientX,
-        y: e.clientY,
+        x: point.x,
+        y: point.y,
         vx: this.viewport.x,
         vy: this.viewport.y
       }
@@ -461,11 +523,13 @@ export default {
         return
       }
       if (e.touches.length === 1 && !this.draggingNodeId) {
+        this.cancelViewportAnimation()
         const t = e.touches[0]
+        const point = this.clientToStage(t.clientX, t.clientY)
         this.panning = true
         this.dragStart = {
-          x: t.clientX,
-          y: t.clientY,
+          x: point.x,
+          y: point.y,
           vx: this.viewport.x,
           vy: this.viewport.y
         }
@@ -475,6 +539,7 @@ export default {
       if (!this.editable || e.button !== 0) {
         return
       }
+      this.cancelViewportAnimation()
       const world = this.clientToWorld(e.clientX, e.clientY)
       const rawWorld = this.unprojectPoint(world)
       const pos = this.getNodePosition(node.id)
@@ -488,6 +553,7 @@ export default {
       if (!this.editable || !e.touches || e.touches.length !== 1) {
         return
       }
+      this.cancelViewportAnimation()
       const t = e.touches[0]
       const world = this.clientToWorld(t.clientX, t.clientY)
       const rawWorld = this.unprojectPoint(world)
@@ -514,8 +580,9 @@ export default {
       }
       const clientX = e.touches ? e.touches[0].clientX : e.clientX
       const clientY = e.touches ? e.touches[0].clientY : e.clientY
-      this.viewport.x = this.dragStart.vx + (clientX - this.dragStart.x)
-      this.viewport.y = this.dragStart.vy + (clientY - this.dragStart.y)
+      const point = this.clientToStage(clientX, clientY)
+      this.viewport.x = this.dragStart.vx + (point.x - this.dragStart.x)
+      this.viewport.y = this.dragStart.vy + (point.y - this.dragStart.y)
       this.emitViewport()
     },
     onTouchMove(e) {
@@ -558,9 +625,9 @@ export default {
       return Math.sqrt(dx * dx + dy * dy)
     },
     clientToWorld(clientX, clientY) {
-      const rect = this.$refs.stage.getBoundingClientRect()
-      const x = (clientX - rect.left - this.viewport.x) / this.viewport.scale
-      const y = (clientY - rect.top - this.viewport.y) / this.viewport.scale
+      const point = this.clientToStage(clientX, clientY)
+      const x = (point.x - this.viewport.x) / this.viewport.scale
+      const y = (point.y - this.viewport.y) / this.viewport.scale
       return { x, y }
     },
     emitViewport() {
@@ -596,6 +663,7 @@ export default {
       }
       const xs = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).x)
       const ys = this.filteredNodes.map(n => this.getNodeRenderPosition(n.id).y)
+      this.updateStageSize(false)
       const minX = Math.min(...xs) - 180
       const maxX = Math.max(...xs) + 180
       const minY = Math.min(...ys) - 140
@@ -607,7 +675,14 @@ export default {
       const y = this.stageSize.height / 2 - (minY + height / 2) * scale
       this.animateViewport({ x, y, scale })
     },
+    cancelViewportAnimation() {
+      if (this.viewportAnimationFrame !== null) {
+        cancelAnimationFrame(this.viewportAnimationFrame)
+        this.viewportAnimationFrame = null
+      }
+    },
     animateViewport(target) {
+      this.cancelViewportAnimation()
       const start = { ...this.viewport }
       const duration = 360
       const begin = performance.now()
@@ -619,10 +694,12 @@ export default {
         this.viewport.scale = start.scale + (target.scale - start.scale) * ease
         this.emitViewport()
         if (p < 1) {
-          requestAnimationFrame(step)
+          this.viewportAnimationFrame = requestAnimationFrame(step)
+        } else {
+          this.viewportAnimationFrame = null
         }
       }
-      requestAnimationFrame(step)
+      this.viewportAnimationFrame = requestAnimationFrame(step)
     }
   }
 }

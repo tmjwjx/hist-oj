@@ -238,7 +238,6 @@ export default {
 
 .student-dashboard {
   padding: 24px;
-  background: var(--classroom-bg);
   min-height: 100vh;
   max-width: 1400px;
   margin: 0 auto;

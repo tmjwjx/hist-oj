@@ -1,0 +1,17 @@
+{
+  "name": "hist-oj-dolos-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone HTTP worker for multi-language source-code similarity analysis with Dolos.",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@dodona/dolos-lib": "3.5.1"
+  }
+}

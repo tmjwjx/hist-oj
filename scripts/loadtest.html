@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BingOJ 加载压测台（本地）</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eff3f5;padding:20px;color:#303133;font:14px system-ui,sans-serif}.panel{background:white;border:1px solid #dce3eb;border-radius:8px;padding:18px;margin-bottom:16px}h1{font-size:20px;margin:0 0 16px}form,.summary{display:flex;flex-wrap:wrap;gap:12px;align-items:end}label{display:flex;flex-direction:column;gap:5px;font-size:12px}input{padding:7px;border:1px solid #bbc8d4;border-radius:4px;width:100px}#host{width:210px}.check{flex-direction:row;align-items:center;padding:8px}.check input{width:auto}button{padding:8px 14px;border:1px solid #287cc5;border-radius:4px;background:#287cc5;color:white;cursor:pointer}button:disabled{opacity:.5;cursor:default}.secondary{background:white;color:#b23c3c;border-color:#b23c3c}.hint{color:#566674;line-height:1.7;margin-bottom:0}.metric{min-width:85px;padding:9px;background:#f3f6f9;border-radius:5px}.metric b{display:block;font-size:22px}.metric span{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}.card{padding:12px;border:1px solid #dce3eb;border-left:4px solid #9ba8b5;border-radius:5px;line-height:1.7;overflow-wrap:anywhere}.card.loading,.card.reserved{border-left-color:#287cc5}.card.success{border-left-color:#368e47}.card.failed,.card.timeout{border-left-color:#c74444}.card button{font-size:11px;padding:3px 9px;margin-top:7px}.detail{font-size:12px;color:#566674}#message{white-space:pre-wrap;color:#a33535}#snapshot{line-height:1.8}#cleanup{color:#6a4b1c}code{font-size:12px}
+</style>
+</head>
+<body>
+<div class="panel">
+<h1>BingOJ 加载压测台（本地 → 线上）</h1>
+<form id="settings">
+<label>目标站点<input id="host" type="url" value="https://bingoj.cn" required></label>
+<label>虚拟会话数<input id="users" type="number" value="25" min="1" required></label>
+<label>到达窗口（秒）<input id="ramp" type="number" value="10" min="0" step="0.1" required></label>
+<label>最长排队（秒）<input id="maxwait" type="number" value="300" min="1" required></label>
+<label>最长加载（秒）<input id="loadtimeout" type="number" value="120" min="1" required></label>
+<label>资源请求超时（秒）<input id="requesttimeout" type="number" value="15" min="1" required></label>
+<label class="check"><input id="prefetch" type="checkbox">含懒加载预取</label>
+<button id="startBtn" type="submit">开始压测</button><button id="stopBtn" class="secondary" type="button" disabled>停止全部</button>
+</form>
+<p class="hint">每个会话使用独立随机 UUID，按到达窗口加入，独立轮询真实排位；先验证无票据页面门禁，再凭一次性票据请求页面、静态资源和首页接口，完成后释放槽位。从实际 app 脚本解析首页动态组件和 logo，加载首页使用的图标字体、排名头像与展开公告图片；每个会话独立保留身份和排位。每个会话最多并发 3 个资源请求；排队轮询与心跳立即交给浏览器发送，使用高优先级，不再共享测试脚本的全局发送队列。400 个会话仍是 400 个排队对象，服务端决定加载名额。幂等 GET 网络中断最多重试 2 次；成功可能包含重试恢复，失败请求仍累计。一次性票据不重试。<br>这是单个浏览器中的资源请求模拟，不执行 Vue，不是独立进程或独立浏览器；共享浏览器连接限制，HTTP/1.1 连接限制会影响测试器吞吐。不会执行 JavaScript 动态导入、CSS 条件判断和懒加载逻辑；真实浏览器无缓存测试需另行进行。请求使用 <code>credentials: omit</code>、<code>cache: no-store</code>；仅页面和资源加随机查询参数，首页 API 保持真实参数以保留相同的服务端缓存行为；服务端/CDN 是否缓存仍取决于其配置。流量为解压后响应体字节。</p>
+<p id="message" role="alert"></p><p id="cleanup" aria-live="polite"></p>
+</div>
+<div class="panel"><div class="summary" id="summary"></div><p id="snapshot">服务端快照：尚未收到。后端人数包含其他真实访客。</p><p id="traffic"></p></div>
+<div class="panel"><div class="grid" id="grid"></div><p class="hint">每个会话可单独退出，以观察后端排位和人数更新。停止后清理请求继续执行；新一轮使用全新身份。</p></div>
+<script id="loadtest-engine">
+(function (global) {
+  'use strict';
+  const terminal = new Set(['success', 'failed', 'timeout', 'cancelled']);
+  const apis = ['/api/get-website-config', '/api/classroom/user/roles', '/api/home-carousel', '/api/get-recent-contest', '/api/rating/rank?page=1&limit=10&keyword=', '/api/get-common-announcement?currentPage=1&limit=5'];
+  class LoadError extends Error { constructor(message, kind = 'failed', retryable = false) { super(message); this.kind = kind; this.retryable = retryable; } }
+  function queuePage(html) { return /<meta\b[^>]*\bname\s*=\s*["']?hoj-queue-page(?:["'\s>])/i.test(html); }
+  function resources(html, pageURL) {
+    const nodes = []; let base = pageURL;
+    if (typeof DOMParser !== 'undefined') {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const baseNode = doc.querySelector('base[href]');
+      if (baseNode) base = new URL(baseNode.getAttribute('href'), pageURL).href;
+      doc.querySelectorAll('script[src],link[href],img[src],source[src],video[poster]').forEach(n => nodes.push({ tag: n.tagName.toLowerCase(), get: name => n.getAttribute(name) || '' }));
+    } else {
+      // Node 没有 DOMParser；本地文件在浏览器中使用上面的原生 HTML 解析器。
+      for (const match of html.matchAll(/<(script|link|img|source|video|base)\b([^>]*)>/gi)) {
+        const attrs = {};
+        for (const a of match[2].matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) attrs[a[1].toLowerCase()] = (a[2] ?? a[3] ?? a[4] ?? '').replace(/&amp;/g, '&');
+        if (match[1].toLowerCase() === 'base') { if (attrs.href) base = new URL(attrs.href, pageURL).href; continue; }
+        nodes.push({ tag: match[1].toLowerCase(), get: name => attrs[name] || '' });
+      }
+    }
+    const items = new Map();
+    for (const n of nodes) {
+      const rel = n.get('rel').toLowerCase().split(/\s+/), as = n.get('as').toLowerCase();
+      let kind, prefetch = false;
+      if (n.tag === 'script') kind = 'script';
+      else if (n.tag === 'img' || n.tag === 'video') kind = 'image';
+      else if (n.tag === 'source') continue;
+      else if (n.tag === 'link') {
+        if (rel.includes('stylesheet')) kind = 'style';
+        else if (rel.includes('icon') || rel.includes('apple-touch-icon')) kind = 'image';
+        else if (rel.includes('preload') || rel.includes('modulepreload') || rel.includes('prefetch')) {
+          prefetch = rel.includes('prefetch');
+          kind = ({ script: 'script', style: 'style', font: 'font', image: 'image' })[as];
+          if (rel.includes('modulepreload')) kind = 'script';
+        } else continue;
+      }
+      const source = n.get(n.tag === 'link' ? 'href' : n.tag === 'video' ? 'poster' : 'src');
+      if (!source) continue;
+      const url = new URL(source, base); if (!/^https?:$/.test(url.protocol)) continue;
+      url.hash = '';
+      if (!kind) kind = /\.m?js$/i.test(url.pathname) ? 'script' : /\.css$/i.test(url.pathname) ? 'style' : /\.(woff2?|ttf|otf)$/i.test(url.pathname) ? 'font' : /\.(png|jpe?g|gif|svg|webp|ico|avif)$/i.test(url.pathname) ? 'image' : 'asset';
+      const old = items.get(url.href);
+      if (!old || (old.prefetch && !prefetch)) items.set(url.href, { url: url.href, kind, prefetch });
+    }
+    return [...items.values()];
+  }
+  function homeResources(source, pageURL) {
+    const home = /name:["']home["'],components:\{([^}]+)\}/.exec(source);
+    if (!home) throw new LoadError('无法解析线上 Home 组件，停止测试以避免漏测动态资源');
+    const definitions = source.slice(Math.max(0, home.index - 2500), home.index), chunks = new Set();
+    for (const component of ['Announcements', 'TimeDisplay']) {
+      const variable = new RegExp(component + ':([\\w$]+)').exec(home[1])?.[1];
+      if (!variable) throw new LoadError('无法定位首页组件：' + component);
+      const start = definitions.lastIndexOf(variable + '=');
+      if (start < 0) throw new LoadError('无法定位动态加载表达式：' + component);
+      const expression = definitions.slice(start + variable.length + 1).split(/,[\w$]+=|;/)[0];
+      const ids = [...expression.matchAll(/\.e\(["']([^"']+)["']\)/g)].map(m => m[1]);
+      if (!ids.length && !expression.includes('Promise.resolve()')) throw new LoadError('未识别的首页组件加载表达式：' + component);
+      ids.forEach(id => chunks.add(id));
+    }
+    const result = [], origin = new URL(pageURL).origin + '/';
+    for (const kind of ['js', 'css']) {
+      const start = source.indexOf('assets/' + kind + '/');
+      if (start < 0) throw new LoadError('无法定位 webpack ' + kind + ' 资源映射');
+      const section = source.slice(start, start + 20000), mapStart = section.indexOf('{"chunk-');
+      let hashes;
+      try { hashes = JSON.parse(section.slice(mapStart, section.indexOf('}', mapStart) + 1)); } catch (_) { throw new LoadError('无法解析 webpack ' + kind + ' 哈希映射'); }
+      for (const id of chunks) {
+        if (!hashes[id]) { if (kind === 'js') throw new LoadError('缺少首页动态脚本映射：' + id); continue; }
+        result.push({ url: new URL('assets/' + kind + '/' + id + '.' + hashes[id] + '.' + kind, origin).href, kind: kind === 'js' ? 'script' : 'style' });
+      }
+    }
+    const logo = source.match(/assets\/img\/logo\.[\w-]+\.(?:png|svg|webp)/)?.[0];
+    if (!logo) throw new LoadError('未找到 NavBar 首页 logo 资源');
+    result.push({ url: new URL(logo, origin).href, kind: 'image' });
+    return result;
+  }
+  function abortError(signal) { return signal.reason instanceof LoadError ? signal.reason : new LoadError('已主动取消', 'cancelled'); }
+  // 分段等待，避免超长时长超过原生定时器范围后立即触发。
+  function setLongTimeout(callback, ms) {
+    const deadline = performance.now() + ms;
+    let timer;
+    function tick() {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) callback();
+      else timer = setTimeout(tick, Math.min(remaining, 2147483647));
+    }
+    timer = setTimeout(tick, Math.min(ms, 2147483647));
+    return () => clearTimeout(timer);
+  }
+  function sleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+      if (signal.aborted) return reject(abortError(signal));
+      const end = () => { cancelTimer(); signal.removeEventListener('abort', cancel); resolve(); };
+      const cancel = () => { cancelTimer(); signal.removeEventListener('abort', cancel); reject(abortError(signal)); };
+      const cancelTimer = setLongTimeout(end, Math.max(0, ms)); signal.addEventListener('abort', cancel, { once: true });
+    });
+  }
+  function validate(options) {
+    const o = Object.assign({ host: 'https://bingoj.cn', users: 25, rampMs: 10000, maxQueueMs: 300000, loadTimeoutMs: 120000, requestTimeoutMs: 15000, pollMs: 1000, heartbeatMs: 5000, cleanupTimeoutMs: 5000, prefetch: false, noCache: true, onChange: () => {} }, options);
+    const host = new URL(o.host);
+    if (!/^https?:$/.test(host.protocol) || host.username || host.password || host.pathname !== '/' || host.search || host.hash) throw new Error('目标必须是没有路径或认证信息的 http/https 站点');
+    o.host = host.origin;
+    for (const key of ['users','rampMs','maxQueueMs','loadTimeoutMs','requestTimeoutMs','pollMs','heartbeatMs','cleanupTimeoutMs']) {
+      if (!Number.isFinite(o[key]) || o[key] < (key === 'rampMs' ? 0 : 1)) throw new Error(key + ' 参数无效');
+    }
+    if (!Number.isSafeInteger(o.users)) throw new Error('虚拟会话数必须为有效的正整数');
+    return o;
+  }
+  function createRun(options) {
+    const o = validate(options);
+    const run = { options: o, startedAt: Date.now(), endedAt: 0, users: [], trace: [], requestCount: 0, errorCount: 0, cancelledRequests: 0, expectedAnonymous: 0, degradedGate: 0, bytes: 0, droppedTrace: 0, errorSummary: new Map(), snapshot: null, cleaning: 0, stopped: false, activeRequests: 0, activeControlRequests: 0, activeResourceRequests: 0, maxFetchMs: 0, maxHeartbeatGapMs: 0 };
+    const emit = () => o.onChange(run);
+    function updateSnapshot(data) {
+      if (data && Number.isFinite(Number(data.revision)) && (!run.snapshot || Number(data.revision) >= Number(run.snapshot.revision))) {
+        run.snapshot = Object.assign({}, data, { receivedAt: Date.now() });
+      }
+    }
+    async function request(u, path, kind, config = {}) {
+      const signal = config.independent ? null : config.signal || u.controller.signal;
+      if (signal?.aborted) throw abortError(signal);
+      const ctrl = new AbortController();
+      const parentAbort = () => ctrl.abort(abortError(signal));
+      signal?.addEventListener('abort', parentAbort, { once: true });
+      let cancelTimeout;
+      const url = new URL(path, o.host);
+      if (o.noCache && config.method !== 'POST' && !url.pathname.startsWith('/api/')) url.searchParams.set('_cb', crypto.randomUUID());
+      const entry = { user: u.index + 1, kind, method: config.method || 'GET', body: config.body, url: url.href, startedAt: Date.now(), status: 0, bytes: 0, error: '' };
+      const control = url.pathname.startsWith('/api/queue/') || (kind === 'html' && url.searchParams.has('hoj_ticket'));
+      const activeKey = control ? 'activeControlRequests' : 'activeResourceRequests';
+      entry.control = control;
+      run.activeRequests++; run[activeKey]++;
+      try {
+        cancelTimeout = setLongTimeout(() => ctrl.abort(new LoadError('请求超时：' + path, 'timeout', true)), config.timeout || o.requestTimeoutMs);
+        const response = await fetch(url.href, { method: config.method || 'GET', body: config.body === undefined ? undefined : JSON.stringify(config.body), headers: config.body === undefined ? config.headers : Object.assign({}, config.headers, { 'Content-Type': 'application/json' }), signal: ctrl.signal, credentials: 'omit', cache: o.noCache ? 'no-store' : 'default', priority: control ? 'high' : 'low' });
+        entry.status = response.status;
+        const buffer = await response.arrayBuffer(); entry.bytes = buffer.byteLength;
+        const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        const text = new TextDecoder().decode(buffer);
+        const degradedGate = config.initialGate && response.status === 503 && type === 'text/html' && queuePage(text);
+        if (degradedGate) { entry.degradedGate = true; run.degradedGate++; }
+        if (!response.ok && !degradedGate && !(config.anonymous && response.status === 401)) throw new LoadError('HTTP ' + response.status + '：' + url.pathname, 'failed', !!config.retryStatus && (response.status === 408 || response.status === 429 || response.status >= 500));
+        const isHTML = type === 'text/html' || /^\s*(?:<!doctype\s+html|<html\b)/i.test(text);
+        if (kind !== 'html' && (isHTML || queuePage(text))) throw new LoadError('资源或接口返回 HTML：' + url.pathname);
+        const valid = kind === 'html' ? type === 'text/html' : kind === 'json' ? /^application\/(?:[\w.-]+\+)?json$/.test(type) : kind === 'script' ? /^(?:text|application)\/(?:javascript|ecmascript|x-javascript)$/.test(type) : kind === 'style' ? type === 'text/css' : kind === 'image' ? type.startsWith('image/') : kind === 'font' ? /^(?:font\/|application\/(?:font|x-font|vnd.ms-fontobject|octet-stream))/.test(type) : !!type;
+        if (!valid) throw new LoadError('Content-Type 不符：' + (type || '(空)') + ' ' + url.pathname);
+        let data;
+        if (kind === 'json') {
+          let json; try { json = JSON.parse(text); } catch (_) { throw new LoadError('JSON 无效：' + url.pathname); }
+          const businessStatus = config.rating ? (json.code ?? json.status) : (json.status ?? json.code);
+          if (config.anonymous && (businessStatus === 401 || response.status === 401)) {
+            entry.expectedAnonymous = true; run.expectedAnonymous++; data = [];
+          } else {
+            if (businessStatus !== 200 || (!config.rating && json.code !== undefined && json.code !== 200)) throw new LoadError('业务失败 ' + businessStatus + '：' + (json.msg || json.message || url.pathname));
+            data = json.data;
+          }
+        }
+        return { text, data, url: response.url || url.href, timing: entry };
+      } catch (error) {
+        const failure = ctrl.signal.aborted ? abortError(ctrl.signal) : error instanceof LoadError ? error : new LoadError('网络错误：' + error.message, 'failed', true);
+        if (failure.kind === 'cancelled' || failure.kind === 'refresh') { entry.cancelled = true; entry.note = failure.message; }
+        else entry.error = failure.message;
+        throw failure;
+      } finally {
+        cancelTimeout?.(); signal?.removeEventListener('abort', parentAbort);
+        run.activeRequests--; run[activeKey]--;
+        entry.ms = Date.now() - entry.startedAt; run.requestCount++; run.bytes += entry.bytes;
+        run.maxFetchMs = Math.max(run.maxFetchMs, entry.ms);
+        if (entry.cancelled) run.cancelledRequests++;
+        if (entry.error) {
+          run.errorCount++;
+          let key = kind + ' ' + url.pathname + ' HTTP ' + entry.status;
+          if (!run.errorSummary.has(key) && run.errorSummary.size >= 100) key = '其他失败请求';
+          const previous = run.errorSummary.get(key);
+          run.errorSummary.set(key, { count: (previous?.count || 0) + 1, message: entry.error });
+        }
+        if (run.trace.length >= 10000) { run.trace.splice(0, 1000); run.droppedTrace += 1000; }
+        run.trace.push(entry);
+      }
+    }
+    async function requestWithRetry(u, path, kind, config = {}) {
+      let retryMessage = '';
+      const safeGet = (config.method || 'GET') === 'GET' && !new URL(path, o.host).searchParams.has('hoj_ticket');
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const response = await request(u, path, kind, config);
+          if (retryMessage && u.lastError === retryMessage) u.lastError = '';
+          return response;
+        } catch (error) {
+          if (!safeGet || !error.retryable || u.controller.signal.aborted || attempt >= 2) throw error;
+          retryMessage = '请求重试 ' + (attempt + 1) + '/2：' + error.message;
+          u.lastError = retryMessage; emit();
+          await sleep(250 * (attempt + 1), u.controller.signal);
+        }
+      }
+    }
+    async function clean(u) {
+      if (!u.arrived || u.disabled) return;
+      run.cleaning++; u.cleanupState = '正在清理'; emit();
+      const api = u.state === 'success' ? 'release' : 'leave';
+      try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const response = await request(u, '/api/queue/' + api + '?qid=' + encodeURIComponent(u.qid) + '&immediate=true', 'json', { method: 'POST', independent: true, timeout: o.cleanupTimeoutMs });
+            updateSnapshot(response.data); u.cleanupState = '已清理'; return;
+          } catch (error) {
+            if (attempt === 2) throw error;
+            await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+          }
+        }
+      } catch (error) {
+        u.cleanupState = '清理失败：' + error.message;
+        if (u.state === 'success') { u.state = 'failed'; u.error = u.cleanupState; }
+      } finally { run.cleaning--; emit(); }
+    }
+    function cssResources(text, base) {
+      text = text.replace(/\/\*[\s\S]*?\*\//g, '');
+      const jobs = [];
+      function add(value, kind) {
+        if (!value || value.startsWith('#')) return;
+        const url = new URL(value, base); if (!/^https?:$/.test(url.protocol)) return;
+        url.hash = ''; jobs.push({ url: url.href, kind });
+      }
+      // 浏览器只下载实际使用字体的一种支持格式，不能遍历 KaTeX 和编辑器的全部字体。
+      for (const match of text.matchAll(/@font-face\s*\{([^}]+)\}/gi)) {
+        const family = /font-family\s*:\s*(["']?)([^;"']+)\1/i.exec(match[1])?.[2]?.trim();
+        if (!['element-icons', 'FontAwesome'].includes(family)) continue;
+        const urls = [...match[1].matchAll(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi)].map(m => m[2]);
+        const preferred = urls.find(url => /\.woff2(?:[?#]|$)/i.test(url)) || urls.find(url => /\.woff(?:[?#]|$)/i.test(url));
+        if (!preferred) throw new LoadError('无法找到首页字体可用资源：' + family);
+        add(preferred, 'font');
+      }
+      text = text.replace(/@font-face\s*\{[^}]+\}/gi, '');
+      for (const m of text.matchAll(/@import\s+(?:url\(\s*)?(?:"([^"\n]+)"|'([^'\n]+)'|([^\s);]+))/gi)) add(m[1] || m[2] || m[3], 'style');
+      return jobs;
+    }
+    function contentImages(content) {
+      const urls = resources(content || '', o.host + '/home').filter(job => job.kind === 'image');
+      for (const m of (content || '').matchAll(/!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^"']*["'])?\s*\)/g)) urls.push({ url: new URL(m[1] || m[2], o.host + '/home').href, kind: 'image' });
+      return urls;
+    }
+    function apiDependencies(job, data) {
+      const path = new URL(job.url, o.host).pathname, jobs = [];
+      if (path === '/api/get-recent-contest' && Array.isArray(data) && data.length) {
+        const contestIds = data.map(contest => contest.id);
+        if (contestIds.some(id => !Number.isSafeInteger(id) || id <= 0)) throw new LoadError('近期比赛返回无效 contest id');
+        jobs.push({ url: '/api/rating/contest/batch', kind: 'json', method: 'POST', body: { contestIds }, rating: true });
+      }
+      if (path === '/api/rating/rank') for (const row of data?.records || []) if (row.avatar) jobs.push({ url: new URL(row.avatar, o.host + '/home').href, kind: 'image' });
+      if (path === '/api/get-common-announcement') for (const item of data?.records || []) jobs.push(...contentImages(item.content || ''));
+      if (path === '/api/get-website-config') jobs.push(...contentImages(data?.description || ''));
+      // Home.vue 调用 carousel 接口，但当前模板不渲染 carouselImgList，不下载未显示的 banner。
+      return jobs.filter(item => /^https?:$/.test(new URL(item.url, o.host).protocol));
+    }
+    async function loadAssets(u, initial) {
+      let next = 0; const jobs = [];
+      function add(items) { for (const job of items) { const key = new URL(job.url, o.host).href; if (!u.resourceSeen.has(key)) { u.resourceSeen.add(key); jobs.push(job); } } }
+      add(initial);
+      await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, async () => {
+        while (next < jobs.length) {
+          if (u.controller.signal.aborted) throw abortError(u.controller.signal);
+          const job = jobs[next++];
+          if (job.kind === 'json') job.headers = job.rating ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : { 'Url-Type': 'general', 'X-Device-Id': u.qid };
+          const response = await requestWithRetry(u, job.url, job.kind, job);
+          if (job.kind === 'style') add(cssResources(response.text, response.url));
+          if (job.kind === 'json') add(apiDependencies(job, response.data));
+          if (job.kind === 'script' && /\/app\.[0-9a-f]{8,}\.js$/.test(new URL(job.url, o.host).pathname)) add(homeResources(response.text, response.url));
+          u.requestsDone++; emit();
+        }
+      }));
+    }
+    async function execute(u) {
+      let queueTimer, loadTimer, heartbeat, heartbeatTask, gateIconTask;
+      const cancelPoll = () => u.pollController?.abort(abortError(u.controller.signal));
+      u.controller.signal.addEventListener('abort', cancelPoll);
+      try {
+        await sleep(u.delayMs, u.controller.signal);
+        u.arrived = true; u.arrivedAt = Date.now(); u.state = 'queued'; emit();
+        queueTimer = setLongTimeout(() => u.controller.abort(new LoadError('超过最长排队时间', 'timeout')), o.maxQueueMs);
+        const gate = await requestWithRetry(u, '/home', 'html', { initialGate: true });
+        // 无缓存 Chrome 在排队文档和主应用各请求一次 favicon；前者不是应用资源去重集合。
+        gateIconTask = requestWithRetry(u, '/favicon.ico', 'image').catch(error => { if (!u.controller.signal.aborted) u.controller.abort(error); });
+        while (true) {
+          u.pollController = new AbortController();
+          if (u.controller.signal.aborted) throw abortError(u.controller.signal);
+          let response;
+          const pollStartedAt = Date.now();
+          // 与真实排队页一致：控制请求短超时重试，不能被资源下载的长超时阻塞。
+          try { response = await request(u, '/api/queue/status?qid=' + encodeURIComponent(u.qid), 'json', { retryStatus: true, timeout: Math.min(4000, o.requestTimeoutMs), signal: u.pollController.signal }); }
+          catch (error) {
+            if (error.kind === 'refresh' && !u.controller.signal.aborted) continue;
+            if (!error.retryable || u.controller.signal.aborted) throw error;
+            u.lastError = error.message; emit();
+            try { await sleep(o.pollMs + Math.random() * Math.min(200, o.pollMs / 5), u.pollController.signal); } catch (pauseError) { if (pauseError.kind !== 'refresh') throw pauseError; }
+            continue;
+          }
+          if (u.controller.signal.aborted) throw abortError(u.controller.signal);
+          const d = response.data;
+          if (!d || d.myId !== u.qid || !['waiting','reserved','loading','closed','disabled'].includes(d.state)) throw new LoadError('排队协议或身份不符');
+          const previousState = u.serverState, previousStatusAt = u.lastStatusAt;
+          updateSnapshot(d); u.position = d.position; u.serverState = d.state; u.lastStatusAt = Date.now(); u.lastError = ''; emit();
+          if (d.state === 'closed') {
+            const states = { waiting: '排队等待', reserved: '已分配名额', loading: '正在加载' };
+            throw new LoadError('服务端已关闭此身份' + (previousStatusAt ? '；上次状态：' + (states[previousState] || previousState) + '；距上次成功轮询 ' + ((u.lastStatusAt - previousStatusAt) / 1000).toFixed(1) + ' 秒' : '；尚未收到有效的排队状态') + '；本次请求耗时 ' + (response.timing.ms / 1000).toFixed(1) + ' 秒（含浏览器排队）');
+          }
+          if (u.lastControlSuccessAt) run.maxHeartbeatGapMs = Math.max(run.maxHeartbeatGapMs, Date.now() - u.lastControlSuccessAt);
+          u.lastControlSuccessAt = Date.now();
+          u.disabled = d.enabled === false && d.state === 'disabled';
+          if (!u.disabled && !queuePage(gate.text)) throw new LoadError('无票据 /home 未返回排队页，门禁校验失败');
+          if (u.disabled || d.state === 'reserved' || d.state === 'loading') break;
+          const retry = Number(d.retryAfterMs), interval = Math.min(5000, Number.isFinite(retry) && retry > 0 ? retry : o.pollMs);
+          const delay = Math.max(0, interval - (Date.now() - pollStartedAt)) + Math.random() * Math.min(200, interval / 5);
+          try { await sleep(delay, u.pollController.signal); } catch (error) { if (error.kind !== 'refresh') throw error; }
+        }
+        queueTimer();
+        u.state = 'reserved'; u.admittedAt = Date.now(); u.queueMs = u.admittedAt - u.arrivedAt; emit();
+        loadTimer = setLongTimeout(() => u.controller.abort(new LoadError('超过最长加载时间', 'timeout')), o.loadTimeoutMs);
+        const page = await request(u, '/home?hoj_ticket=' + encodeURIComponent(u.qid), 'html');
+        if (queuePage(page.text)) throw new LoadError('票据进站后仍返回排队页');
+        u.lastControlSuccessAt = Date.now();
+        const assets = resources(page.text, page.url);
+        if (!assets.some(x => x.kind === 'script' && !x.prefetch)) throw new LoadError('主应用 HTML 未发现关键脚本');
+        u.state = 'loading'; emit();
+        if (!u.disabled) {
+          heartbeat = new AbortController();
+          heartbeatTask = (async () => {
+            while (true) {
+              await sleep(o.heartbeatMs, heartbeat.signal);
+              let r;
+              try {
+                r = await request(u, '/api/queue/heartbeat?qid=' + encodeURIComponent(u.qid), 'json', { method: 'POST', retryStatus: true, timeout: Math.min(4000, o.requestTimeoutMs), signal: heartbeat.signal });
+              } catch (error) {
+                if (heartbeat.signal.aborted || !error.retryable) throw error;
+                u.lastError = '加载心跳重试中：' + error.message; emit();
+                continue;
+              }
+              if (r.data?.state === 'closed') throw new LoadError('加载租约已关闭');
+              if (u.lastControlSuccessAt) run.maxHeartbeatGapMs = Math.max(run.maxHeartbeatGapMs, Date.now() - u.lastControlSuccessAt);
+              u.lastControlSuccessAt = Date.now();
+              updateSnapshot(r.data); u.lastError = ''; emit();
+            }
+          })().catch(error => { if (!heartbeat.signal.aborted && !u.controller.signal.aborted) u.controller.abort(error); });
+        }
+        await loadAssets(u, assets.filter(x => !x.prefetch));
+        await loadAssets(u, apis.map(url => ({ url, kind: 'json', rating: url.startsWith('/api/rating/'), anonymous: url === '/api/classroom/user/roles' })));
+        u.firstScreenMs = Date.now() - u.admittedAt;
+        if (o.prefetch) await loadAssets(u, assets.filter(x => x.prefetch));
+        await gateIconTask;
+        if (u.controller.signal.aborted) throw abortError(u.controller.signal);
+        u.state = 'success'; u.loadMs = Date.now() - u.admittedAt;
+      } catch (error) {
+        u.state = error.kind === 'cancelled' ? 'cancelled' : error.kind === 'timeout' ? 'timeout' : 'failed';
+        u.error = error.message;
+      } finally {
+        queueTimer?.(); loadTimer?.();
+        u.controller.signal.removeEventListener('abort', cancelPoll);
+        u.pollController?.abort(new LoadError('排队结束', 'cancelled'));
+        heartbeat?.abort(new LoadError('心跳结束', 'cancelled'));
+        u.controller.abort(new LoadError('会话结束', 'cancelled'));
+        await Promise.all([heartbeatTask, gateIconTask]);
+        u.finishedAt = Date.now(); emit(); await clean(u);
+      }
+      return u;
+    }
+    for (let i = 0; i < o.users; i++) run.users.push({ index: i, qid: crypto.randomUUID(), state: 'pending', delayMs: o.users > 1 ? Math.round((i / (o.users - 1)) * o.rampMs) : 0, controller: new AbortController(), position: null, refreshCount: 0, refreshEvidence: null, pollController: null, requestsDone: 0, resourceSeen: new Set(), arrived: false, error: '', cleanupState: '' });
+    run.cancel = index => { const u = run.users[index]; if (u && !terminal.has(u.state)) { u.controller.abort(new LoadError('已主动退出', 'cancelled')); } };
+    run.refresh = index => {
+      const u = run.users[index]; if (!u || u.state !== 'queued' || u.controller.signal.aborted) return false;
+      u.refreshCount++; u.refreshEvidence = { qid: u.qid, position: u.position, arrivedAt: u.arrivedAt, at: Date.now() };
+      u.pollController?.abort(new LoadError('刷新排队，保留原身份和计时', 'refresh')); emit(); return true;
+    };
+    run.stop = () => { run.stopped = true; run.users.forEach(u => run.cancel(u.index)); emit(); };
+    run.done = Promise.all(run.users.map(execute)).then(() => { run.endedAt = Date.now(); emit(); return run; });
+    emit(); return run;
+  }
+  global.HojLoadtest = { createRun, resources, homeResources, queuePage, terminal };
+})(globalThis);
+</script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const labels = { pending: '未到达', queued: '排队中', reserved: '已获票据', loading: '加载中', success: '成功', failed: '失败', timeout: '超时', cancelled: '已取消' };
+  let current = null, ticker, paintTimer, oldRuns = new Set();
+  for (const [key, label] of Object.entries(labels)) {
+    const el = document.createElement('div'); el.className = 'metric';
+    const b = document.createElement('b'); b.id = 'count-' + key; b.textContent = '0';
+    const span = document.createElement('span'); span.textContent = label; el.append(b, span); $('summary').append(el);
+  }
+  const elapsed = document.createElement('div'); elapsed.className = 'metric'; elapsed.id = 'elapsed'; $('summary').append(elapsed);
+  function scheduleRender() {
+    if (!paintTimer) paintTimer = setTimeout(() => { paintTimer = null; if (current) render(current); }, 150);
+  }
+  function render(run) {
+    if (run !== current) { renderCleanup(); return; }
+    const counts = Object.fromEntries(Object.keys(labels).map(key => [key, 0]));
+    for (const u of run.users) {
+      counts[u.state]++;
+      const card = $('device-' + u.index); if (!card) continue;
+      card.className = 'card ' + u.state;
+      card.querySelector('.state').textContent = labels[u.state] + (u.state === 'queued' ? ' · 第 ' + (u.position ?? '—') + ' 位' : '');
+      const time = u.arrivedAt ? '已到达 ' + (((u.finishedAt || Date.now()) - u.arrivedAt) / 1000).toFixed(1) + ' 秒' : ((run.startedAt + u.delayMs - Date.now()) / 1000).toFixed(1) + ' 秒后到达';
+      card.querySelector('.detail').textContent = (u.error || u.lastError || time) + '；完成请求 ' + u.requestsDone + (u.cleanupState ? '；' + u.cleanupState : '') + (u.refreshCount ? '；刷新 ' + u.refreshCount + ' 次，保持同一 ID 和首次到达计时；刷新前第 ' + (u.refreshEvidence.position ?? '—') + ' 位' : '');
+      card.querySelector('.cancel').disabled = HojLoadtest.terminal.has(u.state);
+      card.querySelector('.refresh').disabled = u.state !== 'queued';
+    }
+    for (const key of Object.keys(labels)) $('count-' + key).textContent = counts[key];
+    $('elapsed').textContent = (((run.endedAt || Date.now()) - run.startedAt) / 1000).toFixed(1) + ' 秒';
+    $('traffic').textContent = '在途控制请求 ' + run.activeControlRequests + ' · 在途资源请求 ' + run.activeResourceRequests + ' · 最长 fetch 耗时 ' + (run.maxFetchMs / 1000).toFixed(1) + ' 秒（含浏览器排队） · 最大成功心跳间隔 ' + (run.maxHeartbeatGapMs / 1000).toFixed(1) + ' 秒 · 累计请求 ' + run.requestCount + ' · 失败请求 ' + run.errorCount + '（含重试前失败） · 已取消请求 ' + run.cancelledRequests + ' · 预期匿名401 ' + run.expectedAnonymous + ' · 门禁503降级 ' + run.degradedGate + ' · 解压后响应体 ' + (run.bytes / 1048576).toFixed(2) + ' MiB · 保留最近 ' + run.trace.length + ' 条请求明细';
+    const d = run.snapshot;
+    $('snapshot').textContent = d ? '后端最近快照：等待 ' + d.waiting + ' · 已获票据 ' + d.reserved + ' · 正在加载 ' + d.loading + ' · 占槽 ' + d.active + '/' + d.maxSlots + ' · 总数 ' + d.total + ' · revision ' + d.revision + ' · ' + ((Date.now() - d.receivedAt) / 1000).toFixed(1) + ' 秒前（全站人数，非本轮人数）' : '服务端快照：尚未收到';
+    if (run.endedAt) { $('startBtn').disabled = false; $('stopBtn').disabled = true; clearInterval(ticker); }
+    renderCleanup();
+  }
+  function renderCleanup() {
+    const runs = [...oldRuns, ...(current ? [current] : [])];
+    const count = runs.reduce((sum, r) => sum + r.cleaning, 0);
+    const errors = runs.flatMap(r => r.users.filter(u => u.cleanupState.startsWith('清理失败')).map(u => u.qid + '：' + u.cleanupState));
+    $('cleanup').textContent = (count ? '清理请求继续执行中：' + count + ' 个会话。' : '') + (errors.length ? '\n' + errors.join('\n') : '');
+  }
+  function start(event) {
+    event?.preventDefault(); $('message').textContent = '';
+    if (current && !current.endedAt && !current.stopped) return;
+    let run;
+    try {
+      run = HojLoadtest.createRun({ host: $('host').value, users: Number($('users').value), rampMs: Number($('ramp').value) * 1000, maxQueueMs: Number($('maxwait').value) * 1000, loadTimeoutMs: Number($('loadtimeout').value) * 1000, requestTimeoutMs: Number($('requesttimeout').value) * 1000, prefetch: $('prefetch').checked, onChange: scheduleRender });
+    } catch (error) { $('message').textContent = error.message; return; }
+    if (current && (!current.endedAt || current.users.some(u => u.cleanupState.startsWith('清理失败')))) {
+      const previous = current; oldRuns.add(previous);
+      previous.done.then(() => { if (!previous.users.some(u => u.cleanupState.startsWith('清理失败'))) oldRuns.delete(previous); scheduleRender(); });
+    }
+    current = run; window.loadtestRun = run;
+    $('grid').textContent = '';
+    for (const u of run.users) {
+      const card = document.createElement('div'); card.id = 'device-' + u.index; card.className = 'card';
+      const title = document.createElement('b'); title.textContent = '虚拟会话 ' + (u.index + 1);
+      const state = document.createElement('div'); state.className = 'state'; const detail = document.createElement('div'); detail.className = 'detail';
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary cancel'; button.textContent = '主动退出'; button.onclick = () => run.cancel(u.index);
+      const refresh = document.createElement('button'); refresh.type = 'button'; refresh.className = 'refresh'; refresh.textContent = '刷新排队'; refresh.onclick = () => run.refresh(u.index);
+      card.title = 'qid=' + u.qid; card.append(title, state, detail, button, refresh); $('grid').append(card);
+    }
+    $('startBtn').disabled = true; $('stopBtn').disabled = false;
+    clearInterval(ticker); ticker = setInterval(() => render(run), 500); render(run);
+  }
+  function stop() { if (current) { current.stop(); $('startBtn').disabled = false; $('stopBtn').disabled = true; } }
+  $('settings').addEventListener('submit', start); $('stopBtn').addEventListener('click', stop);
+  window.startTest = start; window.stopTest = stop;
+  window.addEventListener('pagehide', () => {
+    for (const run of [...oldRuns, ...(current ? [current] : [])]) {
+      for (const u of run.users) if (u.arrived && u.cleanupState !== '已清理' && !u.disabled) {
+        const url = run.options.host + '/api/queue/leave?qid=' + encodeURIComponent(u.qid) + '&immediate=true';
+        try { if (!navigator.sendBeacon(url)) fetch(url, { method: 'POST', credentials: 'omit', keepalive: true }).catch(() => {}); } catch (_) { /* 租约到期仍会清扫 */ }
+      }
+      run.stop();
+    }
+  });
+})();
+</script>
+</body>
+</html>

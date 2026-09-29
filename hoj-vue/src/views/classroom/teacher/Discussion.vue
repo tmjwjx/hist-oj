@@ -12,52 +12,53 @@
       />
     </div>
 
-    <div class="message-list" ref="messageList">
-      <div v-for="msg in messages" :key="msg.id" class="message-item" :class="getMessageClass(msg)">
-        <!-- 系统消息 -->
-        <div v-if="msg.msgType === 'system'" class="system-message-content">
-          {{ msg.content }}
-        </div>
-
-        <!-- 普通消息 - 气泡样式 -->
-        <template v-else>
-          <!-- 头像 -->
-          <div class="message-avatar">
-            <el-avatar :size="40" :src="msg.sender?.avatar">
-              <i class="el-icon-user-solid"></i>
-            </el-avatar>
+    <div class="chat-panel">
+      <div class="message-list" ref="messageList">
+        <div v-for="msg in messages" :key="msg.id" class="message-item" :class="getMessageClass(msg)">
+          <!-- 系统消息 -->
+          <div v-if="msg.msgType === 'system'" class="system-message-content">
+            {{ msg.content }}
           </div>
 
-          <!-- 消息主体 -->
-          <div class="message-body">
-            <!-- 发送者名称和时间 -->
-            <div class="message-meta">
-              <UserName :username="getSenderUsername(msg)" :bold="true" class="sender-name">
-                {{ getSenderDisplayName(msg) }}
-              </UserName>
-              <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
+          <!-- 普通消息 - 气泡样式 -->
+          <template v-else>
+            <!-- 头像 -->
+            <div class="message-avatar">
+              <el-avatar :size="40" :src="msg.sender?.avatar">
+                <i class="el-icon-user-solid"></i>
+              </el-avatar>
             </div>
 
-            <!-- 消息内容气泡 -->
-            <div class="message-bubble">
-              <!-- 文本消息 -->
-              <div v-if="msg.msgType === 'text'" class="bubble-content" v-html="renderContent(msg.content)"></div>
-              <!-- 图片消息 -->
-              <div v-else class="bubble-image">
-                <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+            <!-- 消息主体 -->
+            <div class="message-body">
+              <!-- 发送者名称和时间 -->
+              <div class="message-meta">
+                <UserName :username="getSenderUsername(msg)" :bold="true" class="sender-name">
+                  {{ getSenderDisplayName(msg) }}
+                </UserName>
+                <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
               </div>
+
+              <!-- 消息内容气泡 -->
+              <div class="message-bubble">
+                <!-- 文本消息 -->
+                <div v-if="msg.msgType === 'text'" class="bubble-content" v-html="renderContent(msg.content)"></div>
+                <!-- 图片消息 -->
+                <div v-else class="bubble-image">
+                  <img :src="getImageUrl(msg.imageUrl)" alt="image" />
+                </div>
+              </div>
+
+              <!-- 撤回按钮 -->
+              <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)" class="recall-btn">
+                撤回
+              </el-button>
             </div>
-
-            <!-- 撤回按钮 -->
-            <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)" class="recall-btn">
-              撤回
-            </el-button>
-          </div>
-        </template>
+          </template>
+        </div>
       </div>
-    </div>
 
-    <div class="message-input">
+      <div class="message-input">
       <el-popover
         v-model="showEmojiPicker"
         placement="top-start"
@@ -105,6 +106,7 @@
         <el-button type="primary" @click="sendMessage" :loading="sending">
           {{ $t('m.Send') }}
         </el-button>
+      </div>
       </div>
     </div>
   </div>
@@ -429,25 +431,47 @@ export default {
 @import '../classroom-theme.css';
 
 .student-discussion {
-  padding: 8px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 10px);
-  background: var(--classroom-bg);
+  /* 预留顶部导航、返回栏与 tab 的高度，保证聊天窗口完整落在视口内 */
+  height: calc(100vh - 230px);
+  min-height: 520px;
+  background: transparent;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* 桌面端外层壳有 zoom: 0.8，vh 相应缩小，用更小的扣减量把窗口撑到接近满屏 */
+@media screen and (min-width: 992px) {
+  .student-discussion {
+    height: calc(100vh - 115px);
+    min-height: 520px;
+  }
+}
+
+/* 统一聊天窗口：消息区 + 输入区合并为一张卡片 */
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--classroom-border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .discussion-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  margin-bottom: 12px;
+  padding: 0 0 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--classroom-border);
+  box-shadow: none;
 }
 
 .discussion-header h3 {
@@ -463,12 +487,11 @@ export default {
 
 .message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  border-radius: 6px;
-  padding: 8px;
-  margin-bottom: 6px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  padding: 16px 20px;
+  /* 聊天区浅色背景，衬托气泡 */
+  background: var(--classroom-bg, #f5f7fa);
 }
 
 /* 消息项基础样式 */
@@ -507,7 +530,7 @@ export default {
 }
 
 .other-message .message-bubble {
-  background: #F5F7FA;
+  background: #fff;
   color: var(--classroom-text);
 }
 
@@ -633,13 +656,15 @@ export default {
   box-shadow: 0 1px 2px rgba(230, 162, 60, 0.2);
 }
 
-/* 消息输入框 */
+/* 消息输入框 - 停靠在聊天窗口底部 */
 .message-input {
-  border: 1px solid var(--classroom-border);
-  border-radius: 8px;
-  padding: 10px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  flex-shrink: 0;
+  border: none;
+  border-top: 1px solid var(--classroom-border);
+  border-radius: 0;
+  padding: 12px 16px;
+  background: #fff;
+  box-shadow: none;
 }
 
 .message-input .actions {

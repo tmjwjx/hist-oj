@@ -359,8 +359,8 @@ export default {
 }
 
 .card {
-  width: 300px;
-  height: 200px;
+  width: 420px;
+  height: 280px;
   text-align: center;
   cursor: pointer;
   display: flex;
@@ -374,18 +374,27 @@ export default {
 }
 
 .card i {
-  font-size: 60px;
+  font-size: 88px;
   color: #409EFF;
   margin-bottom: 15px;
 }
 
 .card h2 {
-  font-size: 24px;
+  font-size: 28px;
   margin: 10px 0;
 }
 
 .card p {
+  font-size: 15px;
   color: #909399;
+}
+
+@media (max-width: 768px) {
+  .card {
+    width: 100%;
+    max-width: 420px;
+    height: 240px;
+  }
 }
 
 .empty-state {

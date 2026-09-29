@@ -154,8 +154,8 @@
     </el-dialog>
 
     <div class="exam-paper-container" v-if="!showCreateDialog">
-    <el-card class="exam-paper-card">
-      <div slot="header" class="card-header">
+    <section class="exam-paper-surface">
+      <div class="card-header">
         <div class="header-left">
           <i class="el-icon-document-copy"></i>
           <span>试卷库管理</span>
@@ -168,7 +168,7 @@
       </div>
 
       <!-- 筛选条件 -->
-      <div class="filter-bar">
+      <div class="filter-bar" role="search">
         <el-row :gutter="20">
           <el-col :span="6">
             <el-input
@@ -197,7 +197,8 @@
         v-loading="loading"
         stripe
         border
-        style="width: 100%; margin-top: 20px"
+        class="paper-table"
+        style="width: 100%; margin-top: 16px"
       >
         <el-table-column prop="id" label="试卷ID" width="100" align="center"></el-table-column>
         <el-table-column prop="title" label="试卷标题" min-width="200">
@@ -216,11 +217,10 @@
         <el-table-column prop="totalScore" label="总分" width="80" align="center"></el-table-column>
         <el-table-column prop="creator.username" label="创建者" width="150">
           <template slot-scope="{ row }">
-            <div v-if="row.creator">
-              {{ row.creator.username }}
+            <div>
+              {{ row.creator && row.creator.username ? row.creator.username : (row.creatorId || '-') }}
               <el-tag v-if="canEditPaper(row)" size="mini" type="info" style="margin-left: 8px;">我</el-tag>
             </div>
-            <div v-else>-</div>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180">
@@ -264,7 +264,7 @@
         >
         </el-pagination>
       </div>
-    </el-card>
+    </section>
   </div>
 
   <!-- 创建/编辑试卷页面 -->
@@ -2344,10 +2344,15 @@ export default {
 
 <style scoped>
 .exam-paper-container {
-  padding: 16px;
+  padding: 0;
   max-width: none;
   width: 100%;
   margin: 0;
+}
+
+.exam-paper-surface {
+  width: 100%;
+  background: transparent;
 }
 
 .exam-paper-editor-page {
@@ -2388,16 +2393,14 @@ export default {
   border: 1px solid #ebeef5;
 }
 
-.exam-paper-card {
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
-}
-
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-height: 42px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #ebeef5;
 }
 
 .header-left {
@@ -2451,11 +2454,26 @@ export default {
 }
 
 .filter-bar {
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #fff;
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.filter-bar ::v-deep .el-input,
+.filter-bar ::v-deep .el-select {
+  max-width: 280px;
+}
+
+.paper-table {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.paper-table ::v-deep .el-table__header-wrapper th {
+  background: #f7f8fa;
 }
 
 .selected-questions-toolbar {
@@ -2467,7 +2485,7 @@ export default {
 }
 
 .pagination-container {
-  margin-top: 20px;
+  margin-top: 16px;
   text-align: right;
 }
 
@@ -3159,7 +3177,7 @@ export default {
   }
 
   .exam-paper-container {
-    padding: 10px;
+    padding: 0;
   }
 
   .exam-paper-editor-page {

@@ -119,21 +119,38 @@ export default {
 
 <style scoped>
 .classroom-detail {
-  padding: 20px;
-  background-color: #fff;
+  padding: 20px 24px 32px;
   min-height: 100vh;
+}
+
+/* 桌面端外层壳有 zoom: 0.8，100vh 只渲染出 80% 视口高，需按 1/0.8 补偿才能铺满 */
+@media screen and (min-width: 992px) {
+  .classroom-detail {
+    min-height: 125vh;
+  }
 }
 
 .page-header {
   display: flex;
   align-items: center;
   gap: 15px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .page-header h2 {
   margin: 0;
   font-size: 20px;
   color: #303133;
+}
+
+.classroom-detail ::v-deep .el-tabs__header { margin: 0 0 20px; }
+.classroom-detail ::v-deep .el-tabs__nav-wrap::after { background-color: #e4e7ed; }
+.classroom-detail ::v-deep .el-tabs__item { height: 44px; line-height: 44px; color: #606266; font-weight: 500; }
+.classroom-detail ::v-deep .el-tabs__item.is-active { color: #409eff; }
+.classroom-detail ::v-deep .el-tabs__content { overflow: visible; }
+
+@media (max-width: 768px) {
+  .classroom-detail { padding: 14px 12px 24px; }
+  .page-header { margin-bottom: 10px; }
 }
 </style>

@@ -12,6 +12,8 @@
       />
     </div>
 
+    <div class="chat-panel">
+
     <div class="message-list" ref="messageList">
       <div v-for="msg in messages" :key="msg.id" class="message-item" :class="{ 'system-message': msg.msgType === 'system', 'own-message': isMyMessage(msg), 'other-message': !isMyMessage(msg) && msg.msgType !== 'system' }">
         <div v-if="msg.msgType === 'system'" class="system-message-content">
@@ -94,6 +96,7 @@
         <el-button type="primary" @click="sendMessage" :loading="sending">
           {{ $t('m.Send') }}
         </el-button>
+      </div>
       </div>
     </div>
   </div>
@@ -406,7 +409,29 @@ export default {
   padding: 8px;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 10px);
+  /* 预留顶部导航、返回栏与 tab 的高度，保证聊天窗口完整落在视口内 */
+  height: calc(100vh - 230px);
+  min-height: 520px;
+}
+
+/* 桌面端外层壳有 zoom: 0.8，vh 相应缩小，用更小的扣减量把窗口撑到接近满屏 */
+@media screen and (min-width: 992px) {
+  .student-discussion {
+    height: calc(100vh - 115px);
+    min-height: 520px;
+  }
+}
+
+/* 统一聊天窗口：消息区 + 输入区合并为一张卡片 */
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid #DCDFE6;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .discussion-header {
@@ -428,11 +453,10 @@ export default {
 
 .message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  border: 1px solid #DCDFE6;
-  border-radius: 6px;
-  padding: 8px;
-  margin-bottom: 6px;
+  padding: 16px 20px;
+  /* 聊天区浅色背景，衬托气泡 */
   background-color: #F5F7FA;
 }
 
@@ -484,7 +508,7 @@ export default {
 }
 
 .other-message .message-bubble {
-  background: #F5F7FA;
+  background: #FFF;
   color: #303133;
   border: 1px solid #E4E7ED;
 }
@@ -590,9 +614,11 @@ export default {
 }
 
 .message-input {
-  border: 1px solid #DCDFE6;
-  border-radius: 8px;
-  padding: 8px;
+  flex-shrink: 0;
+  border: none;
+  border-top: 1px solid #DCDFE6;
+  border-radius: 0;
+  padding: 12px 16px;
   background-color: #FFF;
 }
 

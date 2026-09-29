@@ -1,6 +1,6 @@
 <template>
   <div class="practice-detail-page" v-loading="loading">
-    <el-card shadow="never" v-if="paper.id">
+    <section class="paper-header" v-if="paper.id">
       <div class="header">
         <div>
           <h2 class="title">{{ paper.title }}</h2>
@@ -8,7 +8,7 @@
           <div class="meta">
             <span>题目数量: {{ paper.questionCount || 0 }}</span>
             <span>总分: {{ paper.totalScore || 0 }}</span>
-            <span>作者: {{ paper.creator ? paper.creator.username : '-' }}</span>
+            <span>作者: {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
           </div>
         </div>
         <div class="actions">
@@ -16,18 +16,18 @@
           <el-button v-if="!started" type="primary" @click="startAnswer">开始作答</el-button>
         </div>
       </div>
-    </el-card>
+    </section>
 
-    <el-card v-if="paper.id && !started" class="start-tip" shadow="never">
+    <div v-if="paper.id && !started" class="start-tip">
       <el-alert
         type="info"
         :closable="false"
         title="点击“开始作答”后进入套卷练习，每道题都可以单独点击“查看答案”查看标准答案。"
       ></el-alert>
-    </el-card>
+    </div>
 
     <div v-if="paper.id && started" class="questions-wrap">
-      <el-card shadow="never" class="global-status-card">
+      <section class="global-status-card">
         <div class="global-status-top">
           <div class="status-item">
             <span class="status-label">当前题目</span>
@@ -66,14 +66,13 @@
             {{ idx + 1 }}
           </el-button>
         </div>
-      </el-card>
+      </section>
 
-      <el-card
+      <article
         v-if="currentQuestion"
         :key="getQuestionKey(currentQuestion, currentQuestionIndex)"
         class="question-card"
         :class="getQuestionCardClass(currentQuestion)"
-        shadow="never"
       >
         <template v-if="currentQuestion">
         <div class="q-header">
@@ -86,7 +85,7 @@
             <el-button size="mini" @click="toggleDone(currentQuestion, currentQuestionIndex)">
               {{ isQuestionAnswered(currentQuestion, currentQuestionIndex) ? '标记未作答' : '标记已作答' }}
             </el-button>
-            <el-button size="mini" type="success" @click="toggleAnswer(currentQuestion, currentQuestionIndex)">
+            <el-button size="mini" type="primary" @click="toggleAnswer(currentQuestion, currentQuestionIndex)">
               {{ showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)] ? '收起答案' : '查看答案' }}
             </el-button>
           </div>
@@ -111,7 +110,7 @@
           <div class="q-title markdown-body" v-html="renderMarkdown(currentQuestion.question.title || '')" v-highlight></div>
           <div class="q-content markdown-body" v-html="renderMarkdown(currentQuestion.question.content || '')" v-highlight></div>
 
-          <div v-if="currentQuestion.question.type === 'single_choice'" class="options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'single_choice'" class="options practice-option-box">
             <el-radio-group v-model="singleAnswers[currentQuestion.question.id]">
               <el-radio
                 v-for="(opt, idx) in parseOptions(currentQuestion.question.options)"
@@ -131,7 +130,7 @@
             </el-radio-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'multiple_choice'" class="options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'multiple_choice'" class="options practice-option-box">
             <el-checkbox-group v-model="multipleAnswers[currentQuestion.question.id]">
               <el-checkbox
                 v-for="(opt, idx) in parseOptions(currentQuestion.question.options)"
@@ -151,14 +150,14 @@
             </el-checkbox-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'judge'" class="options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'judge'" class="options practice-option-box">
             <el-radio-group v-model="singleAnswers[currentQuestion.question.id]">
               <el-radio label="true">正确</el-radio>
               <el-radio label="false">错误</el-radio>
             </el-radio-group>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'fill_blank'" class="options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'fill_blank'" class="options practice-option-box">
             <el-input
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
@@ -167,7 +166,7 @@
             ></el-input>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'subjective'" class="options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'subjective'" class="options practice-option-box">
             <el-input
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
@@ -176,7 +175,7 @@
             ></el-input>
           </div>
 
-          <div v-if="currentQuestion.question.type === 'composite'" class="options composite-options answer-info compact-answer-info practice-option-box">
+          <div v-if="currentQuestion.question.type === 'composite'" class="options composite-options practice-option-box">
             <div
               v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(currentQuestion.question.options)"
               :key="subQuestion.id || subIndex"
@@ -220,7 +219,7 @@
             </div>
           </div>
 
-          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box answer-info compact-answer-info practice-answer-box">
+          <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box practice-answer-box">
             <div class="answer-title">标准答案</div>
             <div
               class="answer-content markdown-body"
@@ -248,7 +247,7 @@
           </div>
         </template>
         </template>
-      </el-card>
+      </article>
     </div>
   </div>
 </template>
@@ -404,7 +403,7 @@ export default {
     },
     getQuestionButtonType(item, index) {
       if (index === this.currentQuestionIndex) return 'primary'
-      return this.isQuestionAnswered(item, index) ? 'success' : 'info'
+      return this.isQuestionAnswered(item, index) ? 'primary' : 'info'
     },
     async toggleAnswer(item, index) {
       const key = this.getQuestionKey(item, index)
@@ -526,14 +525,15 @@ export default {
       return normalizedType ? `type-${normalizedType}` : ''
     },
     getTypeTag(type) {
+      // 题型标签统一中性色，避免多色标签与主题蓝冲突
       const map = {
-        single_choice: 'success',
-        multiple_choice: 'warning',
+        single_choice: 'info',
+        multiple_choice: 'info',
         judge: 'info',
-        fill_blank: 'success',
-        composite: 'danger',
-        subjective: 'primary',
-        programming: 'danger'
+        fill_blank: 'info',
+        composite: 'info',
+        subjective: 'info',
+        programming: 'info'
       }
       return map[type] || 'info'
     },
@@ -617,19 +617,19 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 
-.practice-detail-page /deep/ .el-card {
-  border-radius: 4px;
+.paper-header,
+.global-status-card,
+.question-card {
   border: 1px solid #e4e7ed;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
   background: #fff;
 }
 
-.practice-detail-page /deep/ .el-card__body {
-  background: #fff;
+.paper-header {
+  padding: 24px;
 }
 
 .header {
@@ -666,26 +666,35 @@ export default {
   margin-top: 16px;
 }
 
+.start-tip /deep/ .el-alert {
+  border: 1px solid #d9ecff;
+  border-radius: 6px;
+}
+
 .questions-wrap {
   margin-top: 16px;
 }
 
 .global-status-card {
   margin-bottom: 16px;
+  padding: 20px 24px;
 }
 
 .global-status-top {
   display: grid;
   grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 12px;
+  gap: 0;
   margin-bottom: 12px;
 }
 
 .status-item {
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  padding: 12px;
+  padding: 0 18px;
+  border-left: 1px solid #ebeef5;
+}
+
+.status-item:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .status-label {
@@ -724,38 +733,11 @@ export default {
 
 .question-card {
   margin-bottom: 16px;
+  padding: 24px;
   border: 1px solid #e4e7ed;
-  border-left: 3px solid #dcdfe6;
+  border-left: 3px solid #409eff;
   border-radius: 4px;
   background: #ffffff;
-}
-
-.question-card.type-single-choice {
-  border-left-color: #409eff;
-}
-
-.question-card.type-multiple-choice {
-  border-left-color: #67c23a;
-}
-
-.question-card.type-judge {
-  border-left-color: #e6a23c;
-}
-
-.question-card.type-fill-blank {
-  border-left-color: #67c23a;
-}
-
-.question-card.type-subjective {
-  border-left-color: #909399;
-}
-
-.question-card.type-composite {
-  border-left-color: #f56c6c;
-}
-
-.question-card.type-programming {
-  border-left-color: #f56c6c;
 }
 
 .q-header {
@@ -777,7 +759,7 @@ export default {
 
 .q-score {
   margin-left: 10px;
-  color: #e6a23c;
+  color: #909399;
 }
 
 .q-title {
@@ -793,25 +775,13 @@ export default {
 
 .options {
   margin-bottom: 12px;
-}
-
-.compact-answer-info {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 4px;
-}
-
-.answer-info {
-  margin-top: 15px;
-  padding: 10px;
-  background: #ffffff;
-  border: 1px solid #ebeef5;
-  border-left: 3px solid #dcdfe6;
-  border-radius: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .practice-option-box {
-  border-left-color: #dcdfe6;
+  border-left: 0;
 }
 
 .practice-option-box /deep/ .el-radio__label,
@@ -909,7 +879,7 @@ export default {
 .options /deep/ .option-select-item {
   border: 1px solid #dcdfe6;
   border-radius: 6px;
-  background: #ffffff;
+  background: #f8f9fb;
   padding: 8px 10px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -920,7 +890,7 @@ export default {
 
 .options /deep/ .option-select-item.is-selected {
   border-color: #409eff;
-  background: #ffffff;
+  background: #f5f9ff;
   box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.08);
 }
 
@@ -931,11 +901,9 @@ export default {
 }
 
 .composite-sub-question {
-  border: 1px solid #ebeef5;
-  border-left: 3px solid #dcdfe6;
-  border-radius: 8px;
-  padding: 10px;
-  background: #ffffff;
+  border-bottom: 1px solid #ebeef5;
+  padding: 10px 0;
+  background: transparent;
 }
 
 .composite-sub-header {
@@ -982,16 +950,16 @@ export default {
 .practice-answer-box {
   background: #ffffff;
   border: 1px solid #ebeef5;
-  border-left: 3px solid #67c23a;
+  border-left: 3px solid #409eff;
   box-shadow: none;
 }
 
 .practice-answer-box .answer-title {
-  color: #67c23a;
+  color: #409eff;
 }
 
 .practice-answer-box .analysis {
-  border-top-color: #d1e9c4;
+  border-top-color: #d9ecff;
 }
 
 .answer-title {
@@ -1003,14 +971,6 @@ export default {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed #dcdfe6;
-}
-
-.practice-detail-page /deep/ .el-card {
-  background: #ffffff;
-}
-
-.practice-detail-page /deep/ .el-card__body {
-  background: #ffffff;
 }
 
 @media (max-width: 768px) {

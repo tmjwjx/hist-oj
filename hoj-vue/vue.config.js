@@ -73,6 +73,8 @@ module.exports={
   productionSourceMap: false,
 
   chainWebpack: config => {
+    // 首屏加载名额只覆盖当前页面，避免预取尚未访问的路由抢占带宽。
+    config.plugins.delete('prefetch');
     // ============注入cdn start============
     config.plugin('html').tap(args => {
         // 生产环境或本地需要cdn时，才注入cdn

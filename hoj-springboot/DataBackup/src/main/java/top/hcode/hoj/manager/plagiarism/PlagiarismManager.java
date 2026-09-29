@@ -22,6 +22,7 @@ import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheck;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheckConfig;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismResult;
+import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.ShiroUtils;
 
 import javax.annotation.Resource;
@@ -40,8 +41,12 @@ public class PlagiarismManager {
     public Contest requireAccess(Long cid) throws StatusNotFoundException, StatusForbiddenException {
         Contest contest = contestService.getById(cid);
         if (contest == null) throw new StatusNotFoundException("比赛不存在");
-        String uid = ShiroUtils.getProfile().getUid();
-        if (!uid.equals(contest.getUid()) && !isAdmin()) {
+        AccountProfile profile = ShiroUtils.getProfile();
+        if (profile == null || profile.getUid() == null) {
+            throw new StatusForbiddenException("请先登录后使用查重功能");
+        }
+        String uid = profile.getUid();
+        if (!uid.equals(contest.getUid()) && !isSuperAdmin()) {
             throw new StatusForbiddenException("无权限访问查重功能");
         }
         return contest;
@@ -147,7 +152,10 @@ public class PlagiarismManager {
     public PlagiarismResultEntityService results() { return resultService; }
     public ContestEntityService contests() { return contestService; }
 
-    private boolean isAdmin() {
-        return SecurityUtils.getSubject().hasRole("root") || SecurityUtils.getSubject().hasRole("admin");
+    /**
+     * 查重/违规查询仅对超级管理员（root角色）开放；admin角色不放行。
+     */
+    private boolean isSuperAdmin() {
+        return SecurityUtils.getSubject().hasRole("root");
     }
 }

@@ -8,12 +8,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.exception.StatusNotFoundException;
+import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.mapper.classroom.ExamPaperMapper;
 import top.hcode.hoj.mapper.classroom.ExamPaperQuestionMapper;
 import top.hcode.hoj.mapper.classroom.QuestionBankMapper;
 import top.hcode.hoj.pojo.entity.classroom.ExamPaper;
 import top.hcode.hoj.pojo.entity.classroom.ExamPaperQuestion;
 import top.hcode.hoj.pojo.entity.classroom.QuestionBank;
+import top.hcode.hoj.pojo.entity.user.UserInfo;
 
 import javax.annotation.Resource;
 import java.util.*;
@@ -25,6 +27,8 @@ public class ExamPaperManager {
     @Resource private ExamPaperQuestionMapper paperQuestionMapper;
     @Resource private QuestionBankMapper questionMapper;
     @Resource private ClassroomAccessManager accessManager;
+    @Resource private UserInfoEntityService userInfoService;
+    @Resource private ClassroomViewBuilder viewBuilder;
 
     @Transactional(rollbackFor = Exception.class)
     public ExamPaper create(Map<String, Object> request) throws Exception {
@@ -41,8 +45,15 @@ public class ExamPaperManager {
         if (!admin) query.and(q -> q.eq("creator_id", accessManager.uid()).or().eq("is_shared", 1));
         filter(query, params);
         IPage<ExamPaper> result = paperMapper.selectPage(new Page<>(page, limit), query.orderByDesc("create_time"));
-        Map<String, Object> data = new LinkedHashMap<>(); data.put("total", result.getTotal()); data.put("page", page); data.put("limit", limit);
-        data.put("papers", result.getRecords().stream().map(row -> paperView(row, true)).collect(Collectors.toList())); return data;
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("total", result.getTotal());
+        data.put("page", page);
+        data.put("limit", limit);
+        Map<String, UserInfo> creators = loadCreators(result.getRecords());
+        data.put("papers", result.getRecords().stream()
+                .map(row -> paperView(row, true, creators))
+                .collect(Collectors.toList()));
+        return data;
     }
 
     public Map<String, Object> detail(Long id, boolean publicOnly) throws StatusNotFoundException {
@@ -51,11 +62,12 @@ public class ExamPaperManager {
                 && !Objects.equals(paper.getIsShared(), 1)) {
             throw new StatusNotFoundException("试卷不存在");
         }
-        return paperView(paper, !publicOnly);
+        return paperView(paper, !publicOnly, loadCreators(Collections.singletonList(paper)));
     }
 
     public Map<String, Object> adminDetail(Long id) throws StatusNotFoundException {
-        return paperView(require(id, false), true);
+        ExamPaper paper = require(id, false);
+        return paperView(paper, true, loadCreators(Collections.singletonList(paper)));
     }
 
     public Map<String, Object> publicList(Map<String, String> params) {
@@ -64,8 +76,13 @@ public class ExamPaperManager {
         filter(query, params);
         IPage<ExamPaper> result = paperMapper.selectPage(new Page<>(page, limit), query.orderByDesc("update_time"));
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("total", result.getTotal()); data.put("page", page); data.put("limit", limit);
-        data.put("papers", result.getRecords().stream().map(row -> paperView(row, false)).collect(Collectors.toList()));
+        data.put("total", result.getTotal());
+        data.put("page", page);
+        data.put("limit", limit);
+        Map<String, UserInfo> creators = loadCreators(result.getRecords());
+        data.put("papers", result.getRecords().stream()
+                .map(row -> paperView(row, false, creators))
+                .collect(Collectors.toList()));
         return data;
     }
 
@@ -114,9 +131,34 @@ public class ExamPaperManager {
         QueryWrapper<ExamPaper> query = new QueryWrapper<ExamPaper>().eq("id", id).eq("status", 1); if (publicOnly) query.eq("is_public", 1);
         ExamPaper row = paperMapper.selectOne(query); if (row == null) throw new StatusNotFoundException(publicOnly ? "试卷不存在或未公开" : "试卷不存在"); return row;
     }
-    private Map<String, Object> paperView(ExamPaper paper, boolean includeAnswers) {
-        Map<String, Object> result = new LinkedHashMap<>(); result.put("id", paper.getId()); result.put("title", paper.getTitle()); result.put("creatorId", paper.getCreatorId()); result.put("isShared", paper.getIsShared()); result.put("isPublic", paper.getIsPublic()); result.put("totalScore", paper.getTotalScore()); result.put("questionCount", paper.getQuestionCount()); result.put("description", paper.getDescription()); result.put("status", paper.getStatus()); result.put("createdAt", paper.getCreateTime()); result.put("updatedAt", paper.getUpdateTime());
-        result.put("questions", paperQuestions(paper.getId()).stream().map(row -> questionView(row, includeAnswers)).collect(Collectors.toList())); return result;
+    private Map<String, Object> paperView(ExamPaper paper, boolean includeAnswers, Map<String, UserInfo> creators) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", paper.getId());
+        result.put("title", paper.getTitle());
+        result.put("creatorId", paper.getCreatorId());
+        result.put("creator", viewBuilder.user(creators.get(paper.getCreatorId())));
+        result.put("isShared", paper.getIsShared());
+        result.put("isPublic", paper.getIsPublic());
+        result.put("totalScore", paper.getTotalScore());
+        result.put("questionCount", paper.getQuestionCount());
+        result.put("description", paper.getDescription());
+        result.put("status", paper.getStatus());
+        result.put("createdAt", paper.getCreateTime());
+        result.put("updatedAt", paper.getUpdateTime());
+        result.put("questions", paperQuestions(paper.getId()).stream()
+                .map(row -> questionView(row, includeAnswers))
+                .collect(Collectors.toList()));
+        return result;
+    }
+
+    private Map<String, UserInfo> loadCreators(Collection<ExamPaper> papers) {
+        Set<String> creatorIds = papers.stream()
+                .map(ExamPaper::getCreatorId)
+                .filter(this::notBlank)
+                .collect(Collectors.toSet());
+        if (creatorIds.isEmpty()) return Collections.emptyMap();
+        return userInfoService.listByIds(creatorIds).stream()
+                .collect(Collectors.toMap(UserInfo::getUuid, user -> user, (left, right) -> left));
     }
     private Map<String, Object> questionView(ExamPaperQuestion row, boolean includeAnswers) {
         Map<String, Object> result = new LinkedHashMap<>(); result.put("id", row.getId()); result.put("examPaperId", row.getExamPaperId()); result.put("questionId", row.getQuestionId()); result.put("problemId", row.getProblemId()); result.put("questionOrder", row.getQuestionOrder()); result.put("questionType", row.getQuestionType()); result.put("score", row.getScore());

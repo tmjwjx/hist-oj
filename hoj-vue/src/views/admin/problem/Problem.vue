@@ -1687,7 +1687,6 @@ export default {
 /* 页面整体 */
 .problem {
   padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
 }
 

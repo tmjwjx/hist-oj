@@ -50,6 +50,15 @@ libreoj-password-list:
 # 是否强制用配置更新覆盖remote judge的账号
 forced-update-remote-judge-account: false
 
+# 多语言查重 worker。worker-url 为空时查重任务会明确失败，不再回退旧算法。
+hoj:
+  plagiarism:
+    dolos:
+      enabled: ${HOJ_PLAGIARISM_DOLOS_ENABLED:true}
+      worker-url: ${HOJ_PLAGIARISM_DOLOS_WORKER_URL:}
+      token: ${HOJ_PLAGIARISM_DOLOS_TOKEN:}
+      timeout-ms: ${HOJ_PLAGIARISM_DOLOS_TIMEOUT_MS:900000}
+
 server:
   port: 6688
   servlet:

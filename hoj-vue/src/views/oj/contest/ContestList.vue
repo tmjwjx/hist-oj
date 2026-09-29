@@ -750,7 +750,7 @@ export default {
     width: 100% !important;
   }
   #contest-list .contest-main{
-    margin-left: 20px;
+    padding-left: 20px;
   }
 }
 #contest-list .contest-main {
@@ -775,6 +775,11 @@ export default {
 }
 .contest-row {
   flex-wrap: wrap;
+}
+@media screen and (min-width: 768px) {
+  .contest-row {
+    flex-wrap: nowrap;
+  }
 }
 .contest-actions {
   display: flex;

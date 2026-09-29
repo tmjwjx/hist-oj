@@ -9,6 +9,13 @@ function utcToLocal (utcDt, format = 'YYYY-MM-DD HH:mm:ss') {
   return moment.utc(utcDt).local().format(format)
 }
 
+// HistOJ stores timestamps in UTC. The admin UI consistently displays
+// Beijing time (UTC+8), independent of the browser's local timezone.
+function utcToBeijing (utcDt, format = 'YYYY-MM-DD HH:mm:ss') {
+  if (!utcDt) return ''
+  return moment.utc(utcDt).utcOffset(8).format(format)
+}
+
 // get duration from startTime to endTime, return like 3 days, 2 hours, one year ..
 function duration (startTime, endTime) {
   let start = moment(startTime)
@@ -81,6 +88,7 @@ function durationMs (startTime, endTime) {  // 计算时间段的时间戳
 }
 export default {
   utcToLocal: utcToLocal,
+  utcToBeijing: utcToBeijing,
   duration: duration,
   formatSpecificDuration:formatSpecificDuration,
   secondFormat: secondFormat,

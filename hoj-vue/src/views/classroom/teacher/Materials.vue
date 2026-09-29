@@ -1340,9 +1340,9 @@ export default {
 @import '../classroom-theme.css';
 
 .materials-panel {
-  padding: 24px;
-  background: var(--classroom-bg);
-  min-height: 100vh;
+  padding: 0;
+  background: transparent;
+  min-height: auto;
   max-width: none;
   width: 100%;
   margin: 0;
@@ -1352,11 +1352,11 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding: 20px 24px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  margin-bottom: 20px;
+  padding: 0 0 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--classroom-border);
+  box-shadow: none;
 }
 
 .header h3 {
@@ -1384,8 +1384,8 @@ export default {
   display: flex;
   flex-direction: column;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  border-radius: 6px;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -1393,7 +1393,7 @@ export default {
 .tree-sidebar {
   padding: 12px;
   border-bottom: 1px solid #E4E7ED;
-  background: #F5F7FA;
+  background: #f5f7fa;
   max-height: 200px;
   overflow-y: auto;
 }
@@ -1404,8 +1404,8 @@ export default {
   align-items: center;
   padding: 8px 12px;
   margin-bottom: 8px;
-  background: white;
-  border-radius: 6px;
+  background: transparent;
+  border-radius: 0;
 }
 
 .tree-title {
@@ -1415,9 +1415,9 @@ export default {
 }
 
 .folder-tree {
-  background: white;
-  padding: 8px;
-  border-radius: 6px;
+  background: transparent;
+  padding: 4px 0;
+  border-radius: 0;
 }
 
 .custom-tree-node {
@@ -1616,8 +1616,8 @@ export default {
 /* 右侧预览面板 */
 .preview-panel {
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  border-radius: 6px;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;

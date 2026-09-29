@@ -667,6 +667,11 @@ const actions = {
     const res = await api.addClassroomTeacher(data)
     return res.data
   },
+  // 管理端搜索用户（附带班级角色）
+  async searchTeachersForAdmin({ commit }, keyword) {
+    const res = await api.searchTeachersForAdmin(keyword)
+    return res.data
+  },
   // 移除班级教师
   async removeClassroomTeacher({ commit }, data) {
     const res = await api.removeClassroomTeacher(data)

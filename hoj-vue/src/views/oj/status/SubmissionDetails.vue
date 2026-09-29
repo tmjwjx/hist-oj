@@ -364,6 +364,7 @@ export default {
       codeShare: true,
       isIOProblem: false,
       loadingTable: false,
+      pollTimer: null,
       JUDGE_STATUS: "",
       JUDGE_STATUS_RESERVE: "",
       JUDGE_CASE_MODE: "",
@@ -381,6 +382,13 @@ export default {
     this.JUDGE_STATUS = Object.assign({}, JUDGE_STATUS);
     this.JUDGE_STATUS_RESERVE = Object.assign({}, JUDGE_STATUS_RESERVE);
     this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
+    this.schedulePolling();
+  },
+  beforeDestroy() {
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
   },
   methods: {
     submissionTypeLabel(type) {
@@ -455,8 +463,37 @@ export default {
     getbackgroudColor(status) {
       return "status-" + JUDGE_STATUS[status].color;
     },
-    getSubmission() {
-      this.loadingTable = true;
+    // 评测进行中每 2 秒刷新状态与测试点结果，终态自动停止
+    isRunningStatus(status) {
+      return [
+        this.JUDGE_STATUS_RESERVE["Pending"],
+        this.JUDGE_STATUS_RESERVE["Compiling"],
+        this.JUDGE_STATUS_RESERVE["Judging"],
+        this.JUDGE_STATUS_RESERVE["Submitting"],
+      ].includes(status);
+    },
+    schedulePolling() {
+      if (this.pollTimer) {
+        clearTimeout(this.pollTimer);
+      }
+      this.pollTimer = setTimeout(() => {
+        const loaded = this.submission && this.submission.submitId !== "";
+        const running = loaded && this.isRunningStatus(this.submission.status);
+        if (running) {
+          this.getSubmission(true);
+          this.getAllCaseResult();
+          this.schedulePolling();
+        } else if (!loaded) {
+          // 首次数据尚未返回，继续等待后再轮询
+          this.schedulePolling();
+        }
+        // 终态：停止轮询
+      }, 2000);
+    },
+    getSubmission(silent = false) {
+      if (!silent) {
+        this.loadingTable = true;
+      }
       api.getSubmission(this.$route.params.submitID).then(
         (res) => {
           this.loadingTable = false;

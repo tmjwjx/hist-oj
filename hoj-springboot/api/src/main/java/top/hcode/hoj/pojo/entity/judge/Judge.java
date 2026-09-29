@@ -91,6 +91,12 @@ public class Judge implements Serializable {
     @ApiModelProperty(value = "提交者所在ip")
     private String ip;
 
+    @ApiModelProperty(value = "提交设备ID（前端生成并持久化的随机UUID，不含任何指纹成分）")
+    private String deviceId;
+
+    @ApiModelProperty(value = "提交时浏览器User-Agent，仅作人工复核参考")
+    private String userAgent;
+
     @ApiModelProperty(value = "废弃")
     private Integer version;
 

@@ -7,6 +7,7 @@ import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.common.result.CommonResult;
 import top.hcode.hoj.common.result.ResultStatus;
+import top.hcode.hoj.manager.plagiarism.DeviceAnomalyManager;
 import top.hcode.hoj.manager.plagiarism.PlagiarismExecutionManager;
 import top.hcode.hoj.manager.plagiarism.PlagiarismManager;
 import top.hcode.hoj.manager.plagiarism.PlagiarismQueryManager;
@@ -16,6 +17,7 @@ import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheck;
 import top.hcode.hoj.pojo.entity.plagiarism.PlagiarismCheckConfig;
 import top.hcode.hoj.pojo.vo.PlagiarismResultPageVO;
+import top.hcode.hoj.pojo.vo.plagiarism.DeviceAnomalyVO;
 import top.hcode.hoj.service.plagiarism.PlagiarismService;
 
 import javax.annotation.Resource;
@@ -27,6 +29,7 @@ public class PlagiarismServiceImpl implements PlagiarismService {
     @Resource private PlagiarismManager manager;
     @Resource private PlagiarismExecutionManager execution;
     @Resource private PlagiarismQueryManager query;
+    @Resource private DeviceAnomalyManager deviceAnomalyManager;
 
     @Override public CommonResult<List<PlagiarismCheckConfig>> configs(Long cid) {
         return run(() -> manager.configs(cid));
@@ -55,6 +58,10 @@ public class PlagiarismServiceImpl implements PlagiarismService {
     }
     @Override public CommonResult<Judge> submission(Long submitId) {
         return run(() -> query.submission(submitId));
+    }
+
+    @Override public CommonResult<DeviceAnomalyVO> deviceAnomalies(Long cid) {
+        return run(() -> deviceAnomalyManager.deviceAnomalies(cid));
     }
 
     @Override

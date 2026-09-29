@@ -253,19 +253,14 @@ export default {
 .random-pick-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  background: var(--classroom-bg);
-  min-height: 100vh;
-}
-
-.action-card {
-  background: #4A90E2;
-  border: none;
+  gap: 18px;
+  padding: 0;
+  background: transparent;
+  min-height: auto;
 }
 
 .action-card ::v-deep .el-card__body {
-  padding: 32px;
+  padding: 24px 28px;
 }
 
 .action-section {
@@ -276,15 +271,15 @@ export default {
 }
 
 .action-info h3 {
-  color: #fff;
-  margin: 0 0 12px 0;
-  font-size: 28px;
+  color: var(--classroom-text);
+  margin: 0 0 8px 0;
+  font-size: 20px;
   font-weight: 700;
 }
 
 .student-count {
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 15px;
+  color: var(--classroom-text-secondary);
+  font-size: 14px;
   margin: 0;
 }
 
@@ -292,33 +287,32 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
-  color: var(--classroom-primary);
-  border: none;
   font-weight: 600;
-  padding: 14px 36px;
-  font-size: 16px;
+  padding: 11px 26px;
+  font-size: 15px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.action-section .classroom-btn:hover {
-  background: #f0f0f0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .action-section .classroom-btn:disabled {
-  background: rgba(255, 255, 255, 0.5);
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
+.action-section .classroom-btn:disabled:hover {
+  background: #409eff;
+  border-color: #409eff;
+}
+
 .result-card {
-  border: 2px solid var(--classroom-success);
+  border: 1px solid var(--classroom-success);
+  border-radius: 6px;
+  box-shadow: none;
 }
 
 .result-card ::v-deep .el-card__header {
   padding: 20px 24px;
-  background: #E8F5E9;
+  background: #f0f9eb;
 }
 
 .result-card ::v-deep .el-card__body {
@@ -351,7 +345,7 @@ export default {
 
 .student-name {
   font-size: 36px;
-  color: #4A90E2;
+  color: var(--classroom-primary);
   margin: 0 0 24px 0;
   font-weight: 700;
 }
@@ -399,6 +393,8 @@ export default {
 .placeholder-card {
   text-align: center;
   padding: 80px 20px;
+  border-radius: 6px;
+  box-shadow: none;
 }
 
 .placeholder-content i {
@@ -416,6 +412,8 @@ export default {
 
 .history-card {
   margin-top: 0;
+  border-radius: 6px;
+  box-shadow: none;
 }
 
 .history-card ::v-deep .el-card__header {
@@ -447,17 +445,17 @@ export default {
 
 /* 表格样式 */
 .random-pick-container ::v-deep .el-table {
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   font-size: 14px;
   background: white;
 }
 
 .random-pick-container ::v-deep .el-table th {
-  background: #E3F2FD;
+  background: #f5f7fa;
   color: var(--classroom-text);
   font-weight: 600;
-  border-bottom: 2px solid var(--classroom-primary);
+  border-bottom: 1px solid var(--classroom-border);
   padding: 16px 12px;
   text-align: left;
 }

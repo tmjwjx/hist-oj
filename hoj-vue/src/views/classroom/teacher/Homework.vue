@@ -242,9 +242,9 @@ export default {
 @import '../classroom-theme.css';
 
 .homework-panel {
-  padding: 24px;
-  background: #fff;
-  min-height: 100vh;
+  padding: 0;
+  background: transparent;
+  min-height: auto;
   max-width: none;
   width: 100%;
   margin: 0;
@@ -254,10 +254,10 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding: 20px 24px;
-  background: white;
-  border-radius: 12px;
+  margin-bottom: 20px;
+  padding: 0 0 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--classroom-border);
 }
 
 .header h3 {
@@ -270,21 +270,20 @@ export default {
 .homework-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 24px;
+  gap: 16px;
 }
 
 .homework-card {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  border-radius: 6px;
+  box-shadow: none;
   overflow: hidden;
   transition: all 0.3s ease;
   border: 1px solid var(--classroom-border);
 }
 
 .homework-card:hover {
-  box-shadow: 0 8px 24px rgba(74, 144, 226, 0.15);
-  transform: translateY(-4px);
+  box-shadow: 0 2px 8px rgba(31, 45, 61, 0.08);
 }
 
 .homework-card-header {
@@ -292,8 +291,8 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
   padding: 20px;
-  background: #E3F2FD;
-  border-bottom: 2px solid var(--classroom-primary);
+  background: #f5f7fa;
+  border-bottom: 1px solid var(--classroom-border);
 }
 
 .homework-title {

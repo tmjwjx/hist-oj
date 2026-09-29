@@ -116,20 +116,56 @@
         <!-- 添加教师表单 -->
         <el-divider></el-divider>
         <h4 style="margin-bottom: 10px;">添加教师</h4>
-        <el-form :inline="true" size="small">
+        <el-form :inline="true" size="small" @submit.native.prevent>
           <el-form-item label="教师用户名">
-            <el-input
-              v-model="teacherUsername"
-              placeholder="请输入教师用户名"
+            <el-select
+              v-model="selectedTeacherUid"
+              filterable
+              remote
+              clearable
+              reserve-keyword
+              :remote-method="searchTeacherOptions"
+              :loading="searchingTeachers"
+              placeholder="输入用户名 / 姓名 / 昵称搜索"
+              :loading-text="searchingTeachers ? '搜索中...' : '加载中'"
               style="width: 300px;"
-            />
+            >
+              <el-option
+                v-for="user in teacherOptions"
+                :key="user.uuid"
+                :label="user.username + (user.nickname ? '（' + user.nickname + '）' : '')"
+                :value="user.uuid"
+              >
+                <div class="teacher-option">
+                  <span>{{ user.username }}<span v-if="user.nickname" class="teacher-option-nickname">（{{ user.nickname }}）</span></span>
+                  <el-tag size="mini" :type="classroomRoleTagType(user.role)">
+                    {{ classroomRoleText(user.role) }}
+                  </el-tag>
+                </div>
+              </el-option>
+            </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="addTeacher" :loading="addingTeacher">
+            <el-button
+              type="primary"
+              @click="addTeacher"
+              :loading="addingTeacher"
+              :disabled="!selectedTeacherUser || isKnownNonTeacher"
+            >
               添加
             </el-button>
           </el-form-item>
         </el-form>
+        <div class="add-teacher-hint">
+          <template v-if="!teacherOptions.length">输入关键词搜索用户，仅拥有<strong>教师角色</strong>的用户可被添加</template>
+          <template v-else-if="!selectedTeacherUser">请在下拉框中选择一个用户</template>
+          <template v-else-if="selectedTeacherUser.role !== 'teacher'">
+            <span style="color: #F56C6C;">该用户当前班级角色：{{ classroomRoleText(selectedTeacherUser.role) }}，需先在「角色管理」中授予教师角色后才能添加</span>
+          </template>
+          <template v-else>
+            <span style="color: #67C23A;">将添加 {{ selectedTeacherUser.username }} 为班级教师</span>
+          </template>
+        </div>
       </div>
       <span slot="footer">
         <el-button @click="teacherDialogVisible = false">关闭</el-button>
@@ -222,8 +258,11 @@ export default {
       teacherDialogVisible: false,
       currentClassroom: null,
       currentClassroomTeachers: [],
-      teacherUsername: '',
       addingTeacher: false,
+      // 添加教师：远程搜索 + 角色校验
+      teacherOptions: [],
+      searchingTeachers: false,
+      selectedTeacherUid: '',
       selectedNewTeacher: '', // 选中的新主教师ID
       tempTeacherSelect: null // 临时用于对话框中的教师选择器
     }
@@ -232,6 +271,15 @@ export default {
     // 获取班级列表中的当前班级对象，用于更新显示
     currentClassroomInList() {
       return this.classrooms.find(c => c.id === this.currentClassroom?.id)
+    },
+    // 当前在下拉框中选中的用户对象
+    selectedTeacherUser() {
+      return this.teacherOptions.find(u => u.uuid === this.selectedTeacherUid) || null
+    },
+    // 后端返回了 role 字段且明确不是教师 → 禁用添加；字段缺失（旧后端）时不误锁
+    isKnownNonTeacher() {
+      const u = this.selectedTeacherUser
+      return !!u && u.role !== undefined && u.role !== 'teacher'
     }
   },
   mounted() {
@@ -311,8 +359,14 @@ export default {
       }
     },
     async addTeacher() {
-      if (!this.teacherUsername.trim()) {
-        this.$message.warning('请输入教师用户名')
+      const user = this.selectedTeacherUser
+      if (!user) {
+        this.$message.warning('请先搜索并选择用户')
+        return
+      }
+      // 前端兜底校验：已知角色且非教师时拦截（后端同样会校验）
+      if (user.role !== undefined && user.role !== 'teacher') {
+        this.$message.warning('该用户没有教师角色，无法添加为班级教师')
         return
       }
 
@@ -320,12 +374,13 @@ export default {
       try {
         const res = await this.$store.dispatch('classroom/addClassroomTeacher', {
           classroomId: this.currentClassroom.id,
-          username: this.teacherUsername.trim()
+          teacherId: user.uuid
         })
 
         if (res.code === 200) {
           this.$message.success('添加教师成功')
-          this.teacherUsername = ''
+          this.selectedTeacherUid = ''
+          this.teacherOptions = []
           await this.loadClassroomTeachers()
           // 同时更新列表中的班级信息
           await this.loadClassrooms()
@@ -337,6 +392,37 @@ export default {
       } finally {
         this.addingTeacher = false
       }
+    },
+    // 远程搜索用户（后端返回附带班级角色）
+    async searchTeacherOptions(keyword) {
+      if (!keyword || !keyword.trim()) {
+        this.teacherOptions = []
+        return
+      }
+      this.searchingTeachers = true
+      try {
+        const res = await this.$store.dispatch('classroom/searchTeachersForAdmin', keyword.trim())
+        if (res.code === 200) {
+          this.teacherOptions = res.data || []
+        }
+      } catch (error) {
+        console.error('搜索用户失败:', error)
+      } finally {
+        this.searchingTeachers = false
+      }
+    },
+    classroomRoleText(role) {
+      if (role === undefined) return '未知角色'
+      if (!role) return '无角色'
+      if (role.includes('teacher') && role.includes('student')) return '教师/学生'
+      if (role.includes('teacher')) return '教师'
+      if (role.includes('student')) return '学生'
+      return role
+    },
+    classroomRoleTagType(role) {
+      if (role !== undefined && role.includes('teacher')) return 'success'
+      if (role !== undefined && role.includes('student')) return 'warning'
+      return 'info'
     },
     async removeTeacher(teacherRelation) {
       // 判断要删除的教师是否是主教师
@@ -446,13 +532,34 @@ export default {
     resetTeacherDialog() {
       this.currentClassroom = null
       this.currentClassroomTeachers = []
-      this.teacherUsername = ''
+      this.teacherOptions = []
+      this.searchingTeachers = false
+      this.selectedTeacherUid = ''
     }
   }
 }
 </script>
 
 <style scoped>
+/* 教师搜索下拉：左侧用户名、右侧角色标签 */
+.teacher-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.teacher-option-nickname {
+  color: #909399;
+}
+
+.add-teacher-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
 .classroom-admin {
   padding: 20px;
   background-color: #fff;

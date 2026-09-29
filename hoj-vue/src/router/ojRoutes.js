@@ -26,12 +26,11 @@ import ContestRejudgeAdmin from "@/views/oj/contest/children/ContestRejudgeAdmin
 import ContestQuestionQA from "@/views/oj/contest/children/ContestQuestionQA.vue"
 import ContestQuestionList from "@/views/oj/contest/children/ContestQuestionList.vue"
 import ContestQuestionDetail from "@/views/oj/contest/children/ContestQuestionDetail.vue"
-import ContestPlagiarism from "@/views/oj/contest/children/ContestPlagiarism.vue"
+import ContestViolation from "@/views/oj/contest/children/ContestViolation.vue"
 import DiscussionList from "@/views/oj/discussion/discussionList.vue"
 import Discussion from "@/views/oj/discussion/discussion.vue"
 import Introduction from "@/views/oj/about/Introduction.vue"
 import Developer from "@/views/oj/about/Developer.vue"
-import Toolbox from "@/views/oj/toolbox/Toolbox.vue"
 import LearningMapList from "@/views/oj/learning-map/LearningMapList.vue"
 import LearningMapPage from "@/views/oj/learning-map/LearningMapPage.vue"
 import BattleHome from "@/views/oj/battle/BattleHome.vue"
@@ -269,8 +268,9 @@ const ojRoutes = [
       {
         name: 'ContestPlagiarism',
         path: 'plagiarism',
-        component: ContestPlagiarism,
-        meta: { title: 'Contest Plagiarism', requireAuth: true }
+        // 违规查询：设备异常筛查 + 代码查重双子页
+        component: ContestViolation,
+        meta: { title: 'Contest Violation Check', requireAuth: true }
       }
     ]
   },
@@ -472,8 +472,8 @@ const ojRoutes = [
   {
     path: '/toolbox',
     name: 'Toolbox',
-    component: Toolbox,
-    meta: { title: 'Toolbox' }
+    redirect: '/home',
+    meta: { title: 'Toolbox (deprecated)' }
   },
   {
     path: '/learning-map',
@@ -510,12 +510,6 @@ const ojRoutes = [
     name: 'BattleMyRecords',
     component: BattleMyRecords,
     meta: { title: 'My Battle Records', requireAuth: true }
-  },
-  {
-    path: '/about-us',
-    beforeEnter() {
-      window.location.href = '/about-us.html'
-    }
   },
   {
     path: '/developer',

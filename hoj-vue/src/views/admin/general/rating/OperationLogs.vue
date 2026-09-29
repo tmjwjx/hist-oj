@@ -23,7 +23,6 @@
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" @click="fetchLogs">查询</el-button>
         <el-button icon="el-icon-refresh" @click="handleRefresh">刷新</el-button>
-        <el-button type="warning" icon="el-icon-edit" @click="handleFixUsername" :loading="fixing">修复用户名</el-button>
       </el-form-item>
     </el-form>
 
@@ -75,7 +74,6 @@ export default {
     return {
       logs: [],
       loading: false,
-      fixing: false,
       filter: {
         type: '',
         timeRange: '7d'
@@ -190,38 +188,6 @@ export default {
       if (!dateStr) return '-'
       const date = new Date(dateStr)
       return date.toLocaleString('zh-CN')
-    },
-
-    // 修复缺失的操作人用户名
-    async handleFixUsername() {
-      this.$confirm('此操作将自动补充缺失的操作人用户名，是否继续？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.fixing = true
-        this.axios.post('/api/rating/admin/fix-logs-username')
-          .then(response => {
-            const data = response.data
-            if (data.code === 200 || data.status === 200) {
-              this.$message.success('修复成功！')
-              console.log('修复统计:', data.data && data.data.statistics)
-              // 刷新日志列表
-              this.fetchLogs()
-            } else {
-              this.$message.error('修复失败: ' + (data.message || data.msg))
-            }
-          })
-          .catch(error => {
-            console.error('修复失败:', error)
-            this.$message.error('修复失败: ' + (error.response?.data?.message || error.message))
-          })
-          .finally(() => {
-            this.fixing = false
-          })
-      }).catch(() => {
-        // 用户取消
-      })
     }
   }
 }

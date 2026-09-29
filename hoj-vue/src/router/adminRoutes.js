@@ -4,7 +4,7 @@ const Home = () => import('@/views/admin/Home')
 const Dashboard = () => import('@/views/admin/Dashboard')
 const User = () => import('@/views/admin/general/User')
 const RatingManagement = () => import('@/views/admin/general/RatingManagement')
-const BattleRecordsAdmin = () => import('@/views/admin/toolbox/BattleRecordsAdmin')
+const BattleRecordsAdmin = () => import('@/views/admin/battle/BattleRecordsAdmin')
 const PermissionDocs = () => import('@/views/admin/general/PermissionDocs')
 const Announcement = () => import('@/views/admin/general/Announcement')
 const SysNotice = () => import('@/views/admin/general/SysNotice')
@@ -13,6 +13,7 @@ const SysSwitch = () => import('@/views/admin/general/SysSwitch')
 const ProblemList = () => import('@/views/admin/problem/ProblemList')
 const AdminGroupProblemList = () => import('@/views/admin/problem/GroupProblemList')
 const Problem = () => import('@/views/admin/problem/Problem')
+const ProblemCreate = () => import('@/views/admin/problem/ProblemCreate')
 const ProblemAIHistory = () => import('@/views/admin/problem/ProblemAIHistory')
 const Tag = () => import('@/views/admin/problem/Tag')
 const ProblemImportAndExport = () => import('@/views/admin/problem/ImportAndExport')
@@ -31,10 +32,8 @@ const ClassroomHomeworkAnalysis = () => import('@/views/admin/classroom/Homework
 const ClassroomExamMonitoring = () => import('@/views/admin/classroom/ExamMonitoring')
 const AdminCreateHomework = () => import('@/views/classroom/teacher/CreateHomework')
 const AdminStudentSubmissionDetail = () => import('@/views/classroom/teacher/StudentSubmissionDetail')
-const ToolboxAdmin = () => import('@/views/admin/toolbox/ToolboxAdmin')
-const QuestionBankAdmin = () => import('@/views/admin/toolbox/QuestionBankAdmin')
 const QuestionBankEditor = () => import('@/views/common/QuestionBankEditor')
-const ExamPaperAdmin = () => import('@/views/admin/toolbox/ExamPaperAdmin')
+const ExamPaperAdmin = () => import('@/views/admin/exam/ExamPaperAdmin')
 const AdminLearningMapList = () => import('@/views/admin/learning-map/AdminLearningMapList')
 const AdminLearningMapEditor = () => import('@/views/admin/learning-map/AdminLearningMapEditor')
 
@@ -87,15 +86,18 @@ const adminRoutes = [
       {
         path: 'question-bank',
         name: 'admin-question-bank',
-        component: QuestionBankAdmin,
-        meta: { requireSuperAdmin: true, title: '客观题题库管理' }
+        redirect: to => ({
+          name: 'admin-problem-list',
+          query: { ...to.query, category: 'objective' }
+        })
       },
       {
         path: 'question-bank/create',
         name: 'admin-question-bank-create',
-        component: QuestionBankEditor,
-        props: { scene: 'admin' },
-        meta: { requireSuperAdmin: true, title: '创建客观题' }
+        redirect: to => ({
+          name: 'admin-create-problem',
+          query: { ...to.query, questionType: 'single_choice' }
+        })
       },
       {
         path: 'question-bank/edit/:questionId',
@@ -108,7 +110,14 @@ const adminRoutes = [
         path: 'exam-paper',
         name: 'admin-exam-paper',
         component: ExamPaperAdmin,
-        meta: { requireAdmin: true, title: '试卷库管理' }
+        meta: { requireAdmin: true, title: '试卷列表' }
+      },
+      {
+        path: 'exam-paper/create',
+        name: 'admin-create-exam-paper',
+        component: ExamPaperAdmin,
+        props: { startInCreateMode: true },
+        meta: { requireAdmin: true, title: '创建试卷' }
       },
       {
         path: 'announcement',
@@ -143,7 +152,7 @@ const adminRoutes = [
       {
         path: 'problem/create',
         name: 'admin-create-problem',
-        component: Problem,
+        component: ProblemCreate,
         meta: { title: '创建题目' }
       },
       {
@@ -304,9 +313,7 @@ const adminRoutes = [
       },
       {
         path: 'toolbox',
-        name: 'admin-toolbox',
-        component: ToolboxAdmin,
-        meta: { title: '工具箱' }
+        redirect: { name: 'admin-dashboard' }
       },
       {
         path: 'learning-map',

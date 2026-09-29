@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Component
 public class PlagiarismExecutionManager {
     @Resource private PlagiarismManager manager;
-    @Resource private PlagiarismSimilarityEngine similarity;
+    @Resource private PlagiarismDolosWorkerClient dolosWorker;
     @Resource private PlagiarismCheckEntityService checkService;
     @Resource private PlagiarismResultEntityService resultService;
 
@@ -45,6 +45,9 @@ public class PlagiarismExecutionManager {
             List<PlagiarismCheckConfig> configs = manager.allConfigs(check.getCid());
             List<ContestProblem> problems = manager.allContestProblems(check.getCid());
             List<Judge> submissions = manager.acSubmissions(check.getCid(), contest.getStartTime(), contest.getEndTime());
+            if (!dolosWorker.isConfigured()) {
+                throw new IllegalStateException("Dolos 查重 worker 未配置，任务无法启动");
+            }
 
             check.setTotalSubmissions(submissions.size());
             Map<Long, Integer> thresholds = configs.stream().collect(Collectors.toMap(
@@ -78,8 +81,18 @@ public class PlagiarismExecutionManager {
                 return;
             }
 
+            Map<String, int[]> workerScores = new HashMap<>();
+            for (List<Judge> group : groups.values()) {
+                List<PlagiarismDolosWorkerClient.Submission> batch = group.stream()
+                        .map(judge -> new PlagiarismDolosWorkerClient.Submission(
+                                String.valueOf(judge.getSubmitId()), judge.getCode()))
+                        .collect(Collectors.toList());
+                workerScores.putAll(dolosWorker.analyze(group.get(0).getLanguage(), batch));
+            }
+            final Map<String, int[]> resolvedWorkerScores = workerScores;
             List<Future<PlagiarismResult>> futures = tasks.stream()
-                    .map(task -> pool.submit(() -> compare(checkId, check.getCid(), task))).collect(Collectors.toList());
+                    .map(task -> pool.submit(() -> compare(checkId, check.getCid(), task, resolvedWorkerScores)))
+                    .collect(Collectors.toList());
             List<PlagiarismResult> pending = new ArrayList<>(50);
             AtomicInteger completed = new AtomicInteger();
             for (Future<PlagiarismResult> future : futures) {
@@ -104,10 +117,17 @@ public class PlagiarismExecutionManager {
         }
     }
 
-    private PlagiarismResult compare(Long checkId, Long cid, PairTask task) {
+    private PlagiarismResult compare(Long checkId, Long cid, PairTask task, Map<String, int[]> workerScores) {
         Judge first = task.first;
         Judge second = task.second;
-        int[] scores = similarity.compare(first.getCode(), second.getCode(), first.getLanguage());
+        int[] scores = workerScores.get(PlagiarismDolosWorkerClient.pairKey(
+                String.valueOf(first.getSubmitId()), String.valueOf(second.getSubmitId())));
+        if (scores != null && String.valueOf(first.getSubmitId()).compareTo(String.valueOf(second.getSubmitId())) > 0) {
+            scores = new int[]{scores[1], scores[0]};
+        }
+        if (scores == null) {
+            throw new IllegalStateException("Dolos worker 未返回该提交对的查重结果");
+        }
         int max = Math.max(scores[0], scores[1]);
         ContestProblem problem = task.problemById.get(first.getCpid());
         if (problem == null) problem = task.problemByPid.get(first.getPid());
@@ -123,7 +143,11 @@ public class PlagiarismExecutionManager {
                 .setUid1(first.getUid()).setUid2(second.getUid()).setUsername1(first.getUsername())
                 .setUsername2(second.getUsername()).setLanguage(first.getLanguage())
                 .setSimilarity1to2(scores[0]).setSimilarity2to1(scores[1]).setMaxSimilarity(max)
-                .setIsOverThreshold(max >= threshold).setGmtCreate(new Date());
+                .setIsOverThreshold(isOverThreshold(scores[0], scores[1], threshold)).setGmtCreate(new Date());
+    }
+
+    static boolean isOverThreshold(int similarity1to2, int similarity2to1, int threshold) {
+        return similarity1to2 >= threshold && similarity2to1 >= threshold;
     }
 
     private void updateProgress(Long checkId, int checked, int total) {
@@ -148,7 +172,7 @@ public class PlagiarismExecutionManager {
     }
 
     private String groupKey(Judge judge) {
-        return String.valueOf(judge.getCpid()) + ":" + String.valueOf(judge.getLanguage());
+        return String.valueOf(judge.getCpid()) + ":" + dolosWorker.normalizeLanguage(judge.getLanguage());
     }
 
     private String recordKey(Judge judge) {

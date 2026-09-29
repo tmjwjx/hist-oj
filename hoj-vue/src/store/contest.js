@@ -216,24 +216,19 @@ const mutations = {
 }
 
 const actions = {
-  getContest ({commit, rootState, dispatch}) {
-    return new Promise((resolve, reject) => {
-      api.getContest(rootState.route.params.contestID).then((res) => {
-        resolve(res)
-        let contest = res.data.data
-        commit('changeContest', {contest: contest})
-        if (contest.gid) {
-          dispatch('getGroupContestAuth', {gid: contest.gid})
-        }
-        commit('now', {now: moment(contest.now)})
-        dispatch('getContestAccess', {
-          auth: CONTEST_TYPE.PRIVATE,
-          grantSubmit: contest.auth === CONTEST_TYPE.PROTECTED,
-        })
-      }, err => {
-        reject(err)
-      })
+  async getContest ({commit, rootState, dispatch}) {
+    const res = await api.getContest(rootState.route.params.contestID)
+    const contest = res.data.data
+    commit('changeContest', {contest: contest})
+    if (contest.gid) {
+      await dispatch('getGroupContestAuth', {gid: contest.gid})
+    }
+    commit('now', {now: moment(contest.now)})
+    await dispatch('getContestAccess', {
+      auth: CONTEST_TYPE.PRIVATE,
+      grantSubmit: contest.auth === CONTEST_TYPE.PROTECTED,
     })
+    return res
   },
   getScoreBoardContestInfo ({commit, rootState, dispatch}) {
     return new Promise((resolve, reject) => {
@@ -259,28 +254,27 @@ const actions = {
       })
     })
   },
-  getContestAccess ({commit, rootState},contestType) {
-    return new Promise((resolve, reject) => {
-      api.getContestAccess(rootState.route.params.contestID).then(res => {
-        if(contestType.auth == CONTEST_TYPE.PRIVATE){
-          commit('contestIntoAccess', {intoAccess: res.data.data.access})
-          if (contestType.grantSubmit) {
-            commit('contestSubmitAccess', {submitAccess: res.data.data.access})
-          }
-        }else{
-          commit('contestSubmitAccess', {submitAccess: res.data.data.access})
-        }
-        resolve(res)
-      }).catch()
-    })
+  async getContestAccess ({commit, rootState}, contestType) {
+    const res = await api.getContestAccess(rootState.route.params.contestID)
+    if (contestType.auth == CONTEST_TYPE.PRIVATE){
+      commit('contestIntoAccess', {intoAccess: res.data.data.access})
+      if (contestType.grantSubmit) {
+        commit('contestSubmitAccess', {submitAccess: res.data.data.access})
+      }
+    } else {
+      commit('contestSubmitAccess', {submitAccess: res.data.data.access})
+    }
+    return res
   },
-  getGroupContestAuth ({commit, rootState}, gid) {
-    return new Promise((resolve, reject) => {
-      api.getGroupAuth(gid.gid).then(res => {
-        commit('changeGroupContestAuth', {groupContestAuth: res.data.data})
-        resolve(res)
-      }).catch()
-    })
+  async getGroupContestAuth ({commit}, gid) {
+    try {
+      const res = await api.getGroupAuth(gid.gid)
+      commit('changeGroupContestAuth', {groupContestAuth: res.data.data})
+      return res
+    } catch (error) {
+      // 组赛权限失败不应阻塞比赛题目与提交页加载；提交接口仍会做最终校验。
+      return null
+    }
   }
 }
 

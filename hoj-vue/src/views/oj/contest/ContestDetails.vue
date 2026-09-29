@@ -358,10 +358,10 @@
           name="ContestPlagiarism"
           lazy
           :disabled="contestMenuDisabled"
-          v-if="isContestAdmin || isSuperAdmin"
+          v-if="showViolationCheck"
         >
           <span slot="label">
-            <i class="fa fa-search" aria-hidden="true"></i>&nbsp;代码查重
+            <i class="fa fa-search" aria-hidden="true"></i>&nbsp;违规查询
           </span>
           <transition name="el-zoom-in-bottom">
             <router-view v-if="route_name === 'ContestPlagiarism'"></router-view>
@@ -581,6 +581,11 @@ export default {
     },
     showAdminHelper() {
       return this.isContestAdmin && this.contestRuleType === RULE_TYPE.ACM;
+    },
+    // 违规查询仅对比赛创建者与超级管理员可见（不含团队管理员）
+    showViolationCheck() {
+      return this.isSuperAdmin ||
+        (!!this.contest && !!this.userInfo && this.contest.author === this.userInfo.username)
     },
     showScrollBoard(){
       return this.isContestAdmin && this.contestRuleType === RULE_TYPE.ACM;
