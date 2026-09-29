@@ -2,33 +2,33 @@
   <div class="operation-logs">
     <!-- 筛选栏 -->
     <el-form inline>
-      <el-form-item label="操作类型">
-        <el-select v-model="filter.type" placeholder="全部" clearable style="width: 150px">
-          <el-option label="全部" value="" />
-          <el-option label="个人调整" value="personal_adjust" />
-          <el-option label="Skip用户" value="skip_user" />
-          <el-option label="取消Skip" value="cancel_skip" />
-          <el-option label="Rating重算" value="recalculate" />
+      <el-form-item :label="$t('m.Rating_Operation_Type')">
+        <el-select v-model="filter.type" :placeholder="$t('m.Rating_All')" clearable style="width: 150px">
+          <el-option :label="$t('m.Rating_All')" value="" />
+          <el-option :label="$t('m.Rating_Personal_Adjust')" value="personal_adjust" />
+          <el-option :label="$t('m.Rating_Skip_User')" value="skip_user" />
+          <el-option :label="$t('m.Rating_Cancel_Skip_Op')" value="cancel_skip" />
+          <el-option :label="$t('m.Rating_Rating_Recalculate')" value="recalculate" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="时间范围">
-        <el-select v-model="filter.timeRange" placeholder="最近7天" style="width: 150px">
-          <el-option label="最近7天" value="7d" />
-          <el-option label="最近30天" value="30d" />
-          <el-option label="全部" value="all" />
+      <el-form-item :label="$t('m.Rating_Time_Range')">
+        <el-select v-model="filter.timeRange" :placeholder="$t('m.Rating_Last_7_Days')" style="width: 150px">
+          <el-option :label="$t('m.Rating_Last_7_Days')" value="7d" />
+          <el-option :label="$t('m.Rating_Last_30_Days')" value="30d" />
+          <el-option :label="$t('m.Rating_All')" value="all" />
         </el-select>
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" @click="fetchLogs">查询</el-button>
-        <el-button icon="el-icon-refresh" @click="handleRefresh">刷新</el-button>
+        <el-button type="primary" icon="el-icon-search" @click="fetchLogs">{{ $t('m.Rating_Query') }}</el-button>
+        <el-button icon="el-icon-refresh" @click="handleRefresh">{{ $t('m.Rating_Refresh') }}</el-button>
       </el-form-item>
     </el-form>
 
     <!-- 日志表格 -->
     <el-table :data="logs" v-loading="loading" stripe>
-      <el-table-column prop="operationType" label="操作类型" width="150">
+      <el-table-column prop="operationType" :label="$t('m.Rating_Operation_Type')" width="150">
         <template slot-scope="{ row }">
           <el-tag :type="getOperationTypeTag(row.operationType)" size="small">
             {{ getOperationTypeName(row.operationType) }}
@@ -36,15 +36,15 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="operationDetail" label="操作内容" min-width="200">
+      <el-table-column prop="operationDetail" :label="$t('m.Rating_Operation_Content')" min-width="200">
         <template slot-scope="{ row }">
           {{ formatOperationDetail(row) }}
         </template>
       </el-table-column>
 
-      <el-table-column prop="operatorUsername" label="操作人" width="120" />
+      <el-table-column prop="operatorUsername" :label="$t('m.Rating_Operator')" width="120" />
 
-      <el-table-column label="操作时间" width="180">
+      <el-table-column :label="$t('m.Rating_Operation_Time')" width="180">
         <template slot-scope="{ row }">
           {{ formatDate(row.createdAt) }}
         </template>
@@ -103,7 +103,7 @@ export default {
         this.pagination.total = data.total || 0
       } catch (error) {
         console.error('查询日志失败:', error)
-        this.$message.error('查询日志失败: ' + (error.response?.data?.message || error.message))
+        this.$message.error(this.$t('m.Rating_Query_Logs_Failed') + (error.response?.data?.message || error.message))
       } finally {
         this.loading = false
       }
@@ -147,13 +147,13 @@ export default {
     getOperationTypeName(type) {
       switch (type) {
         case 'personal_adjust':
-          return '个人调整'
+          return this.$t('m.Rating_Personal_Adjust')
         case 'skip_user':
-          return 'Skip用户'
+          return this.$t('m.Rating_Skip_User')
         case 'cancel_skip':
-          return '取消Skip'
+          return this.$t('m.Rating_Cancel_Skip_Op')
         case 'recalculate':
-          return 'Rating重算'
+          return this.$t('m.Rating_Rating_Recalculate')
         default:
           return type
       }
@@ -168,13 +168,13 @@ export default {
 
         switch (row.operationType) {
           case 'personal_adjust':
-            return `调整用户 ${detail.username} rating ${detail.ratingChange}`
+            return this.$t('m.Rating_Log_Adjust', { username: detail.username, change: detail.ratingChange })
           case 'skip_user':
-            return `比赛 ${detail.contestId} skip用户: ${detail.usernames?.join(', ')}`
+            return this.$t('m.Rating_Log_Skip', { contestId: detail.contestId, users: detail.usernames?.join(', ') })
           case 'cancel_skip':
-            return `比赛 ${detail.contestId} 取消skip: ${detail.uids?.join(', ')}`
+            return this.$t('m.Rating_Log_Cancel_Skip', { contestId: detail.contestId, uids: detail.uids?.join(', ') })
           case 'recalculate':
-            return `从比赛 ${detail.contestId} 开始重算rating`
+            return this.$t('m.Rating_Log_Recalc', { contestId: detail.contestId })
           default:
             return JSON.stringify(detail)
         }

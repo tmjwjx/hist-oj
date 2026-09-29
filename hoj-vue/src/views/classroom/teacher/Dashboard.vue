@@ -3,21 +3,21 @@
     <div class="teacher-dashboard-inner">
       <div class="header">
         <div class="header-left">
-          <h1>教师工作台</h1>
-          <p class="subtitle">管理您的班级</p>
+          <h1>{{ $t('m.Teacher_Workspace') }}</h1>
+          <p class="subtitle">{{ $t('m.Cls_Manage_Your_Classrooms') }}</p>
         </div>
         <div class="header-actions">
           <button class="classroom-btn classroom-btn-success" @click="goToQuestionBank">
             <i class="el-icon-document"></i>
-            <span>题库管理</span>
+            <span>{{ $t('m.Cls_Question_Bank_Management') }}</span>
           </button>
           <button class="classroom-btn classroom-btn-info" @click="goToExamPaper">
             <i class="el-icon-document-copy"></i>
-            <span>试卷库</span>
+            <span>{{ $t('m.Cls_Exam_Paper_Library') }}</span>
           </button>
           <button class="classroom-btn classroom-btn-primary" @click="showCreateDialog = true">
             <i class="el-icon-plus"></i>
-            <span>创建班级</span>
+            <span>{{ $t('m.Create_Classroom') }}</span>
           </button>
         </div>
       </div>
@@ -25,8 +25,8 @@
       <!-- 空状态 -->
       <div v-if="safeClassrooms.length === 0 && !loading" class="classroom-empty">
         <i class="el-icon-school classroom-empty-icon"></i>
-        <div class="classroom-empty-text">还没有班级</div>
-        <div class="classroom-empty-hint">点击上方按钮创建您的第一个班级吧！</div>
+        <div class="classroom-empty-text">{{ $t('m.Cls_No_Classrooms') }}</div>
+        <div class="classroom-empty-hint">{{ $t('m.Cls_Create_First_Classroom_Hint') }}</div>
       </div>
 
       <!-- 班级卡片列表 -->
@@ -41,48 +41,48 @@
           <div class="card-body" @click="viewClassroom(classroom)">
             <div class="info-item">
               <i class="el-icon-key info-icon"></i>
-              <span class="info-label">班级代码</span>
+              <span class="info-label">{{ $t('m.Classroom_Code') }}</span>
               <span class="info-value">{{ classroom.classCode }}</span>
               <button
                 class="classroom-btn classroom-btn-secondary copy-btn"
                 @click.stop="copyClassCode(classroom.classCode)"
               >
                 <i class="el-icon-document-copy"></i>
-                <span>复制</span>
+                <span>{{ $t('m.Copy') }}</span>
               </button>
             </div>
             <div class="info-item">
               <i class="el-icon-user info-icon"></i>
-              <span class="info-label">教师</span>
+              <span class="info-label">{{ $t('m.Teacher') }}</span>
               <span class="info-value">{{ getTeacherNames(classroom) }}</span>
             </div>
           </div>
           <div class="card-footer">
             <button class="classroom-btn classroom-btn-primary" @click="viewClassroom(classroom)">
               <i class="el-icon-setting"></i>
-              <span>管理班级</span>
+              <span>{{ $t('m.Cls_Manage_Classroom') }}</span>
             </button>
             <button class="classroom-btn classroom-btn-danger" @click="handleDelete(classroom)">
               <i class="el-icon-delete"></i>
-              <span>删除班级</span>
+              <span>{{ $t('m.Cls_Delete_Classroom') }}</span>
             </button>
           </div>
         </div>
       </div>
 
       <!-- 创建班级对话框 -->
-      <el-dialog title="创建班级" :visible.sync="showCreateDialog" width="500px" custom-class="classroom-dialog">
+      <el-dialog :title="$t('m.Create_Classroom')" :visible.sync="showCreateDialog" width="500px" custom-class="classroom-dialog">
         <el-form :model="createForm" :rules="rules" ref="createForm" label-width="100px">
-          <el-form-item label="班级名称" prop="className">
-            <el-input v-model="createForm.className" placeholder="请输入班级名称" class="classroom-input" />
+          <el-form-item :label="$t('m.Classroom_Name')" prop="className">
+            <el-input v-model="createForm.className" :placeholder="$t('m.Enter_Classroom_Name')" class="classroom-input" />
           </el-form-item>
-          <el-form-item label="班级所属" prop="classBelong">
-            <el-input v-model="createForm.classBelong" placeholder="请输入班级所属" class="classroom-input" />
+          <el-form-item :label="$t('m.Cls_Class_Belong')" prop="classBelong">
+            <el-input v-model="createForm.classBelong" :placeholder="$t('m.Cls_Enter_Class_Belong')" class="classroom-input" />
           </el-form-item>
         </el-form>
         <span slot="footer">
-          <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">取消</el-button>
-          <el-button type="primary" @click="createClassroom" :loading="submitting" class="classroom-btn classroom-btn-primary">确认创建</el-button>
+          <el-button @click="showCreateDialog = false" class="classroom-btn classroom-btn-secondary">{{ $t('m.Cancel') }}</el-button>
+          <el-button type="primary" @click="createClassroom" :loading="submitting" class="classroom-btn classroom-btn-primary">{{ $t('m.Cls_Confirm_Create') }}</el-button>
         </span>
       </el-dialog>
     </div>
@@ -107,8 +107,8 @@ export default {
         classBelong: ''
       },
       rules: {
-        className: [{ required: true, message: '请输入班级名称', trigger: 'blur' }],
-        classBelong: [{ required: true, message: '请输入班级所属', trigger: 'blur' }]
+        className: [{ required: true, message: this.$t('m.Enter_Classroom_Name'), trigger: 'blur' }],
+        classBelong: [{ required: true, message: this.$t('m.Cls_Enter_Class_Belong'), trigger: 'blur' }]
       },
       // 实时同步配置
       realtimeSyncConfig: {
@@ -181,7 +181,7 @@ export default {
       } catch (error) {
         console.error('加载班级列表失败:', error)
         if (isFirstLoad) {
-          this.$message.error('加载失败')
+          this.$message.error(this.$t('m.Load_Failed'))
           this.classrooms = []
         }
       } finally {
@@ -197,16 +197,16 @@ export default {
           try {
             const res = await this.$store.dispatch('classroom/createClassroom', this.createForm)
             if (res.code === 200) {
-              this.$message.success('创建成功')
+              this.$message.success(this.$t('m.Create_Success'))
               this.showCreateDialog = false
               this.createForm = { className: '', classBelong: '' }
               this.loadClassrooms()
             } else {
-              this.$message.error(res.message || '创建失败')
+              this.$message.error(res.message || this.$t('m.Create_Failed'))
             }
           } catch (error) {
             console.error('创建班级失败:', error)
-            this.$message.error('创建失败')
+            this.$message.error(this.$t('m.Create_Failed'))
           } finally {
             this.submitting = false
           }
@@ -230,7 +230,7 @@ export default {
     copyClassCode(classCode) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(classCode).then(() => {
-          this.$message.success('班级代码已复制')
+          this.$message.success(this.$t('m.Copy_Success'))
         }).catch(() => {
           this.fallbackCopy(classCode)
         })
@@ -247,29 +247,29 @@ export default {
       textArea.select()
       try {
         document.execCommand('copy')
-        this.$message.success('班级代码已复制')
+        this.$message.success(this.$t('m.Copy_Success'))
       } catch (err) {
-        this.$message.error('复制失败')
+        this.$message.error(this.$t('m.Copy_Failed'))
       }
       document.body.removeChild(textArea)
     },
     handleDelete(classroom) {
-      this.$confirm('确认删除该班级吗？', '警告', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.Confirm_Delete_Classroom'), this.$t('m.Warning'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await this.$store.dispatch('classroom/deleteClassroom', classroom.id)
           if (res.code === 200) {
-            this.$message.success('删除成功')
+            this.$message.success(this.$t('m.Delete_Success'))
             this.loadClassrooms()
           } else {
-            this.$message.error(res.msg || '删除失败')
+            this.$message.error(res.msg || this.$t('m.Delete_Failed'))
           }
         } catch (error) {
           console.error('删除班级失败:', error)
-          this.$message.error('删除失败')
+          this.$message.error(this.$t('m.Delete_Failed'))
         }
       })
     },
@@ -300,7 +300,7 @@ export default {
         })
       }
 
-      return teachers.length > 0 ? teachers.join('、') : '-'
+      return teachers.length > 0 ? teachers.join(this.$t('m.Cls_Name_Separator')) : '-'
     }
   },
   computed: {

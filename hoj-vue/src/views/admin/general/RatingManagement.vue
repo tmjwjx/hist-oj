@@ -2,24 +2,24 @@
   <div class="rating-management">
     <el-card shadow="never">
       <div slot="header" class="card-header">
-        <span class="title">Rating 管理中心</span>
-        <el-tag type="warning" size="small">超级管理员功能</el-tag>
+        <span class="title">{{ $t('m.Rating_Management_Center') }}</span>
+        <el-tag type="warning" size="small">{{ $t('m.Rating_Super_Admin_Feature') }}</el-tag>
       </div>
 
       <!-- Tab标签页 -->
       <el-tabs v-model="activeTab" type="border-card" @tab-click="handleTabClick">
         <!-- Tab 1: 个人调整 -->
-        <el-tab-pane label="👤 个人调整" name="personal">
+        <el-tab-pane :label="$t('m.Rating_Tab_Personal')" name="personal">
           <personal-adjust />
         </el-tab-pane>
 
         <!-- Tab 2: 比赛Skip管理 -->
-        <el-tab-pane label="🏆 比赛Skip管理" name="skip">
+        <el-tab-pane :label="$t('m.Rating_Tab_Skip')" name="skip">
           <contest-skip />
         </el-tab-pane>
 
         <!-- Tab 3: 操作日志 -->
-        <el-tab-pane label="📋 操作日志" name="logs">
+        <el-tab-pane :label="$t('m.Rating_Tab_Logs')" name="logs">
           <operation-logs />
         </el-tab-pane>
       </el-tabs>

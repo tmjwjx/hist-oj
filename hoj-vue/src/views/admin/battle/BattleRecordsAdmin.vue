@@ -2,38 +2,38 @@
   <div class="battle-records-admin">
     <el-card class="search-card" shadow="never">
       <div slot="header" class="card-header">
-        <span class="title">对战记录查询</span>
+        <span class="title">{{ $t('m.BatRec_Query_Title') }}</span>
       </div>
 
       <!-- 搜索表单 -->
       <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="用户名">
+        <el-form-item :label="$t('m.BatRec_Username')">
           <el-input
             v-model="searchForm.username"
-            placeholder="输入用户名搜索"
+            :placeholder="$t('m.BatRec_Username_Search_Placeholder')"
             clearable
             @clear="handleSearch"
           ></el-input>
         </el-form-item>
-        <el-form-item label="房间号">
+        <el-form-item :label="$t('m.BatRec_Room_Number')">
           <el-input
             v-model="searchForm.roomId"
-            placeholder="输入房间号"
+            :placeholder="$t('m.BatRec_Room_Number_Placeholder')"
             clearable
             @input="searchForm.roomId = searchForm.roomId.toUpperCase()"
             @clear="handleSearch"
             style="text-transform: uppercase;"
           ></el-input>
         </el-form-item>
-        <el-form-item label="对战结果">
-          <el-select v-model="searchForm.result" placeholder="全部" clearable @change="handleSearch">
-            <el-option label="胜利" value="win"></el-option>
-            <el-option label="失败" value="lose"></el-option>
+        <el-form-item :label="$t('m.BatRec_Battle_Result')">
+          <el-select v-model="searchForm.result" :placeholder="$t('m.BatRec_All')" clearable @change="handleSearch">
+            <el-option :label="$t('m.BatRec_Win')" value="win"></el-option>
+            <el-option :label="$t('m.BatRec_Lose')" value="lose"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch" icon="el-icon-search">搜索</el-button>
-          <el-button @click="handleReset" icon="el-icon-refresh">重置</el-button>
+          <el-button type="primary" @click="handleSearch" icon="el-icon-search">{{ $t('m.BatRec_Search') }}</el-button>
+          <el-button @click="handleReset" icon="el-icon-refresh">{{ $t('m.BatRec_Reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -47,7 +47,7 @@
         stripe
         :row-class-name="getRowClassName"
       >
-        <el-table-column label="对局" width="250" align="center">
+        <el-table-column :label="$t('m.BatRec_Match')" width="250" align="center">
           <template slot-scope="scope">
             <div class="match-cell">
               <div class="player">
@@ -55,7 +55,7 @@
                   {{ scope.row.record1.username }}
                 </span>
                 <el-tag :type="scope.row.record1.isWinner ? 'success' : 'danger'" size="mini">
-                  {{ scope.row.record1.isWinner ? '胜' : '负' }}
+                  {{ scope.row.record1.isWinner ? $t('m.BatRec_Win_Short') : $t('m.BatRec_Lose_Short') }}
                 </el-tag>
               </div>
               <div class="vs-divider">VS</div>
@@ -64,47 +64,47 @@
                   {{ scope.row.record1.opponentUsername }}
                 </span>
                 <el-tag :type="scope.row.record2 ? (scope.row.record2.isWinner ? 'success' : 'danger') : (scope.row.record1.isWinner ? 'danger' : 'success')" size="mini">
-                  {{ scope.row.record2 ? (scope.row.record2.isWinner ? '胜' : '负') : (scope.row.record1.isWinner ? '负' : '胜') }}
+                  {{ scope.row.record2 ? (scope.row.record2.isWinner ? $t('m.BatRec_Win_Short') : $t('m.BatRec_Lose_Short')) : (scope.row.record1.isWinner ? $t('m.BatRec_Lose_Short') : $t('m.BatRec_Win_Short')) }}
                 </el-tag>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="record1.problemTitle" label="题目" align="center" min-width="150"></el-table-column>
+        <el-table-column prop="record1.problemTitle" :label="$t('m.BatRec_Problem')" align="center" min-width="150"></el-table-column>
 
-        <el-table-column label="结束原因" width="100" align="center">
+        <el-table-column :label="$t('m.BatRec_End_Reason')" width="100" align="center">
           <template slot-scope="scope">
             {{ getEndReasonText(scope.row.record1) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="房间号" width="100" align="center">
+        <el-table-column :label="$t('m.BatRec_Room_Number')" width="100" align="center">
           <template slot-scope="scope">
             <el-tag size="mini" type="info">{{ scope.row.record1.roomId }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="对战时长" width="80" align="center">
+        <el-table-column :label="$t('m.BatRec_Battle_Duration')" width="80" align="center">
           <template slot-scope="scope">
             {{ formatTime(scope.row.record1.battleTime) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="时间" width="180" align="center">
+        <el-table-column :label="$t('m.BatRec_Time')" width="180" align="center">
           <template slot-scope="scope">
             {{ formatDate(scope.row.record1.gmtCreate) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="$t('m.BatRec_Status')" width="100" align="center">
           <template slot-scope="scope">
-            <el-tag v-if="scope.row.isExcluded" type="info" size="small">不计入</el-tag>
-            <el-tag v-else type="success" size="small">正常</el-tag>
+            <el-tag v-if="scope.row.isExcluded" type="info" size="small">{{ $t('m.BatRec_Not_Counted') }}</el-tag>
+            <el-tag v-else type="success" size="small">{{ $t('m.BatRec_Normal') }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" align="center" fixed="right">
+        <el-table-column :label="$t('m.BatRec_Operation')" width="120" align="center" fixed="right">
           <template slot-scope="scope">
             <el-button
               type="text"
@@ -112,7 +112,7 @@
               @click="toggleExclude(scope.row)"
               :icon="scope.row.isExcluded ? 'el-icon-check' : 'el-icon-close'"
             >
-              {{ scope.row.isExcluded ? '计入' : '不计入' }}
+              {{ scope.row.isExcluded ? $t('m.BatRec_Count_In') : $t('m.BatRec_Not_Count_Action') }}
             </el-button>
           </template>
         </el-table-column>
@@ -258,10 +258,10 @@ export default {
           // total 除以 2 向上取整,因为每两条记录合并为一条
           this.total = Math.ceil(res.data.data.total / 2);
         } else {
-          this.$message.error(res.data.msg || '加载记录失败');
+          this.$message.error(res.data.msg || this.$t('m.BatRec_Load_Failed'));
         }
       } catch (error) {
-        this.$message.error('加载记录失败');
+        this.$message.error(this.$t('m.BatRec_Load_Failed'));
       } finally {
         this.loading = false;
       }
@@ -289,15 +289,15 @@ export default {
 
     getEndReasonText(row) {
       if (row.endReason === 'ac') {
-        return 'AC解决';
+        return this.$t('m.BatRec_End_Reason_AC');
       }
       if (row.endReason === 'giveup') {
-        return '放弃';
+        return this.$t('m.BatRec_End_Reason_Giveup');
       }
       if (row.endReason === 'timeout') {
-        return '超时';
+        return this.$t('m.BatRec_End_Reason_Timeout');
       }
-      return row.endReason || '未知';
+      return row.endReason || this.$t('m.BatRec_Unknown');
     },
 
     formatTime(seconds) {
@@ -314,16 +314,16 @@ export default {
     },
 
     async toggleExclude(mergedRow) {
-      const action = mergedRow.isExcluded ? '计入' : '不计入';
+      const action = mergedRow.isExcluded ? this.$t('m.BatRec_Count_In') : this.$t('m.BatRec_Not_Count_Action');
       const newExcludedState = !mergedRow.isExcluded;
 
       try {
         await this.$confirm(
-          `确定要将该场对决${action}吗?`,
-          '提示',
+          this.$t('m.BatRec_Confirm_Toggle', { action: action }),
+          this.$t('m.BatRec_Tip'),
           {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
+            confirmButtonText: this.$t('m.BatRec_Confirm'),
+            cancelButtonText: this.$t('m.BatRec_Cancel'),
             type: 'warning'
           }
         );
@@ -334,7 +334,7 @@ export default {
           isExcluded: newExcludedState
         });
 
-        this.$message.success(`已${action}本场对决`);
+        this.$message.success(this.$t('m.BatRec_Toggle_Success', { action: action }));
 
         // 更新本地状态
         mergedRow.record1.isExcluded = newExcludedState;
@@ -345,7 +345,7 @@ export default {
 
       } catch (error) {
         if (error !== 'cancel') {
-          this.$message.error('操作失败');
+          this.$message.error(this.$t('m.BatRec_Operation_Failed'));
         }
       }
     }

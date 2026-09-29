@@ -34,10 +34,10 @@
           <el-table-column :label="$t('m.Operation')" width="220" fixed="right">
             <template slot-scope="{ row }">
               <el-button size="mini" type="success" @click="manageTeachers(row)" style="margin-right: 5px;">
-                管理教师
+                {{ $t('m.ClsAdm_Manage_Teachers') }}
               </el-button>
               <el-button size="mini" type="primary" @click="enterClassroom(row)">
-                进入班级
+                {{ $t('m.ClsAdm_Enter_Classroom') }}
               </el-button>
             </template>
           </el-table-column>
@@ -79,34 +79,34 @@
 
     <!-- 教师管理对话框 -->
     <el-dialog
-      title="班级教师管理"
+      :title="$t('m.ClsAdm_Teacher_Management')"
       :visible.sync="teacherDialogVisible"
       width="600px"
       @close="resetTeacherDialog"
     >
       <div v-if="currentClassroom">
         <p style="margin-bottom: 15px;">
-          班级：<strong>{{ currentClassroom.className }}</strong>
+          {{ $t('m.ClsAdm_Class_Label') }}<strong>{{ currentClassroom.className }}</strong>
         </p>
 
         <!-- 已添加的教师列表 -->
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px;">已添加的教师</h4>
+          <h4 style="margin-bottom: 10px;">{{ $t('m.ClsAdm_Added_Teachers') }}</h4>
           <el-table :data="currentClassroomTeachers" size="small" stripe>
-            <el-table-column label="教师" min-width="150">
+            <el-table-column :label="$t('m.ClsAdm_Teacher')" min-width="150">
               <template slot-scope="{ row }">
                 <UserName v-if="row.teacher" :username="row.teacher.username" />
                 <span v-else>{{ row.teacherId }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80">
+            <el-table-column :label="$t('m.ClsAdm_Operation')" width="80">
               <template slot-scope="{ row }">
                 <el-button
                   size="mini"
                   type="danger"
                   @click="removeTeacher(row)"
                 >
-                  移除
+                  {{ $t('m.ClsAdm_Remove') }}
                 </el-button>
               </template>
             </el-table-column>
@@ -115,9 +115,9 @@
 
         <!-- 添加教师表单 -->
         <el-divider></el-divider>
-        <h4 style="margin-bottom: 10px;">添加教师</h4>
+        <h4 style="margin-bottom: 10px;">{{ $t('m.ClsAdm_Add_Teacher') }}</h4>
         <el-form :inline="true" size="small" @submit.native.prevent>
-          <el-form-item label="教师用户名">
+          <el-form-item :label="$t('m.ClsAdm_Teacher_Username')">
             <el-select
               v-model="selectedTeacherUid"
               filterable
@@ -126,8 +126,8 @@
               reserve-keyword
               :remote-method="searchTeacherOptions"
               :loading="searchingTeachers"
-              placeholder="输入用户名 / 姓名 / 昵称搜索"
-              :loading-text="searchingTeachers ? '搜索中...' : '加载中'"
+              :placeholder="$t('m.ClsAdm_Search_User_Placeholder')"
+              :loading-text="searchingTeachers ? $t('m.ClsAdm_Searching') : $t('m.ClsAdm_Loading')"
               style="width: 300px;"
             >
               <el-option
@@ -152,23 +152,23 @@
               :loading="addingTeacher"
               :disabled="!selectedTeacherUser || isKnownNonTeacher"
             >
-              添加
+              {{ $t('m.ClsAdm_Add') }}
             </el-button>
           </el-form-item>
         </el-form>
         <div class="add-teacher-hint">
-          <template v-if="!teacherOptions.length">输入关键词搜索用户，仅拥有<strong>教师角色</strong>的用户可被添加</template>
-          <template v-else-if="!selectedTeacherUser">请在下拉框中选择一个用户</template>
+          <template v-if="!teacherOptions.length">{{ $t('m.ClsAdm_Search_Hint_Prefix') }}<strong>{{ $t('m.ClsAdm_Teacher_Role') }}</strong>{{ $t('m.ClsAdm_Search_Hint_Suffix') }}</template>
+          <template v-else-if="!selectedTeacherUser">{{ $t('m.ClsAdm_Select_User_Hint') }}</template>
           <template v-else-if="selectedTeacherUser.role !== 'teacher'">
-            <span style="color: #F56C6C;">该用户当前班级角色：{{ classroomRoleText(selectedTeacherUser.role) }}，需先在「角色管理」中授予教师角色后才能添加</span>
+            <span style="color: #F56C6C;">{{ $t('m.ClsAdm_Current_Role_Prefix') }}{{ classroomRoleText(selectedTeacherUser.role) }}{{ $t('m.ClsAdm_Current_Role_Suffix') }}</span>
           </template>
           <template v-else>
-            <span style="color: #67C23A;">将添加 {{ selectedTeacherUser.username }} 为班级教师</span>
+            <span style="color: #67C23A;">{{ $t('m.ClsAdm_Will_Add_Prefix') }} {{ selectedTeacherUser.username }} {{ $t('m.ClsAdm_Will_Add_Suffix') }}</span>
           </template>
         </div>
       </div>
       <span slot="footer">
-        <el-button @click="teacherDialogVisible = false">关闭</el-button>
+        <el-button @click="teacherDialogVisible = false">{{ $t('m.ClsAdm_Close') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -209,11 +209,11 @@ const TeacherSelectDialog = Vue.extend({
   render(h) {
     const self = this
     return h('div', { style: 'padding: 10px 0;' }, [
-      h('p', { style: 'margin-bottom: 15px;' }, '请选择新的主教师：'),
+      h('p', { style: 'margin-bottom: 15px;' }, self.$t('m.ClsAdm_Select_New_Main_Teacher')),
       h('el-select', {
         props: {
           value: this.selectedTeacher,
-          placeholder: '请选择教师',
+          placeholder: self.$t('m.ClsAdm_Select_Teacher_Placeholder'),
           style: 'width: 100%;',
           clearable: true
         },
@@ -354,19 +354,19 @@ export default {
           this.currentClassroomTeachers = res.data || []
         }
       } catch (error) {
-        this.$message.error('加载教师列表失败')
+        this.$message.error(this.$t('m.ClsAdm_Load_Teachers_Failed'))
         console.error('加载教师列表失败:', error)
       }
     },
     async addTeacher() {
       const user = this.selectedTeacherUser
       if (!user) {
-        this.$message.warning('请先搜索并选择用户')
+        this.$message.warning(this.$t('m.ClsAdm_Select_User_First'))
         return
       }
       // 前端兜底校验：已知角色且非教师时拦截（后端同样会校验）
       if (user.role !== undefined && user.role !== 'teacher') {
-        this.$message.warning('该用户没有教师角色，无法添加为班级教师')
+        this.$message.warning(this.$t('m.ClsAdm_Not_Teacher'))
         return
       }
 
@@ -378,7 +378,7 @@ export default {
         })
 
         if (res.code === 200) {
-          this.$message.success('添加教师成功')
+          this.$message.success(this.$t('m.ClsAdm_Add_Teacher_Success'))
           this.selectedTeacherUid = ''
           this.teacherOptions = []
           await this.loadClassroomTeachers()
@@ -412,11 +412,11 @@ export default {
       }
     },
     classroomRoleText(role) {
-      if (role === undefined) return '未知角色'
-      if (!role) return '无角色'
-      if (role.includes('teacher') && role.includes('student')) return '教师/学生'
-      if (role.includes('teacher')) return '教师'
-      if (role.includes('student')) return '学生'
+      if (role === undefined) return this.$t('m.ClsAdm_Role_Unknown')
+      if (!role) return this.$t('m.ClsAdm_Role_None')
+      if (role.includes('teacher') && role.includes('student')) return this.$t('m.ClsAdm_Role_Teacher_Student')
+      if (role.includes('teacher')) return this.$t('m.ClsAdm_Role_Teacher')
+      if (role.includes('student')) return this.$t('m.ClsAdm_Role_Student')
       return role
     },
     classroomRoleTagType(role) {
@@ -436,7 +436,7 @@ export default {
         )
 
         if (otherTeachers.length === 0) {
-          this.$message.warning('没有其他教师可以担任主教师，请先添加其他教师')
+          this.$message.warning(this.$t('m.ClsAdm_No_Other_Teachers'))
           return
         }
 
@@ -447,9 +447,9 @@ export default {
 
         // 使用 h 函数创建一个包含 el-select 的组件
         this.$msgbox({
-          title: '移除主教师',
+          title: this.$t('m.ClsAdm_Remove_Main_Teacher'),
           message: h('div', { style: 'padding: 10px 0;' }, [
-            h('p', { style: 'margin-bottom: 15px;' }, '请选择新的主教师：'),
+            h('p', { style: 'margin-bottom: 15px;' }, this.$t('m.ClsAdm_Select_New_Main_Teacher')),
             h(TeacherSelectDialog, {
               props: {
                 teachers: otherTeachers
@@ -463,15 +463,15 @@ export default {
             })
           ]),
           showCancelButton: true,
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
+          confirmButtonText: this.$t('m.ClsAdm_Confirm'),
+          cancelButtonText: this.$t('m.ClsAdm_Cancel'),
           beforeClose: (action, instance, done) => {
             if (action === 'confirm') {
               // 通过 ref 获取组件实例
               const dialog = this.$refs.teacherSelectDialog
               const selectedValue = dialog ? dialog.getValue() : this.tempTeacherSelect
               if (!selectedValue) {
-                this.$message.warning('请选择新的主教师')
+                this.$message.warning(this.$t('m.ClsAdm_Select_New_Main_Teacher_Required'))
                 return
               }
               this.transferMainTeacher(teacherRelation.teacherId, selectedValue).then(() => {
@@ -488,9 +488,9 @@ export default {
         })
       } else {
         // 移除普通教师
-        this.$confirm('确认移除该教师吗？', '警告', {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
+        this.$confirm(this.$t('m.ClsAdm_Remove_Teacher_Confirm'), this.$t('m.ClsAdm_Warning'), {
+          confirmButtonText: this.$t('m.ClsAdm_Confirm'),
+          cancelButtonText: this.$t('m.ClsAdm_Cancel'),
           type: 'warning'
         }).then(async () => {
           try {
@@ -500,7 +500,7 @@ export default {
             })
 
             if (res.code === 200) {
-              this.$message.success('移除教师成功')
+              this.$message.success(this.$t('m.ClsAdm_Remove_Teacher_Success'))
               await this.loadClassroomTeachers()
             }
             // 注意：错误时的消息提示已由 axios 拦截器处理，无需重复显示
@@ -520,7 +520,7 @@ export default {
         })
 
         if (res.code === 200) {
-          this.$message.success('更换主教师成功')
+          this.$message.success(this.$t('m.ClsAdm_Change_Main_Teacher_Success'))
           await this.loadClassroomTeachers()
         }
         // 注意：错误时的消息提示已由 axios 拦截器处理，无需重复显示

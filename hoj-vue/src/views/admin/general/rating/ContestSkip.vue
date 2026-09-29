@@ -2,10 +2,10 @@
   <div class="contest-skip">
     <!-- 选择比赛 -->
     <el-form label-width="120px">
-      <el-form-item label="选择比赛">
+      <el-form-item :label="$t('m.Rating_Select_Contest')">
         <el-select
           v-model="selectedContestId"
-          placeholder="请选择比赛"
+          :placeholder="$t('m.Rating_Please_Select_Contest')"
           filterable
           @change="handleContestChange"
           style="width: 400px"
@@ -18,7 +18,7 @@
           />
         </el-select>
         <el-button type="primary" icon="el-icon-refresh" @click="loadContests" style="margin-left: 10px">
-          刷新比赛列表
+          {{ $t('m.Rating_Refresh_Contest_List') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -26,24 +26,24 @@
     <!-- 比赛信息卡片 -->
     <el-card v-if="currentContest" shadow="hover" style="margin-bottom: 20px">
       <div slot="header">
-        <span>📊 比赛信息</span>
+        <span>{{ $t('m.Rating_Contest_Info') }}</span>
       </div>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="比赛标题">{{ currentContest.title }}</el-descriptions-item>
-        <el-descriptions-item label="比赛ID">{{ currentContest.id }}</el-descriptions-item>
-        <el-descriptions-item label="开始时间">{{ formatDate(currentContest.startTime) }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag v-if="currentContest.status === -1" type="info">未开始</el-tag>
-          <el-tag v-else-if="currentContest.status === 0" type="warning">进行中</el-tag>
-          <el-tag v-else type="success">已结束</el-tag>
+        <el-descriptions-item :label="$t('m.Rating_Contest_Title')">{{ currentContest.title }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('m.Rating_Contest_ID')">{{ currentContest.id }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('m.Rating_Start_Time')">{{ formatDate(currentContest.startTime) }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('m.Rating_Status')">
+          <el-tag v-if="currentContest.status === -1" type="info">{{ $t('m.Rating_Not_Started') }}</el-tag>
+          <el-tag v-else-if="currentContest.status === 0" type="warning">{{ $t('m.Rating_In_Progress') }}</el-tag>
+          <el-tag v-else type="success">{{ $t('m.Rating_Finished') }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="Rating比赛">
+        <el-descriptions-item :label="$t('m.Rating_Is_Rating_Contest')">
           <el-tag :type="currentContest.isRating ? 'success' : 'info'">
-            {{ currentContest.isRating ? '是' : '否' }}
+            {{ currentContest.isRating ? $t('m.Rating_Yes') : $t('m.Rating_No') }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="Skip用户数">
-          <el-tag type="danger">{{ skipUsers.length }} 人</el-tag>
+        <el-descriptions-item :label="$t('m.Rating_Skip_User_Count')">
+          <el-tag type="danger">{{ skipUsers.length }} {{ $t('m.Rating_People_Unit') }}</el-tag>
         </el-descriptions-item>
       </el-descriptions>
     </el-card>
@@ -51,7 +51,7 @@
     <!-- Skip用户列表 -->
     <el-card v-if="selectedContestId" shadow="hover" style="margin-bottom: 20px">
       <div slot="header">
-        <span>👥 Skip用户列表 (共{{ skipUsers.length }}人，待应用{{ pendingSkipUsersCount }}人)</span>
+        <span>{{ $t('m.Rating_Skip_User_List_Header', { total: skipUsers.length, pending: pendingSkipUsersCount }) }}</span>
         <el-button
           type="primary"
           icon="el-icon-plus"
@@ -59,93 +59,93 @@
           style="float: right"
           @click="showBatchSkipDialog = true"
         >
-          批量Skip用户
+          {{ $t('m.Rating_Batch_Skip_Users') }}
         </el-button>
       </div>
 
       <el-table :data="skipUsers" stripe style="width: 100%">
-        <el-table-column prop="username" label="用户名" width="150" />
+        <el-table-column prop="username" :label="$t('m.Rating_Username_Label')" width="150" />
         <el-table-column prop="uid" label="UID" width="200" />
-        <el-table-column prop="reason" label="Skip原因" />
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="reason" :label="$t('m.Rating_Skip_Reason')" />
+        <el-table-column :label="$t('m.Rating_Status')" width="100">
           <template slot-scope="{ row }">
-            <el-tag v-if="row.isApplied" type="success">已应用</el-tag>
-            <el-tag v-else type="warning">待应用</el-tag>
+            <el-tag v-if="row.isApplied" type="success">{{ $t('m.Rating_Applied') }}</el-tag>
+            <el-tag v-else type="warning">{{ $t('m.Rating_Pending_Apply') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="operatorUsername" label="操作人" width="120" />
-        <el-table-column label="操作时间" width="180">
+        <el-table-column prop="operatorUsername" :label="$t('m.Rating_Operator')" width="120" />
+        <el-table-column :label="$t('m.Rating_Operation_Time')" width="180">
           <template slot-scope="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column :label="$t('m.Rating_Actions')" width="100">
           <template slot-scope="{ row }">
-            <el-button type="danger" size="mini" @click="handleCancelSkip(row)">取消</el-button>
+            <el-button type="danger" size="mini" @click="handleCancelSkip(row)">{{ $t('m.Rating_Cancel') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="skipUsers.length === 0" description="暂无Skip用户" />
+      <el-empty v-if="skipUsers.length === 0" :description="$t('m.Rating_No_Skip_Users')" />
     </el-card>
 
     <!-- Rating重算 -->
     <el-card v-if="selectedContestId" shadow="hover">
       <div slot="header">
-        <span>🔄 比赛Rating重算</span>
+        <span>{{ $t('m.Rating_Contest_Rating_Recalc') }}</span>
       </div>
 
       <!-- 显示重算状态提示 -->
       <el-alert
         v-if="pendingSkipUsersCount > 0"
-        title="检测到本比赛有待应用的Skip用户"
+        :title="$t('m.Rating_Pending_Skip_Detected')"
         type="warning"
         :closable="false"
         style="margin-bottom: 20px"
       >
         <template slot="default">
-          <p><strong>当前状态：</strong>有 {{ pendingSkipUsersCount }} 名Skip用户等待应用</p>
-          <p style="margin-top: 10px"><strong>点击"开始重算"后将执行：</strong></p>
+          <p><strong>{{ $t('m.Rating_Current_Status') }}</strong>{{ $t('m.Rating_Pending_Waiting_Apply', { count: pendingSkipUsersCount }) }}</p>
+          <p style="margin-top: 10px"><strong>{{ $t('m.Rating_Start_Recalc_Will_Execute') }}</strong></p>
           <ol style="margin: 10px 0 0 20px; padding: 0">
-            <li>重新计算本比赛Rating（Skip用户不计入）</li>
-            <li>将Skip用户标记为"已应用"状态</li>
-            <li>级联重算后续比赛</li>
+            <li>{{ $t('m.Rating_Recalc_Step_1') }}</li>
+            <li>{{ $t('m.Rating_Recalc_Step_2') }}</li>
+            <li>{{ $t('m.Rating_Cascade_Recalculate_Following') }}</li>
           </ol>
         </template>
       </el-alert>
       <el-alert
         v-else-if="needRecalculate"
-        title="⚠️ 检测到Rating数据需要重算"
+        :title="$t('m.Rating_Rating_Data_Needs_Recalc')"
         type="warning"
         :closable="false"
         style="margin-bottom: 20px"
       >
         <template slot="default">
-          <p><strong>当前状态：</strong>Skip数据已被修改，但Rating尚未重新计算</p>
+          <p><strong>{{ $t('m.Rating_Current_Status') }}</strong>{{ $t('m.Rating_Skip_Data_Changed') }}</p>
           <p style="margin-top: 10px">
-            <strong>上次计算时间：</strong>{{ formatDateTime(currentContest?.calculatedAt) }}
+            <strong>{{ $t('m.Rating_Last_Calculated_At') }}</strong>{{ formatDateTime(currentContest?.calculatedAt) }}
           </p>
           <p style="margin-top: 5px">
-            <strong>Skip最后修改：</strong>{{ formatDateTime(currentContest?.skipDataChangedAt) }}
+            <strong>{{ $t('m.Rating_Skip_Last_Modified') }}</strong>{{ formatDateTime(currentContest?.skipDataChangedAt) }}
           </p>
           <p style="margin-top: 10px; color: #E6A23C;">
-            <strong>建议：</strong>点击"开始重算"按钮应用最新的Skip配置
+            <strong>{{ $t('m.Rating_Suggestion') }}</strong>{{ $t('m.Rating_Apply_Latest_Skip') }}
           </p>
         </template>
       </el-alert>
       <el-alert
         v-else
-        title="手动触发重算"
+        :title="$t('m.Rating_Manual_Recalc')"
         type="info"
         :closable="false"
         style="margin-bottom: 20px"
       >
         <template slot="default">
-          <p><strong>当前状态：</strong>Rating数据是最新的</p>
-          <p style="margin-top: 10px"><strong>点击"开始重算"后将执行：</strong></p>
+          <p><strong>{{ $t('m.Rating_Current_Status') }}</strong>{{ $t('m.Rating_Rating_Up_To_Date') }}</p>
+          <p style="margin-top: 10px"><strong>{{ $t('m.Rating_Start_Recalc_Will_Execute') }}</strong></p>
           <ol style="margin: 10px 0 0 20px; padding: 0">
-            <li>重新计算本比赛Rating（包括所有参赛用户）</li>
-            <li>级联重算后续比赛</li>
+            <li>{{ $t('m.Rating_Recalc_Step_1_All') }}</li>
+            <li>{{ $t('m.Rating_Cascade_Recalculate_Following') }}</li>
           </ol>
         </template>
       </el-alert>
@@ -156,93 +156,93 @@
         :disabled="recalculateLock"
         @click="handleRecalculate"
       >
-        <i class="el-icon-refresh"></i> 开始重算
+        <i class="el-icon-refresh"></i> {{ $t('m.Rating_Start_Recalculate') }}
       </el-button>
-      <el-tag v-if="recalculateLock" type="danger" style="margin-left: 10px">正在进行重算</el-tag>
+      <el-tag v-if="recalculateLock" type="danger" style="margin-left: 10px">{{ $t('m.Rating_Recalculating') }}</el-tag>
     </el-card>
 
     <!-- 批量Skip弹窗 -->
     <el-dialog
-      title="批量Skip用户"
+      :title="$t('m.Rating_Batch_Skip_Users')"
       :visible.sync="showBatchSkipDialog"
       width="600px"
       :close-on-click-modal="false"
     >
       <el-alert
-        title="💡 批量处理提示"
+        :title="$t('m.Rating_Batch_Tip')"
         type="info"
         :closable="false"
         style="margin-bottom: 20px"
       >
         <ul style="margin: 10px 0 0 20px; padding: 0">
-          <li>支持一次跳过多个用户，只需重算一次</li>
-          <li>重复用户会自动过滤，不会重复skip</li>
-          <li>建议一次性输入所有需要skip的用户名</li>
+          <li>{{ $t('m.Rating_Batch_Tip_1') }}</li>
+          <li>{{ $t('m.Rating_Batch_Tip_2') }}</li>
+          <li>{{ $t('m.Rating_Batch_Tip_3') }}</li>
         </ul>
       </el-alert>
 
       <el-form :model="skipForm" label-width="100px">
-        <el-form-item label="用户名列表">
+        <el-form-item :label="$t('m.Rating_Username_List')">
           <el-input
             type="textarea"
             v-model="skipForm.usernames"
             :rows="8"
-            placeholder="输入格式说明：每行输入一个用户名。例如第一行输入zhangsan，第二行输入lisi。也可以直接从Excel复制用户名列粘贴到这里。"
+            :placeholder="$t('m.Rating_Username_Format_Tip')"
           />
           <div class="form-tip">
             <i class="el-icon-info"></i>
-            已输入 <strong>{{ usernameLines.length }}</strong> 个用户名（每行一个）
+            {{ $t('m.Rating_Entered_Prefix') }} <strong>{{ usernameLines.length }}</strong> {{ $t('m.Rating_Entered_Suffix') }}
             <el-tag v-if="duplicateCount > 0" type="warning" size="small">
-              检测到 {{ duplicateCount }} 个重复
+              {{ $t('m.Rating_Duplicates_Detected', { count: duplicateCount }) }}
             </el-tag>
           </div>
         </el-form-item>
 
-        <el-form-item label="Skip原因">
+        <el-form-item :label="$t('m.Rating_Skip_Reason')">
           <el-select v-model="skipForm.reason" filterable allow-create style="width: 100%">
-            <el-option label="代码抄袭" value="代码抄袭" />
-            <el-option label="代打作弊" value="代打作弊" />
-            <el-option label="AI作弊" value="AI作弊" />
-            <el-option label="账号共享" value="账号共享" />
+            <el-option :label="$t('m.Rating_Reason_Code_Plagiarism')" value="代码抄袭" />
+            <el-option :label="$t('m.Rating_Reason_Proxy_Competing')" value="代打作弊" />
+            <el-option :label="$t('m.Rating_Reason_AI_Cheating')" value="AI作弊" />
+            <el-option :label="$t('m.Rating_Reason_Account_Sharing')" value="账号共享" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="重算设置">
+        <el-form-item :label="$t('m.Rating_Recalc_Settings')">
           <el-checkbox v-model="skipForm.autoRecalc">
-            Skip后自动重算Rating
+            {{ $t('m.Rating_Auto_Recalc_After_Skip') }}
           </el-checkbox>
           <div class="form-tip" v-if="skipForm.autoRecalc">
             <el-alert
-              title="⚠️ 重要提示"
+              :title="$t('m.Rating_Important_Tip')"
               type="warning"
               :closable="false"
               style="margin-top: 10px"
             >
               <div style="line-height: 1.8">
-                <p><strong>重算将影响以下比赛：</strong></p>
+                <p><strong>{{ $t('m.Rating_Recalc_Will_Affect') }}</strong></p>
                 <ul style="margin: 5px 0 0 20px; padding: 0">
-                  <li>从本比赛开始，<strong>级联重算所有后续比赛</strong></li>
-                  <li>每个被重算的比赛都会重新计算所有参赛者的Rating</li>
-                  <li>Skip的用户不计入Rating计算</li>
-                  <li>预计耗时：{{ estimatedTime }}</li>
+                  <li>{{ $t('m.Rating_From_This_Contest') }}<strong>{{ $t('m.Rating_Cascade_Recalc_All_Following') }}</strong></li>
+                  <li>{{ $t('m.Rating_Recalc_Affect_2') }}</li>
+                  <li>{{ $t('m.Rating_Recalc_Affect_3') }}</li>
+                  <li>{{ $t('m.Rating_Estimated_Time', { time: estimatedTime }) }}</li>
                 </ul>
               </div>
             </el-alert>
           </div>
           <div class="form-tip" v-else style="margin-top: 10px">
             <el-alert
-              title="💡 工作流程说明"
+              :title="$t('m.Rating_Workflow_Expl')"
               type="info"
               :closable="false"
             >
               <div style="line-height: 1.8">
-                <p><strong>当前设置：</strong>不勾选自动重算</p>
-                <p style="margin-top: 10px"><strong>操作流程：</strong></p>
+                <p><strong>{{ $t('m.Rating_Current_Settings') }}</strong>{{ $t('m.Rating_Auto_Recalc_Unchecked') }}</p>
+                <p style="margin-top: 10px"><strong>{{ $t('m.Rating_Operation_Steps') }}</strong></p>
                 <ol style="margin: 5px 0 0 20px; padding: 0">
-                  <li>添加Skip用户（状态为"待应用"）</li>
-                  <li>继续添加其他需要Skip的用户</li>
-                  <li>所有用户添加完后，点击"开始重算"按钮</li>
-                  <li>重算完成后，Skip用户状态变为"已应用"</li>
+                  <li>{{ $t('m.Rating_Workflow_Step_1') }}</li>
+                  <li>{{ $t('m.Rating_Workflow_Step_2') }}</li>
+                  <li>{{ $t('m.Rating_Workflow_Step_3') }}</li>
+                  <li>{{ $t('m.Rating_Workflow_Step_4') }}</li>
                 </ol>
               </div>
             </el-alert>
@@ -251,16 +251,16 @@
       </el-form>
 
       <div slot="footer">
-        <el-button @click="showBatchSkipDialog = false">取消</el-button>
+        <el-button @click="showBatchSkipDialog = false">{{ $t('m.Rating_Cancel') }}</el-button>
         <el-button type="primary" :loading="skipSubmitting" @click="handleBatchSkip">
-          确认Skip
+          {{ $t('m.Rating_Confirm_Skip') }}
         </el-button>
       </div>
     </el-dialog>
 
     <!-- 重算进度弹窗 -->
     <el-dialog
-      title="Rating重算中..."
+      :title="$t('m.Rating_Recalculating_Title')"
       :visible.sync="showProgressDialog"
       width="500px"
       :close-on-click-modal="false"
@@ -275,19 +275,19 @@
             </el-icon>
             <span>{{ contest.title }}</span>
             <el-tag v-if="contest.status === 'calculating'" size="mini" type="warning">
-              计算中...
+              {{ $t('m.Rating_Calculating') }}
             </el-tag>
           </div>
         </div>
 
         <div class="time-info">
-          状态: {{ progressStatus === 'success' ? '已完成' : progressStatus === 'exception' ? '失败' : '计算中...' }}
+          {{ $t('m.Rating_Status_Label') }}{{ progressStatus === 'success' ? $t('m.Rating_Completed') : progressStatus === 'exception' ? $t('m.Rating_Failed') : $t('m.Rating_Calculating') }}
         </div>
       </div>
 
       <div slot="footer">
         <el-button @click="showProgressDialog = false" :disabled="progressStatus === ''">
-          {{ progressStatus === '' ? '重算中...' : '关闭' }}
+          {{ progressStatus === '' ? $t('m.Rating_Recalculating_Dots') : $t('m.Rating_Close') }}
         </el-button>
       </div>
     </el-dialog>
@@ -333,7 +333,7 @@ export default {
       return this.usernameLines.length - unique.size
     },
     estimatedTime() {
-      return '约30秒-2分钟'
+      return this.$t('m.Rating_Estimated_Time_Value')
     },
     pendingSkipUsersCount() {
       return this.skipUsers.filter(u => !u.isApplied).length
@@ -418,7 +418,7 @@ export default {
           console.error('解析响应失败:', e)
           console.log('响应状态:', fetchResponse.status)
           console.log('响应头:', Object.fromEntries(fetchResponse.headers.entries()))
-          throw new Error('响应解析失败: ' + responseText)
+          throw new Error(this.$t('m.Rating_Parse_Response_Failed') + responseText)
         }
         console.log('Rating状态响应:', ratingResponse)
 
@@ -452,7 +452,7 @@ export default {
         }
       } catch (error) {
         console.error('加载比赛列表失败:', error)
-        this.$message.error('加载比赛列表失败: ' + error.message)
+        this.$message.error(this.$t('m.Rating_Load_Contests_Failed') + error.message)
       }
     },
 
@@ -546,7 +546,7 @@ export default {
         console.error('❌ 加载Skip用户失败:', error)
         // 如果是取消请求，不显示错误
         if (error.message !== 'cancel') {
-          this.$message.error('加载Skip用户失败: ' + error.message)
+          this.$message.error(this.$t('m.Rating_Load_Skip_Users_Failed') + error.message)
         }
       }
     },
@@ -554,35 +554,32 @@ export default {
     // 批量Skip
     async handleBatchSkip() {
       if (this.usernameLines.length === 0) {
-        this.$message.warning('请输入用户名')
+        this.$message.warning(this.$t('m.Rating_Enter_Username'))
         return
       }
 
       if (!this.skipForm.reason) {
-        this.$message.warning('请选择或输入Skip原因')
+        this.$message.warning(this.$t('m.Rating_Select_Or_Input_Reason'))
         return
       }
 
       // 显示确认提示
       const autoRecalcText = this.skipForm.autoRecalc
-        ? '<b style="color: #67C23A;">✓ 自动重算</b>：Skip后自动触发重算'
-        : '<b style="color: #E6A23C;">⚠️ 需手动重算</b>：Skip后需要手动点击"开始重算"按钮'
+        ? this.$t('m.Rating_Auto_Recalc_Text')
+        : this.$t('m.Rating_Manual_Recalc_Text')
 
       try {
         await this.$msgbox({
-          title: '确认批量Skip',
-          message: `确定要Skip以下 <b>${this.usernameLines.length}</b> 个用户吗？<br><br>
-            用户列表：<b>${this.usernameLines.join(', ')}</b><br><br>
-            Skip原因：<b>${this.skipForm.reason}</b><br><br>
-            ${autoRecalcText}<br><br>
-            <b style="color: #E6A23C;">⚠️ 重要提示：</b><br>
-            1. 这些用户将被标记为作弊，不参与本次比赛的Rating计算<br>
-            2. 如果开启自动重算，将<b>重新计算本场比赛及后续所有比赛</b>的Rating<br>
-            3. 被Skip的用户在本次比赛中Rating变化将显示为红色的"SKIP"<br>
-            4. 这是一个<b>不可逆操作</b>，请谨慎操作`,
+          title: this.$t('m.Rating_Confirm_Batch_Skip'),
+          message: this.$t('m.Rating_Confirm_Batch_Skip_Message', {
+            count: this.usernameLines.length,
+            users: this.usernameLines.join(', '),
+            reason: this.skipForm.reason,
+            autoRecalcText: autoRecalcText
+          }),
           dangerouslyUseHTMLString: true,
-          confirmButtonText: '确定Skip',
-          cancelButtonText: '我再想想',
+          confirmButtonText: this.$t('m.Rating_Confirm_Skip'),
+          cancelButtonText: this.$t('m.Rating_Let_Me_Think'),
           type: 'warning',
           distinguishCancelAndClose: true
         })
@@ -603,13 +600,13 @@ export default {
         // 显示结果
         let message = ''
         if (result.successUsers.length > 0) {
-          message += `✓ 成功添加: ${result.successUsers.length}人（状态：待应用）\n\n`
+          message += this.$t('m.Rating_Add_Success_Count', { count: result.successUsers.length })
         }
         if (result.duplicatedUsers.length > 0) {
-          message += `⊗ 重复: ${result.duplicatedUsers.join(', ')}\n`
+          message += this.$t('m.Rating_Duplicated_List', { users: result.duplicatedUsers.join(', ') })
         }
         if (result.failedUsers.length > 0) {
-          message += `✗ 失败: ${result.failedUsers.join(', ')}`
+          message += this.$t('m.Rating_Failed_List', { users: result.failedUsers.join(', ') })
         }
 
         // 根据结果决定消息类型
@@ -620,7 +617,7 @@ export default {
           messageType = 'warning'
         }
 
-        this.$alert(message, 'Skip结果', { type: messageType })
+        this.$alert(message, this.$t('m.Rating_Skip_Result'), { type: messageType })
         this.showBatchSkipDialog = false
         this.skipForm.usernames = ''
 
@@ -632,7 +629,7 @@ export default {
         // 如果没有勾选自动重算，提示用户需要手动重算
         if (result.successUsers.length > 0 && !this.skipForm.autoRecalc) {
           this.$message({
-            message: 'Skip用户已添加，请点击"开始重算"按钮应用更改',
+            message: this.$t('m.Rating_Skip_Added_Click_Recalc'),
             type: 'info',
             duration: 5000
           })
@@ -643,7 +640,7 @@ export default {
           this.startPollingProgress(result.taskId)
         }
       } catch (error) {
-        this.$message.error('Skip失败: ' + error.message)
+        this.$message.error(this.$t('m.Rating_Skip_Failed') + error.message)
       } finally {
         this.skipSubmitting = false
       }
@@ -652,35 +649,29 @@ export default {
     // 取消Skip
     async handleCancelSkip(row) {
       this.$msgbox({
-        title: '确认取消Skip',
-        message: `确定要取消用户 <b>${row.username}</b> 的Skip标记吗？<br><br>
-          <b style="color: #E6A23C;">⚠️ 重要提示：</b><br>
-          1. 取消Skip后，该用户将从Skip列表中移除<br>
-          2. 需要手动点击<b>"开始重算"</b>按钮来重新计算Rating<br>
-          3. 重算将从本场比赛开始，影响所有后续比赛<br>
-          4. 建议完成所有Skip修改后，再统一点击"开始重算"<br>
-          5. 这是一个<b>不可逆操作</b>，请谨慎操作`,
+        title: this.$t('m.Rating_Confirm_Cancel_Skip'),
+        message: this.$t('m.Rating_Confirm_Cancel_Skip_Message', { username: row.username }),
         dangerouslyUseHTMLString: true,
-        confirmButtonText: '确定取消',
-        cancelButtonText: '我再想想',
+        confirmButtonText: this.$t('m.Rating_Confirm_Cancel'),
+        cancelButtonText: this.$t('m.Rating_Let_Me_Think'),
         type: 'warning',
         distinguishCancelAndClose: true
       }).then(async () => {
         try {
-          this.$message.info('正在取消Skip...')
+          this.$message.info(this.$t('m.Rating_Cancelling_Skip'))
           const result = await ratingApi.cancelSkip(this.selectedContestId, [row.uid])
 
           // 取消成功
           this.$message.success({
-            message: '取消Skip成功！请点击"开始重算"按钮应用更改',
+            message: this.$t('m.Rating_Cancel_Skip_Success'),
             duration: 5000
           })
           await this.loadSkipUsers()
           // 刷新比赛信息（获取最新的 skipDataChangedAt）
           await this.refreshContestInfo()
         } catch (error) {
-          const errorMsg = error.message || '未知错误'
-          this.$message.error('取消Skip失败: ' + errorMsg)
+          const errorMsg = error.message || this.$t('m.Rating_Unknown_Error')
+          this.$message.error(this.$t('m.Rating_Cancel_Skip_Failed') + errorMsg)
         }
       }).catch(() => {
         // 用户取消
@@ -690,17 +681,11 @@ export default {
     // 触发重算
     async handleRecalculate() {
       this.$msgbox({
-        title: '确认重算Rating',
-        message: `确定要重新计算比赛的Rating吗？<br><br>
-          <b style="color: #E6A23C;">⚠️ 重要提示：</b><br>
-          1. 系统<b>将从本场比赛开始</b>，重新计算所有后续比赛的Rating<br>
-          2. 所有参赛用户的Rating都会重新计算，分数会有变化<br>
-          3. 重算过程可能需要较长时间（取决于后续比赛数量）<br>
-          4. 重算期间相关比赛无法进行Rating操作<br>
-          5. 这是一个<b>不可逆操作</b>，请谨慎操作`,
+        title: this.$t('m.Rating_Confirm_Recalc'),
+        message: this.$t('m.Rating_Confirm_Recalc_Message'),
         dangerouslyUseHTMLString: true,
-        confirmButtonText: '确定重算',
-        cancelButtonText: '我再想想',
+        confirmButtonText: this.$t('m.Rating_Confirm_Recalc_Button'),
+        cancelButtonText: this.$t('m.Rating_Let_Me_Think'),
         type: 'warning',
         distinguishCancelAndClose: true
       }).then(async () => {
@@ -711,7 +696,7 @@ export default {
             console.log('正在同步 Skip 标记...')
             await ratingApi.syncContestSkipFlag(this.selectedContestId)
             console.log('Skip 标记同步成功')
-            this.$message.success('Skip 标记已同步')
+            this.$message.success(this.$t('m.Rating_Skip_Synced'))
           } catch (syncError) {
             console.warn('同步 Skip 标记失败（继续重算）:', syncError)
           }
@@ -721,19 +706,19 @@ export default {
           console.log('重算任务创建响应:', res)
 
           if (!res || !res.taskId) {
-            this.$message.error('重算任务创建失败: 未返回任务ID')
+            this.$message.error(this.$t('m.Rating_Task_Create_Failed_No_ID'))
             console.error('无效的响应:', res)
             return
           }
 
-          this.$message.success('重算任务已创建')
+          this.$message.success(this.$t('m.Rating_Task_Created'))
           this.recalculateLock = true
 
           // 开始轮询进度
           this.startPollingProgress(res.taskId)
         } catch (error) {
           console.error('创建重算任务失败:', error)
-          this.$message.error('创建重算任务失败: ' + error.message)
+          this.$message.error(this.$t('m.Rating_Task_Create_Failed') + error.message)
         } finally {
           this.recalculating = false
         }
@@ -766,13 +751,13 @@ export default {
 
             // 显示完成消息
             if (result.status === 'completed') {
-              this.$message.success('重算完成！')
+              this.$message.success(this.$t('m.Rating_Recalc_Complete'))
               // 刷新Skip用户列表
               await this.loadSkipUsers()
               // 刷新比赛信息（获取最新的 calculatedAt）
               await this.refreshContestInfo()
             } else {
-              this.$message.error('重算失败: ' + (result.errorMessage || '未知错误'))
+              this.$message.error(this.$t('m.Rating_Recalc_Failed') + (result.errorMessage || this.$t('m.Rating_Unknown_Error')))
             }
 
             // 如果是第一次查询就完成了（快速完成），延迟关闭进度条
@@ -792,7 +777,7 @@ export default {
           clearInterval(this.progressTimer)
           this.progressStatus = 'exception'
           this.recalculateLock = false
-          this.$message.error('查询进度失败: ' + error.message)
+          this.$message.error(this.$t('m.Rating_Query_Progress_Failed') + error.message)
         }
       }, 1000)
     },
@@ -838,7 +823,7 @@ export default {
 
     // 格式化日期时间（用于显示计算时间和修改时间）
     formatDateTime(dateStr) {
-      if (!dateStr) return '未计算'
+      if (!dateStr) return this.$t('m.Rating_Not_Calculated')
       const date = new Date(dateStr)
       return date.toLocaleString('zh-CN', {
         year: 'numeric',

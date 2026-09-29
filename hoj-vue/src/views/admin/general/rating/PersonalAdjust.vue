@@ -1,16 +1,16 @@
 <template>
   <div class="personal-adjust">
     <el-form ref="form" :model="form" :rules="rules" label-width="120px" @submit.native.prevent>
-      <el-form-item label="用户名" prop="username">
+      <el-form-item :label="$t('m.Rating_Username_Label')" prop="username">
         <el-input
           v-model="form.username"
-          placeholder="请输入要调整的用户名"
+          :placeholder="$t('m.Rating_Enter_Adjust_Username')"
           clearable
           @blur="fetchUserInfo"
         >
           <template slot="append">
             <el-button icon="el-icon-search" @click="fetchUserInfo" :loading="loadingUserInfo">
-              查询
+              {{ $t('m.Rating_Query') }}
             </el-button>
           </template>
         </el-input>
@@ -19,7 +19,7 @@
       <!-- 用户信息预览 -->
       <el-alert
         v-if="userInfo"
-        :title="`当前用户: ${form.username} | Rating: ${displayCurrentRating}`"
+        :title="$t('m.Rating_Current_User') + ': ' + form.username + ' | Rating: ' + displayCurrentRating"
         type="info"
         :closable="false"
         style="margin-bottom: 20px"
@@ -31,7 +31,7 @@
         </div>
       </el-alert>
 
-      <el-form-item label="Rating 变化" prop="ratingChange">
+      <el-form-item :label="$t('m.Rating_Rating_Change')" prop="ratingChange">
         <el-input-number
           v-model="form.ratingChange"
           :step="10"
@@ -49,7 +49,7 @@
         </span>
       </el-form-item>
 
-      <el-form-item label="调整后 Rating" v-if="userInfo">
+      <el-form-item :label="$t('m.Rating_Adjusted_Rating')" v-if="userInfo">
         <div>
           <span :style="{ color: getRatingColor(expectedRating), fontSize: '24px', fontWeight: 'bold' }">
             {{ expectedRating }}
@@ -60,29 +60,29 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="操作原因" prop="reason">
+      <el-form-item :label="$t('m.Rating_Operation_Reason')" prop="reason">
         <el-select
           v-model="form.reason"
-          placeholder="选择或输入操作原因"
+          :placeholder="$t('m.Rating_Select_Or_Input_Operation_Reason')"
           filterable
           allow-create
           style="width: 100%"
         >
-          <el-option label="比赛中使用AI作弊" value="比赛中使用AI作弊" />
-          <el-option label="账号违规" value="账号违规" />
-          <el-option label="代打作弊" value="代打作弊" />
-          <el-option label="发现系统漏洞奖励" value="发现系统漏洞奖励" />
-          <el-option label="贡献代码奖励" value="贡献代码奖励" />
-          <el-option label="其他原因" value="其他原因" />
+          <el-option :label="$t('m.Rating_Reason_AI_Cheating_In_Contest')" value="比赛中使用AI作弊" />
+          <el-option :label="$t('m.Rating_Reason_Account_Violation')" value="账号违规" />
+          <el-option :label="$t('m.Rating_Reason_Proxy_Competing')" value="代打作弊" />
+          <el-option :label="$t('m.Rating_Reason_Vuln_Reward')" value="发现系统漏洞奖励" />
+          <el-option :label="$t('m.Rating_Reason_Code_Contribution_Reward')" value="贡献代码奖励" />
+          <el-option :label="$t('m.Rating_Reason_Other')" value="其他原因" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="关联比赛（可选）">
+      <el-form-item :label="$t('m.Rating_Related_Contest_Optional')">
         <el-select
           v-model="form.relatedContestId"
           filterable
           clearable
-          placeholder="选择要关联的 Rating 比赛"
+          :placeholder="$t('m.Rating_Select_Related_Contest')"
           style="width: 100%"
           :loading="loadingContests"
         >
@@ -93,56 +93,56 @@
             :value="contest.id"
           />
         </el-select>
-        <div class="form-tip">关联后，重算时会在该场比赛计算完成后自动回放本次调整</div>
+        <div class="form-tip">{{ $t('m.Rating_Related_Contest_Tip') }}</div>
       </el-form-item>
 
       <el-form-item>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          <i class="el-icon-edit"></i> 确认调整
+          <i class="el-icon-edit"></i> {{ $t('m.Rating_Confirm_Adjust') }}
         </el-button>
         <el-button @click="handleReset">
-          <i class="el-icon-refresh-left"></i> 重置
+          <i class="el-icon-refresh-left"></i> {{ $t('m.Rating_Reset') }}
         </el-button>
       </el-form-item>
     </el-form>
 
     <!-- 调整历史记录 -->
     <el-divider></el-divider>
-    <h3>最近的手动调整记录</h3>
+    <h3>{{ $t('m.Rating_Recent_Adjustments') }}</h3>
     <el-table :data="history" v-loading="loadingHistory" stripe style="width: 100%">
-      <el-table-column prop="username" label="用户名" width="150" />
-      <el-table-column label="Rating 变化" width="150">
+      <el-table-column prop="username" :label="$t('m.Rating_Username_Label')" width="150" />
+      <el-table-column :label="$t('m.Rating_Rating_Change')" width="150">
         <template slot-scope="{ row }">
           <el-tag :type="row.rating_change > 0 ? 'success' : 'danger'" size="small">
             {{ row.rating_change > 0 ? '+' : '' }}{{ row.rating_change }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="变化详情" width="200">
+      <el-table-column :label="$t('m.Rating_Change_Detail')" width="200">
         <template slot-scope="{ row }">
           <span style="color: #909399">{{ row.old_rating }} → {{ row.new_rating }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="reason" label="操作原因" />
-      <el-table-column label="关联比赛" width="140">
+      <el-table-column prop="reason" :label="$t('m.Rating_Operation_Reason')" />
+      <el-table-column :label="$t('m.Rating_Related_Contest')" width="140">
         <template slot-scope="{ row }">
           <span v-if="row.relatedContestId">#{{ row.relatedContestId }}</span>
           <span v-else style="color: #909399">-</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="110">
+      <el-table-column :label="$t('m.Rating_Status')" width="110">
         <template slot-scope="{ row }">
-          <el-tag v-if="row.isCanceled" type="info" size="small">已撤销</el-tag>
-          <el-tag v-else type="success" size="small">生效中</el-tag>
+          <el-tag v-if="row.isCanceled" type="info" size="small">{{ $t('m.Rating_Revoked') }}</el-tag>
+          <el-tag v-else type="success" size="small">{{ $t('m.Rating_Active') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="operator_uid" label="操作人" width="120" />
-      <el-table-column label="操作时间" width="180">
+      <el-table-column prop="operator_uid" :label="$t('m.Rating_Operator')" width="120" />
+      <el-table-column :label="$t('m.Rating_Operation_Time')" width="180">
         <template slot-scope="{ row }">
           {{ formatDate(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="130">
+      <el-table-column :label="$t('m.Rating_Actions')" width="130">
         <template slot-scope="{ row }">
           <el-button
             type="danger"
@@ -152,13 +152,13 @@
             :loading="cancelingId === row.id"
             @click="handleCancelAdjust(row)"
           >
-            取消调整
+            {{ $t('m.Rating_Cancel_Adjustment') }}
           </el-button>
         </template>
       </el-table-column>
     </el-table>
     <div style="text-align: right; margin-top: 10px">
-      <el-button type="text" icon="el-icon-refresh" @click="fetchHistory">刷新</el-button>
+      <el-button type="text" icon="el-icon-refresh" @click="fetchHistory">{{ $t('m.Rating_Refresh') }}</el-button>
     </div>
   </div>
 </template>
@@ -179,13 +179,13 @@ export default {
         relatedContestId: null
       },
       rules: {
-        username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+        username: [{ required: true, message: this.$t('m.Rating_Enter_Username'), trigger: 'blur' }],
         ratingChange: [
-          { required: true, message: '请输入Rating变化值', trigger: 'blur' },
+          { required: true, message: this.$t('m.Rating_Enter_Rating_Change'), trigger: 'blur' },
           {
             validator: (rule, value, callback) => {
               if (value === 0) {
-                callback(new Error('Rating变化值不能为0'))
+                callback(new Error(this.$t('m.Rating_Rating_Change_Not_Zero')))
               } else {
                 callback()
               }
@@ -193,7 +193,7 @@ export default {
             trigger: 'blur'
           }
         ],
-        reason: [{ required: true, message: '请输入或选择操作原因', trigger: 'change' }]
+        reason: [{ required: true, message: this.$t('m.Rating_Enter_Or_Select_Reason'), trigger: 'change' }]
       },
       userInfo: null,
       loadingUserInfo: false,
@@ -259,10 +259,10 @@ export default {
           })
           .map(contest => ({
             id: Number(contest.id),
-            title: contest.title || contest.name || '未命名比赛'
+            title: contest.title || contest.name || this.$t('m.Rating_Untitled_Contest')
           }))
       } catch (error) {
-        this.$message.warning('加载比赛列表失败，仍可不关联比赛进行调整')
+        this.$message.warning(this.$t('m.Rating_Load_Contests_Fallback'))
       } finally {
         this.loadingContests = false
       }
@@ -271,7 +271,7 @@ export default {
     // 查询用户信息
     async fetchUserInfo() {
       if (!this.form.username) {
-        this.$message.warning('请先输入用户名')
+        this.$message.warning(this.$t('m.Rating_Enter_Username_First'))
         return
       }
 
@@ -294,14 +294,14 @@ export default {
           this.userInfo = res
         } else {
           console.error('无法解析响应，res:', res)
-          throw new Error('响应格式不正确，无法获取rating信息')
+          throw new Error(this.$t('m.Rating_Response_Format_Invalid'))
         }
 
         console.log('设置的userInfo:', this.userInfo)
-        this.$message.success('查询成功')
+        this.$message.success(this.$t('m.Rating_Query_Success'))
       } catch (error) {
         console.error('查询失败详细错误:', error)
-        this.$message.error('查询用户信息失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+        this.$message.error(this.$t('m.Rating_Query_User_Failed') + (error.response?.data?.message || error.message || this.$t('m.Rating_Unknown_Error')))
         this.userInfo = null
       } finally {
         this.loadingUserInfo = false
@@ -316,7 +316,7 @@ export default {
         }
 
         if (!this.userInfo) {
-          this.$message.warning('请先查询用户信息')
+          this.$message.warning(this.$t('m.Rating_Query_User_First'))
           return
         }
 
@@ -337,9 +337,9 @@ export default {
           const newRating = adjustResult.newRating ?? this.expectedRating
           const realChange = adjustResult.ratingChange ?? this.form.ratingChange
 
-          this.$message.success('调整成功！')
+          this.$message.success(this.$t('m.Rating_Adjust_Success'))
           this.$notify({
-            title: 'Rating 调整成功',
+            title: this.$t('m.Rating_Adjust_Success_Title'),
             message: `${this.form.username}: ${oldRating} → ${newRating} (${realChange > 0 ? '+' : ''}${realChange})`,
             type: 'success',
             duration: 5000
@@ -352,7 +352,7 @@ export default {
           // 重置表单
           this.handleReset()
         } catch (error) {
-          this.$message.error('调整失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+          this.$message.error(this.$t('m.Rating_Adjust_Failed') + (error.response?.data?.message || error.message || this.$t('m.Rating_Unknown_Error')))
         } finally {
           this.submitting = false
         }
@@ -375,7 +375,7 @@ export default {
         this.history = response.data.data.records || []
       } catch (error) {
         console.error('查询历史记录失败:', error)
-        this.$message.warning('查询历史记录失败')
+        this.$message.warning(this.$t('m.Rating_Query_History_Failed'))
       } finally {
         this.loadingHistory = false
       }
@@ -385,17 +385,21 @@ export default {
     async handleCancelAdjust(row) {
       if (!row || !row.id) return
       if (row.isCanceled) {
-        this.$message.info('该调整已撤销')
+        this.$message.info(this.$t('m.Rating_Adjust_Already_Revoked'))
         return
       }
 
       try {
         await this.$confirm(
-          `确定要取消这条调整吗？\n用户：${row.username}\n变化：${row.rating_change > 0 ? '+' : ''}${row.rating_change}\n原因：${row.reason}`,
-          '确认取消调整',
+          this.$t('m.Rating_Confirm_Cancel_Adjust_Message', {
+            username: row.username,
+            change: (row.rating_change > 0 ? '+' : '') + row.rating_change,
+            reason: row.reason
+          }),
+          this.$t('m.Rating_Confirm_Cancel_Adjust'),
           {
-            confirmButtonText: '确定取消',
-            cancelButtonText: '我再想想',
+            confirmButtonText: this.$t('m.Rating_Confirm_Cancel'),
+            cancelButtonText: this.$t('m.Rating_Let_Me_Think'),
             type: 'warning'
           }
         )
@@ -408,13 +412,13 @@ export default {
         await axios.post('/api/rating/admin/adjust/cancel', {
           adjustmentId: row.id
         })
-        this.$message.success('取消调整成功')
+        this.$message.success(this.$t('m.Rating_Cancel_Adjust_Success'))
         await this.fetchHistory()
         if (this.form.username && this.form.username === row.username) {
           await this.fetchUserInfo()
         }
       } catch (error) {
-        this.$message.error('取消调整失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+        this.$message.error(this.$t('m.Rating_Cancel_Adjust_Failed') + (error.response?.data?.message || error.message || this.$t('m.Rating_Unknown_Error')))
       } finally {
         this.cancelingId = null
       }

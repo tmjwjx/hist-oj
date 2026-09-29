@@ -2,43 +2,43 @@
   <div class="admin-learning-map-editor" v-loading="loading.full">
     <el-card>
       <div slot="header" class="header-row">
-        <span class="panel-title home-title">航海图编辑器 - {{ mapInfo.title || `#${mapId}` }}</span>
+        <span class="panel-title home-title">{{ $t('m.MapAdm_Editor') }} - {{ mapInfo.title || `#${mapId}` }}</span>
         <div>
-          <el-button size="small" @click="goList">返回列表</el-button>
+          <el-button size="small" @click="goList">{{ $t('m.MapAdm_Back_To_List') }}</el-button>
           <el-button
             size="small"
             :type="mapInfo.status === 'published' ? 'warning' : 'success'"
             @click="toggleMapStatus"
           >
-            {{ mapInfo.status === 'published' ? '隐藏' : '发布' }}
+            {{ mapInfo.status === 'published' ? $t('m.MapAdm_Hide') : $t('m.MapAdm_Publish') }}
           </el-button>
         </div>
       </div>
 
       <el-form label-width="80px" class="map-meta-form">
-        <el-form-item label="标题">
+        <el-form-item :label="$t('m.MapAdm_Title_Field')">
           <el-input
             v-model="mapInfo.title"
             maxlength="120"
             show-word-limit
-            placeholder="请输入航海图标题"
+            :placeholder="$t('m.MapAdm_Title_Input_Placeholder')"
             @blur="syncMapMeta"
           ></el-input>
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="$t('m.MapAdm_Description')">
           <el-input
             type="textarea"
             :rows="2"
             v-model="mapInfo.description"
-            placeholder="请输入航海图描述"
+            :placeholder="$t('m.MapAdm_Description_Input_Placeholder')"
             @blur="syncMapMeta"
           ></el-input>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="$t('m.MapAdm_Status')">
           <el-tag size="mini" :type="mapInfo.status === 'published' ? 'success' : 'info'">
-            {{ mapInfo.status === 'published' ? '已发布' : '已隐藏' }}
+            {{ mapInfo.status === 'published' ? $t('m.MapAdm_Published') : $t('m.MapAdm_Hidden') }}
           </el-tag>
-          <span class="meta-saving" v-if="savingMeta">正在保存...</span>
+          <span class="meta-saving" v-if="savingMeta">{{ $t('m.MapAdm_Saving') }}</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -47,10 +47,10 @@
       <el-col :md="16" :sm="24">
         <el-card>
           <div slot="header" class="header-row">
-            <span>地图画布（拖拽节点调整坐标）</span>
+            <span>{{ $t('m.MapAdm_Map_Canvas') }}</span>
             <div>
-              <el-button size="mini" type="primary" @click="openCreateNode('knowledge')">新增知识点</el-button>
-              <el-button size="mini" type="warning" @click="openCreateNode('problem')">新增题目节点</el-button>
+              <el-button size="mini" type="primary" @click="openCreateNode('knowledge')">{{ $t('m.MapAdm_Add_Knowledge') }}</el-button>
+              <el-button size="mini" type="warning" @click="openCreateNode('problem')">{{ $t('m.MapAdm_Add_Problem_Node') }}</el-button>
             </div>
           </div>
           <LearningMapCanvas
@@ -69,12 +69,12 @@
       <el-col :md="8" :sm="24">
         <el-card>
           <div slot="header" class="header-row">
-            <span>节点与连线管理</span>
-            <el-button size="mini" icon="el-icon-refresh" @click="loadMap">刷新</el-button>
+            <span>{{ $t('m.MapAdm_Node_Edge_Management') }}</span>
+            <el-button size="mini" icon="el-icon-refresh" @click="loadMap">{{ $t('m.MapAdm_Refresh') }}</el-button>
           </div>
 
           <div class="panel-section">
-            <div class="section-title">节点列表</div>
+            <div class="section-title">{{ $t('m.MapAdm_Node_List') }}</div>
             <el-scrollbar class="admin-list-scroll node-list-scroll">
               <div
                 v-for="node in nodes"
@@ -87,40 +87,40 @@
                   <span class="node-title">{{ node.title }}</span>
                 </div>
                 <div class="node-actions">
-                  <el-button size="mini" type="text" @click="openEditNode(node)">编辑</el-button>
-                  <el-button size="mini" type="text" style="color:#f56c6c" @click="removeNode(node)">删</el-button>
+                  <el-button size="mini" type="text" @click="openEditNode(node)">{{ $t('m.MapAdm_Edit') }}</el-button>
+                  <el-button size="mini" type="text" style="color:#f56c6c" @click="removeNode(node)">{{ $t('m.MapAdm_Delete_Short') }}</el-button>
                 </div>
               </div>
             </el-scrollbar>
           </div>
 
           <div class="panel-section">
-            <div class="section-title">新增连线</div>
+            <div class="section-title">{{ $t('m.MapAdm_Add_Edge') }}</div>
             <el-form label-width="70px" size="mini">
-              <el-form-item label="起点">
+              <el-form-item :label="$t('m.MapAdm_Start_Point')">
                 <el-select v-model="edgeForm.sourceNodeId" filterable style="width: 100%;">
                   <el-option v-for="n in nodes" :key="`s-${n.id}`" :label="n.title" :value="n.id"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="终点">
+              <el-form-item :label="$t('m.MapAdm_End_Point')">
                 <el-select v-model="edgeForm.targetNodeId" filterable style="width: 100%;">
                   <el-option v-for="n in nodes" :key="`t-${n.id}`" :label="n.title" :value="n.id"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="类型">
+              <el-form-item :label="$t('m.MapAdm_Type')">
                 <el-select v-model="edgeForm.type" style="width: 100%;">
-                  <el-option label="前置依赖（强）" value="prerequisite"></el-option>
-                  <el-option label="关联（弱）" value="related"></el-option>
+                  <el-option :label="$t('m.MapAdm_Prerequisite_Strong')" value="prerequisite"></el-option>
+                  <el-option :label="$t('m.MapAdm_Related_Weak')" value="related"></el-option>
                 </el-select>
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" size="mini" style="width:100%" @click="createEdge">创建连线</el-button>
+                <el-button type="primary" size="mini" style="width:100%" @click="createEdge">{{ $t('m.MapAdm_Create_Edge') }}</el-button>
               </el-form-item>
             </el-form>
           </div>
 
           <div class="panel-section">
-            <div class="section-title">连线列表</div>
+            <div class="section-title">{{ $t('m.MapAdm_Edge_List') }}</div>
             <el-scrollbar class="admin-list-scroll edge-list-scroll">
               <div v-for="edge in edges" :key="edge.id" class="edge-item">
                 <div class="edge-text">
@@ -129,20 +129,20 @@
                   {{ nodeTitleMap[edge.targetNodeId] || edge.targetNodeId }}
                   <el-tag size="mini" type="info">{{ edgeTypeLabel(edge.type) }}</el-tag>
                 </div>
-                <el-button size="mini" type="text" style="color:#f56c6c" @click="removeEdge(edge)">删</el-button>
+                <el-button size="mini" type="text" style="color:#f56c6c" @click="removeEdge(edge)">{{ $t('m.MapAdm_Delete_Short') }}</el-button>
               </div>
             </el-scrollbar>
           </div>
 
           <div class="panel-section">
-            <div class="section-title">使用权限控制</div>
+            <div class="section-title">{{ $t('m.MapAdm_Access_Control') }}</div>
             <div class="permission-mode-row">
               <el-tag size="mini" :type="permissionMode === 'all_open' ? 'success' : 'warning'">
                 {{ accessModeLabel(permissionMode) }}
               </el-tag>
               <div class="permission-mode-actions">
-                <el-button size="mini" type="success" @click="setAccessMode('all_open')">全部开启</el-button>
-                <el-button size="mini" type="warning" @click="setAccessMode('all_closed')">全部关闭</el-button>
+                <el-button size="mini" type="success" @click="setAccessMode('all_open')">{{ $t('m.MapAdm_Open_All') }}</el-button>
+                <el-button size="mini" type="warning" @click="setAccessMode('all_closed')">{{ $t('m.MapAdm_Close_All') }}</el-button>
               </div>
             </div>
 
@@ -150,7 +150,7 @@
               v-model="permissionKeyword"
               size="mini"
               clearable
-              placeholder="搜索用户：uid/用户名/昵称"
+              :placeholder="$t('m.MapAdm_Search_User_Placeholder')"
               @keyup.enter.native="searchPermissionUsers"
             >
               <el-button slot="append" icon="el-icon-search" @click="searchPermissionUsers"></el-button>
@@ -163,14 +163,14 @@
                   <div class="permission-user-id">{{ u.userId }}</div>
                 </div>
                 <div class="permission-actions">
-                  <el-button size="mini" type="success" @click="setUserPermission(u, true)">开通</el-button>
-                  <el-button size="mini" type="danger" plain @click="setUserPermission(u, false)">关闭</el-button>
+                  <el-button size="mini" type="success" @click="setUserPermission(u, true)">{{ $t('m.MapAdm_Enable') }}</el-button>
+                  <el-button size="mini" type="danger" plain @click="setUserPermission(u, false)">{{ $t('m.MapAdm_Disable') }}</el-button>
                 </div>
               </div>
             </div>
 
             <el-scrollbar class="admin-list-scroll permission-list-scroll">
-              <div v-if="mapPermissions.length === 0" class="permission-empty">暂无单独配置用户</div>
+              <div v-if="mapPermissions.length === 0" class="permission-empty">{{ $t('m.MapAdm_No_Permission_Users') }}</div>
               <div class="permission-item" v-for="item in mapPermissions" :key="item.userId">
                 <div class="permission-user-main">
                   <div class="permission-user-name">{{ userDisplayName(item) }}</div>
@@ -183,7 +183,7 @@
                     active-color="#13ce66"
                     inactive-color="#ff4949"
                   ></el-switch>
-                  <el-button size="mini" type="text" style="color:#909399" @click="removeUserPermission(item)">移除</el-button>
+                  <el-button size="mini" type="text" style="color:#909399" @click="removeUserPermission(item)">{{ $t('m.MapAdm_Remove') }}</el-button>
                 </div>
               </div>
             </el-scrollbar>
@@ -196,43 +196,43 @@
       <el-form label-width="110px" :model="nodeForm">
         <el-row :gutter="12">
           <el-col :md="12" :sm="24">
-            <el-form-item label="节点类型">
+            <el-form-item :label="$t('m.MapAdm_Node_Type')">
               <el-select v-model="nodeForm.type" :disabled="isEditingNode" style="width:100%">
-                <el-option label="知识点" value="knowledge"></el-option>
-                <el-option label="题目" value="problem"></el-option>
+                <el-option :label="$t('m.MapAdm_Knowledge')" value="knowledge"></el-option>
+                <el-option :label="$t('m.MapAdm_Problem')" value="problem"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :md="12" :sm="24">
-            <el-form-item label="标题">
+            <el-form-item :label="$t('m.MapAdm_Title_Field')">
               <el-input v-model="nodeForm.title"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="简介">
+        <el-form-item :label="$t('m.MapAdm_Brief')">
           <el-input type="textarea" :rows="2" v-model="nodeForm.description"></el-input>
         </el-form-item>
 
         <el-row :gutter="12">
           <el-col :md="8" :sm="24">
-            <el-form-item label="难度">
+            <el-form-item :label="$t('m.MapAdm_Difficulty')">
               <el-select v-model="nodeForm.difficulty" style="width:100%">
-                <el-option label="入门" value="beginner"></el-option>
-                <el-option label="简单" value="easy"></el-option>
-                <el-option label="中等" value="medium"></el-option>
-                <el-option label="困难" value="hard"></el-option>
-                <el-option label="专家" value="expert"></el-option>
+                <el-option :label="$t('m.MapAdm_Diff_Beginner')" value="beginner"></el-option>
+                <el-option :label="$t('m.MapAdm_Diff_Easy')" value="easy"></el-option>
+                <el-option :label="$t('m.MapAdm_Diff_Medium')" value="medium"></el-option>
+                <el-option :label="$t('m.MapAdm_Diff_Hard')" value="hard"></el-option>
+                <el-option :label="$t('m.MapAdm_Diff_Expert')" value="expert"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :md="8" :sm="24">
-            <el-form-item label="标签（逗号分隔）">
-              <el-input v-model="nodeForm.tagsCsv" placeholder="例如：图论,最短路"></el-input>
+            <el-form-item :label="$t('m.MapAdm_Tags_Label')">
+              <el-input v-model="nodeForm.tagsCsv" :placeholder="$t('m.MapAdm_Tags_Placeholder')"></el-input>
             </el-form-item>
           </el-col>
           <el-col :md="8" :sm="24">
-            <el-form-item label="发布状态">
+            <el-form-item :label="$t('m.MapAdm_Publish_Status')">
               <el-switch v-model="nodeForm.published"></el-switch>
             </el-form-item>
           </el-col>
@@ -250,29 +250,29 @@
             </el-form-item>
           </el-col>
           <el-col :md="8" :sm="24">
-            <el-form-item label="层级">
+            <el-form-item :label="$t('m.MapAdm_Level')">
               <el-input-number v-model="nodeForm.level" :step="1" :precision="0" :min="0" style="width:100%"></el-input-number>
             </el-form-item>
           </el-col>
         </el-row>
-        <div class="field-hint">层级：用于推荐学习顺序排序（数字越小越靠前），不直接参与解锁判断。</div>
+        <div class="field-hint">{{ $t('m.MapAdm_Level_Hint') }}</div>
 
-        <el-form-item label="区域">
+        <el-form-item :label="$t('m.MapAdm_Region')">
           <el-input v-model="nodeForm.region"></el-input>
         </el-form-item>
-        <div class="field-hint">区域：用于给节点做分区归类，例如「数据结构区」「字符串区」，便于筛选和可视化布局。</div>
+        <div class="field-hint">{{ $t('m.MapAdm_Region_Hint') }}</div>
 
         <template v-if="nodeForm.type === 'problem'">
-          <el-divider>题目绑定</el-divider>
+          <el-divider>{{ $t('m.MapAdm_Problem_Binding') }}</el-divider>
           <el-row :gutter="10">
             <el-col :md="14" :sm="24">
-              <el-input v-model="problemKeyword" placeholder="搜索主 OJ 题号或标题"></el-input>
+              <el-input v-model="problemKeyword" :placeholder="$t('m.MapAdm_Search_Problem_Placeholder')"></el-input>
             </el-col>
             <el-col :md="5" :sm="12">
-              <el-button style="width:100%" @click="searchProblems">搜索题目</el-button>
+              <el-button style="width:100%" @click="searchProblems">{{ $t('m.MapAdm_Search_Problem') }}</el-button>
             </el-col>
             <el-col :md="5" :sm="12">
-              <el-button type="primary" style="width:100%" @click="verifyProblem">校验并填充</el-button>
+              <el-button type="primary" style="width:100%" @click="verifyProblem">{{ $t('m.MapAdm_Verify_Fill') }}</el-button>
             </el-col>
           </el-row>
 
@@ -282,44 +282,44 @@
                 <span class="pid">{{ p.problemDisplayId }}</span>
                 <span>{{ p.title }}</span>
               </div>
-              <el-tag size="mini" type="warning">难度 {{ difficultyLabel(p.difficulty) }}</el-tag>
+              <el-tag size="mini" type="warning">{{ $t('m.MapAdm_Difficulty') }} {{ difficultyLabel(p.difficulty) }}</el-tag>
             </div>
           </div>
 
           <el-row :gutter="12" style="margin-top: 10px;">
             <el-col :md="12" :sm="24">
-              <el-form-item label="主站题目ID">
+              <el-form-item :label="$t('m.MapAdm_Main_Problem_Id')">
                 <el-input-number v-model="nodeForm.problemId" :min="1" :step="1" style="width:100%"></el-input-number>
               </el-form-item>
             </el-col>
             <el-col :md="12" :sm="24">
-              <el-form-item label="展示题号">
+              <el-form-item :label="$t('m.MapAdm_Display_Problem_Id')">
                 <el-input v-model="nodeForm.problemDisplayId"></el-input>
               </el-form-item>
             </el-col>
           </el-row>
 
-          <el-form-item label="备注">
+          <el-form-item :label="$t('m.MapAdm_Remark')">
             <Editor :value.sync="nodeForm.problemRemark" />
           </el-form-item>
-          <div class="field-hint">备注会在学生端题目节点详情中展示，支持 Markdown 链接。</div>
+          <div class="field-hint">{{ $t('m.MapAdm_Remark_Hint') }}</div>
         </template>
 
         <template v-else>
-          <el-divider>知识点学习内容（Markdown 格式）</el-divider>
-          <div class="editor-tips">支持长篇 Markdown；可通过编辑器工具栏上传并插入 PPT/Word/PDF 附件链接。</div>
+          <el-divider>{{ $t('m.MapAdm_Knowledge_Content') }}</el-divider>
+          <div class="editor-tips">{{ $t('m.MapAdm_Editor_Tips') }}</div>
           <Editor :value.sync="nodeForm.knowledgeContent" />
         </template>
 
-        <el-form-item label="扩展信息（JSON 格式）">
-          <el-input type="textarea" :rows="3" v-model="nodeForm.metadataJson" placeholder='例如：{"estimatedMinutes":30}'></el-input>
+        <el-form-item :label="$t('m.MapAdm_Metadata_Label')">
+          <el-input type="textarea" :rows="3" v-model="nodeForm.metadataJson" :placeholder="$t('m.MapAdm_Metadata_Prefix') + '{"estimatedMinutes":30}'"></el-input>
         </el-form-item>
-        <div class="field-hint">扩展信息：用于存储个性化字段（如预计学习时长、视频链接、讲义地址等），不影响基础解锁逻辑。</div>
+        <div class="field-hint">{{ $t('m.MapAdm_Metadata_Hint') }}</div>
       </el-form>
 
       <div slot="footer">
-        <el-button size="small" @click="nodeDialogVisible = false">取消</el-button>
-        <el-button size="small" type="primary" @click="saveNode">保存节点</el-button>
+        <el-button size="small" @click="nodeDialogVisible = false">{{ $t('m.MapAdm_Cancel') }}</el-button>
+        <el-button size="small" type="primary" @click="saveNode">{{ $t('m.MapAdm_Save_Node') }}</el-button>
       </div>
     </el-dialog>
   </div>
@@ -330,22 +330,23 @@ import learningMapApi from '@/api/learningMap'
 import LearningMapCanvas from '@/views/oj/learning-map/components/LearningMapCanvas'
 import Editor from '@/components/admin/Editor'
 
+// 模块级映射表只存 i18n 键名，渲染时通过 tKey() 在组件上下文中翻译
 const NODE_TYPE_LABEL = {
-  knowledge: '知识点',
-  problem: '题目'
+  knowledge: 'MapAdm_Knowledge',
+  problem: 'MapAdm_Problem'
 }
 
 const EDGE_TYPE_LABEL = {
-  prerequisite: '前置依赖',
-  related: '关联'
+  prerequisite: 'MapAdm_Prerequisite',
+  related: 'MapAdm_Related'
 }
 
 const DIFFICULTY_LABEL = {
-  beginner: '入门',
-  easy: '简单',
-  medium: '中等',
-  hard: '困难',
-  expert: '专家'
+  beginner: 'MapAdm_Diff_Beginner',
+  easy: 'MapAdm_Diff_Easy',
+  medium: 'MapAdm_Diff_Medium',
+  hard: 'MapAdm_Diff_Hard',
+  expert: 'MapAdm_Diff_Expert'
 }
 
 export default {
@@ -406,13 +407,17 @@ export default {
       return map
     },
     nodeDialogTitle() {
-      return this.isEditingNode ? `编辑节点 #${this.editingNodeId}` : '新建节点'
+      return this.isEditingNode ? this.$t('m.MapAdm_Edit_Node', { id: this.editingNodeId }) : this.$t('m.MapAdm_Create_Node')
     }
   },
   mounted() {
     this.loadMap()
   },
   methods: {
+    // 将模块级映射表中的 i18n 键名翻译为当前语言的文案
+    tKey(key) {
+      return key ? this.$t('m.' + key) : ''
+    },
     getDefaultNodeForm(type) {
       return {
         type,
@@ -437,14 +442,14 @@ export default {
       try {
         const parsed = JSON.parse(json)
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('扩展信息必须是 JSON 对象')
+          throw new Error(this.$t('m.MapAdm_Metadata_Must_Object'))
         }
         return parsed
       } catch (e) {
-        if (e.message === '扩展信息必须是 JSON 对象') {
+        if (e.message === this.$t('m.MapAdm_Metadata_Must_Object')) {
           throw e
         }
-        throw new Error('扩展信息不是合法 JSON')
+        throw new Error(this.$t('m.MapAdm_Metadata_Invalid_Json'))
       }
     },
     parseMetadataQuietly(json) {
@@ -457,21 +462,21 @@ export default {
       }
     },
     nodeTypeLabel(type) {
-      return NODE_TYPE_LABEL[type] || type
+      return NODE_TYPE_LABEL[type] ? this.tKey(NODE_TYPE_LABEL[type]) : type
     },
     edgeTypeLabel(type) {
-      return EDGE_TYPE_LABEL[type] || type
+      return EDGE_TYPE_LABEL[type] ? this.tKey(EDGE_TYPE_LABEL[type]) : type
     },
     difficultyLabel(value) {
       if (typeof value === 'number') {
         const d = Number(value)
-        if (d <= 0) return DIFFICULTY_LABEL.beginner
-        if (d === 1) return DIFFICULTY_LABEL.easy
-        if (d === 2) return DIFFICULTY_LABEL.medium
-        if (d === 3) return DIFFICULTY_LABEL.hard
-        return DIFFICULTY_LABEL.expert
+        if (d <= 0) return this.tKey(DIFFICULTY_LABEL.beginner)
+        if (d === 1) return this.tKey(DIFFICULTY_LABEL.easy)
+        if (d === 2) return this.tKey(DIFFICULTY_LABEL.medium)
+        if (d === 3) return this.tKey(DIFFICULTY_LABEL.hard)
+        return this.tKey(DIFFICULTY_LABEL.expert)
       }
-      return DIFFICULTY_LABEL[value] || value || DIFFICULTY_LABEL.beginner
+      return this.tKey(DIFFICULTY_LABEL[value]) || value || this.tKey(DIFFICULTY_LABEL.beginner)
     },
     toNodePayload(form) {
       const metadata = this.parseMetadata(form.metadataJson)
@@ -539,7 +544,7 @@ export default {
         this.edges = data.edges || []
         await this.loadPermissions()
       } catch (e) {
-        this.$message.error(e.message || '加载航海图失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Load_Failed'))
       } finally {
         this.loading.full = false
       }
@@ -552,7 +557,7 @@ export default {
       const title = (this.mapInfo.title || '').trim()
       if (!title) {
         if (!silent) {
-          this.$message.warning('标题不能为空')
+          this.$message.warning(this.$t('m.MapAdm_Title_Empty'))
         }
         return false
       }
@@ -582,7 +587,7 @@ export default {
         return true
       } catch (e) {
         if (!silent) {
-          this.$message.error(e.message || '保存失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Save_Failed'))
         }
         return false
       } finally {
@@ -591,7 +596,7 @@ export default {
     },
     toggleMapStatus() {
       if (this.mapInfo.status === 'published') {
-        this.$confirm('确认将当前航海图设置为隐藏？隐藏后普通用户将无法访问。', '隐藏确认', {
+        this.$confirm(this.$t('m.MapAdm_Hide_Confirm'), this.$t('m.MapAdm_Hide_Confirm_Title'), {
           type: 'warning'
         }).then(async () => {
           try {
@@ -602,15 +607,15 @@ export default {
               accessMode: this.permissionMode || 'all_open'
             })
             this.mapInfo.status = 'draft'
-            this.$message.success('已隐藏')
+            this.$message.success(this.$t('m.MapAdm_Hidden'))
           } catch (e) {
-            this.$message.error(e.message || '隐藏失败')
+            this.$message.error(e.message || this.$t('m.MapAdm_Hide_Failed'))
           }
         })
         return
       }
 
-      this.$confirm('确认发布当前航海图？发布前会执行完整校验。', '发布确认', {
+      this.$confirm(this.$t('m.MapAdm_Publish_Confirm'), this.$t('m.MapAdm_Publish_Confirm_Title'), {
         type: 'warning'
       }).then(async () => {
         try {
@@ -626,9 +631,9 @@ export default {
             status: this.mapInfo.status || 'published',
             accessMode: this.mapInfo.accessMode || 'all_open'
           })
-          this.$message.success('发布成功')
+          this.$message.success(this.$t('m.MapAdm_Publish_Success'))
         } catch (e) {
-          this.$message.error(e.message || '发布失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Publish_Failed'))
         }
       })
     },
@@ -653,26 +658,26 @@ export default {
     },
     async saveNode() {
       if (!this.nodeForm.title.trim()) {
-        this.$message.warning('节点标题不能为空')
+        this.$message.warning(this.$t('m.MapAdm_Node_Title_Empty'))
         return
       }
       try {
         const payload = this.toNodePayload(this.nodeForm)
         if (this.isEditingNode) {
           await learningMapApi.adminUpdateNode(this.mapId, this.editingNodeId, payload)
-          this.$message.success('节点已更新')
+          this.$message.success(this.$t('m.MapAdm_Node_Updated'))
         } else {
           await learningMapApi.adminCreateNode(this.mapId, payload)
-          this.$message.success('节点已创建')
+          this.$message.success(this.$t('m.MapAdm_Node_Created'))
         }
         this.nodeDialogVisible = false
         await this.loadMap()
       } catch (e) {
-        this.$message.error(e.message || '保存节点失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Save_Node_Failed'))
       }
     },
     removeNode(node) {
-      this.$confirm(`确认删除节点「${node.title}」及关联连线？`, '删除节点', {
+      this.$confirm(this.$t('m.MapAdm_Delete_Node_Confirm', { title: node.title }), this.$t('m.MapAdm_Delete_Node_Title'), {
         type: 'warning'
       }).then(async () => {
         try {
@@ -680,10 +685,10 @@ export default {
           if (this.selectedNode && this.selectedNode.id === node.id) {
             this.selectedNode = null
           }
-          this.$message.success('节点已删除')
+          this.$message.success(this.$t('m.MapAdm_Node_Deleted'))
           await this.loadMap()
         } catch (e) {
-          this.$message.error(e.message || '删除节点失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Delete_Node_Failed'))
         }
       })
     },
@@ -728,12 +733,12 @@ export default {
         }
         await learningMapApi.adminUpdateNode(this.mapId, nodeId, payload)
       } catch (e) {
-        this.$message.error('节点坐标保存失败')
+        this.$message.error(this.$t('m.MapAdm_Node_Position_Save_Failed'))
       }
     },
     async createEdge() {
       if (!this.edgeForm.sourceNodeId || !this.edgeForm.targetNodeId) {
-        this.$message.warning('请选择起点和终点')
+        this.$message.warning(this.$t('m.MapAdm_Select_Start_End'))
         return
       }
       try {
@@ -742,23 +747,23 @@ export default {
           targetNodeId: this.edgeForm.targetNodeId,
           type: this.edgeForm.type
         })
-        this.$message.success('连线创建成功')
+        this.$message.success(this.$t('m.MapAdm_Edge_Create_Success'))
         this.edgeForm = { sourceNodeId: null, targetNodeId: null, type: 'prerequisite' }
         await this.loadMap()
       } catch (e) {
-        this.$message.error(e.message || '创建连线失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Create_Edge_Failed'))
       }
     },
     removeEdge(edge) {
-      this.$confirm('确认删除该连线？', '删除连线', {
+      this.$confirm(this.$t('m.MapAdm_Delete_Edge_Confirm'), this.$t('m.MapAdm_Delete_Edge_Title'), {
         type: 'warning'
       }).then(async () => {
         try {
           await learningMapApi.adminDeleteEdge(this.mapId, edge.id)
-          this.$message.success('连线已删除')
+          this.$message.success(this.$t('m.MapAdm_Edge_Deleted'))
           await this.loadMap()
         } catch (e) {
-          this.$message.error(e.message || '删除连线失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Delete_Edge_Failed'))
         }
       })
     },
@@ -771,7 +776,7 @@ export default {
         this.problemCandidates = await learningMapApi.adminSearchProblems(this.problemKeyword.trim())
       } catch (e) {
         this.problemCandidates = []
-        this.$message.error('搜索题目失败')
+        this.$message.error(this.$t('m.MapAdm_Search_Problem_Failed'))
       }
     },
     pickProblem(problem) {
@@ -795,7 +800,7 @@ export default {
     async verifyProblem() {
       const id = String(this.nodeForm.problemDisplayId || this.nodeForm.problemId || '').trim()
       if (!id) {
-        this.$message.warning('请先填写主站题目ID或展示题号')
+        this.$message.warning(this.$t('m.MapAdm_Problem_Id_Required'))
         return
       }
       try {
@@ -808,13 +813,13 @@ export default {
         if (problem.tags && problem.tags.length) {
           this.nodeForm.tagsCsv = problem.tags.join(',')
         }
-        this.$message.success('题目校验通过')
+        this.$message.success(this.$t('m.MapAdm_Problem_Verify_Success'))
       } catch (e) {
-        this.$message.error(e.message || '题目不存在或不可用')
+        this.$message.error(e.message || this.$t('m.MapAdm_Problem_Not_Available'))
       }
     },
     accessModeLabel(mode) {
-      return mode === 'all_closed' ? '默认：全部关闭，仅授权用户可见' : '默认：全部开启，按用户可单独关闭'
+      return mode === 'all_closed' ? this.$t('m.MapAdm_Access_Mode_Closed') : this.$t('m.MapAdm_Access_Mode_Open')
     },
     userDisplayName(user) {
       return user.nickname || user.realname || user.username || user.userId
@@ -829,9 +834,9 @@ export default {
         await learningMapApi.adminSetMapAccessMode(this.mapId, mode)
         this.permissionMode = mode
         this.mapInfo.accessMode = mode
-        this.$message.success(mode === 'all_open' ? '已设置为全部开启' : '已设置为全部关闭')
+        this.$message.success(mode === 'all_open' ? this.$t('m.MapAdm_Set_Open_Success') : this.$t('m.MapAdm_Set_Close_Success'))
       } catch (e) {
-        this.$message.error(e.message || '设置失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Set_Failed'))
       }
     },
     async searchPermissionUsers() {
@@ -844,17 +849,17 @@ export default {
         this.permissionCandidates = await learningMapApi.adminSearchMapPermissionUsers(keyword)
       } catch (e) {
         this.permissionCandidates = []
-        this.$message.error(e.message || '搜索用户失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Search_User_Failed'))
       }
     },
     async setUserPermission(user, enabled) {
       if (!user || !user.userId) return
       try {
         await learningMapApi.adminSetMapUserPermission(this.mapId, user.userId, enabled)
-        this.$message.success(enabled ? '已开通权限' : '已关闭权限')
+        this.$message.success(enabled ? this.$t('m.MapAdm_Permission_Enabled') : this.$t('m.MapAdm_Permission_Disabled'))
         await this.loadPermissions()
       } catch (e) {
-        this.$message.error(e.message || '设置用户权限失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Set_User_Permission_Failed'))
       }
     },
     async toggleUserPermission(item, enabled) {
@@ -862,22 +867,22 @@ export default {
       item.enabled = enabled
       try {
         await learningMapApi.adminSetMapUserPermission(this.mapId, item.userId, enabled)
-        this.$message.success('权限已更新')
+        this.$message.success(this.$t('m.MapAdm_Permission_Updated'))
       } catch (e) {
         item.enabled = original
-        this.$message.error(e.message || '更新权限失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Update_Permission_Failed'))
       }
     },
     removeUserPermission(item) {
-      this.$confirm(`确认移除用户 ${item.userId} 的单独权限配置？`, '移除权限', {
+      this.$confirm(this.$t('m.MapAdm_Remove_User_Permission_Confirm', { uid: item.userId }), this.$t('m.MapAdm_Remove_Permission_Title'), {
         type: 'warning'
       }).then(async () => {
         try {
           await learningMapApi.adminDeleteMapUserPermission(this.mapId, item.userId)
-          this.$message.success('已移除')
+          this.$message.success(this.$t('m.MapAdm_Removed'))
           await this.loadPermissions()
         } catch (e) {
-          this.$message.error(e.message || '移除失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Remove_Failed'))
         }
       })
     }

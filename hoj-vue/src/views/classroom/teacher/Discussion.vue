@@ -51,7 +51,7 @@
 
               <!-- 撤回按钮 -->
               <el-button v-if="canRecallMessage(msg)" type="text" size="mini" icon="el-icon-back" @click="recallMessage(msg)" class="recall-btn">
-                撤回
+                {{ $t('m.Dis_Recall') }}
               </el-button>
             </div>
           </template>
@@ -74,7 +74,7 @@
           >{{ emoji }}</span>
         </div>
         <el-button slot="reference" icon="el-icon-star-off" size="small">
-          表情
+          {{ $t('m.Dis_Emoji') }}
         </el-button>
       </el-popover>
 
@@ -404,22 +404,22 @@ export default {
     },
     async recallMessage(msg) {
       try {
-        await this.$confirm('确定要撤回这条消息吗？', '提示', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
+        await this.$confirm(this.$t('m.Dis_Confirm_Recall_Message'), this.$t('m.Prompt'), {
+          confirmButtonText: this.$t('m.OK'),
+          cancelButtonText: this.$t('m.Cancel'),
           type: 'warning'
         })
 
         const res = await this.$store.dispatch('classroom/recallMessage', msg.id)
         if (res.code === 200) {
-          this.$message.success('撤回成功')
+          this.$message.success(this.$t('m.Dis_Recall_Success'))
           this.loadMessages()
         } else {
-          this.$message.error(res.message || '撤回失败')
+          this.$message.error(res.message || this.$t('m.Dis_Recall_Failed'))
         }
       } catch (error) {
         if (error !== 'cancel') {
-          this.$message.error('撤回失败')
+          this.$message.error(this.$t('m.Dis_Recall_Failed'))
         }
       }
     }

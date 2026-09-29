@@ -16,7 +16,7 @@
           <div class="filter-row">
             <el-input
               v-model="keyword"
-              placeholder="请输入用户名进行搜索"
+              :placeholder="$t('m.Role_Search_Username_Placeholder')"
               prefix-icon="el-icon-search"
               style="width: 300px; margin-right: 10px;"
               @keyup.enter.native="handleSearch"
@@ -29,15 +29,15 @@
           <!-- 未搜索时的提示 -->
           <div v-if="!hasSearched" class="search-hint">
             <el-alert
-              title="请输入用户名搜索"
+              :title="$t('m.Role_Input_Username_Search')"
               type="info"
               :closable="false"
               show-icon
             >
               <template>
                 <div style="margin-top: 10px;">
-                  <p>请在上面的输入框中输入用户名，然后点击搜索按钮来查找用户。</p>
-                  <p>支持模糊搜索，可以输入用户名的任意部分。</p>
+                  <p>{{ $t('m.Role_Search_Hint_1') }}</p>
+                  <p>{{ $t('m.Role_Search_Hint_2') }}</p>
                 </div>
               </template>
             </el-alert>
@@ -70,7 +70,7 @@
                   <el-radio label="teacher" :disabled="!isSuperAdmin">{{ $t('m.Teacher') }}</el-radio>
                   <el-radio label="student">{{ $t('m.Student') }}</el-radio>
                 </el-radio-group>
-                <el-tooltip v-if="!isSuperAdmin && row.role === 'teacher'" content="仅超级管理员可设置教师角色" placement="top">
+                <el-tooltip v-if="!isSuperAdmin && row.role === 'teacher'" :content="$t('m.Role_Only_Super_Admin_Teacher')" placement="top">
                   <i class="el-icon-info" style="color: #E6A23C; margin-left: 5px;"></i>
                 </el-tooltip>
               </template>
@@ -116,12 +116,12 @@
           <!-- 筛选器 -->
           <div class="filter-row">
             <el-select v-model="applicationFilter.role" :placeholder="$t('m.Apply_Role')" style="width: 150px; margin-right: 10px;" clearable @change="loadApplications">
-              <el-option value="all" label="全部" />
+              <el-option value="all" :label="$t('m.Role_All')" />
               <el-option value="teacher" :label="$t('m.Teacher')" />
               <el-option value="student" :label="$t('m.Student')" />
             </el-select>
             <el-select v-model="applicationFilter.status" :placeholder="$t('m.Status')" style="width: 150px; margin-right: 10px;" clearable @change="loadApplications">
-              <el-option value="all" label="全部" />
+              <el-option value="all" :label="$t('m.Role_All')" />
               <el-option value="0" :label="$t('m.Pending_Approval')" />
               <el-option value="1" :label="$t('m.Approved')" />
               <el-option value="2" :label="$t('m.Rejected')" />
@@ -140,7 +140,7 @@
               {{ $t('m.Batch_Reject') }}
             </el-button>
             <span v-if="selectedApplications.length > 0" style="margin-left: 10px; color: #909399;">
-              已选择 {{ selectedApplications.length }} 项
+              {{ $t('m.Role_Selected_Count', { count: selectedApplications.length }) }}
             </span>
           </div>
 
@@ -246,7 +246,7 @@
             v-model="reviewForm.reviewNote"
             type="textarea"
             :rows="3"
-            placeholder="请输入审批备注（可选）"
+            :placeholder="$t('m.Role_Review_Note_Placeholder')"
           />
         </el-form-item>
       </el-form>
@@ -275,16 +275,16 @@
             <p><strong>2. {{ $t('m.Teacher_Role') }}:</strong> {{ $t('m.Teacher_Role_Desc') }}</p>
             <p><strong>3. {{ $t('m.Student_Role') }}:</strong> {{ $t('m.Student_Role_Desc') }}</p>
             <p><strong>4. {{ $t('m.Save_Changes') }}:</strong> {{ $t('m.Save_Changes_Desc') }}</p>
-            <p><strong>5. 权限申请管理：</strong> 用户可以申请教师或学生权限，管理员可以审批申请。手动为用户添加角色时，相关申请会自动变为"已批准"状态。</p>
+            <p><strong>5. {{ $t('m.Role_Permission_Applications') }}</strong> {{ $t('m.Role_Permission_Applications_Desc') }}</p>
             <el-divider></el-divider>
             <p style="color: #E6A23C;">
               <i class="el-icon-warning"></i>
-              <strong>权限说明：</strong>
+              <strong>{{ $t('m.Role_Permission_Notes') }}</strong>
               <template v-if="isSuperAdmin">
-                您是超级管理员，可以审批所有类型的权限申请。
+                {{ $t('m.Role_Super_Admin_Note') }}
               </template>
               <template v-else>
-                您当前无权审批教师权限申请，仅可审批学生权限申请。教师权限申请仅超级管理员可操作。
+                {{ $t('m.Role_Non_Super_Admin_Note') }}
               </template>
             </p>
           </div>
@@ -421,7 +421,7 @@ export default {
     },
     handleSearch() {
       if (!this.keyword || this.keyword.trim() === '') {
-        this.$message.warning('请输入用户名进行搜索')
+        this.$message.warning(this.$t('m.Role_Search_Username_Placeholder'))
         return
       }
       this.currentPage = 1
@@ -451,7 +451,7 @@ export default {
           user.originalRole = user.role
           this.$message.success(this.$t('m.Role_Save_Success'))
         } else {
-          throw new Error(response.data.msg || '保存失败')
+          throw new Error(response.data.msg || this.$t('m.Role_Save_Failed'))
         }
       } catch (error) {
         this.$message.error(error.response?.data?.msg || this.$t('m.Role_Save_Failed'))
@@ -462,7 +462,7 @@ export default {
     },
     handleRoleChange(user) {
       if (user.role === 'teacher' && !this.isSuperAdmin) {
-        this.$message.warning('只有超级管理员可以设置教师角色')
+        this.$message.warning(this.$t('m.Role_Only_Super_Admin_Can_Set'))
         user.role = user.originalRole
         return
       }
@@ -518,7 +518,7 @@ export default {
     },
     handleBatchAction(action) {
       if (this.selectedApplications.length === 0) {
-        this.$message.warning('请先选择要操作的申请')
+        this.$message.warning(this.$t('m.Role_Select_Application_First'))
         return
       }
       this.reviewForm.applicationIds = this.selectedApplications.map(app => app.id)
@@ -536,11 +536,9 @@ export default {
         })
 
         if (res.code === 200) {
-          const message = this.reviewForm.action === 'approve' 
-            ? this.$t('m.Batch_Operation_Success') 
-            : '批量操作成功'
-          
-          this.$message.success(message + `，成功处理 ${res.data.successCount} 个申请`)
+          const message = this.$t('m.Batch_Operation_Success')
+
+          this.$message.success(message + this.$t('m.Role_Batch_Processed_Count', { count: res.data.successCount }))
           this.reviewDialogVisible = false
           this.loadApplications()
         } else {

@@ -20,7 +20,7 @@
       <div v-if="homeworks.length === 0" class="classroom-empty">
         <i class="el-icon-document classroom-empty-icon"></i>
         <div class="classroom-empty-text">{{ $t('m.No_Homework_Available') }}</div>
-        <div class="classroom-empty-hint">点击上方按钮创建您的第一个作业吧！</div>
+        <div class="classroom-empty-hint">{{ $t('m.Hw_Create_First_Homework_Hint') }}</div>
       </div>
 
       <div v-else class="homework-list">
@@ -30,7 +30,7 @@
             <div class="homework-actions">
               <button class="classroom-btn classroom-btn-primary" @click="viewHomework(hw)">
                 <i class="el-icon-view"></i>
-                <span>查看详情</span>
+                <span>{{ $t('m.View_Detail') }}</span>
               </button>
               <button class="classroom-btn classroom-btn-danger" @click="deleteHomework(hw)">
                 <i class="el-icon-delete"></i>
@@ -65,14 +65,14 @@
 
     <!-- 删除确认对话框 -->
     <el-dialog
-      title="删除作业"
+      :title="$t('m.Hw_Delete_Homework')"
       :visible.sync="showDeleteDialog"
       width="450px"
       custom-class="classroom-dialog"
     >
       <div class="delete-confirm-content" v-if="currentHomework">
         <i class="el-icon-warning"></i>
-        <p>确定要删除作业 "{{ currentHomework.title }}" 吗？</p>
+        <p>{{ $t('m.Hw_Confirm_Delete_Homework', { title: currentHomework.title }) }}</p>
       </div>
       <span slot="footer">
         <el-button @click="showDeleteDialog = false" class="classroom-btn classroom-btn-secondary">{{ $t('m.Cancel') }}</el-button>

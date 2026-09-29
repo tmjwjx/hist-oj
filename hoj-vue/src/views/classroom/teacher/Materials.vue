@@ -32,8 +32,8 @@
         <!-- 树形导航 -->
         <div class="tree-sidebar">
           <div class="tree-header">
-            <span class="tree-title">文件夹结构</span>
-            <el-tooltip content="刷新" placement="top">
+            <span class="tree-title">{{ $t('m.Materials_Folder_Structure') }}</span>
+            <el-tooltip :content="$t('m.Refresh')" placement="top">
               <el-button
                 type="text"
                 icon="el-icon-refresh"
@@ -61,7 +61,7 @@
                 {{ node.label }}
               </span>
               <span class="node-actions">
-                <el-tooltip content="新建子文件夹" placement="top" v-if="data.id !== 0 || node.level < 3">
+                <el-tooltip :content="$t('m.Materials_Create_Subfolder')" placement="top" v-if="data.id !== 0 || node.level < 3">
                   <el-button
                     type="text"
                     size="mini"
@@ -69,7 +69,7 @@
                     @click.stop="createSubFolder(data)"
                   />
                 </el-tooltip>
-                <el-tooltip content="上传文件到此处" placement="top">
+                <el-tooltip :content="$t('m.Materials_Upload_Here')" placement="top">
                   <el-button
                     type="text"
                     size="mini"
@@ -77,7 +77,7 @@
                     @click.stop="uploadToFolder(data)"
                   />
                 </el-tooltip>
-                <el-tooltip content="重命名" placement="top" v-if="data.id !== 0">
+                <el-tooltip :content="$t('m.Materials_Rename')" placement="top" v-if="data.id !== 0">
                   <el-button
                     type="text"
                     size="mini"
@@ -85,7 +85,7 @@
                     @click.stop="renameFolder(data)"
                   />
                 </el-tooltip>
-                <el-tooltip content="删除" placement="top" v-if="data.id !== 0">
+                <el-tooltip :content="$t('m.Delete')" placement="top" v-if="data.id !== 0">
                   <el-button
                     type="text"
                     size="mini"
@@ -114,7 +114,7 @@
                 <i class="el-icon-folder-opened"></i>
                 <div class="file-info">
                   <span class="file-name" :title="folder.folderName">{{ folder.folderName }}</span>
-                  <span class="file-size">文件夹</span>
+                  <span class="file-size">{{ $t('m.Materials_Folder') }}</span>
                 </div>
               </div>
 
@@ -132,27 +132,27 @@
                   <span class="file-size">{{ formatFileSize(material.fileSize) }}</span>
                 </div>
                 <div class="file-actions">
-                  <el-tooltip content="预览" placement="top" v-if="canPreview(getFileType(material.fileName))">
+                  <el-tooltip :content="$t('m.Materials_Preview')" placement="top" v-if="canPreview(getFileType(material.fileName))">
                     <el-button
                       size="mini"
                       type="text"
                       icon="el-icon-view"
                       @click.stop="selectMaterial(material)"
                     >
-                      预览
+                      {{ $t('m.Materials_Preview') }}
                     </el-button>
                   </el-tooltip>
-                  <el-tooltip content="权限设置" placement="top">
+                  <el-tooltip :content="$t('m.Materials_Permission_Settings')" placement="top">
                     <el-button
                       size="mini"
                       type="text"
                       icon="el-icon-setting"
                       @click.stop="openPermissionDialog(material)"
                     >
-                      权限
+                      {{ $t('m.Materials_Permission') }}
                     </el-button>
                   </el-tooltip>
-                  <el-tooltip v-if="isAdmin" content="下载" placement="top">
+                  <el-tooltip v-if="isAdmin" :content="$t('m.Download')" placement="top">
                     <el-button
                       size="mini"
                       type="text"
@@ -161,10 +161,10 @@
                       :disabled="isDownloadDisabled(material)"
                       @click.stop="downloadMaterial(material)"
                     >
-                      {{ isDownloadBusy(material) ? '下载中' : '下载' }}
+                      {{ isDownloadBusy(material) ? $t('m.Materials_Downloading') : $t('m.Download') }}
                     </el-button>
                   </el-tooltip>
-                  <el-tooltip content="删除" placement="top">
+                  <el-tooltip :content="$t('m.Delete')" placement="top">
                     <el-button
                       size="mini"
                       type="text"
@@ -172,7 +172,7 @@
                       class="delete-btn"
                       @click.stop="deleteMaterial(material)"
                     >
-                      删除
+                      {{ $t('m.Delete') }}
                     </el-button>
                   </el-tooltip>
                 </div>
@@ -182,8 +182,8 @@
             <!-- 空状态 -->
             <div v-if="!loading && folders.length === 0 && materials.length === 0" class="empty-state">
               <i class="el-icon-folder-opened"></i>
-              <p>此文件夹为空</p>
-              <p class="hint">点击上方按钮创建文件夹或上传文件</p>
+              <p>{{ $t('m.Materials_Empty_Folder') }}</p>
+              <p class="hint">{{ $t('m.Materials_Empty_Hint') }}</p>
             </div>
           </div>
         </div>
@@ -211,25 +211,25 @@
               :disabled="isDownloadDisabled(selectedMaterial)"
               @click="downloadCurrentFile"
             >
-              {{ isDownloadBusy(selectedMaterial) ? '下载中' : '下载' }}
+              {{ isDownloadBusy(selectedMaterial) ? $t('m.Materials_Downloading') : $t('m.Download') }}
             </el-button>
             <el-button size="small" icon="el-icon-close" @click="closePreview">
-              关闭
+              {{ $t('m.Close') }}
             </el-button>
           </div>
         </div>
 
-        <div class="preview-content" v-loading="previewLoading" element-loading-text="加载中...">
+        <div class="preview-content" v-loading="previewLoading" :element-loading-text="$t('m.Materials_Loading')">
           <div v-if="selectedMaterial && canPreview(getFileType(selectedMaterial.fileName))" class="preview-pending">
             <i class="el-icon-time"></i>
-            <p>使用功能未开放，敬请期待</p>
+            <p>{{ $t('m.Materials_Feature_Pending') }}</p>
           </div>
 
           <!-- 不支持预览的文件 -->
           <div v-if="selectedMaterial && !canPreview(getFileType(selectedMaterial.fileName))" class="preview-unsupported">
             <i :class="getFileIcon(getFileType(selectedMaterial.fileName))"></i>
-            <p>该文件类型不支持在线预览</p>
-            <p class="hint-text">请通过管理员权限下载文件</p>
+            <p>{{ $t('m.Materials_Preview_Not_Supported') }}</p>
+            <p class="hint-text">{{ $t('m.Materials_Download_Via_Admin') }}</p>
           </div>
         </div>
       </div>
@@ -238,8 +238,8 @@
       <div class="preview-panel empty" v-else>
         <div class="empty-hint">
           <i class="el-icon-document"></i>
-          <p>点击左侧文件进行预览</p>
-          <p class="hint-text">预览功能未开放，敬请期待</p>
+          <p>{{ $t('m.Materials_Click_To_Preview') }}</p>
+          <p class="hint-text">{{ $t('m.Materials_Preview_Pending') }}</p>
         </div>
       </div>
     </div>
@@ -259,10 +259,10 @@
     </el-dialog>
 
     <!-- 重命名文件夹对话框 -->
-    <el-dialog title="重命名文件夹" :visible.sync="showRenameFolderDialog" width="400px" custom-class="classroom-dialog">
+    <el-dialog :title="$t('m.Materials_Rename_Folder')" :visible.sync="showRenameFolderDialog" width="400px" custom-class="classroom-dialog">
       <el-input
         v-model="editFolderName"
-        placeholder="请输入新的文件夹名称"
+        :placeholder="$t('m.Materials_Enter_New_Folder_Name')"
         prefix-icon="el-icon-edit"
         size="medium"
       />
@@ -285,26 +285,26 @@
       >
         <el-menu-item index="createSubFolder">
           <i class="el-icon-folder-add"></i>
-          新建子文件夹
+          {{ $t('m.Materials_Create_Subfolder') }}
         </el-menu-item>
         <el-menu-item index="uploadFile">
           <i class="el-icon-upload"></i>
-          上传文件到此
+          {{ $t('m.Materials_Upload_To_This') }}
         </el-menu-item>
         <el-menu-item index="rename" v-if="contextMenuFolderId !== 0">
           <i class="el-icon-edit"></i>
-          重命名
+          {{ $t('m.Materials_Rename') }}
         </el-menu-item>
         <el-menu-item index="delete" v-if="contextMenuFolderId !== 0" class="danger-item">
           <i class="el-icon-delete"></i>
-          删除
+          {{ $t('m.Delete') }}
         </el-menu-item>
       </el-menu>
     </div>
 
     <!-- 权限设置对话框 -->
     <el-dialog
-      title="资料权限设置"
+      :title="$t('m.Materials_Permission_Settings_Dialog')"
       :visible.sync="showPermissionDialog"
       width="800px"
       custom-class="classroom-dialog permission-dialog"
@@ -319,19 +319,19 @@
           <div class="batch-actions">
             <el-button size="small" @click="batchSetPermission(true, false)">
               <i class="el-icon-view"></i>
-              全部可预览(未开放)
+              {{ $t('m.Materials_All_Preview') }}
             </el-button>
             <el-button size="small" @click="batchSetPermission(false, true)">
               <i class="el-icon-download"></i>
-              全部可下载
+              {{ $t('m.Materials_All_Download') }}
             </el-button>
             <el-button size="small" type="primary" @click="batchSetPermission(true, true)">
               <i class="el-icon-check"></i>
-              全部开启
+              {{ $t('m.Materials_Enable_All') }}
             </el-button>
             <el-button size="small" @click="batchSetPermission(false, false)">
               <i class="el-icon-close"></i>
-              全部关闭
+              {{ $t('m.Materials_Disable_All') }}
             </el-button>
           </div>
         </div>
@@ -339,10 +339,10 @@
         <!-- 空状态提示 -->
         <el-empty
           v-if="!permissionLoading && studentPermissions.length === 0"
-          description="该班级暂无学生"
+          :description="$t('m.Materials_No_Students')"
           :image-size="80"
         >
-          <p class="empty-hint">请先添加学生到班级，然后再设置权限</p>
+          <p class="empty-hint">{{ $t('m.Materials_Add_Students_First') }}</p>
         </el-empty>
 
         <!-- 学生列表 -->
@@ -352,7 +352,7 @@
           style="width: 100%; margin-top: 16px;"
           max-height="400"
         >
-          <el-table-column prop="realName" label="学生姓名" width="150">
+          <el-table-column prop="realName" :label="$t('m.Student_Name')" width="150">
             <template slot-scope="scope">
               <div class="student-info">
                 <span class="student-name">{{ scope.row.realName }}</span>
@@ -360,7 +360,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="可预览(未开放)" width="130" align="center">
+          <el-table-column :label="$t('m.Materials_Can_Preview')" width="130" align="center">
             <template slot-scope="scope">
               <el-checkbox
                 :value="scope.row.canPreview"
@@ -368,18 +368,18 @@
               ></el-checkbox>
             </template>
           </el-table-column>
-          <el-table-column label="可下载" width="100" align="center">
+          <el-table-column :label="$t('m.Materials_Can_Download')" width="100" align="center">
             <template slot-scope="scope">
               <el-checkbox v-model="scope.row.canDownload"></el-checkbox>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="120" align="center">
+          <el-table-column :label="$t('m.Status')" width="120" align="center">
             <template slot-scope="scope">
               <el-tag
                 :type="scope.row.canDownload ? 'success' : 'info'"
                 size="small"
               >
-                {{ scope.row.canDownload ? '可下载' : '不可下载' }}
+                {{ scope.row.canDownload ? $t('m.Materials_Can_Download') : $t('m.Materials_Cannot_Download') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -389,7 +389,7 @@
       <span slot="footer">
         <el-button @click="showPermissionDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" @click="savePermissions" :loading="permissionLoading">
-          保存设置
+          {{ $t('m.Materials_Save_Settings') }}
         </el-button>
       </span>
     </el-dialog>
@@ -536,7 +536,7 @@ export default {
     },
 
     showPreviewFeaturePending() {
-      this.$message.warning('使用功能未开放，敬请期待')
+      this.$message.warning(this.$t('m.Materials_Feature_Pending'))
     },
 
     async loadContent() {
@@ -860,7 +860,7 @@ export default {
 
     async confirmRenameFolder() {
       if (!this.editFolderName || !this.editFolderName.trim()) {
-        this.$message.warning('请输入文件夹名称')
+        this.$message.warning(this.$t('m.Enter_Folder_Name'))
         return
       }
       try {
@@ -869,7 +869,7 @@ export default {
           folderName: this.editFolderName
         })
         if (res.code === 200) {
-          this.$message.success('重命名成功')
+          this.$message.success(this.$t('m.Materials_Rename_Success'))
           this.showRenameFolderDialog = false
           this.currentEditFolder = null
           this.editFolderName = ''
@@ -877,31 +877,31 @@ export default {
           this.loadContent()
           this.loadFolderTree()
         } else {
-          this.$message.error(res.message || '重命名失败')
+          this.$message.error(res.message || this.$t('m.Materials_Rename_Failed'))
         }
       } catch (error) {
-        this.$message.error('重命名失败')
+        this.$message.error(this.$t('m.Materials_Rename_Failed'))
       }
     },
 
     async deleteFolder(folder) {
-      this.$confirm('确认删除文件夹及其所有内容吗？此操作不可恢复！', '警告', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.Materials_Confirm_Delete_Folder'), this.$t('m.Warning'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await this.$store.dispatch('classroom/deleteFolder', folder.id)
           if (res.code === 200) {
-            this.$message.success('删除成功')
+            this.$message.success(this.$t('m.Delete_Success'))
             this.isInitialLoad = true
             this.loadContent()
             this.loadFolderTree()
           } else {
-            this.$message.error(res.message || '删除失败')
+            this.$message.error(res.message || this.$t('m.Delete_Failed'))
           }
         } catch (error) {
-          this.$message.error('删除失败')
+          this.$message.error(this.$t('m.Delete_Failed'))
         }
       })
     },
@@ -1020,11 +1020,11 @@ export default {
     downloadMaterial(material) {
       if (!material) return
       if (this.isDownloadBusy(material)) {
-        this.$message.info('正在准备下载，请勿重复点击')
+        this.$message.info(this.$t('m.Materials_Download_In_Progress'))
         return
       }
       if (this.isDownloadInCooldown(material)) {
-        this.$message.info('下载已触发，请稍候在浏览器下载列表查看')
+        this.$message.info(this.$t('m.Materials_Download_Triggered_Wait'))
         return
       }
 
@@ -1037,7 +1037,7 @@ export default {
     downloadFile(url, filename, material = null) {
       const downloadKey = this.getDownloadKey(material, filename || '')
       this.$set(this.downloadingMap, downloadKey, true)
-      this.$message.info('正在准备下载，请稍候...')
+      this.$message.info(this.$t('m.Materials_Preparing_Download'))
 
       this.$axios({
         method: 'get',
@@ -1057,7 +1057,7 @@ export default {
         link.click()
 
         this.$set(this.downloadCooldownUntil, downloadKey, Date.now() + this.downloadCooldownMs)
-        this.$message.success('已触发下载，请在浏览器下载列表查看进度')
+        this.$message.success(this.$t('m.Materials_Download_Triggered'))
 
         // 延迟清理，确保下载开始
         setTimeout(() => {
@@ -1067,11 +1067,11 @@ export default {
       }).catch(error => {
         console.error('下载失败:', error)
         if (error.response && error.response.status === 401) {
-          this.$message.error('请先登录')
+          this.$message.error(this.$t('m.Materials_Please_Login'))
         } else if (error.response && error.response.status === 403) {
-          this.$message.error('您没有下载该资料的权限')
+          this.$message.error(this.$t('m.Materials_No_Download_Permission'))
         } else {
-          this.$message.error('下载失败：' + (error.response?.data?.message || error.message))
+          this.$message.error(this.$t('m.Materials_Download_Failed', { reason: (error.response?.data?.message || error.message) }))
         }
       }).finally(() => {
         this.$set(this.downloadingMap, downloadKey, false)
@@ -1208,11 +1208,11 @@ export default {
             canPreview: false
           }))
         } else {
-          this.$message.error(response.data.message || '加载权限失败')
+          this.$message.error(response.data.message || this.$t('m.Materials_Load_Permission_Failed'))
         }
       } catch (error) {
         console.error('加载权限失败:', error)
-        this.$message.error('加载权限失败')
+        this.$message.error(this.$t('m.Materials_Load_Permission_Failed'))
       } finally {
         this.permissionLoading = false
       }
@@ -1231,7 +1231,7 @@ export default {
         student.canPreview = false
         student.canDownload = canDownload
       })
-      this.$message.success('已批量设置，请点击保存按钮保存更改')
+      this.$message.success(this.$t('m.Materials_Batch_Set_Success'))
     },
 
     // 预览权限暂未开放
@@ -1259,14 +1259,14 @@ export default {
 
       const response = await this.$axios.post('/api/classroom/material/permissions', data)
         if (response.data.code === 200) {
-          this.$message.success('权限设置保存成功')
+          this.$message.success(this.$t('m.Materials_Permission_Save_Success'))
           this.showPermissionDialog = false
         } else {
-          this.$message.error(response.data.message || '保存失败')
+          this.$message.error(response.data.message || this.$t('m.Save_Failed'))
         }
       } catch (error) {
         console.error('保存权限失败:', error)
-        this.$message.error('保存权限失败')
+        this.$message.error(this.$t('m.Materials_Permission_Save_Failed'))
       } finally {
         this.permissionLoading = false
       }

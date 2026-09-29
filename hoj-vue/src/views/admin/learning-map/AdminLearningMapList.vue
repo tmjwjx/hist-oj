@@ -2,8 +2,8 @@
   <div class="admin-learning-map-list">
     <el-card>
       <div slot="header" class="header-row">
-        <span class="panel-title home-title">算法航海图管理</span>
-        <el-button type="primary" size="small" icon="el-icon-plus" @click="openCreateDialog">新建航海图</el-button>
+        <span class="panel-title home-title">{{ $t('m.MapAdm_Title') }}</span>
+        <el-button type="primary" size="small" icon="el-icon-plus" @click="openCreateDialog">{{ $t('m.MapAdm_Create_Map') }}</el-button>
       </div>
 
       <vxe-table
@@ -15,34 +15,34 @@
         :loading="loading"
       >
         <vxe-table-column field="id" title="ID" width="90"></vxe-table-column>
-        <vxe-table-column field="title" title="标题" min-width="260" show-overflow></vxe-table-column>
-        <vxe-table-column field="description" title="描述" min-width="280" show-overflow></vxe-table-column>
-        <vxe-table-column title="状态" width="110">
+        <vxe-table-column field="title" :title="$t('m.MapAdm_Title_Field')" min-width="260" show-overflow></vxe-table-column>
+        <vxe-table-column field="description" :title="$t('m.MapAdm_Description')" min-width="280" show-overflow></vxe-table-column>
+        <vxe-table-column :title="$t('m.MapAdm_Status')" width="110">
           <template v-slot="{ row }">
             <el-tag size="mini" :type="row.status === 'published' ? 'success' : 'info'">{{ mapStatusLabel(row.status) }}</el-tag>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="操作" min-width="260">
+        <vxe-table-column :title="$t('m.MapAdm_Operation')" min-width="260">
           <template v-slot="{ row }">
-            <el-button type="primary" size="mini" @click="openEditor(row.id)">编辑</el-button>
-            <el-button type="danger" size="mini" @click="deleteMap(row.id)">删除</el-button>
+            <el-button type="primary" size="mini" @click="openEditor(row.id)">{{ $t('m.MapAdm_Edit') }}</el-button>
+            <el-button type="danger" size="mini" @click="deleteMap(row.id)">{{ $t('m.MapAdm_Delete') }}</el-button>
           </template>
         </vxe-table-column>
       </vxe-table>
     </el-card>
 
-    <el-dialog title="新建航海图" :visible.sync="createVisible" width="540px">
+    <el-dialog :title="$t('m.MapAdm_Create_Map')" :visible.sync="createVisible" width="540px">
       <el-form label-width="90px" :model="createForm">
-        <el-form-item label="标题">
-          <el-input v-model="createForm.title" placeholder="例如：算法基础路线"></el-input>
+        <el-form-item :label="$t('m.MapAdm_Title_Field')">
+          <el-input v-model="createForm.title" :placeholder="$t('m.MapAdm_Title_Placeholder')"></el-input>
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="$t('m.MapAdm_Description')">
           <el-input type="textarea" :rows="4" v-model="createForm.description"></el-input>
         </el-form-item>
       </el-form>
       <div slot="footer">
-        <el-button size="small" @click="createVisible = false">取消</el-button>
-        <el-button size="small" type="primary" @click="createMap">创建</el-button>
+        <el-button size="small" @click="createVisible = false">{{ $t('m.MapAdm_Cancel') }}</el-button>
+        <el-button size="small" type="primary" @click="createMap">{{ $t('m.MapAdm_Create') }}</el-button>
       </div>
     </el-dialog>
   </div>
@@ -69,14 +69,14 @@ export default {
   },
   methods: {
     mapStatusLabel(status) {
-      return status === 'published' ? '已发布' : '已隐藏'
+      return status === 'published' ? this.$t('m.MapAdm_Published') : this.$t('m.MapAdm_Hidden')
     },
     async loadMaps() {
       this.loading = true
       try {
         this.maps = await learningMapApi.adminListMaps()
       } catch (e) {
-        this.$message.error(e.message || '获取航海图列表失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Load_List_Failed'))
       } finally {
         this.loading = false
       }
@@ -87,7 +87,7 @@ export default {
     },
     async createMap() {
       if (!this.createForm.title.trim()) {
-        this.$message.warning('请填写标题')
+        this.$message.warning(this.$t('m.MapAdm_Title_Required'))
         return
       }
       try {
@@ -96,26 +96,26 @@ export default {
           description: this.createForm.description,
           status: 'draft'
         })
-        this.$message.success('创建成功')
+        this.$message.success(this.$t('m.MapAdm_Create_Success'))
         this.createVisible = false
         this.openEditor(res.id)
       } catch (e) {
-        this.$message.error(e.message || '创建失败')
+        this.$message.error(e.message || this.$t('m.MapAdm_Create_Failed'))
       }
     },
     openEditor(mapId) {
       this.$router.push({ name: 'admin-learning-map-editor', params: { mapId: String(mapId) } })
     },
     deleteMap(mapId) {
-      this.$confirm('删除后不可恢复，确认删除该航海图？', '危险操作', {
+      this.$confirm(this.$t('m.MapAdm_Delete_Confirm'), this.$t('m.MapAdm_Dangerous_Operation'), {
         type: 'warning'
       }).then(async () => {
         try {
           await learningMapApi.adminDeleteMap(mapId)
-          this.$message.success('删除成功')
+          this.$message.success(this.$t('m.MapAdm_Delete_Success'))
           this.loadMaps()
         } catch (e) {
-          this.$message.error(e.message || '删除失败')
+          this.$message.error(e.message || this.$t('m.MapAdm_Delete_Failed'))
         }
       })
     }
