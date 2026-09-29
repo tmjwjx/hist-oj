@@ -3,7 +3,7 @@
     <el-input
       size="small"
       clearable
-      placeholder="搜索知识点或题目"
+      :placeholder="$t('m.Map_Search_Placeholder')"
       v-model="keyword"
       @input="onInput"
       @keyup.enter.native="emitSearch"
@@ -22,7 +22,7 @@
           <span class="type" :class="item.type">{{ nodeTypeLabel(item.type) }}</span>
           <span class="title">{{ item.title }}</span>
         </div>
-        <div class="empty" v-if="!loading && results.length === 0">无匹配结果</div>
+        <div class="empty" v-if="!loading && results.length === 0">{{ $t('m.Map_No_Matches') }}</div>
       </el-scrollbar>
     </div>
   </div>
@@ -53,7 +53,7 @@ export default {
   },
   methods: {
     nodeTypeLabel(type) {
-      return type === 'knowledge' ? '知识点' : '题目'
+      return type === 'knowledge' ? this.$t('m.Map_Knowledge_Node') : this.$t('m.Map_Problem_Node')
     },
     onInput() {
       this.emitSearch()

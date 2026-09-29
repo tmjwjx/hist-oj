@@ -25,12 +25,12 @@ public class ProblemVerificationLifecycle {
             verificationService.updateById(record);
             return;
         }
-        record = prepare(record, pid, version, judgeMode, "正在导入并同步测试数据");
+        record = prepare(record, pid, version, judgeMode, "正在准备判题测试数据");
         verificationService.saveOrUpdate(record);
         try {
             int count = syncManager.sync(pid, version);
             record.setSyncStatus(ProblemVerificationConstants.SYNC_SUCCESS)
-                    .setSyncMessage("测试数据已导入并同步到 " + count + " 台判题服务器");
+                    .setSyncMessage("测试数据已就绪，已确认 " + count + " 台判题服务器可用");
         } catch (Exception e) {
             record.setSyncStatus(ProblemVerificationConstants.SYNC_FAILED)
                     .setSyncMessage(message(e));

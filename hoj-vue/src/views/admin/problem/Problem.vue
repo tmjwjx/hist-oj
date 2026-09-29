@@ -164,7 +164,7 @@
 
         <div v-show="editorStep === 1">
           <el-alert class="test-data-tip" title="测试数据按变更导入"
-            description="上传新 ZIP 或修改手工测试点时才会同步判题机；普通保存不会重复传输已同步的大数据包。"
+            description="共享目录直接使用；独立存储自动同步，仅测试数据变化才传输。"
             type="info" :closable="false" show-icon />
           <div class="panel-title home-title">
             {{ $t('m.Problem_Examples') }}
@@ -1285,6 +1285,7 @@ export default {
       });
     },
     submit() {
+      if (this.saving) return;
       if (!this.problem.problemId) {
         myMessage.error(
           this.$i18n.t("m.Problem_Display_ID") +
@@ -1621,20 +1622,28 @@ export default {
 
       api[funcName](problemDto)
         .then((res) => {
+          const responseData = res.data.data;
+          const responsePid = responseData && typeof responseData === "object" ? responseData.pid || responseData.id : responseData;
+          const savedPid = (typeof responsePid === "number" || typeof responsePid === "string" ? responsePid : null) || this.problem.id || this.pid;
+          if (savedPid) {
+            this.savedPid = savedPid;
+            this.problem.id = savedPid;
+            this.pid = savedPid;
+          }
           if (
             this.routeName === "admin-create-contest-problem" ||
             this.routeName === "admin-edit-contest-problem"
           ) {
-            if (res.data.data) {
+            if (savedPid) {
               // 新增题目操作 需要使用返回来的pid
-              this.contestProblem["pid"] = res.data.data.pid;
+              this.contestProblem["pid"] = savedPid;
               this.contestProblem["cid"] = this.$route.params.contestId;
             }
-            api.admin_setContestProblemInfo(this.contestProblem).then(() => {
+            return api.admin_setContestProblemInfo(this.contestProblem).then(() => {
               this.afterSave(this.contestProblem.pid);
             });
           } else {
-            this.afterSave((res.data.data && res.data.data.pid) || this.problem.id);
+            this.afterSave(savedPid);
           }
         })
         .catch(() => {})

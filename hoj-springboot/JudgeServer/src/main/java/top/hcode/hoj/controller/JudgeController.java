@@ -71,16 +71,20 @@ public class JudgeController {
     }
 
     @PostMapping(value = "/sync-testcase")
-    public CommonResult<Void> syncTestCase(@RequestParam("token") String token,
+    public CommonResult<Boolean> syncTestCase(@RequestParam("token") String token,
                                            @RequestParam("pid") Long pid,
                                            @RequestParam("version") String version,
-                                           @RequestPart("archive") MultipartFile archive) {
+                                           @RequestPart(value = "archive", required = false) MultipartFile archive,
+                                           @RequestParam(value = "sharedToken", required = false) String sharedToken) {
         if (!Objects.equals(token, judgeToken)) {
             return CommonResult.errorResponse("判题服务调用凭证不正确！", ResultStatus.ACCESS_DENIED);
         }
         try {
+            if (sharedToken != null) {
+                return CommonResult.successResponse(problemTestCaseSyncService.confirmShared(pid, version, sharedToken));
+            }
             problemTestCaseSyncService.install(pid, version, archive);
-            return CommonResult.successResponse("测试数据同步成功");
+            return CommonResult.successResponse(true, "测试数据同步成功");
         } catch (Exception e) {
             return CommonResult.errorResponse(e.getMessage());
         }

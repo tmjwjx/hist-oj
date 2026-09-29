@@ -209,10 +209,7 @@ public class GroupProblemManager {
         if (!isOk) {
             throw new StatusFailException("添加失败");
         }
-        Problem created = problemDto.getProblem();
-        verificationLifecycle.markTestCaseChanged(
-                created.getId(), created.getCaseVersion(), created.getJudgeMode());
-        return created.getId();
+        return problemDto.getProblem().getId();
     }
 
     public void updateProblem(ProblemDTO problemDto) throws StatusForbiddenException, StatusNotFoundException, StatusFailException {

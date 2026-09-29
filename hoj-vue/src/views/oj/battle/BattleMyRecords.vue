@@ -4,15 +4,15 @@
       <div slot="header" class="card-header">
         <div class="header-left">
           <el-button type="primary" size="small" @click="backToHome" class="back-button">
-            <i class="fa fa-arrow-left"></i> 返回
+            <i class="fa fa-arrow-left"></i> {{ $t('m.Back') }}
           </el-button>
           <div class="header-title">
             <i class="fa fa-history"></i>
-            <span>我的对战记录</span>
+            <span>{{ $t('m.Battle_My_Records') }}</span>
           </div>
         </div>
         <el-button type="success" size="small" @click="loadRecords" :loading="loading" class="refresh-button">
-          <i class="fa fa-refresh"></i> 刷新
+          <i class="fa fa-refresh"></i> {{ $t('m.Refresh') }}
         </el-button>
       </div>
 
@@ -23,7 +23,7 @@
             <el-card class="stat-card total" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.totalBattles }}</div>
-                <div class="stat-label">全部场次</div>
+                <div class="stat-label">{{ $t('m.Battle_Total_Matches') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -31,7 +31,7 @@
             <el-card class="stat-card win" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.winCount }}</div>
-                <div class="stat-label">全部胜场</div>
+                <div class="stat-label">{{ $t('m.Battle_Wins') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -39,7 +39,7 @@
             <el-card class="stat-card lose" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.loseCount }}</div>
-                <div class="stat-label">负场</div>
+                <div class="stat-label">{{ $t('m.Battle_Losses') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -47,7 +47,7 @@
             <el-card class="stat-card rate" shadow="never">
               <div class="stat-item">
                 <div class="stat-value">{{ allTimeStats.winRate }}%</div>
-                <div class="stat-label">全部获胜率</div>
+                <div class="stat-label">{{ $t('m.Battle_Win_Rate') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -59,7 +59,7 @@
           style="width: 100%; margin-top: 20px;"
           v-loading="loading"
         >
-          <el-table-column label="对手" width="150" align="center">
+          <el-table-column :label="$t('m.Battle_Opponent')" width="150" align="center">
             <template slot-scope="scope">
               <div class="opponent-cell">
                 <img v-if="scope.row.opponentAvatar" :src="scope.row.opponentAvatar" class="opponent-avatar" />
@@ -71,9 +71,9 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="problemTitle" label="题目" align="center"></el-table-column>
+          <el-table-column prop="problemTitle" :label="$t('m.Problem')" align="center"></el-table-column>
 
-          <el-table-column label="结果" width="100" align="center">
+          <el-table-column :label="$t('m.Battle_Result')" width="100" align="center">
             <template slot-scope="scope">
               <el-tag :type="getResultType(scope.row)" size="medium">
                 {{ getResultText(scope.row) }}
@@ -81,30 +81,30 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="结束原因" width="150" align="center">
+          <el-table-column :label="$t('m.Battle_End_Reason')" width="150" align="center">
             <template slot-scope="scope">
               {{ getEndReasonText(scope.row) }}
             </template>
           </el-table-column>
 
-          <el-table-column label="对战时长" width="100" align="center">
+          <el-table-column :label="$t('m.Battle_Duration')" width="100" align="center">
             <template slot-scope="scope">
               {{ formatTime(scope.row.battleTime) }}
             </template>
           </el-table-column>
 
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column :label="$t('m.Status')" width="100" align="center">
             <template slot-scope="scope">
               <el-tag v-if="scope.row.isExcluded" type="warning" size="small">
-                不计入
+                {{ $t('m.Battle_Excluded') }}
               </el-tag>
               <el-tag v-else type="info" size="small">
-                已计入
+                {{ $t('m.Battle_Counted') }}
               </el-tag>
             </template>
           </el-table-column>
 
-          <el-table-column label="时间" width="180" align="center">
+          <el-table-column :label="$t('m.Time')" width="180" align="center">
             <template slot-scope="scope">
               {{ formatDate(scope.row.gmtCreate) }}
             </template>
@@ -210,10 +210,10 @@ export default {
           // 加载全部数据用于全部统计
           await this.loadAllTimeStats();
         } else {
-          this.$message.error(res.data.msg || '加载记录失败');
+          this.$message.error(res.data.msg || this.$t('m.Battle_Load_Records_Failed'));
         }
       } catch (error) {
-        this.$message.error('加载记录失败');
+        this.$message.error(this.$t('m.Battle_Load_Records_Failed'));
       } finally {
         this.loading = false;
       }
@@ -274,7 +274,7 @@ export default {
 
     getResultText(row) {
       // 只显示胜利或失败，不显示具体原因
-      return row.isWinner ? '胜利' : '失败';
+      return row.isWinner ? this.$t('m.Battle_Victory') : this.$t('m.Battle_Defeat');
     },
 
     getResultType(row) {
@@ -285,15 +285,15 @@ export default {
     getEndReasonText(row) {
       // 显示更详细的结束原因
       if (row.endReason === 'ac') {
-        return row.isWinner ? '你已解决' : '对方已解决';
+        return row.isWinner ? this.$t('m.Battle_You_Solved') : this.$t('m.Battle_Opponent_Solved');
       }
       if (row.endReason === 'giveup') {
-        return row.isWinner ? '对方放弃' : '你放弃';
+        return row.isWinner ? this.$t('m.Battle_Opponent_Gave_Up') : this.$t('m.Battle_You_Gave_Up');
       }
       if (row.endReason === 'timeout') {
-        return row.isWinner ? '对方超时' : '你超时';
+        return row.isWinner ? this.$t('m.Battle_Opponent_Timeout') : this.$t('m.Battle_You_Timeout');
       }
-      return row.endReason || '未知';
+      return row.endReason || this.$t('m.Unknown');
     },
 
     formatTime(seconds) {
@@ -306,7 +306,7 @@ export default {
     formatDate(dateStr) {
       if (!dateStr) return '-';
       const date = new Date(dateStr);
-      return date.toLocaleString('zh-CN');
+      return date.toLocaleString(this.$i18n.locale || 'en-US');
     }
   }
 };

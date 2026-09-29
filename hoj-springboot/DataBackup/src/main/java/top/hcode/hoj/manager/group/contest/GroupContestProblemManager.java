@@ -24,7 +24,6 @@ import top.hcode.hoj.pojo.entity.group.Group;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.Tag;
-import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.validator.GroupValidator;
 import top.hcode.hoj.validator.ProblemValidator;
@@ -66,8 +65,6 @@ public class GroupContestProblemManager {
     @Autowired
     private ProblemValidator problemValidator;
 
-    @Autowired
-    private ProblemVerificationLifecycle verificationLifecycle;
 
     public HashMap<String, Object> getContestProblemList(Integer limit, Integer currentPage, String keyword, Long cid, Integer problemType, String oj) throws StatusNotFoundException, StatusForbiddenException {
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
@@ -153,9 +150,6 @@ public class GroupContestProblemManager {
 
         boolean isOk = problemEntityService.adminAddProblem(problemDto);
         if (isOk) {
-            Problem created = problemDto.getProblem();
-            verificationLifecycle.markTestCaseChanged(
-                    created.getId(), created.getCaseVersion(), created.getJudgeMode());
             return MapUtil.builder().put("pid", problemDto.getProblem().getId()).map();
         } else {
             throw new StatusFailException("添加失败");

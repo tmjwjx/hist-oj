@@ -1,16 +1,16 @@
 <template>
   <div class="learning-map-filter">
-    <el-select size="small" v-model="status" @change="emitChange" placeholder="状态筛选">
-      <el-option label="全部" value="all"></el-option>
-      <el-option label="已解锁" value="unlocked"></el-option>
-      <el-option label="未完成" value="unfinished"></el-option>
-      <el-option label="已完成" value="completed"></el-option>
+    <el-select size="small" v-model="status" @change="emitChange" :placeholder="$t('m.Map_Status_Filter')">
+      <el-option :label="$t('m.Map_All')" value="all"></el-option>
+      <el-option :label="$t('m.Map_Unlocked')" value="unlocked"></el-option>
+      <el-option :label="$t('m.Map_Unfinished')" value="unfinished"></el-option>
+      <el-option :label="$t('m.Map_Completed')" value="completed"></el-option>
     </el-select>
 
-    <el-select size="small" v-model="type" @change="emitChange" placeholder="类型筛选">
-      <el-option label="全部类型" value="all"></el-option>
-      <el-option label="只看知识点" value="knowledge"></el-option>
-      <el-option label="只看题目" value="problem"></el-option>
+    <el-select size="small" v-model="type" @change="emitChange" :placeholder="$t('m.Map_Type_Filter')">
+      <el-option :label="$t('m.Map_All_Types')" value="all"></el-option>
+      <el-option :label="$t('m.Map_Only_Knowledge')" value="knowledge"></el-option>
+      <el-option :label="$t('m.Map_Only_Problems')" value="problem"></el-option>
     </el-select>
   </div>
 </template>

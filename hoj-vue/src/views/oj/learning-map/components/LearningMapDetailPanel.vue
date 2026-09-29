@@ -3,22 +3,22 @@
     <div class="detail-header">
       <div class="detail-title-wrap">
         <div class="detail-title">{{ node.title }}</div>
-        <div class="detail-sub">{{ node.type === 'knowledge' ? '知识点' : '题目节点' }}</div>
+        <div class="detail-sub">{{ node.type === 'knowledge' ? $t('m.Map_Knowledge_Node') : $t('m.Map_Problem_Node') }}</div>
       </div>
       <el-tag size="mini" :type="statusTagType">{{ statusLabel }}</el-tag>
     </div>
 
     <div class="detail-meta">
-      <el-tag size="mini" effect="plain">难度：{{ difficultyLabel }}</el-tag>
+      <el-tag size="mini" effect="plain">{{ $t('m.Map_Difficulty_Label') }}{{ difficultyLabel }}</el-tag>
       <el-tag v-for="tag in node.tagsList || []" :key="tag" size="mini" type="info" effect="plain">{{ tag }}</el-tag>
     </div>
 
     <div class="locked-box" v-if="progress && progress.status === 'locked'">
-      <div class="locked-title"><i class="el-icon-lock"></i> 未解锁</div>
-      <div class="locked-text">完成以下前置节点后可解锁：</div>
+      <div class="locked-title"><i class="el-icon-lock"></i> {{ $t('m.Map_Locked') }}</div>
+      <div class="locked-text">{{ $t('m.Map_Prerequisite_Tip') }}</div>
       <ul>
         <li v-for="id in progress.missingPrerequisiteIds || []" :key="id">
-          {{ nodeTitleMap[id] || `节点 ${id}` }}
+          {{ nodeTitleMap[id] || $t('m.Map_Node_No') + ' ' + id }}
         </li>
       </ul>
     </div>
@@ -30,23 +30,23 @@
           type="warning"
           :disabled="!progress || progress.status === 'locked'"
           @click="$emit('start-node', node)"
-        >标记学习中</el-button>
+        >{{ $t('m.Map_Mark_Learning') }}</el-button>
         <el-button
           size="mini"
           type="success"
           :disabled="!progress || progress.status === 'locked'"
           @click="$emit('complete-node', node)"
-        >标记已学完</el-button>
+        >{{ $t('m.Map_Mark_Completed') }}</el-button>
         <el-button
           size="mini"
           plain
           icon="el-icon-full-screen"
           :disabled="!progress || progress.status === 'locked'"
           @click="$emit('open-knowledge-fullscreen', node)"
-        >全屏学习</el-button>
+        >{{ $t('m.Map_Fullscreen') }}</el-button>
       </div>
       <div class="resource-box" v-if="knowledgeResources.length > 0">
-        <div class="resource-title">资料附件</div>
+        <div class="resource-title">{{ $t('m.Map_Resources') }}</div>
         <div class="resource-list">
           <el-link
             v-for="item in knowledgeResources"
@@ -61,13 +61,13 @@
           </el-link>
         </div>
       </div>
-      <div class="content-title">学习内容</div>
-      <Markdown :content="node.knowledgeContent || '暂无学习内容'" :is-avoid-xss="true" />
+      <div class="content-title">{{ $t('m.Map_Learning_Content') }}</div>
+      <Markdown :content="node.knowledgeContent || $t('m.Map_No_Content')" :is-avoid-xss="true" />
     </template>
 
     <template v-else>
       <div class="problem-card">
-        <div class="problem-id">题号：{{ node.problemDisplayId || (node.problemInfo && node.problemInfo.problemDisplayId) || '-' }}</div>
+        <div class="problem-id">{{ $t('m.Map_Problem_ID') }}{{ node.problemDisplayId || (node.problemInfo && node.problemInfo.problemDisplayId) || '-' }}</div>
         <div class="problem-title">{{ (node.problemInfo && node.problemInfo.title) || node.title }}</div>
         <div class="problem-tags">
           <el-tag
@@ -80,7 +80,7 @@
         <div class="problem-remark-box" v-if="nodeRemark">
           <div class="problem-remark-title">
             <i class="el-icon-document"></i>
-            <span>备注</span>
+            <span>{{ $t('m.Map_Remark') }}</span>
           </div>
           <div class="problem-remark-content">
             <Markdown :content="nodeRemark" :is-avoid-xss="true" />
@@ -91,34 +91,34 @@
           type="primary"
           :disabled="progress && progress.status === 'locked'"
           @click="$emit('go-problem', node)"
-        >进入主 OJ 题目</el-button>
+        >{{ $t('m.Map_Go_To_OJ') }}</el-button>
       </div>
     </template>
   </div>
 
   <div class="detail-empty" v-else>
     <i class="el-icon-position"></i>
-    <span>点击航海点查看详情</span>
+    <span>{{ $t('m.Map_Click_Node') }}</span>
   </div>
 </template>
 
 <script>
 import Markdown from '@/components/oj/common/Markdown'
 
-const STATUS_LABEL = {
-  locked: '未解锁',
-  available: '可学习',
-  in_progress: '进行中',
-  completed: '已完成',
-  mastered: '已精通'
+const STATUS_KEYS = {
+  locked: 'Map_Locked',
+  available: 'Map_Available',
+  in_progress: 'Map_In_Progress',
+  completed: 'Map_Completed',
+  mastered: 'Map_Mastered'
 }
 
-const DIFFICULTY_LABEL = {
-  beginner: '入门',
-  easy: '简单',
-  medium: '中等',
-  hard: '困难',
-  expert: '专家'
+const DIFFICULTY_KEYS = {
+  beginner: 'Map_Level_Beginner',
+  easy: 'Map_Level_Easy',
+  medium: 'Map_Level_Medium',
+  hard: 'Map_Level_Hard',
+  expert: 'Map_Level_Expert'
 }
 
 export default {
@@ -157,11 +157,11 @@ export default {
     },
     difficultyLabel() {
       const key = this.node && this.node.difficulty
-      return DIFFICULTY_LABEL[key] || '入门'
+      return key && DIFFICULTY_KEYS[key] ? this.$t(DIFFICULTY_KEYS[key]) : this.$t('m.Map_Level_Beginner')
     },
     statusLabel() {
       const key = this.progress && this.progress.status
-      return STATUS_LABEL[key] || '未知'
+      return key && STATUS_KEYS[key] ? this.$t(STATUS_KEYS[key]) : this.$t('m.Unknown')
     },
     statusTagType() {
       const key = this.progress && this.progress.status

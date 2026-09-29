@@ -4,16 +4,16 @@
       <div class="header">
         <div>
           <h2 class="title">{{ paper.title }}</h2>
-          <p class="desc">{{ paper.description || '暂无简介' }}</p>
+          <p class="desc">{{ paper.description || $t('m.Practice_No_Desc') }}</p>
           <div class="meta">
-            <span>题目数量: {{ paper.questionCount || 0 }}</span>
-            <span>总分: {{ paper.totalScore || 0 }}</span>
-            <span>作者: {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
+            <span>{{ $t('m.Practice_Question_Count') }}: {{ paper.questionCount || 0 }}</span>
+            <span>{{ $t('m.Total_Score') }}: {{ paper.totalScore || 0 }}</span>
+            <span>{{ $t('m.Author') }}: {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
           </div>
         </div>
         <div class="actions">
-          <el-button @click="$router.push({ name: 'PracticeList' })">返回列表</el-button>
-          <el-button v-if="!started" type="primary" @click="startAnswer">开始作答</el-button>
+          <el-button @click="$router.push({ name: 'PracticeList' })">{{ $t('m.Practice_Back_To_List') }}</el-button>
+          <el-button v-if="!started" type="primary" @click="startAnswer">{{ $t('m.Practice_Start') }}</el-button>
         </div>
       </div>
     </section>
@@ -22,7 +22,7 @@
       <el-alert
         type="info"
         :closable="false"
-        title="点击“开始作答”后进入套卷练习，每道题都可以单独点击“查看答案”查看标准答案。"
+        :title="$t('m.Practice_Start_Tip')"
       ></el-alert>
     </div>
 
@@ -30,15 +30,15 @@
       <section class="global-status-card">
         <div class="global-status-top">
           <div class="status-item">
-            <span class="status-label">当前题目</span>
+            <span class="status-label">{{ $t('m.Practice_Current_Question') }}</span>
             <span class="status-value">{{ currentQuestionIndex + 1 }} / {{ questions.length }}</span>
           </div>
           <div class="status-item">
-            <span class="status-label">已作答</span>
+            <span class="status-label">{{ $t('m.Practice_Answered') }}</span>
             <span class="status-value">{{ answeredCount }} / {{ questions.length }}</span>
           </div>
           <div class="status-item">
-            <span class="status-label">已查看答案</span>
+            <span class="status-label">{{ $t('m.Practice_Answer_Viewed') }}</span>
             <span class="status-value">{{ viewedAnswerCount }}</span>
           </div>
         </div>
@@ -46,14 +46,14 @@
         <div class="global-nav-actions">
           <el-button-group>
             <el-button size="small" icon="el-icon-arrow-left" :disabled="currentQuestionIndex === 0" @click="goPrevQuestion">
-              上一题
+              {{ $t('m.Practice_Prev_Question') }}
             </el-button>
             <el-button size="small" :disabled="currentQuestionIndex >= questions.length - 1" @click="goNextQuestion">
-              下一题
+              {{ $t('m.Practice_Next_Question') }}
               <i class="el-icon-arrow-right el-icon--right"></i>
             </el-button>
           </el-button-group>
-          <span class="current-text">第 {{ currentQuestionIndex + 1 }} 题</span>
+          <span class="current-text">{{ $t('m.Practice_Question_No') }} {{ currentQuestionIndex + 1 }}</span>
         </div>
         <div class="question-index-list">
           <el-button
@@ -79,30 +79,30 @@
           <div>
             <span class="q-index">{{ currentQuestionIndex + 1 }}.</span>
             <el-tag size="mini" :type="getTypeTag(currentQuestion.questionType)">{{ getTypeText(currentQuestion.questionType) }}</el-tag>
-            <span class="q-score">{{ currentQuestion.score || 0 }} 分</span>
+            <span class="q-score">{{ currentQuestion.score || 0 }} {{ $t('m.Practice_Score_Unit') }}</span>
           </div>
           <div class="header-right-actions">
             <el-button size="mini" @click="toggleDone(currentQuestion, currentQuestionIndex)">
-              {{ isQuestionAnswered(currentQuestion, currentQuestionIndex) ? '标记未作答' : '标记已作答' }}
+              {{ isQuestionAnswered(currentQuestion, currentQuestionIndex) ? $t('m.Practice_Mark_Unanswered') : $t('m.Practice_Mark_Answered') }}
             </el-button>
             <el-button size="mini" type="primary" @click="toggleAnswer(currentQuestion, currentQuestionIndex)">
-              {{ showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)] ? '收起答案' : '查看答案' }}
+              {{ showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)] ? $t('m.Practice_Hide_Answer') : $t('m.Practice_View_Answer') }}
             </el-button>
           </div>
         </div>
 
         <template v-if="currentQuestion.questionType === 'programming'">
           <div class="q-content">
-            <p>编程题编号: <strong>{{ currentQuestion.problemId || '-' }}</strong></p>
+            <p>{{ $t('m.Practice_Programming_No') }}: <strong>{{ currentQuestion.problemId || '-' }}</strong></p>
             <el-link v-if="currentQuestion.problemId" type="primary" :underline="false" @click="openProblem(currentQuestion.problemId)">
-              前往题目页面
+              {{ $t('m.Battle_Go_To_Problem') }}
             </el-link>
           </div>
           <el-alert
             v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]"
             type="warning"
             :closable="false"
-            title="编程题标准答案请前往题目页面按测试数据验证。"
+            :title="$t('m.Practice_Programming_Answer_Tip')"
           ></el-alert>
         </template>
 
@@ -152,8 +152,8 @@
 
           <div v-if="currentQuestion.question.type === 'judge'" class="options practice-option-box">
             <el-radio-group v-model="singleAnswers[currentQuestion.question.id]">
-              <el-radio label="true">正确</el-radio>
-              <el-radio label="false">错误</el-radio>
+              <el-radio label="true">{{ $t('m.True') }}</el-radio>
+              <el-radio label="false">{{ $t('m.False') }}</el-radio>
             </el-radio-group>
           </div>
 
@@ -162,7 +162,7 @@
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
               :rows="3"
-              placeholder="请输入你的填空答案"
+              :placeholder="$t('m.Practice_Fill_Placeholder')"
             ></el-input>
           </div>
 
@@ -171,7 +171,7 @@
               v-model="singleAnswers[currentQuestion.question.id]"
               type="textarea"
               :rows="4"
-              placeholder="请输入你的答案"
+              :placeholder="$t('m.Practice_Answer_Placeholder')"
             ></el-input>
           </div>
 
@@ -182,9 +182,9 @@
               class="composite-sub-question"
             >
               <div class="composite-sub-header">
-                <span>子题 {{ subIndex + 1 }}</span>
+                <span>{{ $t('m.Practice_Sub_Question') }} {{ subIndex + 1 }}</span>
                 <span v-if="subQuestion.score !== null && subQuestion.score !== undefined" class="composite-sub-score">
-                  {{ subQuestion.score }} 分
+                  {{ subQuestion.score }} {{ $t('m.Practice_Score_Unit') }}
                 </span>
               </div>
 
@@ -194,7 +194,7 @@
                 v-html="renderMarkdown(subQuestion.content)"
                 v-highlight
               ></div>
-              <div v-else class="composite-sub-placeholder">暂无子题题干</div>
+              <div v-else class="composite-sub-placeholder">{{ $t('m.Practice_No_Sub_Question') }}</div>
 
               <el-radio-group
                 :value="getCompositeSelectedAnswer(currentQuestion.question.id, subQuestion.id)"
@@ -220,7 +220,7 @@
           </div>
 
           <div v-if="showAnswerMap[getQuestionKey(currentQuestion, currentQuestionIndex)]" class="answer-box practice-answer-box">
-            <div class="answer-title">标准答案</div>
+            <div class="answer-title">{{ $t('m.Practice_Standard_Answer') }}</div>
             <div
               class="answer-content markdown-body"
               v-highlight
@@ -342,11 +342,11 @@ export default {
             }
           })
         } else {
-          this.$message.error((res.data && res.data.message) || '加载套卷练习详情失败')
+          this.$message.error((res.data && res.data.message) || this.$t('m.Practice_Load_Detail_Failed'))
           this.$router.push({ name: 'PracticeList' })
         }
       } catch (error) {
-        this.$message.error('加载套卷练习详情失败')
+        this.$message.error(this.$t('m.Practice_Load_Detail_Failed'))
         this.$router.push({ name: 'PracticeList' })
       } finally {
         this.loading = false
@@ -355,7 +355,7 @@ export default {
     startAnswer() {
       this.started = true
       this.currentQuestionIndex = 0
-      this.$message.success('已开始作答')
+      this.$message.success(this.$t('m.Practice_Started'))
     },
     goPrevQuestion() {
       if (this.currentQuestionIndex <= 0) return
@@ -424,10 +424,10 @@ export default {
         if (res.data && res.data.code === 200) {
           this.$set(this.answerDataMap, key, res.data.data || {})
         } else {
-          this.$message.error((res.data && res.data.message) || '加载答案失败')
+          this.$message.error((res.data && res.data.message) || this.$t('m.Practice_Load_Answer_Failed'))
         }
       } catch (error) {
-        this.$message.error('加载答案失败')
+        this.$message.error(this.$t('m.Practice_Load_Answer_Failed'))
       }
     },
     parseOptions(optionsStr) {
@@ -539,18 +539,18 @@ export default {
     },
     getTypeText(type) {
       const map = {
-        single_choice: '单选题',
-        multiple_choice: '多选题',
-        judge: '判断题',
-        fill_blank: '填空题',
-        composite: '组合题',
-        subjective: '主观题',
-        programming: '编程题'
+        single_choice: this.$t('m.Practice_Single_Choice'),
+        multiple_choice: this.$t('m.Practice_Multiple_Choice'),
+        judge: this.$t('m.Practice_Judge'),
+        fill_blank: this.$t('m.Practice_Fill_Blank'),
+        composite: this.$t('m.Practice_Composite'),
+        subjective: this.$t('m.Practice_Subjective'),
+        programming: this.$t('m.Practice_Programming')
       }
       return map[type] || type
     },
     formatLoadedAnswer(answer, questionType, question = null) {
-      if (!answer) return '暂无标准答案'
+      if (!answer) return this.$t('m.Practice_No_Standard_Answer')
       if (questionType === 'multiple_choice') {
         try {
           const arr = JSON.parse(answer)
@@ -559,15 +559,15 @@ export default {
       }
       if (questionType === 'judge') {
         const normalized = String(answer).toLowerCase()
-        if (['true', '正确', '对', '1'].includes(normalized)) return '正确'
-        if (['false', '错误', '错', '0'].includes(normalized)) return '错误'
+        if (['true', '正确', '对', '1'].includes(normalized)) return this.$t('m.True')
+        if (['false', '错误', '错', '0'].includes(normalized)) return this.$t('m.False')
       }
       if (questionType === 'fill_blank') {
         try {
           const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
           if (Array.isArray(parsed)) {
             const lines = parsed.map(item => String(item || '').trim()).filter(Boolean)
-            return lines.length ? lines.map(item => `- ${item}`).join('\n') : '暂无标准答案'
+            return lines.length ? lines.map(item => `- ${item}`).join('\n') : this.$t('m.Practice_No_Standard_Answer')
           }
         } catch (e) {
           // fall through
@@ -588,13 +588,13 @@ export default {
                 answerMap[String(index + 1)] ||
                 answerMap[index] ||
                 answerMap[`sub_${index + 1}`]
-              return `- 子题 ${index + 1}: ${subAnswer || '-'}`
+              return `- ${this.$t('m.Practice_Sub_Question')} ${index + 1}: ${subAnswer || '-'}`
             })
             return lines.join('\n')
           }
 
           const lines = Object.keys(answerMap).map(key => `- ${key}: ${answerMap[key] || '-'}`)
-          return lines.length ? lines.join('\n') : '暂无标准答案'
+          return lines.length ? lines.join('\n') : this.$t('m.Practice_No_Standard_Answer')
         } catch (e) {
           return String(answer)
         }

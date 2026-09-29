@@ -213,11 +213,6 @@ public class AdminContestProblemManager {
         problemDto.getProblem().setAuth(3);
         boolean isOk = problemEntityService.adminAddProblem(problemDto);
         if (isOk) { // 添加成功
-            Problem created = problemDto.getProblem();
-            if (!Boolean.TRUE.equals(created.getIsRemote())) {
-                verificationLifecycle.markTestCaseChanged(
-                        created.getId(), created.getCaseVersion(), created.getJudgeMode());
-            }
             // 顺便返回新的题目id，好下一步添加外键操作
             return MapUtil.builder().put("pid", problemDto.getProblem().getId()).map();
         } else {

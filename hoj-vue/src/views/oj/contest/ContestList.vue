@@ -197,7 +197,7 @@
                         </li>
                         <li v-if="isRatingContest(contest.id)">
                           <el-tooltip
-                            content="Rating 比赛"
+                            content="$t('m.Rating_Contest')"
                             placement="top"
                             effect="dark"
                           >
@@ -274,7 +274,7 @@
                           size="small"
                           type="warning"
                           class="registration-state"
-                        >创建者</el-tag>
+                        >{{ $t('m.Contest_Creator') }}</el-tag>
                         <el-tag
                           v-else-if="contest.registered"
                           size="small"
@@ -288,7 +288,7 @@
                           size="small"
                           type="info"
                           class="registration-state"
-                        >未报名</el-tag>
+                        >{{ $t('m.Not_Registered') }}</el-tag>
                         <el-button
                           v-if="contest.registered && !contest.creator"
                           type="primary"
@@ -297,7 +297,7 @@
                           icon="el-icon-document"
                           class="registration-info-button"
                           @click.stop="viewRegistration(contest)"
-                        >查看报名信息</el-button>
+                        >{{ $t('m.View_Registration_Info') }}</el-button>
                         <el-button
                           v-if="!contest.registered && !contest.creator && contest.status != CONTEST_STATUS.ENDED"
                           size="mini"
@@ -334,7 +334,7 @@
         </el-col>
       </el-row>
       <el-dialog
-        title="比赛报名"
+        title="$t('m.Contest_Registration')"
         width="520px"
         :visible.sync="registrationDialogVisible"
         :close-on-click-modal="false"
@@ -348,7 +348,7 @@
         />
       </el-dialog>
       <el-dialog
-        title="我的报名信息"
+        title="$t('m.My_Registration_Info')"
         width="620px"
         :visible.sync="registrationInfoVisible"
         :close-on-click-modal="false"
@@ -361,7 +361,7 @@
             :loading="registrationInfoLoading"
             @refresh="loadRegistrationInfo"
           />
-          <el-empty v-else-if="!registrationInfoLoading" description="暂无报名信息"></el-empty>
+          <el-empty v-else-if="!registrationInfoLoading" :description="$t('m.No_Registration_Info')"></el-empty>
         </div>
       </el-dialog>
   </div>

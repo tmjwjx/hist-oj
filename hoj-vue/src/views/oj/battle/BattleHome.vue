@@ -6,7 +6,7 @@
           <div class="battle-logo">
             <i class="fa fa-gamepad fa-lg"></i>
           </div>
-          <span class="battle-title">代码对战</span>
+          <span class="battle-title">{{ $t('m.Battle_Title') }}</span>
         </div>
       </div>
 
@@ -18,8 +18,8 @@
               <div class="module-icon">
                 <i class="fa fa-plus-circle fa-3x"></i>
               </div>
-              <h3 class="module-title">创建对战房间</h3>
-              <p class="module-desc">创建房间并邀请好友对战</p>
+              <h3 class="module-title">{{ $t('m.Battle_Create_Room') }}</h3>
+              <p class="module-desc">{{ $t('m.Battle_Create_Room_Desc') }}</p>
             </el-card>
           </el-col>
           <el-col :xs="24" :sm="12" :md="12">
@@ -27,8 +27,8 @@
               <div class="module-icon">
                 <i class="fa fa-sign-in fa-3x"></i>
               </div>
-              <h3 class="module-title">加入对战房间</h3>
-              <p class="module-desc">输入房间号加入对战</p>
+              <h3 class="module-title">{{ $t('m.Battle_Join_Room') }}</h3>
+              <p class="module-desc">{{ $t('m.Battle_Join_Room_Desc') }}</p>
             </el-card>
           </el-col>
           <el-col :xs="24" :sm="12" :md="12">
@@ -36,8 +36,8 @@
               <div class="module-icon">
                 <i class="fa fa-trophy fa-3x"></i>
               </div>
-              <h3 class="module-title">对战排行榜</h3>
-              <p class="module-desc">查看高手排名</p>
+              <h3 class="module-title">{{ $t('m.Battle_Rank') }}</h3>
+              <p class="module-desc">{{ $t('m.Battle_Rank_Desc') }}</p>
             </el-card>
           </el-col>
           <el-col :xs="24" :sm="12" :md="12">
@@ -45,8 +45,8 @@
               <div class="module-icon">
                 <i class="fa fa-history fa-3x"></i>
               </div>
-              <h3 class="module-title">我的战绩</h3>
-              <p class="module-desc">查看对战记录</p>
+              <h3 class="module-title">{{ $t('m.Battle_My_Records') }}</h3>
+              <p class="module-desc">{{ $t('m.Battle_Records_Desc') }}</p>
             </el-card>
           </el-col>
         </el-row>
@@ -55,15 +55,15 @@
         <el-card class="rules-card" shadow="never">
           <div slot="header" class="rules-header">
             <i class="fa fa-book"></i>
-            <span>对战规则</span>
+            <span>{{ $t('m.Battle_Rules') }}</span>
           </div>
           <div class="rules-content">
             <ol class="rules-list">
-              <li>创建房间后，分享房间号给好友，等待好友加入</li>
-              <li>双方进入房间后，房主点击"开始对战"按钮</li>
-              <li>系统会从双方都未AC过的题目中随机选择一题</li>
-              <li>最先AC的一方获胜，若一方放弃则另一方获胜</li>
-              <li>对战结束后自动记录战绩，并更新排行榜</li>
+              <li>{{ $t('m.Battle_Rule_1') }}</li>
+              <li>{{ $t('m.Battle_Rule_2') }}</li>
+              <li>{{ $t('m.Battle_Rule_3') }}</li>
+              <li>{{ $t('m.Battle_Rule_4') }}</li>
+              <li>{{ $t('m.Battle_Rule_5') }}</li>
             </ol>
           </div>
         </el-card>
@@ -72,16 +72,16 @@
 
     <!-- 加入房间对话框 -->
     <el-dialog
-      title="加入对战房间"
+      :title="$t('m.Battle_Join_Room')"
       :visible.sync="showJoinDialog"
       width="400px"
       :close-on-click-modal="false"
     >
       <el-form :model="joinForm" :rules="joinRules" ref="joinForm" label-width="80px">
-        <el-form-item label="房间号" prop="roomId">
+        <el-form-item :label="$t('m.Battle_Room_ID')" prop="roomId">
           <el-input
             v-model="joinForm.roomId"
-            placeholder="请输入6位房间号"
+            :placeholder="$t('m.Battle_Room_ID_Placeholder')"
             maxlength="6"
             style="text-transform: uppercase;"
             @input="joinForm.roomId = joinForm.roomId.toUpperCase()"
@@ -89,8 +89,8 @@
         </el-form-item>
       </el-form>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="showJoinDialog = false">取 消</el-button>
-        <el-button type="primary" @click="joinRoom" :loading="joinLoading">确 定</el-button>
+        <el-button @click="showJoinDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="joinRoom" :loading="joinLoading">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -110,8 +110,8 @@ export default {
       },
       joinRules: {
         roomId: [
-          { required: true, message: '请输入房间号', trigger: 'blur' },
-          { pattern: /^[A-Z0-9]{6}$/, message: '房间号为6位数字或大写字母', trigger: 'blur' }
+          { required: true, message: this.$t('m.Battle_Room_ID_Required'), trigger: 'blur' },
+          { pattern: /^[A-Z0-9]{6}$/, message: this.$t('m.Battle_Room_ID_Invalid'), trigger: 'blur' }
         ]
       }
     };
@@ -140,9 +140,9 @@ export default {
           }
 
           // 房间存在，询问用户是否返回
-          this.$confirm(`检测到您正在房间 ${currentRoomId} 中，是否返回？`, '提示', {
-            confirmButtonText: '返回房间',
-            cancelButtonText: '退出房间',
+          this.$confirm(this.$t('m.Battle_In_Room_Confirm', { roomId: currentRoomId }), this.$t('m.Prompt'), {
+            confirmButtonText: this.$t('m.Battle_Return_Room'),
+            cancelButtonText: this.$t('m.Battle_Leave_Room'),
             type: 'info'
           }).then(() => {
             // 用户选择返回房间
@@ -173,22 +173,22 @@ export default {
           // 成功
           const roomId = res.data.data.roomId;
           console.log('[BattleHome] 房间创建成功, roomId:', roomId);
-          this.$message.success('房间创建成功');
+          this.$message.success(this.$t('m.Battle_Room_Created'));
           this.$router.push({
             name: 'BattleRoom',
             params: { roomId: roomId }
           });
         } else {
           // 业务逻辑错误
-          const errorMsg = res.data.msg || '创建房间失败';
+          const errorMsg = res.data.msg || this.$t('m.Battle_Create_Failed');
 
           // 检查是否是"你已在房间 XXXXX 中"的错误
           const match = errorMsg.match(/你已在房间\s+([A-Z0-9]{6})\s+中/);
           if (match) {
             // 用户已在其他房间中，提供返回房间的选项
-            this.$confirm(errorMsg, '提示', {
-              confirmButtonText: '返回房间',
-              cancelButtonText: '取消',
+            this.$confirm(errorMsg, this.$t('m.Prompt'), {
+              confirmButtonText: this.$t('m.Battle_Return_Room'),
+              cancelButtonText: this.$t('m.Cancel'),
               type: 'warning'
             }).then(() => {
               // 用户点击"返回房间"
@@ -206,7 +206,7 @@ export default {
         }
       } catch (error) {
         // 网络错误或其他异常
-        this.$message.error('网络错误，请检查网络连接');
+        this.$message.error(this.$t('m.Network_Error'));
       }
     },
 
@@ -221,7 +221,7 @@ export default {
             // 检查业务状态码
             if (res.data.code === 0) {
               // 成功
-              this.$message.success('加入房间成功');
+              this.$message.success(this.$t('m.Battle_Join_Success'));
               const roomId = this.joinForm.roomId; // 保存房间号
               this.showJoinDialog = false;
               this.joinForm.roomId = '';
@@ -231,7 +231,7 @@ export default {
               });
             } else {
               // 业务逻辑错误
-              const errorMsg = res.data.msg || '加入房间失败';
+              const errorMsg = res.data.msg || this.$t('m.Battle_Join_Failed');
 
               // 检查是否是"你已在房间 XXXXX 中"的错误
               const match = errorMsg.match(/你已在房间\s+([A-Z0-9]{6})\s+中/);
@@ -250,7 +250,7 @@ export default {
                     // 重新尝试加入新房间
                     const retryRes = await joinRoom({ roomId: this.joinForm.roomId });
                     if (retryRes.data.code === 0) {
-                      this.$message.success('加入房间成功');
+                      this.$message.success(this.$t('m.Battle_Join_Success'));
                       const roomId = this.joinForm.roomId;
                       this.showJoinDialog = false;
                       this.joinForm.roomId = '';
@@ -259,13 +259,13 @@ export default {
                         params: { roomId: roomId }
                       });
                     } else {
-                      this.$message.error(retryRes.data.msg || '加入房间失败');
+                      this.$message.error(retryRes.data.msg || this.$t('m.Battle_Join_Failed'));
                     }
                   } else {
                     // 房间仍存在，提供返回房间的选项
-                    this.$confirm(errorMsg, '提示', {
-                      confirmButtonText: '返回房间',
-                      cancelButtonText: '取消',
+                    this.$confirm(errorMsg, this.$t('m.Prompt'), {
+                      confirmButtonText: this.$t('m.Battle_Return_Room'),
+                      cancelButtonText: this.$t('m.Cancel'),
                       type: 'warning'
                     }).then(() => {
                       this.showJoinDialog = false;
@@ -284,11 +284,11 @@ export default {
                   if (userId) {
                     sessionStorage.removeItem(`battle_room_${userId}`);
                   }
-                  this.$message.warning('你所在的房间已解散，正在加入新房间...');
+                  this.$message.warning(this.$t('m.Battle_Room_Dissolved'));
                   // 重新尝试加入
                   const retryRes = await joinRoom({ roomId: this.joinForm.roomId });
                   if (retryRes.data.code === 0) {
-                    this.$message.success('加入房间成功');
+                    this.$message.success(this.$t('m.Battle_Join_Success'));
                     const roomId = this.joinForm.roomId;
                     this.showJoinDialog = false;
                     this.joinForm.roomId = '';
@@ -297,7 +297,7 @@ export default {
                       params: { roomId: roomId }
                     });
                   } else {
-                    this.$message.error(retryRes.data.msg || '加入房间失败');
+                    this.$message.error(retryRes.data.msg || this.$t('m.Battle_Join_Failed'));
                   }
                 }
               } else {
@@ -307,7 +307,7 @@ export default {
             }
           } catch (error) {
             // 网络错误或其他异常
-            this.$message.error('网络错误，请检查网络连接');
+            this.$message.error(this.$t('m.Network_Error'));
           } finally {
             this.joinLoading = false;
           }

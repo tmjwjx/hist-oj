@@ -3,7 +3,7 @@
     <el-card>
       <div slot="header">
         <span class="panel-title">
-          <i class="el-icon-trophy"></i> Rating 排名
+          <i class="el-icon-trophy"></i> {{ $t('m.Rating_Rank') }}
         </span>
       </div>
 
@@ -11,14 +11,14 @@
       <div class="search-container">
         <el-input
           v-model="keyword"
-          placeholder="搜索用户名或昵称"
+          :placeholder="$t('m.Search_Username_Nickname')"
           prefix-icon="el-icon-search"
           clearable
           @keyup.enter.native="handleSearch"
           style="width: 300px; margin-right: 10px;"
         ></el-input>
         <el-button type="primary" @click="handleSearch" icon="el-icon-search">
-          搜索
+          {{ $t('m.Search') }}
         </el-button>
       </div>
 
@@ -35,7 +35,7 @@
         <!-- 排名列 -->
         <vxe-table-column
           field="rank"
-          title="排名"
+          :title="$t('m.Rank')"
           min-width="80"
           align="center"
         >
@@ -47,7 +47,7 @@
         <!-- 用户名列 -->
         <vxe-table-column
           field="username"
-          title="用户"
+          :title="$t('m.User')"
           min-width="200"
           align="left"
         >
@@ -91,7 +91,7 @@
         <!-- 等级列 -->
         <vxe-table-column
           field="level"
-          title="等级"
+          :title="$t('m.Level')"
           min-width="150"
           align="center"
         >
@@ -109,7 +109,7 @@
         <!-- 学校列 -->
         <vxe-table-column
           field="school"
-          title="学校"
+          :title="$t('m.School')"
           min-width="150"
           align="center"
           show-overflow
@@ -166,7 +166,7 @@ export default {
         this.total = result.total || 0
       } catch (error) {
         console.error('获取 Rating 排名失败:', error)
-        this.$message.error('获取排名数据失败')
+        this.$message.error(this.$t('m.Load_Rank_Failed'))
       } finally {
         this.loading = false
       }

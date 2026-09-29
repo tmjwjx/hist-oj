@@ -4,20 +4,20 @@
       <div slot="header" class="header-row">
         <span class="panel-title home-title">
           <i class="el-icon-s-opportunity"></i>
-          算法知识点与题目航海图
+          {{ $t('m.Map_List_Subtitle') }}
         </span>
       </div>
 
-      <el-empty v-if="!loading && maps.length === 0" description="暂无已发布航海图"></el-empty>
+      <el-empty v-if="!loading && maps.length === 0" :description="$t('m.Map_No_Published')"></el-empty>
 
       <el-row v-else :gutter="20" v-loading="loading">
         <el-col :xs="24" :sm="12" :md="8" v-for="item in maps" :key="item.id" class="map-card-col">
           <el-card shadow="hover" class="map-card">
             <div class="map-card-title">{{ item.title }}</div>
-            <div class="map-card-desc">{{ item.description || '暂无描述' }}</div>
+            <div class="map-card-desc">{{ item.description || $t('m.Map_No_Description') }}</div>
             <div class="map-card-footer">
               <el-tag type="success" size="mini">{{ statusLabel(item.status) }}</el-tag>
-              <el-button type="primary" size="mini" @click="openMap(item.id)">进入航海图</el-button>
+              <el-button type="primary" size="mini" @click="openMap(item.id)">{{ $t('m.Map_Enter') }}</el-button>
             </div>
           </el-card>
         </el-col>
@@ -42,14 +42,14 @@ export default {
   },
   methods: {
     statusLabel(status) {
-      return status === 'published' ? '已发布' : '草稿'
+      return status === 'published' ? this.$t('m.Map_Published') : this.$t('m.Map_Draft')
     },
     async loadMaps() {
       this.loading = true
       try {
         this.maps = await learningMapApi.getPublishedMaps()
       } catch (e) {
-        this.$message.error(e.message || '获取航海图失败')
+        this.$message.error(e.message || this.$t('m.Map_Load_Failed'))
       } finally {
         this.loading = false
       }

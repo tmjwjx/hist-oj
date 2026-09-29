@@ -4,11 +4,11 @@
       <div slot="header" class="card-header">
         <div class="header-left">
           <el-button type="primary" size="small" @click="backToHome" class="back-button">
-            <i class="fa fa-arrow-left"></i> 返回
+            <i class="fa fa-arrow-left"></i> {{ $t('m.Back') }}
           </el-button>
           <div class="header-title">
             <i class="fa fa-ranking-star"></i>
-            <span>对战排行榜</span>
+            <span>{{ $t('m.Battle_Rank') }}</span>
           </div>
         </div>
       </div>
@@ -18,16 +18,16 @@
         <div class="search-box">
           <el-input
             v-model="searchUsername"
-            placeholder="输入用户名搜索"
+            :placeholder="$t('m.Battle_Search_Username')"
             clearable
             @clear="handleSearch"
             @keyup.enter.native="handleSearch"
             prefix-icon="el-icon-search"
             class="search-input"
           >
-            <el-button slot="append" @click="handleSearch" icon="el-icon-search">搜索</el-button>
+            <el-button slot="append" @click="handleSearch" icon="el-icon-search">{{ $t('m.Search') }}</el-button>
           </el-input>
-          <el-button v-if="searchUsername" @click="handleReset" icon="el-icon-refresh" style="margin-left: 10px;">重置</el-button>
+          <el-button v-if="searchUsername" @click="handleReset" icon="el-icon-refresh" style="margin-left: 10px;">{{ $t('m.Reset') }}</el-button>
         </div>
 
         <el-table
@@ -36,7 +36,7 @@
           v-loading="loading"
           :row-class-name="tableRowClassName"
         >
-          <el-table-column label="排名" width="100" align="center">
+          <el-table-column :label="$t('m.Rank')" width="100" align="center">
             <template slot-scope="scope">
               <!-- 显示数字排名，前三名使用特殊样式 -->
               <span :class="getRankClass(getRankDisplay(scope.$index))">
@@ -45,7 +45,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="用户" width="200" align="center">
+          <el-table-column :label="$t('m.User')" width="200" align="center">
             <template slot-scope="scope">
               <div class="user-cell">
                 <i class="fa fa-user-circle fa-2x user-avatar"></i>
@@ -56,21 +56,21 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="totalBattles" label="总场次" align="center" sortable></el-table-column>
+          <el-table-column prop="totalBattles" :label="$t('m.Battle_Total_Matches')" align="center" sortable></el-table-column>
 
-          <el-table-column prop="winCount" label="胜场" align="center" sortable>
+          <el-table-column prop="winCount" :label="$t('m.Battle_Wins')" align="center" sortable>
             <template slot-scope="scope">
               <span style="color: #67C23A; font-weight: bold;">{{ scope.row.winCount }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="loseCount" label="负场" align="center" sortable>
+          <el-table-column prop="loseCount" :label="$t('m.Battle_Losses')" align="center" sortable>
             <template slot-scope="scope">
               <span style="color: #F56C6C;">{{ scope.row.loseCount }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="winRate" label="胜率" align="center" sortable>
+          <el-table-column prop="winRate" :label="$t('m.Battle_Win_Rate')" align="center" sortable>
             <template slot-scope="scope">
               <el-progress
                 :percentage="parseFloat(scope.row.winRate.toFixed(2))"
@@ -151,11 +151,11 @@ export default {
             console.log('==================');
           }
         } else {
-          this.$message.error(res.data.msg || '加载排行榜失败');
+          this.$message.error(res.data.msg || this.$t('m.Battle_Load_Rank_Failed'));
         }
       } catch (error) {
         console.error('Load rank error:', error);
-        this.$message.error('加载排行榜失败');
+        this.$message.error(this.$t('m.Battle_Load_Rank_Failed'));
       } finally {
         this.loading = false;
       }

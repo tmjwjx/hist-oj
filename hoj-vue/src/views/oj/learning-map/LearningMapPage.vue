@@ -4,7 +4,7 @@
       <div class="toolbar-top">
         <div class="breadcrumb-row">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item>算法地图</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ $t('m.NavBar_Learning_Map') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-for="item in breadcrumbs" :key="item.id">{{ item.title }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -18,30 +18,30 @@
           />
           <LearningMapFilter v-model="filters" />
           <el-button size="small" icon="el-icon-s-grid" @click="toggleDetailSize">
-            {{ detailExpanded ? '恢复标准面板' : '放大学习面板' }}
+            {{ detailExpanded ? $t('m.Map_Restore_Panel') : $t('m.Map_Expand_Panel') }}
           </el-button>
           <el-button
             size="small"
             icon="el-icon-reading"
             :disabled="!selectedNode || selectedNode.type !== 'knowledge'"
             @click="openKnowledgeFullscreen()"
-          >全屏学习</el-button>
-          <el-button size="small" icon="el-icon-refresh" @click="loadFull">刷新进度</el-button>
+          >{{ $t('m.Map_Fullscreen') }}</el-button>
+          <el-button size="small" icon="el-icon-refresh" @click="loadFull">{{ $t('m.Map_Refresh_Progress') }}</el-button>
         </div>
       </div>
 
       <div class="summary-row">
-        <el-tag size="mini" type="info">总节点 {{ summary.total || 0 }}</el-tag>
-        <el-tag size="mini">已解锁 {{ unlockedCount }}</el-tag>
-        <el-tag size="mini" type="success">已完成 {{ completedCount }}</el-tag>
-        <el-tag size="mini" type="warning">进行中 {{ summary.inProgress || 0 }}</el-tag>
+        <el-tag size="mini" type="info">{{ $t('m.Map_Total_Nodes') }} {{ summary.total || 0 }}</el-tag>
+        <el-tag size="mini">{{ $t('m.Map_Unlocked') }} {{ unlockedCount }}</el-tag>
+        <el-tag size="mini" type="success">{{ $t('m.Map_Completed') }} {{ completedCount }}</el-tag>
+        <el-tag size="mini" type="warning">{{ $t('m.Map_In_Progress') }} {{ summary.inProgress || 0 }}</el-tag>
         <el-progress
           :percentage="summary.completionRate || 0"
           :stroke-width="14"
           style="width: 240px;"
         ></el-progress>
         <div class="next-box" v-if="nextRecommended">
-          下一步推荐：
+          {{ $t('m.Map_Next_Recommend') }}
           <el-link type="primary" @click="selectNode(nextRecommended)">{{ nextRecommended.title }}</el-link>
         </div>
       </div>
@@ -83,7 +83,7 @@
     >
       <div slot="title" class="knowledge-dialog-title">
         <i class="el-icon-reading"></i>
-        <span>{{ selectedNode ? selectedNode.title : '学习内容' }}</span>
+        <span>{{ selectedNode ? selectedNode.title : $t('m.Map_Learning_Content') }}</span>
       </div>
       <div class="knowledge-dialog-body">
         <div class="knowledge-dialog-actions">
@@ -92,17 +92,17 @@
             type="warning"
             :disabled="!selectedProgress || selectedProgress.status === 'locked'"
             @click="startNode(selectedNode)"
-          >标记学习中</el-button>
+          >{{ $t('m.Map_Mark_Learning') }}</el-button>
           <el-button
             size="mini"
             type="success"
             :disabled="!selectedProgress || selectedProgress.status === 'locked'"
             @click="completeNode(selectedNode)"
-          >标记已学完</el-button>
+          >{{ $t('m.Map_Mark_Completed') }}</el-button>
         </div>
 
         <div class="knowledge-resources" v-if="fullscreenResources.length > 0">
-          <div class="knowledge-resources-title">资料附件</div>
+          <div class="knowledge-resources-title">{{ $t('m.Map_Resources') }}</div>
           <div class="knowledge-resources-list">
             <el-link
               v-for="item in fullscreenResources"
@@ -119,7 +119,7 @@
         </div>
 
         <div class="knowledge-md-wrap">
-          <Markdown :content="selectedKnowledgeContent || '暂无学习内容'" :is-avoid-xss="true" />
+          <Markdown :content="selectedKnowledgeContent || $t('m.Map_No_Content')" :is-avoid-xss="true" />
         </div>
       </div>
     </el-dialog>
@@ -268,7 +268,7 @@ export default {
           this.selectedNode = latest || null
         }
       } catch (e) {
-        this.$message.error(e.message || '加载航海图失败')
+        this.$message.error(e.message || this.$t('m.Map_Load_Failed'))
       } finally {
         this.loading.full = false
       }
@@ -375,26 +375,26 @@ export default {
       if (!node || !node.id) return
       try {
         await learningMapApi.startNode(this.mapId, node.id)
-        this.$message.success('已标记为学习中')
+        this.$message.success(this.$t('m.Map_Marked_Learning'))
         await this.loadFull()
       } catch (e) {
-        this.$message.error(e.message || '操作失败')
+        this.$message.error(e.message || this.$t('m.Battle_Operate_Failed'))
       }
     },
     async completeNode(node) {
       if (!node || !node.id) return
       try {
         await learningMapApi.completeNode(this.mapId, node.id)
-        this.$message.success('已标记完成')
+        this.$message.success(this.$t('m.Map_Marked_Completed'))
         await this.loadFull()
       } catch (e) {
-        this.$message.error(e.message || '操作失败')
+        this.$message.error(e.message || this.$t('m.Battle_Operate_Failed'))
       }
     },
     goProblem(node) {
       const displayId = node.problemDisplayId || (node.problemInfo && node.problemInfo.problemDisplayId)
       if (!displayId) {
-        this.$message.warning('该题目节点未绑定题号')
+        this.$message.warning(this.$t('m.Map_Node_No_Problem'))
         return
       }
       this.$router.push({ name: 'ProblemDetails', params: { problemID: displayId } })

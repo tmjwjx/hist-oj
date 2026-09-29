@@ -155,11 +155,6 @@ public class AdminProblemManager {
         if (!isOk) {
             throw new StatusFailException("添加失败");
         }
-        Problem created = problemDto.getProblem();
-        if (!Boolean.TRUE.equals(created.getIsRemote())) {
-            verificationLifecycle.markTestCaseChanged(
-                    created.getId(), created.getCaseVersion(), created.getJudgeMode());
-        }
         return problemDto.getProblem().getId();
     }
 

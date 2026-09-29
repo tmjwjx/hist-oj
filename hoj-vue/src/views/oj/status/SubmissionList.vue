@@ -143,7 +143,7 @@
             :title="$t('m.Run_ID')"
             width="80"
           ></vxe-table-column>
-          <vxe-table-column field="submissionType" title="评测类型" width="130">
+          <vxe-table-column field="submissionType" :title="$t('m.Submission_Type')" width="130">
             <template v-slot="{ row }">
               <el-tag v-if="row.submissionType" size="mini"
                 :type="row.submissionType === 'user_submission' ? 'info' : 'warning'">
@@ -586,9 +586,9 @@ export default {
   methods: {
     submissionTypeLabel(type) {
       return {
-        ai_validation: 'AI 验题',
-        creator_validation: '题目创建验证',
-        user_submission: '用户题库提交',
+        ai_validation: this.$t('m.AI_Validation'),
+        creator_validation: this.$t('m.Creator_Validation'),
+        user_submission: this.$t('m.User_Submission'),
       }[type] || type;
     },
     init() {

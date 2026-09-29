@@ -3,13 +3,13 @@
     <!-- 等待状态 -->
     <el-card v-if="room.status === 0" class="waiting-card">
       <div slot="header" class="card-header">
-        <span>房间号：{{ roomId }}</span>
+        <span>{{ $t('m.Battle_Room_No') }}{{ roomId }}</span>
         <div class="header-actions">
           <el-button type="text" @click="copyRoomId">
-            <i class="fa fa-copy"></i> 复制
+            <i class="fa fa-copy"></i> {{ $t('m.Copy') }}
           </el-button>
           <el-button v-if="isHost" type="text" style="color: #F56C6C;" @click="handleDissolveRoom">
-            <i class="fa fa-times"></i> 解散房间
+            <i class="fa fa-times"></i> {{ $t('m.Battle_Dissolve_Room') }}
           </el-button>
         </div>
       </div>
@@ -22,7 +22,7 @@
             </div>
             <div class="player-info">
               <h3 :style="{ color: getRatingColor(room.hostRating) }">{{ room.hostUsername }}</h3>
-              <el-tag type="success">房主</el-tag>
+              <el-tag type="success">{{ $t('m.Battle_Host') }}</el-tag>
             </div>
           </div>
 
@@ -39,11 +39,11 @@
             </div>
             <div class="player-info">
               <h3 v-if="room.challengerUsername" :style="{ color: getRatingColor(room.challengerRating) }">{{ room.challengerUsername }}</h3>
-              <h3 v-else>等待玩家加入...</h3>
+              <h3 v-else>{{ $t('m.Battle_Waiting_Player') }}</h3>
               <div v-if="room.challengerUsername">
-                <el-tag type="warning">挑战者</el-tag>
-                <el-tag v-if="room.challengerReady" type="success" style="margin-left: 5px;">已准备</el-tag>
-                <el-tag v-else type="info" style="margin-left: 5px;">未准备</el-tag>
+                <el-tag type="warning">{{ $t('m.Battle_Challenger') }}</el-tag>
+                <el-tag v-if="room.challengerReady" type="success" style="margin-left: 5px;">{{ $t('m.Battle_Ready') }}</el-tag>
+                <el-tag v-else type="info" style="margin-left: 5px;">{{ $t('m.Battle_Not_Ready') }}</el-tag>
               </div>
             </div>
           </div>
@@ -56,11 +56,11 @@
             :disabled="!room.challengerUsername || !room.challengerReady"
             @click="handleStartBattle"
           >
-            <i class="fa fa-play"></i> 开始对战
+            <i class="fa fa-play"></i> {{ $t('m.Battle_Start') }}
           </el-button>
           <el-alert
             v-if="room.challengerUsername && !room.challengerReady"
-            title="等待挑战者准备"
+            :title="$t('m.Battle_Waiting_Ready')"
             type="warning"
             :closable="false"
             show-icon
@@ -72,7 +72,7 @@
             style="margin-left: 10px;"
             @click="handleLeaveRoom"
           >
-            <i class="fa fa-sign-out-alt"></i> 退出房间
+            <i class="fa fa-sign-out-alt"></i> {{ $t('m.Battle_Leave_Room') }}
           </el-button>
         </div>
         <div v-else class="action-section">
@@ -83,11 +83,11 @@
             @click="handleReady"
           >
             <i class="fa" :class="room.challengerReady ? 'fa-times' : 'fa-check'"></i>
-            {{ room.challengerReady ? '取消准备' : '准备' }}
+            {{ room.challengerReady ? $t('m.Battle_Cancel_Ready') : $t('m.Battle_Ready') }}
           </el-button>
           <el-alert
             v-if="room.challengerReady"
-            title="已准备,等待房主开始对战"
+            :title="$t('m.Battle_Ready_Waiting_Host')"
             type="success"
             :closable="false"
             show-icon
@@ -99,7 +99,7 @@
             style="margin-top: 15px;"
             @click="handleLeaveRoom"
           >
-            <i class="fa fa-sign-out-alt"></i> 退出房间
+            <i class="fa fa-sign-out-alt"></i> {{ $t('m.Battle_Leave_Room') }}
           </el-button>
         </div>
       </div>
@@ -108,13 +108,13 @@
     <!-- 对战状态 -->
     <el-card v-else-if="room.status === 1" class="battle-card">
       <div slot="header" class="card-header">
-        <span>对战进行中</span>
+        <span>{{ $t('m.Battle_In_Progress') }}</span>
         <div class="header-actions">
           <el-button v-if="isHost" type="text" style="color: #F56C6C;" @click="handleDissolveRoom">
-            <i class="fa fa-times"></i> 解散房间
+            <i class="fa fa-times"></i> {{ $t('m.Battle_Dissolve_Room') }}
           </el-button>
           <el-button type="danger" size="small" @click="handleGiveup">
-            <i class="fa fa-flag"></i> 放弃对战
+            <i class="fa fa-flag"></i> {{ $t('m.Battle_Give_Up') }}
           </el-button>
         </div>
       </div>
@@ -122,7 +122,7 @@
       <div class="battle-content">
         <div class="problem-section">
           <el-alert
-            :title="`对战题目：${problem.title}`"
+            :title="$t('m.Battle_Problem_Is') + problem.title"
             type="success"
             :closable="false"
             show-icon
@@ -132,7 +132,7 @@
             style="margin-top: 15px;"
             @click="goToProblem"
           >
-            <i class="fa fa-code"></i> 前往题目页面
+            <i class="fa fa-code"></i> {{ $t('m.Battle_Go_To_Problem') }}
           </el-button>
         </div>
 
@@ -143,12 +143,12 @@
             <div class="status-header">
               <i class="fa fa-user-circle fa-3x player-avatar-icon"></i>
               <div class="player-name">{{ room.hostUsername }}</div>
-              <el-tag v-if="battleResult && battleResult.winnerId === room.hostId" type="success">获胜</el-tag>
+              <el-tag v-if="battleResult && battleResult.winnerId === room.hostId" type="success">{{ $t('m.Battle_Win') }}</el-tag>
             </div>
             <div class="status-body">
-              <div class="submit-count">提交次数: {{ hostSubmitCount }}</div>
+              <div class="submit-count">{{ $t('m.Battle_Submit_Count') }}: {{ hostSubmitCount }}</div>
               <div class="latest-status">
-                最新状态:
+                {{ $t('m.Battle_Latest_Status') }}
                 <el-tag :type="getStatusTagType(hostLatestStatus)" size="small">
                   {{ getStatusText(hostLatestStatus) }}
                 </el-tag>
@@ -160,12 +160,12 @@
             <div class="status-header">
               <i class="fa fa-user-circle fa-3x player-avatar-icon"></i>
               <div class="player-name">{{ room.challengerUsername }}</div>
-              <el-tag v-if="battleResult && battleResult.winnerId === room.challengerId" type="success">获胜</el-tag>
+              <el-tag v-if="battleResult && battleResult.winnerId === room.challengerId" type="success">{{ $t('m.Battle_Win') }}</el-tag>
             </div>
             <div class="status-body">
-              <div class="submit-count">提交次数: {{ challengerSubmitCount }}</div>
+              <div class="submit-count">{{ $t('m.Battle_Submit_Count') }}: {{ challengerSubmitCount }}</div>
               <div class="latest-status">
-                最新状态:
+                {{ $t('m.Battle_Latest_Status') }}
                 <el-tag :type="getStatusTagType(challengerLatestStatus)" size="small">
                   {{ getStatusText(challengerLatestStatus) }}
                 </el-tag>
@@ -181,24 +181,24 @@
       <div class="result-content">
         <div v-if="isWinner" class="winner-section">
           <i class="fa fa-trophy fa-5x" style="color: #FFD700;"></i>
-          <h2>恭喜获胜！</h2>
+          <h2>{{ $t('m.Battle_Congrats_Win') }}</h2>
           <p>{{ endReasonText }}</p>
         </div>
         <div v-else class="loser-section">
           <i class="fa fa-heart-broken fa-5x" style="color: #909399;"></i>
-          <h2>对战失败</h2>
+          <h2>{{ $t('m.Battle_Lost') }}</h2>
           <p>{{ endReasonText }}</p>
         </div>
 
         <div class="result-actions">
           <el-button type="success" @click="rematch">
-            <i class="fa fa-redo"></i> 再来一局
+            <i class="fa fa-redo"></i> {{ $t('m.Battle_Rematch') }}
           </el-button>
           <el-button v-if="isHost" type="danger" @click="handleDissolveRoom">
-            <i class="fa fa-times"></i> 解散房间
+            <i class="fa fa-times"></i> {{ $t('m.Battle_Dissolve_Room') }}
           </el-button>
           <el-button type="danger" @click="handleLeaveRoom">
-            <i class="fa fa-sign-out"></i> 退出房间
+            <i class="fa fa-sign-out"></i> {{ $t('m.Battle_Leave_Room') }}
           </el-button>
         </div>
       </div>
@@ -248,14 +248,14 @@ export default {
       // 根据结束原因和是否获胜来显示不同的文本
       if (this.battleResult.endReason === 'giveup') {
         // 放弃对战：放弃者看到"你放弃了对战"，获胜者看到"对方放弃了对战"
-        return isLoser ? '你放弃了对战' : '对方放弃了对战';
+        return isLoser ? this.$t('m.Battle_You_Gave_Up_Battle') : this.$t('m.Battle_Opponent_Gave_Up_Battle');
       }
 
       const reasonMap = {
-        'ac': isLoser ? '对方通过了题目' : '你通过了题目',
-        'timeout': isLoser ? '对方超时' : '你超时了'
+        'ac': isLoser ? this.$t('m.Battle_Opponent_Solved') : this.$t('m.Battle_You_Solved'),
+        'timeout': isLoser ? this.$t('m.Battle_Opponent_Timeout') : this.$t('m.Battle_You_Timeout')
       };
-      return reasonMap[this.battleResult.endReason] || '对战结束';
+      return reasonMap[this.battleResult.endReason] || this.$t('m.Battle_Finished');
     }
   },
   mounted() {
@@ -293,7 +293,7 @@ export default {
 
       if (!this.roomId) {
         console.error('[BattleRoom] roomId 为空！路由参数可能有问题');
-        this.$message.error('房间号获取失败，请重新进入');
+        this.$message.error(this.$t('m.Battle_Room_Load_Failed'));
         return;
       }
 
@@ -336,7 +336,7 @@ export default {
         // 房间不存在（被解散或删除）
         if (res.data.code === 1) {
           this.stopPolling();
-          const errorMsg = res.data.msg || '未知错误';
+          const errorMsg = res.data.msg || this.$t('m.Unknown');
           console.error('[BattleRoom] 加载房间信息失败:', errorMsg);
 
           // 提示用户房间已解散
@@ -364,7 +364,7 @@ export default {
           // 检查挑战者是否退出（用于调试）
           if (this.room.challengerUsername && !newRoom.challengerUsername) {
             console.log('挑战者已退出房间');
-            this.$message.warning('挑战者已退出房间');
+            this.$message.warning(this.$t('m.Battle_Challenger_Left'));
           }
 
           // 检查挑战者状态变化（加入或退出）- 需要调整轮询频率
@@ -423,7 +423,7 @@ export default {
             // 房间不存在或已被解散
             this.stopPolling();
             // 提示用户房间已解散
-            this.$message.warning('房间已被房主解散');
+            this.$message.warning(this.$t('m.Battle_Room_Dissolved_By_Host'));
             // 清除 sessionStorage
             const userId = this.$store.getters.userInfo?.uid;
             if (userId) {
@@ -458,7 +458,7 @@ export default {
       try {
         const res = await startBattle({ roomId: this.roomId });
         if (res.data.code === 0) {
-          this.$message.success('对战开始！');
+          this.$message.success(this.$t('m.Battle_Started'));
           // 从响应中获取房间和题目信息
           this.room = res.data.data.room;
           this.problem = res.data.data.problem;
@@ -468,10 +468,10 @@ export default {
           this.stopPolling();
           this.startPolling();
         } else {
-          this.$message.error(res.data.msg || '开始对战失败');
+          this.$message.error(res.data.msg || this.$t('m.Battle_Start_Failed'));
         }
       } catch (error) {
-        this.$message.error('开始对战失败');
+        this.$message.error(this.$t('m.Battle_Start_Failed'));
       }
     },
 
@@ -484,7 +484,7 @@ export default {
 
         // 乐观更新: 立即更新本地状态,提供即时反馈
         this.room.challengerReady = newReadyState;
-        this.$message.success(newReadyState ? '已准备' : '已取消准备');
+        this.$message.success(newReadyState ? this.$t('m.Battle_Ready') : this.$t('m.Battle_Ready_Cancelled'));
 
         // 异步调用 API
         const res = await readyBattle({
@@ -497,21 +497,21 @@ export default {
         if (res.data.code !== 0) {
           // 失败时回滚状态
           this.room.challengerReady = oldReadyState;
-          this.$message.error(res.data.msg || '操作失败,请重试');
+          this.$message.error(res.data.msg || this.$t('m.Battle_Operate_Failed'));
         }
         // 成功则保持乐观更新的状态,无需额外操作
       } catch (error) {
         // 失败时回滚状态
         const oldReadyState = this.room.challengerReady;
         this.room.challengerReady = !oldReadyState;
-        this.$message.error('网络错误,请检查连接后重试');
+        this.$message.error(this.$t('m.Network_Error'));
       }
     },
 
     async handleGiveup() {
-      this.$confirm('确定要放弃对战吗？这将判定对方获胜', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.Battle_Give_Up_Confirm'), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
@@ -521,21 +521,21 @@ export default {
             this.room.status = 2;
           }
         } catch (error) {
-          this.$message.error('操作失败');
+          this.$message.error(this.$t('m.Battle_Operate_Failed'));
         }
       });
     },
 
     async handleDissolveRoom() {
-      this.$confirm('确定要解散房间吗？这将删除房间且无法恢复', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.Battle_Dissolve_Confirm'), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await dissolveRoom({ roomId: this.roomId });
           if (res.data.code === 0) {
-            this.$message.success('房间已解散');
+            this.$message.success(this.$t('m.Battle_Room_Dissolved'));
             // 清除 sessionStorage 中的房间记录
             const userId = this.$store.getters.userInfo?.uid;
             if (userId) {
@@ -544,34 +544,34 @@ export default {
             this.stopPolling();
             this.$router.push({ name: 'BattleHome' });
           } else {
-            this.$message.error(res.data.msg || '解散房间失败');
+            this.$message.error(res.data.msg || this.$t('m.Battle_Dissolve_Failed'));
           }
         } catch (error) {
-          this.$message.error('解散房间失败');
+          this.$message.error(this.$t('m.Battle_Dissolve_Failed'));
         }
       });
     },
 
     async handleLeaveRoom() {
       // 根据是否是房主显示不同的提示
-      let confirmMessage = '确定要退出房间吗？';
+      let confirmMessage = this.$t('m.Battle_Leave_Confirm');
       if (this.isHost) {
         if (this.room.challengerUsername) {
-          confirmMessage = '你是房主，退出后房主身份将转移给对方。确定要退出吗？';
+          confirmMessage = this.$t('m.Battle_Leave_Host_Transfer');
         } else {
-          confirmMessage = '你是房主，退出后房间将被解散。确定要退出吗？';
+          confirmMessage = this.$t('m.Battle_Leave_Host_Dissolve');
         }
       }
 
-      this.$confirm(confirmMessage, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(confirmMessage, this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.Confirm'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await leaveRoom({ roomId: this.roomId });
           if (res.data.code === 0) {
-            this.$message.success('已退出房间');
+            this.$message.success(this.$t('m.Battle_Left_Room'));
             // 清除 sessionStorage 中的房间记录
             const userId = this.$store.getters.userInfo?.uid;
             if (userId) {
@@ -580,10 +580,10 @@ export default {
             this.stopPolling();
             this.$router.push({ name: 'BattleHome' });
           } else {
-            this.$message.error(res.data.msg || '退出房间失败');
+            this.$message.error(res.data.msg || this.$t('m.Battle_Leave_Failed'));
           }
         } catch (error) {
-          this.$message.error('退出房间失败');
+          this.$message.error(this.$t('m.Battle_Leave_Failed'));
         }
       });
     },
@@ -645,7 +645,7 @@ export default {
       // 方式1: 使用 Clipboard API (现代浏览器)
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(textToCopy).then(() => {
-          this.$message.success('房间号已复制');
+          this.$message.success(this.$t('m.Battle_Room_ID_Copied'));
         }).catch(() => {
           this.fallbackCopy(textToCopy);
         });
@@ -669,12 +669,12 @@ export default {
         // 执行复制命令
         const successful = document.execCommand('copy');
         if (successful) {
-          this.$message.success('房间号已复制');
+          this.$message.success(this.$t('m.Battle_Room_ID_Copied'));
         } else {
-          this.$message.error('复制失败，请手动复制');
+          this.$message.error(this.$t('m.Battle_Copy_Failed'));
         }
       } catch (err) {
-        this.$message.error('复制失败，请手动复制');
+        this.$message.error(this.$t('m.Battle_Copy_Failed'));
       }
 
       // 移除临时元素
@@ -697,13 +697,13 @@ export default {
       try {
         const userId = this.$store.getters.userInfo?.uid;
         if (!userId) {
-          this.$message.error('获取用户信息失败');
+          this.$message.error(this.$t('m.Battle_User_Info_Failed'));
           return;
         }
 
         const res = await resetRoom({ roomId: this.roomId, userId: userId });
         if (res.data.code === 0) {
-          this.$message.success('房间已重置，可以开始新一局');
+          this.$message.success(this.$t('m.Battle_Room_Reset'));
           // 重置本地状态
           this.battleResult = null;
           this.room.status = 0;
@@ -715,25 +715,25 @@ export default {
           // 重新开始轮询
           this.startPolling();
         } else {
-          this.$message.error(res.data.msg || '重置房间失败');
+          this.$message.error(res.data.msg || this.$t('m.Battle_Reset_Failed'));
         }
       } catch (error) {
-        this.$message.error('重置房间失败');
+        this.$message.error(this.$t('m.Battle_Reset_Failed'));
       }
     },
 
     getDifficultyText(difficulty) {
-      const map = { 1: '入门', 2: '入门', 3: '中等', 4: '困难', 5: '困难' };
-      return map[difficulty] || '未知';
+      const map = { 1: this.$t('m.Difficulty_Entry'), 2: this.$t('m.Difficulty_Entry'), 3: this.$t('m.Difficulty_Medium'), 4: this.$t('m.Difficulty_Hard'), 5: this.$t('m.Difficulty_Hard') };
+      return map[difficulty] || this.$t('m.Unknown');
     },
 
     getRoomStatusText(status) {
       const map = {
-        0: '等待中',
-        1: '对战中',
-        2: '已结束'
+        0: this.$t('m.Battle_Status_Waiting'),
+        1: this.$t('m.Battle_Status_Battling'),
+        2: this.$t('m.Battle_Status_Finished')
       };
-      return map[status] || '未知';
+      return map[status] || this.$t('m.Unknown');
     },
 
     getStatusText(status) {

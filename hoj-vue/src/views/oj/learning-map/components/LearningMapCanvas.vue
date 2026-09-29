@@ -60,7 +60,7 @@
           <div class="node-title">{{ node.title }}</div>
           <div class="node-remark-badge" v-if="hasProblemRemark(node)">
             <i class="el-icon-document"></i>
-            <span>备注</span>
+            <span>{{ $t('m.Map_Remark') }}</span>
           </div>
         </div>
       </div>
@@ -69,8 +69,8 @@
     <div class="canvas-tools">
       <el-button size="mini" icon="el-icon-plus" @click="zoom(1.12)"></el-button>
       <el-button size="mini" icon="el-icon-minus" @click="zoom(0.88)"></el-button>
-      <el-button size="mini" icon="el-icon-refresh-left" @click="goBackView">返回视角</el-button>
-      <el-button size="mini" icon="el-icon-full-screen" @click="fitToContent">适配视图</el-button>
+      <el-button size="mini" icon="el-icon-refresh-left" @click="goBackView">{{ $t('m.Map_Back_View') }}</el-button>
+      <el-button size="mini" icon="el-icon-full-screen" @click="fitToContent">{{ $t('m.Map_Fit_View') }}</el-button>
     </div>
 
     <div class="mini-map" v-if="filteredNodes.length > 0">
@@ -112,17 +112,18 @@
 const MIN_SCALE = 0.28
 const MAX_SCALE = 2.8
 const WORLD_PADDING = 260
-const NODE_TYPE_LABEL = {
-  knowledge: '知识点',
-  problem: '题目'
+// 模块作用域内无法使用 this.$t（this 为 undefined），仅存 i18n 键名，运行时翻译
+const NODE_TYPE_LABEL_KEYS = {
+  knowledge: 'Map_Knowledge_Node',
+  problem: 'Map_Problem_Node'
 }
 
-const STATUS_LABEL = {
-  locked: '未解锁',
-  available: '可学习',
-  in_progress: '进行中',
-  completed: '已完成',
-  mastered: '已精通'
+const STATUS_LABEL_KEYS = {
+  locked: 'Map_Locked',
+  available: 'Map_Available',
+  in_progress: 'Map_In_Progress',
+  completed: 'Map_Completed',
+  mastered: 'Map_Mastered'
 }
 
 export default {
@@ -298,10 +299,10 @@ export default {
   },
   methods: {
     getNodeTypeLabel(type) {
-      return NODE_TYPE_LABEL[type] || type
+      return type && NODE_TYPE_LABEL_KEYS[type] ? this.$t('m.' + NODE_TYPE_LABEL_KEYS[type]) : type
     },
     getStatusLabel(status) {
-      return STATUS_LABEL[status] || status
+      return status && STATUS_LABEL_KEYS[status] ? this.$t('m.' + STATUS_LABEL_KEYS[status]) : status
     },
     isDoneStatus(status) {
       return status === 'completed' || status === 'mastered'
@@ -341,13 +342,13 @@ export default {
       const status = this.getNodeStatus(node.id)
       const lines = [
         node.title,
-        `类型：${this.getNodeTypeLabel(node.type)}`,
-        `状态：${this.getStatusLabel(status)}`
+        `${this.$t("m.Map_Type_Label")}：${this.getNodeTypeLabel(node.type)}`,
+        `${this.$t("m.Map_Status_Label")}：${this.getStatusLabel(status)}`
       ]
       const remark = this.getNodeRemark(node)
       if (remark) {
         const compact = remark.replace(/\s+/g, ' ')
-        lines.push(`备注：${compact.length > 80 ? compact.slice(0, 80) + '...' : compact}`)
+        lines.push(`${this.$t("m.Map_Remark")}：${compact.length > 80 ? compact.slice(0, 80) + '...' : compact}`)
       }
       return lines.join('\n')
     },

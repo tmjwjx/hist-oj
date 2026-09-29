@@ -4,7 +4,7 @@
       <div class="search-bar">
         <el-input
           v-model="keyword"
-          placeholder="搜索套卷"
+          :placeholder="$t('m.Practice_Search_Paper')"
           clearable
           @clear="handleSearch"
           @keyup.enter.native="handleSearch"
@@ -16,7 +16,7 @@
 
     <el-card shadow="never" class="list-card">
       <div v-loading="loading">
-        <el-empty v-if="papers.length === 0" description="暂无可练习套卷"></el-empty>
+        <el-empty v-if="papers.length === 0" :description="$t('m.Practice_No_Papers')"></el-empty>
         <div v-else class="paper-list">
           <article
             v-for="paper in papers"
@@ -25,21 +25,21 @@
           >
             <div class="paper-main" @click="goDetail(paper.id)">
               <div class="paper-topline">
-                <span class="paper-origin">套卷练习 · 试卷</span>
-                <span class="paper-author">作者 {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
+                <span class="paper-origin">{{ $t('m.Practice_Paper_Tag') }}</span>
+                <span class="paper-author">{{ $t('m.Author') }} {{ paper.creator && paper.creator.username ? paper.creator.username : (paper.creatorId || '-') }}</span>
               </div>
               <h3 class="paper-title">{{ paper.title }}</h3>
-              <p class="paper-desc">{{ paper.description || '暂无简介' }}</p>
+              <p class="paper-desc">{{ paper.description || $t('m.Practice_No_Desc') }}</p>
               <div class="paper-meta">
-                <span>题目 {{ paper.questionCount || 0 }}</span>
+                <span>{{ $t('m.Practice_Problems') }} {{ paper.questionCount || 0 }}</span>
                 <span class="meta-dot">·</span>
-                <span>总分 {{ paper.totalScore || 0 }}</span>
+                <span>{{ $t('m.Total_Score') }} {{ paper.totalScore || 0 }}</span>
                 <span class="meta-dot">·</span>
                 <span>ID {{ paper.id }}</span>
               </div>
             </div>
             <div class="paper-actions">
-              <el-button type="primary" size="small" @click="goDetail(paper.id)">进入套卷</el-button>
+              <el-button type="primary" size="small" @click="goDetail(paper.id)">{{ $t('m.Practice_Enter_Paper') }}</el-button>
             </div>
           </article>
         </div>
@@ -93,10 +93,10 @@ export default {
           this.papers = data.papers || []
           this.pagination.total = data.total || 0
         } else {
-          this.$message.error((res.data && res.data.message) || '加载套卷练习列表失败')
+          this.$message.error((res.data && res.data.message) || this.$t('m.Practice_Load_List_Failed'))
         }
       } catch (error) {
-        this.$message.error('加载套卷练习列表失败')
+        this.$message.error(this.$t('m.Practice_Load_List_Failed'))
       } finally {
         this.loading = false
       }
