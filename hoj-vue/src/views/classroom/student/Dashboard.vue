@@ -3,7 +3,7 @@
     <div class="header">
       <div class="header-left">
         <h1>{{ $t('m.My_Classrooms') }}</h1>
-        <p class="subtitle">查看和管理您的课程学习</p>
+        <p class="subtitle">{{ $t('m.Manage_Course_Learning') }}</p>
       </div>
       <button class="classroom-btn classroom-btn-primary" @click="showJoinDialog = true">
         <i class="el-icon-plus"></i>
@@ -14,8 +14,8 @@
     <!-- 空状态 -->
     <div v-if="!loading && (!classrooms || classrooms.length === 0)" class="classroom-empty">
       <i class="el-icon-reading classroom-empty-icon"></i>
-      <div class="classroom-empty-text">{{ $t('m.No_Classroom_Yet') || '还没有加入班级' }}</div>
-      <div class="classroom-empty-hint">{{ $t('m.Join_Classroom_Tip') || '点击上方按钮加入您的第一个班级吧！' }}</div>
+      <div class="classroom-empty-text">{{ $t('m.No_Classroom_Yet') }}</div>
+      <div class="classroom-empty-hint">{{ $t('m.Join_Classroom_Tip') }}</div>
     </div>
 
     <!-- 班级卡片列表 -->
@@ -45,7 +45,7 @@
         <div class="card-footer">
           <span class="enter-hint">
             <i class="el-icon-arrow-right"></i>
-            <span>点击进入班级</span>
+            <span>{{ $t('m.Click_To_Enter_Classroom') }}</span>
           </span>
         </div>
       </div>

@@ -3,16 +3,16 @@
     <el-card shadow="never" class="type-selector-card">
       <div class="type-selector-row">
         <div>
-          <div class="selector-title">题目类型</div>
+          <div class="selector-title">{{ $t('m.ProbCreate_Type_Title') }}</div>
           <div class="selector-description">{{ selectedTypeDescription }}</div>
         </div>
         <el-select v-model="selectedType" class="type-selector" @change="handleTypeChange">
-          <el-option label="编程题" value="programming" />
+          <el-option :label="$t('m.ProbCreate_Programming')" value="programming" />
           <el-option
             v-for="item in objectiveTypes"
             v-if="isSuperAdmin"
             :key="item.value"
-            :label="item.label"
+            :label="$t('m.' + item.labelKey)"
             :value="item.value"
           />
         </el-select>
@@ -34,13 +34,14 @@ import { mapGetters } from 'vuex'
 import Problem from '@/views/admin/problem/Problem.vue'
 import QuestionBankEditor from '@/views/common/QuestionBankEditor.vue'
 
+// 模块级映射表：仅存 i18n 键名字符串，展示时通过 this.$t('m.' + key) 翻译
 const OBJECTIVE_TYPES = [
-  { value: 'single_choice', label: '单选题', description: '从多个选项中选择一个正确答案' },
-  { value: 'multiple_choice', label: '多选题', description: '从多个选项中选择一个或多个正确答案' },
-  { value: 'judge', label: '判断题', description: '判断题目陈述是否正确' },
-  { value: 'fill_blank', label: '填空题', description: '填写文本答案，支持配置多个标准答案' },
-  { value: 'subjective', label: '主观题', description: '填写文字答案，由教师人工评分' },
-  { value: 'composite', label: '组合题', description: '在一道大题下配置多道子题及独立分值' }
+  { value: 'single_choice', labelKey: 'Practice_Single_Choice', descKey: 'ProbCreate_Desc_Single_Choice' },
+  { value: 'multiple_choice', labelKey: 'Practice_Multiple_Choice', descKey: 'ProbCreate_Desc_Multiple_Choice' },
+  { value: 'judge', labelKey: 'Practice_Judge', descKey: 'ProbCreate_Desc_Judge' },
+  { value: 'fill_blank', labelKey: 'Practice_Fill_Blank', descKey: 'ProbCreate_Desc_Fill_Blank' },
+  { value: 'subjective', labelKey: 'Practice_Subjective', descKey: 'ProbCreate_Desc_Subjective' },
+  { value: 'composite', labelKey: 'Practice_Composite', descKey: 'ProbCreate_Desc_Composite' }
 ]
 
 export default {
@@ -61,10 +62,10 @@ export default {
     ...mapGetters(['isSuperAdmin']),
     selectedTypeDescription() {
       if (this.selectedType === 'programming') {
-        return '默认创建由评测数据自动判定结果的编程题'
+        return this.$t('m.ProbCreate_Desc_Programming')
       }
       const current = this.objectiveTypes.find(item => item.value === this.selectedType)
-      return current ? current.description : '创建客观题'
+      return current ? this.$t('m.' + current.descKey) : this.$t('m.ProbCreate_Desc_Objective')
     }
   },
   created() {

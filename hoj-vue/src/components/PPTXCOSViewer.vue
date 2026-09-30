@@ -12,8 +12,8 @@
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
-      <p>正在加载预览...</p>
-      <p class="hint-text">文件较大时可能需要10-30秒</p>
+      <p>{{ $t('m.Loading_Preview') }}</p>
+      <p class="hint-text">{{ $t('m.Large_Pptx_Hint') }}</p>
       <el-progress
         v-if="loadStartTime"
         :percentage="getLoadProgress()"
@@ -28,7 +28,7 @@
       <i class="el-icon-warning-outline"></i>
       <p class="error-message">{{ error }}</p>
       <el-button type="primary" @click="retry" size="small">
-        重试
+        {{ $t('m.Retry') }}
       </el-button>
       <el-button
         v-if="allowDownload"
@@ -36,7 +36,7 @@
         @click="downloadFile"
         size="small"
       >
-        下载文件
+        {{ $t('m.Download_File') }}
       </el-button>
     </div>
 
@@ -122,20 +122,20 @@ export default {
               url: previewUrl.substring(0, 100) + '...'
             })
           } else {
-            throw new Error(response.data.message || '获取预览URL失败')
+            throw new Error(response.data.message || this.$t('m.Get_Preview_Url_Failed'))
           }
         }
 
         this.previewUrl = previewUrl
 
         if (uploaded) {
-          this.$message.success('预览准备完成')
+          this.$message.success(this.$t('m.Preview_Ready'))
         } else {
-          this.$message.success('文件已上传到云端，预览准备完成')
+          this.$message.success(this.$t('m.File_Uploaded_Preview_Ready'))
         }
       } catch (err) {
         console.error('[COS Viewer] 加载失败:', err)
-        this.error = '加载失败：' + (err.response?.data?.message || err.message)
+        this.error = this.$t('m.Load_Failed_Colon') + (err.response?.data?.message || err.message)
         this.loading = false
       }
     },
@@ -144,7 +144,7 @@ export default {
       const loadTime = this.loadStartTime ? ((Date.now() - this.loadStartTime) / 1000).toFixed(1) : 'N/A'
       console.log('[COS Viewer] iframe 加载完成', {
         fileName: this.fileName,
-        loadTime: loadTime + '秒'
+        loadTime: loadTime + this.$t('m.Seconds_Unit')
       })
       this.loading = false
       this.$emit('viewer-loaded')

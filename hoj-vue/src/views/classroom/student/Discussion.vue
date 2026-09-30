@@ -274,13 +274,13 @@ export default {
 
       if (error.message) {
         if (error.message.includes('Network Error') || error.message.includes('timeout')) {
-          errorMessage = this.$t('m.Network_Error') || '网络错误，请检查网络连接'
+          errorMessage = this.$t('m.Network_Error')
         } else if (error.message.includes('413')) {
-          errorMessage = this.$t('m.File_Too_Large') || '文件大小超出限制'
+          errorMessage = this.$t('m.File_Too_Large')
         } else if (error.message.includes('500')) {
-          errorMessage = this.$t('m.Server_Error') || '服务器错误，请稍后重试'
+          errorMessage = this.$t('m.Server_Error')
         } else if (error.message.includes('401')) {
-          errorMessage = this.$t('m.Unauthorized') || '未授权，请重新登录'
+          errorMessage = this.$t('m.Unauthorized')
         }
       }
 

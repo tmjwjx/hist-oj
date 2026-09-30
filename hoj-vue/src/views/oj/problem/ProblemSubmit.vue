@@ -7,20 +7,20 @@
     >
       <div v-if="!embedded" slot="header" class="submit-card-header">
         <div>
-          <h2>提交代码</h2>
+          <h2>{{ $t('m.Submit_Code') }}</h2>
           <p v-if="problemTitle" class="problem-title">{{ problemTitle }}</p>
         </div>
         <el-button size="small" icon="el-icon-back" @click="returnToProblem">
-          返回题目
+          {{ $t('m.Back_To_Problem') }}
         </el-button>
       </div>
 
       <el-form label-position="left" label-width="92px" class="submit-form">
-        <el-form-item v-if="isContestSubmit" label="题目" required>
+        <el-form-item v-if="isContestSubmit" :label="$t('m.Problem_Label')" required>
           <el-select
             :value="selectedProblemID"
             filterable
-            placeholder="请选择要提交的题目"
+            :placeholder="$t('m.Select_Problem_To_Submit')"
             class="form-control"
             @change="onContestProblemChange"
           >
@@ -32,20 +32,20 @@
             ></el-option>
           </el-select>
           <span v-if="loadingProblem" class="problem-loading">
-            <i class="el-icon-loading"></i> 正在加载题目信息
+            <i class="el-icon-loading"></i> {{ $t('m.Loading_Problem_Info') }}
           </span>
         </el-form-item>
 
-        <el-form-item v-else label="题目">
+        <el-form-item v-else :label="$t('m.Problem_Label')">
           <el-input :value="problemLabel" class="form-control" disabled></el-input>
         </el-form-item>
 
-        <el-form-item label="语言" required>
+        <el-form-item :label="$t('m.Language')" required>
           <el-select
             :value="language"
             :disabled="!selectedProblemID"
             class="form-control"
-            placeholder="请选择语言"
+            :placeholder="$t('m.Select_Language')"
             @change="onLanguageChange"
           >
             <el-option
@@ -57,22 +57,22 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="源代码" required>
+        <el-form-item :label="$t('m.Source_Code')" required>
           <div class="source-toolbar">
             <el-button
               size="small"
               icon="el-icon-upload2"
               :disabled="!selectedProblemID || loadingProblem"
               @click="chooseSourceFile"
-            >选择文件</el-button>
+            >{{ $t('m.Choose_File') }}</el-button>
             <el-button
               size="small"
               icon="el-icon-refresh-left"
               :disabled="!selectedProblemID || !language || loadingProblem"
               @click="resetToTemplate"
-            >恢复代码模板</el-button>
+            >{{ $t('m.Restore_Code_Template') }}</el-button>
             <span v-if="sourceFileName" class="source-file-name">
-              已读取：{{ sourceFileName }}
+              {{ $t('m.Loaded_File') }}: {{ sourceFileName }}
             </span>
             <input
               ref="sourceFileInput"
@@ -88,11 +88,11 @@
             :disabled="!selectedProblemID"
             resize="vertical"
             class="source-input"
-            placeholder="请在这里粘贴源代码，或者选择本地源码文件"
+            :placeholder="$t('m.Paste_Source_Here')"
             @keydown.native="handleSourceKeydown"
           ></el-input>
           <div class="source-hint">
-            支持直接粘贴代码或读取本地源码文件，代码长度不能超过 65535 个字符。
+            {{ $t('m.Source_Hint_65535') }}
           </div>
         </el-form-item>
 
@@ -103,8 +103,8 @@
             :loading="submitting"
             :disabled="submitDisabled"
             @click="submitCode"
-          >{{ submitting ? '提交中...' : '提交代码' }}</el-button>
-          <el-button @click="returnToProblem">取消</el-button>
+          >{{ submitting ? $t('m.Submitting') : $t('m.Submit_Code') }}</el-button>
+          <el-button @click="returnToProblem">{{ $t('m.Cancel') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -374,9 +374,9 @@ export default {
         this.code = template;
         return;
       }
-      this.$confirm("确定要用当前语言的代码模板覆盖源码吗？", "提示", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
+      this.$confirm(this.$t("m.Overwrite_With_Template_Confirm"), this.$t("m.Tip"), {
+        confirmButtonText: this.$t("m.Confirm"),
+        cancelButtonText: this.$t("m.Cancel"),
         type: "warning",
       })
         .then(() => {
@@ -409,7 +409,7 @@ export default {
         input.value = "";
       };
       reader.onerror = () => {
-        myMessage.error("源码文件读取失败");
+        myMessage.error(this.$t("m.Read_Source_File_Failed"));
         input.value = "";
       };
       reader.readAsText(file, "UTF-8");
@@ -455,15 +455,15 @@ export default {
         return;
       }
       if (this.isContestSubmit && !this.canSubmit) {
-        myMessage.warning("请先完成比赛报名或验证后再提交");
+        myMessage.warning(this.$t("m.Need_Contest_Register_First"));
         return;
       }
       if (!this.selectedProblemID) {
-        myMessage.warning("请选择要提交的题目");
+        myMessage.warning(this.$t("m.Select_Problem_To_Submit"));
         return;
       }
       if (!this.language) {
-        myMessage.warning("请选择提交语言");
+        myMessage.warning(this.$t("m.Select_Language"));
         return;
       }
       if (!this.code.trim()) {

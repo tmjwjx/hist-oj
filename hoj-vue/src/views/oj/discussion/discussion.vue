@@ -123,12 +123,12 @@
       <el-form label-position="top" :model="report">
         <el-form-item :label="$t('m.Tags')" required>
           <el-checkbox-group v-model="report.tagList">
-            <el-checkbox label="垃圾广告"></el-checkbox>
-            <el-checkbox label="违法违规"></el-checkbox>
-            <el-checkbox label="色情低俗"></el-checkbox>
-            <el-checkbox label="赌博诈骗"></el-checkbox>
-            <el-checkbox label="恶意骂战"></el-checkbox>
-            <el-checkbox label="恶意抄袭"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Spam')" value="spam"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Illegal')" value="illegal"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Porn')" value="porn"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Gambling')" value="gambling"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Flaming')" value="flaming"></el-checkbox>
+            <el-checkbox :label="$t('m.Report_Plagiarism')" value="plagiarism"></el-checkbox>
           </el-checkbox-group>
         </el-form-item>
         <el-form-item :label="$t('m.Report_Reason')" required>

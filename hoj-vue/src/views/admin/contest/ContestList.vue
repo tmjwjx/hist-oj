@@ -67,7 +67,7 @@
         <vxe-table-column title="Rating" width="100">
           <template v-slot="{ row }">
             <el-tag v-if="row.isRating" type="success" size="small">Rating</el-tag>
-            <el-tag v-else type="info" size="small">未设置</el-tag>
+            <el-tag v-else type="info" size="small">{{ $t('m.ContestAdm_Rating_Not_Set') }}</el-tag>
           </template>
         </vxe-table-column>
         <vxe-table-column :title="$t('m.Visible')" min-width="80">
@@ -120,7 +120,7 @@
                 </el-tooltip>
                 <el-tooltip
                   effect="dark"
-                  content="查看报名信息"
+                  :content="$t('m.View_Registration_Info')"
                   placement="top"
                 >
                   <el-button
@@ -163,7 +163,7 @@
               <div style="margin-bottom:10px" v-if="!row.isRating">
                 <el-tooltip
                   effect="dark"
-                  content="设为Rating赛"
+                  :content="$t('m.ContestAdm_Set_Rating')"
                   placement="top"
                 >
                   <el-button
@@ -227,52 +227,52 @@
 
     <!-- 第一步确认对话框 -->
     <el-dialog
-      title="设置 Rating 比赛"
+      :title="$t('m.ContestAdm_Set_Rating_Title')"
       width="400px"
       :visible.sync="firstConfirmVisible"
       :close-on-click-modal="false"
     >
       <div style="margin-bottom: 15px;">
-        <p><strong>比赛：</strong>#{{ selectedContest.id }} {{ selectedContest.title }}</p>
+        <p><strong>{{ $t('m.ContestAdm_Contest_Label') }}</strong>#{{ selectedContest.id }} {{ selectedContest.title }}</p>
       </div>
       <el-alert
-        title="⚠️ 此操作不可撤销"
+        :title="$t('m.ContestAdm_Irreversible')"
         type="warning"
         :closable="false"
         style="margin-bottom: 15px;"
       ></el-alert>
       <div>
-        <p style="margin-bottom: 10px;">请输入比赛名称确认：</p>
+        <p style="margin-bottom: 10px;">{{ $t('m.ContestAdm_Confirm_Name_Prompt') }}</p>
         <el-input
           v-model="firstConfirmInput"
-          placeholder="请输入比赛名称"
+          :placeholder="$t('m.ContestAdm_Enter_Contest_Name')"
           @keyup.enter.native="validateFirstStep"
         ></el-input>
       </div>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="firstConfirmVisible = false">取消</el-button>
-        <el-button type="primary" @click="validateFirstStep">确认</el-button>
+        <el-button @click="firstConfirmVisible = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="validateFirstStep">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
 
     <!-- 第二步确认对话框 -->
     <el-dialog
-      title="最终确认"
+      :title="$t('m.ContestAdm_Final_Confirm')"
       width="400px"
       :visible.sync="secondConfirmVisible"
       :close-on-click-modal="false"
     >
       <div style="margin-bottom: 15px;">
-        <p>确认将比赛 <strong>#{{ selectedContest.id }}</strong> 设为 Rating 赛？</p>
+        <p>{{ $t('m.ContestAdm_Set_Rating_Confirm_1') }} <strong>#{{ selectedContest.id }}</strong> {{ $t('m.ContestAdm_Set_Rating_Confirm_2') }}</p>
       </div>
       <el-alert
-        title="此操作不可撤销！"
+        :title="$t('m.ContestAdm_Irreversible_Alert')"
         type="error"
         :closable="false"
       ></el-alert>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="secondConfirmVisible = false">取消</el-button>
-        <el-button type="danger" @click="confirmSetRating">确认</el-button>
+        <el-button @click="secondConfirmVisible = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="danger" @click="confirmSetRating">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -424,7 +424,7 @@ export default {
           checkData = (res && res.data && res.data.data) ? res.data.data : {};
         } catch (e) {
           rollbackVisible();
-          myMessage.error('查询题目检测状态失败，已取消设为可见');
+          myMessage.error(this.$i18n.t('m.ContestAdm_Check_Visible_Failed'));
           return;
         }
 
@@ -433,24 +433,24 @@ export default {
           const messageLines = [];
 
           if ((checkData.totalProblems || 0) === 0) {
-            messageLines.push('该比赛暂无可发布的验题结果。');
+            messageLines.push(this.$i18n.t('m.ContestAdm_No_Verified_Problems'));
           } else {
             const lines = unchecked.slice(0, 8).map((item) => {
               const label = item.problemId ? `[${item.problemId}]` : `[#${item.pid}]`;
-              const title = item.title || '未命名题目';
+              const title = item.title || this.$i18n.t('m.ContestAdm_Unnamed_Problem');
               return `${label}${title}`;
             });
             if (unchecked.length > 8) {
-              lines.push(`... 其余 ${unchecked.length - 8} 题未展示`);
+              lines.push(this.$i18n.t('m.ContestAdm_More_Problems', { count: unchecked.length - 8 }));
             }
-            messageLines.push(`该比赛有 ${unchecked.length} 道题未完成测试数据同步或标准程序验题。`);
+            messageLines.push(this.$i18n.t('m.ContestAdm_Unverified_Count', { count: unchecked.length }));
             if (lines.length > 0) {
               messageLines.push('');
               messageLines.push(...lines);
             }
           }
 
-          this.$alert(messageLines.join('\n'), '无法设为可见', { type: 'warning' });
+          this.$alert(messageLines.join('\n'), this.$i18n.t('m.ContestAdm_Cannot_Set_Visible'), { type: 'warning' });
           rollbackVisible();
           return;
         }
@@ -481,7 +481,7 @@ export default {
     // 验证第一步输入
     validateFirstStep() {
       if (this.firstConfirmInput !== this.selectedContest.title) {
-        myMessage.error('比赛名称输入错误');
+        myMessage.error(this.$i18n.t('m.ContestAdm_Name_Mismatch'));
         return;
       }
       this.firstConfirmVisible = false;
@@ -491,12 +491,12 @@ export default {
     async confirmSetRating() {
       try {
         await ratingApi.setContestRatingType(this.selectedContest.id, true);
-        myMessage.success('设置成功');
+        myMessage.success(this.$i18n.t('m.ContestAdm_Set_Success'));
         this.secondConfirmVisible = false;
         // 刷新列表
         this.getContestList(this.currentPage);
       } catch (err) {
-        myMessage.error('设置失败: ' + (err.message || err));
+        myMessage.error(this.$i18n.t('m.ContestAdm_Set_Failed') + (err.message || err));
       }
     },
   },

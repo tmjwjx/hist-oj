@@ -5,9 +5,9 @@
         <span class="panel-title home-title">{{ title }}</span>
       </div>
       <el-steps :active="editorStep" finish-status="success" align-center class="problem-steps">
-        <el-step title="题面与配置" description="题目 ID、描述、输入输出与判题配置" />
-        <el-step title="样例与测试数据" description="导入 ZIP 或手工测试点，仅数据变化时同步" />
-        <el-step title="验证题目" description="AI 验题与创建者标准程序验题" />
+        <el-step :title="$t('m.Prob_Step_Basic')" :description="$t('m.Prob_Step_Basic_Desc')" />
+        <el-step :title="$t('m.Prob_Step_Data')" :description="$t('m.Prob_Step_Data_Desc')" />
+        <el-step :title="$t('m.Prob_Step_Validate')" :description="$t('m.Prob_Step_Validate_Desc')" />
       </el-steps>
       <el-form
         v-show="editorStep < 2"
@@ -64,7 +64,7 @@
             <el-input :placeholder="$t('m.Source')" v-model="problem.source" />
           </el-form-item>
           <el-form-item class="secondary-middle-field language-setting" :label="$t('m.Languages')" :error="error.languages" required>
-            <el-select v-model="problemLanguages" multiple collapse-tags filterable placeholder="选择允许运行的语言" class="language-select">
+            <el-select v-model="problemLanguages" multiple collapse-tags filterable :placeholder="$t('m.Prob_Select_Languages')" class="language-select">
               <el-option v-for="lang in allLanguage" :key="lang.name" :label="lang.name" :value="lang.name" />
             </el-select>
           </el-form-item>
@@ -163,8 +163,8 @@
         </div>
 
         <div v-show="editorStep === 1">
-          <el-alert class="test-data-tip" title="测试数据按变更导入"
-            description="共享目录直接使用；独立存储自动同步，仅测试数据变化才传输。"
+          <el-alert class="test-data-tip" :title="$t('m.Prob_Test_Data_Tip_Title')"
+            :description="$t('m.Prob_Test_Data_Tip_Desc')"
             type="info" :closable="false" show-icon />
           <div class="panel-title home-title">
             {{ $t('m.Problem_Examples') }}
@@ -237,7 +237,7 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="24">
-                  <el-form-item label="样例解释（可选）">
+                  <el-form-item :label="$t('m.Prob_Example_Explanation_Optional')">
                     <SampleExplanationEditor v-model="example.explanation" />
                   </el-form-item>
                 </el-col>
@@ -257,7 +257,7 @@
         </div>
 
         <el-collapse v-show="editorStep === 0" v-model="advancedConfigOpen" class="advanced-config">
-          <el-collapse-item title="高级判题与代码配置" name="judge">
+          <el-collapse-item :title="$t('m.Prob_Advanced_Judge_Config')" name="judge">
         <div v-show="editorStep === 0" class="advanced-config-body">
           <div class="advanced-option-grid">
             <div v-if="!problem.isRemote" class="advanced-option extra-file-option">
@@ -294,9 +294,9 @@
                 </el-popover>
               </div>
               <el-select v-model="problem.judgeMode" @change="switchMode">
-                <el-option label="普通判题" value="default" />
-                <el-option label="特殊判题（SPJ）" value="spj" />
-                <el-option label="交互判题" value="interactive" />
+                <el-option :label="$t('m.Prob_Judge_Mode_Default')" value="default" />
+                <el-option :label="$t('m.Prob_Judge_Mode_Spj')" value="spj" />
+                <el-option :label="$t('m.Prob_Judge_Mode_Interactive')" value="interactive" />
               </el-select>
               <div v-if="error.spj" class="advanced-error">{{ error.spj }}</div>
             </div>
@@ -304,7 +304,7 @@
             <div class="advanced-option template-option">
               <div class="advanced-label">{{ $t('m.Code_Template') }}</div>
               <el-select v-model="selectedTemplateLanguages" multiple collapse-tags filterable
-                placeholder="选择模板语言">
+                :placeholder="$t('m.Prob_Select_Template_Language')">
                 <el-option v-for="(v, k) in codeTemplate" :key="'template-option' + k"
                   :label="k" :value="k" />
               </el-select>
@@ -586,10 +586,10 @@
         </el-row>
 
         <div class="wizard-actions" :class="{ 'single-action': editorStep === 0 }">
-          <el-button v-if="editorStep === 0" type="primary" @click="nextToDataStep">下一步：样例与测试数据</el-button>
+          <el-button v-if="editorStep === 0" type="primary" @click="nextToDataStep">{{ $t('m.Prob_Next_To_Data') }}</el-button>
           <template v-else>
-            <el-button @click="editorStep = 0">返回题面配置</el-button>
-            <el-button type="primary" :loading="saving" @click.native="submit()">保存并进入验题</el-button>
+            <el-button @click="editorStep = 0">{{ $t('m.Prob_Back_To_Basic') }}</el-button>
+            <el-button type="primary" :loading="saving" @click.native="submit()">{{ $t('m.Prob_Save_And_Validate') }}</el-button>
           </template>
         </div>
       </el-form>

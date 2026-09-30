@@ -21,7 +21,7 @@
         </template>
         <template slot>
           <div v-if="submission.submissionType" class="submission-type-row">
-            <el-tag size="mini" effect="dark">评测类型：{{ submissionTypeLabel(submission.submissionType) }}</el-tag>
+            <el-tag size="mini" effect="dark">{{ $t('m.Submission_Type') }}: {{ submissionTypeLabel(submission.submissionType) }}</el-tag>
           </div>
           <div
             v-if="isCE || isSE || isSF"
@@ -393,9 +393,9 @@ export default {
   methods: {
     submissionTypeLabel(type) {
       return {
-        ai_validation: 'AI 验题',
-        creator_validation: '题目创建验证',
-        user_submission: '用户题库提交',
+        ai_validation: this.$t('m.AI_Validation'),
+        creator_validation: this.$t('m.Creator_Validation'),
+        user_submission: this.$t('m.User_Submission'),
       }[type] || type;
     },
     doCopy() {

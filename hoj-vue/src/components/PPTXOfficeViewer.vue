@@ -16,8 +16,8 @@
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
-      <p>正在加载Office Online预览...</p>
-      <p class="hint-text">首次加载大文件可能需要30-60秒，请耐心等待</p>
+      <p>{{ $t('m.Loading_Office_Preview') }}</p>
+      <p class="hint-text">{{ $t('m.Office_First_Load_Hint') }}</p>
       <el-progress
         v-if="loadStartTime"
         :percentage="getLoadProgress()"
@@ -32,7 +32,7 @@
       <i class="el-icon-warning-outline"></i>
       <p class="error-message">{{ error }}</p>
       <el-button type="primary" @click="retry" size="small">
-        重试
+        {{ $t('m.Retry') }}
       </el-button>
       <el-button
         v-if="allowDownload"
@@ -40,7 +40,7 @@
         @click="downloadFile"
         size="small"
       >
-        下载文件
+        {{ $t('m.Download_File') }}
       </el-button>
     </div>
 
@@ -48,26 +48,26 @@
     <div v-if="!error && !loading" class="office-error-hint">
       <el-alert
         v-if="showOfficeErrorHint"
-        title="Office Online预览说明"
+        :title="$t('m.Office_Preview_Note')"
         type="info"
         :closable="true"
         @close="showOfficeErrorHint = false"
         style="margin-bottom: 10px;"
       >
         <template slot="default">
-          <p style="margin: 5px 0; font-weight: bold;">如果页面显示 "An error occurred" 或其他Office Online错误：</p>
-          <p style="margin: 5px 0;">这表示微软Office Online服务无法打开此文件，可能原因：</p>
+          <p style="margin: 5px 0; font-weight: bold;">{{ $t('m.Office_Error_If_Seen') }}</p>
+          <p style="margin: 5px 0;">{{ $t('m.Office_Error_Reasons_Intro') }}</p>
           <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
-            <li>文件使用了不兼容的高级功能（如复杂动画、VBA宏等）</li>
-            <li>文件内容过于复杂（大量多媒体、图表等）</li>
-            <li>文件格式损坏或不标准</li>
-            <li>Office Online服务暂时不可用</li>
+            <li>{{ $t('m.Office_Reason_Incompatible') }}</li>
+            <li>{{ $t('m.Office_Reason_Too_Complex') }}</li>
+            <li>{{ $t('m.Office_Reason_Corrupted') }}</li>
+            <li>{{ $t('m.Office_Reason_Unavailable') }}</li>
           </ul>
-          <p style="margin: 5px 0; font-weight: bold;">建议解决方案：</p>
+          <p style="margin: 5px 0; font-weight: bold;">{{ $t('m.Office_Solutions') }}</p>
           <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
-            <li>尝试用PowerPoint重新保存文件，去除不兼容的功能</li>
-            <li>简化动画和多媒体内容</li>
-            <li>下载文件后使用本地PowerPoint打开</li>
+            <li>{{ $t('m.Office_Solution_Resave') }}</li>
+            <li>{{ $t('m.Office_Solution_Simplify') }}</li>
+            <li>{{ $t('m.Office_Solution_Local') }}</li>
           </ul>
         </template>
       </el-alert>
@@ -78,7 +78,7 @@
         @click="showOfficeErrorHint = !showOfficeErrorHint"
         plain
       >
-        预览显示错误？
+        {{ $t('m.Preview_Showing_Error') }}
       </el-button>
     </div>
 
@@ -120,7 +120,7 @@ export default {
     },
     userName: {
       type: String,
-      default: '用户'
+      default: ''
     },
     showWatermark: {
       type: Boolean,
@@ -147,7 +147,7 @@ export default {
       return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(this.previewUrl)}&wdStart=0&wdEmbed=0`
     },
     watermarkText() {
-      return `${this.userName} - 仅用于学习`
+      return this.userName ? `${this.userName} - ${this.$t('m.For_Study_Only')}` : this.$t('m.For_Study_Only')
     }
   },
   mounted() {
@@ -175,7 +175,7 @@ export default {
       const loadTime = this.loadStartTime ? ((Date.now() - this.loadStartTime) / 1000).toFixed(1) : 'N/A'
       console.log('[OfficeViewer] Office Online iframe 加载完成', {
         fileName: this.fileName,
-        loadTime: loadTime + '秒'
+        loadTime: loadTime + this.$t('m.Seconds_Unit')
       })
 
       this.loading = false
@@ -184,7 +184,7 @@ export default {
       const loadTimeSeconds = parseFloat(loadTime)
       if (loadTimeSeconds < 10) {
         // 加载很快可能意味着错误页面
-        console.log('[OfficeViewer] 加载完成，如果页面显示错误，点击"预览显示错误？"查看帮助')
+        console.log('[OfficeViewer] loaded; if the page shows an error, see the preview error help')
       }
 
       // 发射加载完成事件，用于缓存
@@ -213,14 +213,14 @@ export default {
       // Ctrl+S (保存)
       if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
-        this.$message?.warning('禁止保存文件')
+        this.$message?.warning(this.$t('m.Save_Forbidden'))
         return false
       }
 
       // Ctrl+P (打印)
       if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault()
-        this.$message?.warning('禁止打印')
+        this.$message?.warning(this.$t('m.Print_Forbidden'))
         return false
       }
 
@@ -233,7 +233,7 @@ export default {
 
       // PrintScreen - 无法完全阻止，但可以检测
       if (e.key === 'PrintScreen') {
-        this.$message?.warning('请遵守版权，禁止截屏传播')
+        this.$message?.warning(this.$t('m.Screenshot_Forbidden'))
       }
     },
 

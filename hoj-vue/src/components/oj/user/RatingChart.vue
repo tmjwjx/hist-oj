@@ -1,15 +1,15 @@
 <template>
   <div class="rating-chart">
     <div v-if="loading" class="loading">
-      <i class="el-icon-loading"></i> 加载中...
+      <i class="el-icon-loading"></i> {{ $t('m.Loading') }}
     </div>
     <div v-else-if="error" class="error">
       <i class="el-icon-warning"></i> {{ error }}
     </div>
     <div v-else-if="chartData.length === 0" class="empty">
-      <i class="el-icon-info"></i> 暂无 Rating 历史记录
+      <i class="el-icon-info"></i> {{ $t('m.No_Rating_History') }}
       <p style="font-size: 12px; margin-top: 8px; color: #999;">
-        参加 Rating 比赛后，这里将显示您的 Rating 变化历史
+        {{ $t('m.Rating_History_Hint') }}
       </p>
     </div>
     <div v-else ref="chart" style="width: 100%; height: 400px;"></div>
@@ -41,7 +41,7 @@ export default {
     if (this.uid && this.uid !== 'undefined') {
       this.fetchData()
     } else {
-      this.error = '用户ID无效'
+      this.error = this.$t('m.Invalid_User_Id')
     }
   },
   watch: {
@@ -59,7 +59,7 @@ export default {
   methods: {
     async fetchData() {
       if (!this.uid || this.uid === 'undefined') {
-        this.error = '用户ID无效'
+        this.error = this.$t('m.Invalid_User_Id')
         return
       }
 
@@ -72,7 +72,7 @@ export default {
         this.chartData = Array.isArray(records) ? [...records].reverse() : []
       } catch (error) {
         console.error('获取 Rating 历史失败:', error)
-        this.error = '加载失败: ' + (error.message || '未知错误')
+        this.error = this.$t('m.Load_Failed_Colon') + (error.message || this.$t('m.Unknown_Error'))
       } finally {
         this.loading = false
         // 确保 DOM 更新后再渲染图表
@@ -106,7 +106,7 @@ export default {
           return `${year}-${month}-${day}`
         }
         // 比赛记录使用比赛时间
-        if (!contestTime) return '未知日期'
+        if (!contestTime) return this.$t('m.Unknown_Date')
         const date = new Date(contestTime)
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -124,7 +124,7 @@ export default {
 
       const option = {
         title: {
-          text: 'Rating 变化历史',
+          text: this.$t('m.Rating_History_Title'),
           left: 'center'
         },
         tooltip: {
@@ -153,15 +153,15 @@ export default {
             const createdAt = data.created_at || data.createdAt
             const manualAdjustReason = data.manualAdjustReason || data.manual_adjust_reason
             const manualAdjustDelta = data.manualAdjustDelta ?? data.manual_adjust_delta
-            const rankDisplay = rank && participants ? `${rank} / ${participants}` : '未排名'
+            const rankDisplay = rank && participants ? `${rank} / ${participants}` : this.$t('m.Unranked')
 
             // 手动调整记录的 tooltip
             if (isManual) {
               return `
                 <div style="text-align: left;">
-                  <strong style="color: #FF4D4F;">⚠️ ${data.reason || '手动调整'}</strong><br/>
+                  <strong style="color: #FF4D4F;">⚠️ ${data.reason || this.$t('m.Manual_Adjust')}</strong><br/>
                   Rating: ${oldRating} → ${newRating}<br/>
-                  变化: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
+                  ${this.$t('m.Change_Label')}: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
                   <span style="color: #999; font-size: 12px;">${new Date(createdAt).toLocaleString('zh-CN')}</span>
                 </div>
               `
@@ -169,22 +169,22 @@ export default {
 
             // 比赛记录的 tooltip
             const skipInfo = isSkip
-              ? `<br/><strong style="color: #F56C6C;">⚠️ Skip: ${skipReason || '该比赛不计入 Rating'}</strong>`
+              ? `<br/><strong style="color: #F56C6C;">⚠️ Skip: ${skipReason || this.$t('m.Skipped_Not_Counted')}</strong>`
               : ''
             const manualInfo = manualAdjustReason
-              ? `<br/><strong style="color: #E6A23C;">📝 个人调整: ${manualAdjustReason}</strong>${
+              ? `<br/><strong style="color: #E6A23C;">📝 ${this.$t('m.Manual_Adjust')}: ${manualAdjustReason}</strong>${
                   manualAdjustDelta !== null && manualAdjustDelta !== undefined
-                    ? `<br/><span style="color: #E6A23C;">调整变化: ${manualAdjustDelta > 0 ? '+' : ''}${manualAdjustDelta}</span>`
+                    ? `<br/><span style="color: #E6A23C;">${this.$t('m.Adjust_Change')}: ${manualAdjustDelta > 0 ? '+' : ''}${manualAdjustDelta}</span>`
                     : ''
                 }`
               : ''
 
             return `
               <div style="text-align: left;">
-                <strong>${contestTitle || '比赛'}</strong><br/>
+                <strong>${contestTitle || this.$t('m.Contest')}</strong><br/>
                 Rating: ${oldRating} → ${newRating}<br/>
-                变化: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
-                排名: ${rankDisplay}${skipInfo}${manualInfo}
+                ${this.$t('m.Change_Label')}: <span style="color: ${ratingChange > 0 ? '#67C23A' : (ratingChange < 0 ? '#F56C6C' : '#909399')};">${ratingChange > 0 ? '+' : ''}${ratingChange}</span><br/>
+                ${this.$t('m.Rank_Label')}: ${rankDisplay}${skipInfo}${manualInfo}
               </div>
             `
           }
@@ -221,8 +221,8 @@ export default {
           },
           markPoint: {
             data: [
-              { type: 'max', name: '最高' },
-              { type: 'min', name: '最低' }
+              { type: 'max', name: this.$t('m.Max_Label') },
+              { type: 'min', name: this.$t('m.Min_Label') }
             ],
             itemStyle: {
               color: '#409EFF'
@@ -257,7 +257,7 @@ export default {
                 // 手动调整标记
                 if (isManual) {
                   return {
-                    name: reason || '手动调整',
+                    name: reason || this.$t('m.Manual_Adjust'),
                     coord: [index, newRating],
                     itemStyle: {
                       color: '#FF4D4F'

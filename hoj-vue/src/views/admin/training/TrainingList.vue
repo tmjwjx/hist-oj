@@ -101,7 +101,7 @@
               <div class="button-row">
                 <el-tooltip
                   effect="dark"
-                  content="查看参与者"
+                  :content="$t('m.TrainAdm_View_Participants')"
                   placement="top"
                 >
                   <el-button
@@ -221,7 +221,7 @@ export default {
     },
     getTrainingTitle(trainingId) {
       const training = this.trainingList.find(t => t.id === trainingId);
-      return training ? training.title : `训练 ${trainingId}`;
+      return training ? training.title : this.$t('m.TrainAdm_Training_Default', { id: trainingId });
     },
     deleteTraining(trainingId) {
       this.$confirm(this.$i18n.t('m.Delete_Training_Tips'), 'Tips', {

@@ -437,47 +437,47 @@
             <el-form-item :label="$t('m.User_Type')">
               <el-select v-model="selectUser.type" size="small">
                 <el-option
-                  label="超级管理员"
+                  :label="$t('m.Sys_User_Type_Super')"
                   :value="1000"
                   :key="1000"
                 ></el-option>
                 <el-option
-                  label="题目管理员"
+                  :label="$t('m.Sys_User_Type_Problem')"
                   :value="1008"
                   :key="1008"
                 ></el-option>
                 <el-option
-                  label="普通管理员"
+                  :label="$t('m.Sys_User_Type_Admin')"
                   :value="1001"
                   :key="1001"
                 ></el-option>
                 <el-option
-                  label="用户(默认)"
+                  :label="$t('m.Sys_User_Type_User')"
                   :value="1002"
                   :key="1002"
                 ></el-option>
                 <el-option
-                  label="用户(禁止提交)"
+                  :label="$t('m.Sys_User_Type_No_Submit')"
                   :value="1003"
                   :key="1003"
                 ></el-option>
                 <el-option
-                  label="用户(禁止发讨论)"
+                  :label="$t('m.Sys_User_Type_No_Discuss')"
                   :value="1004"
                   :key="1004"
                 ></el-option>
                 <el-option
-                  label="用户(禁言)"
+                  :label="$t('m.Sys_User_Type_Muted')"
                   :value="1005"
                   :key="1005"
                 ></el-option>
                 <el-option
-                  label="用户(禁止提交&禁止发讨论)"
+                  :label="$t('m.Sys_User_Type_No_Submit_Discuss')"
                   :value="1006"
                   :key="1006"
                 ></el-option>
                 <el-option
-                  label="用户(禁止提交&禁言)"
+                  :label="$t('m.Sys_User_Type_No_Submit_Muted')"
                   :value="1007"
                   :key="1007"
                 ></el-option>

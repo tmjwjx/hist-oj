@@ -40,12 +40,12 @@ export default {
         } else {
           this.copyCodeWithTextarea()
         }
-        this.$message.success('复制成功')
+        this.$message.success(this.$t('m.Copy_Success'))
       } catch (e) {
         if (this.copyCodeWithTextarea()) {
-          this.$message.success('复制成功')
+          this.$message.success(this.$t('m.Copy_Success'))
         } else {
-          this.$message.error('复制失败')
+          this.$message.error(this.$t('m.Copy_Failed'))
         }
       }
     },

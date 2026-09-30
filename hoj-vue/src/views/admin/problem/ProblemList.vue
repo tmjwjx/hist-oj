@@ -7,8 +7,8 @@
       class="problem-category-tabs"
       @tab-click="handleProblemCategoryChange"
     >
-      <el-tab-pane label="编程题" name="programming" />
-      <el-tab-pane v-if="isSuperAdmin" label="客观题" name="objective" />
+      <el-tab-pane :label="$t('m.ProbCreate_Programming')" name="programming" />
+      <el-tab-pane v-if="isSuperAdmin" :label="$t('m.ProbObj_Objective')" name="objective" />
     </el-tabs>
 
     <ObjectiveProblemList v-if="isMainProblemList && activeProblemCategory === 'objective'" />
@@ -16,7 +16,7 @@
     <el-card v-else>
       <div slot="header">
         <span class="panel-title home-title">{{
-          query.contestId ? $t('m.Contest_Problem_List') : '编程题列表'
+          query.contestId ? $t('m.Contest_Problem_List') : $t('m.Prob_Programming_List')
         }}</span>
         <div class="filter-row">
           <span>
@@ -107,9 +107,9 @@
         :loading="loading"
         align="center"
       >
-        <vxe-table-column min-width="96" title="题目类型" v-if="!isContest">
+        <vxe-table-column min-width="96" :title="$t('m.ProbObj_Problem_Type')" v-if="!isContest">
           <template>
-            <el-tag type="primary" size="mini">编程题</el-tag>
+            <el-tag type="primary" size="mini">{{ $t('m.ProbCreate_Programming') }}</el-tag>
           </template>
         </vxe-table-column>
         <vxe-table-column min-width="64" field="id" title="ID">

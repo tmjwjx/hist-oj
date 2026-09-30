@@ -940,15 +940,15 @@ export default {
 
       if (error.message) {
         if (error.message.includes('Network Error') || error.message.includes('timeout')) {
-          errorMessage = this.$t('m.Network_Error') || '网络错误，请检查网络连接'
+          errorMessage = this.$t('m.Network_Error')
         } else if (error.message.includes('413')) {
-          errorMessage = this.$t('m.File_Too_Large') || '文件大小超出限制'
+          errorMessage = this.$t('m.File_Too_Large')
         } else if (error.message.includes('415')) {
-          errorMessage = this.$t('m.File_Type_Not_Supported') || '不支持的文件类型'
+          errorMessage = this.$t('m.File_Type_Not_Supported')
         } else if (error.message.includes('500')) {
-          errorMessage = this.$t('m.Server_Error') || '服务器错误，请稍后重试'
+          errorMessage = this.$t('m.Server_Error')
         } else if (error.message.includes('401')) {
-          errorMessage = this.$t('m.Unauthorized') || '未授权，请重新登录'
+          errorMessage = this.$t('m.Unauthorized')
         }
       }
 
@@ -963,7 +963,7 @@ export default {
     beforeUpload(file) {
       const maxSize = 100 * 1024 * 1024
       if (file.size > maxSize) {
-        this.$message.error(this.$t('m.File_Size_Limit') || '文件大小不能超过100MB')
+        this.$message.error(this.$t('m.File_Size_Limit'))
         return false
       }
 
@@ -983,7 +983,7 @@ export default {
       ]
 
       if (file.type && !allowedTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx|ppt|pptx|xlsx|xls|txt|mp4|jpg|jpeg|png|gif)$/i)) {
-        this.$message.warning(this.$t('m.File_Type_Warning') || '文件类型可能不支持，建议上传常见文档格式')
+        this.$message.warning(this.$t('m.File_Type_Warning'))
       }
 
       return true

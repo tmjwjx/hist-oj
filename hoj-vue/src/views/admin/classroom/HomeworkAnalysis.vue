@@ -2,7 +2,7 @@
   <div class="admin-homework-analysis">
     <div class="page-header">
       <el-button icon="el-icon-back" @click="goBack">{{ $t('m.Back') }}</el-button>
-      <h2>作业学情分析</h2>
+      <h2>{{ $t('m.Homework_Analysis_Title') }}</h2>
     </div>
 
     <!-- 复用教师端的分析组件，通过 props 传递参数 -->

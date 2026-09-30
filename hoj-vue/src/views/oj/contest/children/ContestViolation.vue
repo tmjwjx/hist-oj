@@ -1,10 +1,10 @@
 <template>
   <div class="violation-container">
     <el-tabs v-model="activeSection" class="violation-tabs">
-      <el-tab-pane label="设备异常" name="device" lazy>
+      <el-tab-pane :label="$t('m.Device_Anomaly')" name="device" lazy>
         <ContestDeviceAnomaly v-if="sectionRendered.device" />
       </el-tab-pane>
-      <el-tab-pane label="代码查重" name="plagiarism" lazy>
+      <el-tab-pane :label="$t('m.Code_Plagiarism')" name="plagiarism" lazy>
         <ContestPlagiarism v-if="sectionRendered.plagiarism" />
       </el-tab-pane>
     </el-tabs>

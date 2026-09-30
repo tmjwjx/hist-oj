@@ -1,46 +1,47 @@
 <template>
   <div class="registration-config">
-    <div class="registration-title">比赛报名</div>
+    <div class="registration-title">{{ $t('m.Contest_Registration') }}</div>
 
     <!-- 第一行：开关项 -->
     <div class="registration-switches">
-      <el-form-item label="开启报名信息填写">
+      <el-form-item :label="$t('m.Reg_Enable_Fields')">
         <el-switch v-model="contest.openRegistration"></el-switch>
       </el-form-item>
-      <el-form-item v-if="contest.openRegistration" label="替换比赛内名称">
+      <el-form-item v-if="contest.openRegistration" :label="$t('m.Reg_Use_Contest_Name')">
         <el-switch v-model="contest.useRegistrationName"></el-switch>
       </el-form-item>
     </div>
 
     <!-- 第二行：选择器 -->
     <div class="registration-selects" v-if="contest.openRegistration">
-      <el-form-item label="报名字段" required>
+      <el-form-item :label="$t('m.Reg_Fields')" required>
         <el-select v-model="contest.registrationFields" multiple collapse-tags filterable>
-          <el-option v-for="field in fields" :key="field.value" :label="field.label" :value="field.value" />
+          <el-option v-for="field in fields" :key="field.value" :label="$t('m.' + field.labelKey)" :value="field.value" />
         </el-select>
       </el-form-item>
-      <el-form-item v-if="contest.useRegistrationName" label="名称组合字段" required>
+      <el-form-item v-if="contest.useRegistrationName" :label="$t('m.Reg_Name_Fields')" required>
         <el-select v-model="contest.registrationNameFields" multiple collapse-tags>
-          <el-option v-for="field in enabledFields" :key="field.value" :label="field.label" :value="field.value" />
+          <el-option v-for="field in enabledFields" :key="field.value" :label="$t('m.' + field.labelKey)" :value="field.value" />
         </el-select>
       </el-form-item>
     </div>
 
     <div v-if="contest.openRegistration && contest.useRegistrationName" class="config-help">
-      名称按勾选顺序组合，例如：姓名 + 学号
+      {{ $t('m.Reg_Name_Combo_Tip') }}
     </div>
   </div>
 </template>
 
 <script>
+// 模块级映射表只存 i18n 键名，渲染时通过 $t('m.' + labelKey) 翻译
 const FIELDS = [
-  { value: "name", label: "姓名" },
-  { value: "class", label: "班级" },
-  { value: "college", label: "学院" },
-  { value: "studentId", label: "学号" },
-  { value: "gender", label: "性别" },
-  { value: "qq", label: "QQ" },
-  { value: "phone", label: "电话号码" },
+  { value: "name", labelKey: "Reg_Field_Name" },
+  { value: "class", labelKey: "Reg_Field_Class" },
+  { value: "college", labelKey: "Reg_Field_College" },
+  { value: "studentId", labelKey: "Reg_Field_Student_ID" },
+  { value: "gender", labelKey: "Reg_Field_Gender" },
+  { value: "qq", labelKey: "Reg_Field_QQ" },
+  { value: "phone", labelKey: "Reg_Field_Phone" },
 ];
 
 export default {

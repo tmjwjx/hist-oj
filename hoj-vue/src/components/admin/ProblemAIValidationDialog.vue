@@ -1,19 +1,19 @@
 <template>
-  <el-dialog title="AI 一键验题" :visible.sync="visibleProxy"
+  <el-dialog :title="$t('m.ProbAI_Validate_Dialog_Title')" :visible.sync="visibleProxy"
              width="min(960px, calc(100vw - 32px))" append-to-body>
     <el-alert
-      title="AI 会先独立生成标准程序，再送入正式评测机跑完全部测试点，最后检查题面、样例、数据、stderr 和判题模式。"
+      :title="$t('m.ProbAI_Validate_Alert_Desc')"
       type="info" :closable="false" show-icon
     />
-    <div class="validation-kind"><el-tag type="warning">评测类型：AI 验题</el-tag></div>
+    <div class="validation-kind"><el-tag type="warning">{{ $t('m.ProbAI_Kind_Tag') }}</el-tag></div>
 
     <div v-if="running" class="validation-running">
-      <div class="running-title"><i class="el-icon-loading" /> AI 正在执行全量验题</div>
+      <div class="running-title"><i class="el-icon-loading" /> {{ $t('m.ProbAI_Running_Title') }}</div>
       <el-alert v-if="judgeProgress" :title="judgeProgress" :description="judgeMessage"
                 type="info" :closable="false" show-icon class="judge-progress" />
       <div class="validation-steps-scroll">
         <el-steps :active="activeStage" finish-status="success" process-status="process" simple>
-          <el-step v-for="stage in runningStages" :key="stage" :title="stage" />
+          <el-step v-for="stage in runningStages" :key="stage" :title="$t('m.' + stage)" />
         </el-steps>
       </div>
     </div>
@@ -21,20 +21,20 @@
     <section v-if="generatedProgram" class="generated-program">
       <div class="program-heading">
         <div>
-          <el-tag size="small" type="success">AI 生成标准程序</el-tag>
+          <el-tag size="small" type="success">{{ $t('m.ProbAI_Generated_Program_Tag') }}</el-tag>
           <span class="program-language">{{ generatedProgram.language }}</span>
         </div>
         <div class="program-actions">
           <el-button size="mini" plain icon="el-icon-document-copy"
-            @click="copyCode(generatedProgram.code, '标准程序')">复制代码</el-button>
-          <el-button size="mini" type="primary" plain @click="useGeneratedProgram">填入创建者代码框</el-button>
+            @click="copyCode(generatedProgram.code, $t('m.ProbAI_Standard_Program'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
+          <el-button size="mini" type="primary" plain @click="useGeneratedProgram">{{ $t('m.ProbAI_Use_Generated_Program') }}</el-button>
         </div>
       </div>
       <p v-if="generatedProgram.algorithm" class="program-algorithm">{{ generatedProgram.algorithm }}</p>
       <el-alert v-if="generatedProgram.warnings" :title="generatedProgram.warnings"
         type="warning" :closable="false" show-icon />
       <el-collapse class="program-source">
-        <el-collapse-item title="查看 AI 生成的完整源码" name="source">
+        <el-collapse-item :title="$t('m.ProbAI_View_AI_Source')" name="source">
           <pre>{{ generatedProgram.code }}</pre>
         </el-collapse-item>
       </el-collapse>
@@ -43,17 +43,17 @@
     <section v-if="generatedProgram && generatedProgram.validatorCode" class="validator-program">
       <div class="program-heading">
         <div>
-          <el-tag size="small" type="warning">AI 生成 testlib 输入校验器</el-tag>
+          <el-tag size="small" type="warning">{{ $t('m.ProbAI_Testlib_Tag') }}</el-tag>
           <span class="program-language">{{ generatedProgram.validatorLanguage || 'C++' }}</span>
         </div>
         <el-button size="mini" plain icon="el-icon-document-copy"
-          @click="copyCode(generatedProgram.validatorCode, 'testlib 校验器')">复制代码</el-button>
+          @click="copyCode(generatedProgram.validatorCode, $t('m.ProbAI_Testlib_Validator'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
       </div>
       <p v-if="generatedProgram.validatorAlgorithm" class="program-algorithm">{{ generatedProgram.validatorAlgorithm }}</p>
       <el-alert v-if="generatedProgram.validatorWarnings" :title="generatedProgram.validatorWarnings"
         type="warning" :closable="false" show-icon />
       <el-collapse class="program-source">
-        <el-collapse-item title="查看 testlib 校验器完整源码" name="validator-source">
+        <el-collapse-item :title="$t('m.ProbAI_View_Testlib_Full_Source')" name="validator-source">
           <pre>{{ generatedProgram.validatorCode }}</pre>
         </el-collapse-item>
       </el-collapse>
@@ -64,88 +64,88 @@
         <div class="summary-main">
           <i :class="resultType === 'error' ? 'el-icon-error' : resultType === 'warning' ? 'el-icon-warning' : 'el-icon-success'" />
           <div>
-            <div class="summary-label">最终结论</div>
+            <div class="summary-label">{{ $t('m.ProbAI_Final_Conclusion') }}</div>
             <strong>{{ resultTitle }}</strong>
             <p>{{ result.summary }}</p>
           </div>
         </div>
         <div class="summary-metrics">
-          <span>测试点 <b>{{ testPointCount }}</b></span>
-          <span>问题 <b>{{ issueCount }}</b></span>
-          <span>耗时 <b>{{ resultDurationMs || '--' }}ms</b></span>
+          <span>{{ $t('m.ProbAI_Test_Point') }} <b>{{ testPointCount }}</b></span>
+          <span>{{ $t('m.ProbAI_Issues') }} <b>{{ issueCount }}</b></span>
+          <span>{{ $t('m.ProbAI_Duration') }} <b>{{ resultDurationMs || '--' }}ms</b></span>
         </div>
       </section>
 
       <el-alert v-if="result.finalRecommendation" class="recommendation"
-                title="最终建议" :description="result.finalRecommendation" :type="resultType" :closable="false" />
+                :title="$t('m.ProbAI_Final_Recommendation')" :description="result.finalRecommendation" :type="resultType" :closable="false" />
 
       <el-collapse v-model="detailPanels" class="report-details">
-        <el-collapse-item title="验题过程" name="steps">
+        <el-collapse-item :title="$t('m.ProbAI_Validation_Process')" name="steps">
           <div v-for="(step, index) in result.steps || []" :key="index" class="result-row">
             <el-tag size="mini" :type="tagType(step.status)">{{ step.status || 'WARN' }}</el-tag>
             <div><strong>{{ step.name }}</strong><p>{{ step.detail }}</p></div>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item v-if="result.sampleResults && result.sampleResults.length" title="样例推演" name="samples">
+        <el-collapse-item v-if="result.sampleResults && result.sampleResults.length" :title="$t('m.ProbAI_Sample_Simulation')" name="samples">
           <div v-for="sample in result.sampleResults" :key="sample.index" class="result-row">
-            <el-tag size="mini" :type="tagType(sample.status)">样例 {{ sample.index }}</el-tag>
+            <el-tag size="mini" :type="tagType(sample.status)">{{ $t('m.ProbAI_Sample') }} {{ sample.index }}</el-tag>
             <p>{{ sample.detail }}</p>
           </div>
         </el-collapse-item>
 
         <el-collapse-item v-if="result.testPointResults && result.testPointResults.length"
-                          :title="`全测试点判题与 stderr（${result.testPointResults.length} 个）`" name="testpoints">
+                          :title="$t('m.ProbAI_All_TestPoints_And_Stderr', { count: result.testPointResults.length })" name="testpoints">
           <!-- Keep the report compact: ten rows are visible, the table body
                scrolls independently when a problem has many test points. -->
           <el-table :data="result.testPointResults" border size="mini" max-height="390">
             <el-table-column type="expand">
               <template slot-scope="scope">
-                <p><strong>AI 检查过程：</strong>{{ scope.row.detail }}</p>
-                <p><strong>是否执行：</strong>{{ scope.row.executed ? '是' : '否' }}</p>
-                <p><strong>testlib 校验：</strong>{{ (scope.row.testlibValidator && scope.row.testlibValidator.statusText) || '未执行' }}
-                  <span v-if="scope.row.testlibValidator && scope.row.testlibValidator.stderr">；stderr：{{ scope.row.testlibValidator.stderr }}</span>
+                <p><strong>{{ $t('m.ProbAI_AI_Check_Process') }}</strong>{{ scope.row.detail }}</p>
+                <p><strong>{{ $t('m.ProbAI_Executed_Label') }}</strong>{{ scope.row.executed ? $t('m.Yes') : $t('m.No') }}</p>
+                <p><strong>{{ $t('m.ProbAI_Testlib_Check_Label') }}</strong>{{ (scope.row.testlibValidator && scope.row.testlibValidator.statusText) || $t('m.ProbAI_Not_Executed') }}
+                  <span v-if="scope.row.testlibValidator && scope.row.testlibValidator.stderr">{{ $t('m.ProbAI_Stderr_Label') }}{{ scope.row.testlibValidator.stderr }}</span>
                 </p>
-                <strong>stderr：</strong><pre class="stderr-output">{{ scope.row.stderr || '[stderr 为空]' }}</pre>
+                <strong>{{ $t('m.ProbAI_Stderr_Colon') }}</strong><pre class="stderr-output">{{ scope.row.stderr || $t('m.ProbAI_Stderr_Empty') }}</pre>
               </template>
             </el-table-column>
-            <el-table-column prop="index" label="测试点" width="74" />
-            <el-table-column label="AI 结论" width="92"><template slot-scope="scope"><el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag></template></el-table-column>
-            <el-table-column prop="judgeStatus" label="正式判题状态" min-width="150" />
-            <el-table-column prop="timeMs" label="时间(ms)" width="90" />
-            <el-table-column prop="memoryKb" label="内存(KB)" width="100" />
+            <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="74" />
+            <el-table-column :label="$t('m.ProbAI_AI_Conclusion')" width="92"><template slot-scope="scope"><el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag></template></el-table-column>
+            <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Formal_Judge_Status')" min-width="150" />
+            <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_MS')" width="90" />
+            <el-table-column prop="memoryKb" :label="$t('m.ProbAI_Memory_KB')" width="100" />
           </el-table>
         </el-collapse-item>
 
         <el-collapse-item v-if="result.multiLanguageResults && result.multiLanguageResults.length"
-                          title="多语言全测试点判题（C++17 / Java / PyPy3）" name="multilanguage">
+                          :title="$t('m.ProbAI_Multi_Language_Judging')" name="multilanguage">
           <el-table :data="result.multiLanguageResults" border size="mini">
-            <el-table-column prop="language" label="语言" width="150" />
-            <el-table-column label="结果" width="100">
+            <el-table-column prop="language" :label="$t('m.Language')" width="150" />
+            <el-table-column :label="$t('m.ProbAI_Result')" width="100">
               <template slot-scope="scope">
                 <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="通过测试点" width="120">
+            <el-table-column :label="$t('m.ProbAI_Passed_Test_Points')" width="120">
               <template slot-scope="scope">{{ scope.row.passed || 0 }} / {{ scope.row.total || 0 }}</template>
             </el-table-column>
-            <el-table-column prop="message" label="说明" />
+            <el-table-column prop="message" :label="$t('m.ProbAI_Message')" />
           </el-table>
           <div v-for="language in result.multiLanguageResults" :key="language.language" class="multi-language-details">
-            <strong>{{ language.language }} 测试点明细</strong>
+            <strong>{{ $t('m.ProbAI_TestPoint_Details', { lang: language.language }) }}</strong>
             <el-table :data="language.testPoints || []" border size="mini" max-height="390">
-              <el-table-column prop="index" label="测试点" width="80" />
-              <el-table-column label="状态" width="100"><template slot-scope="scope">
+              <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
+              <el-table-column :label="$t('m.Status')" width="100"><template slot-scope="scope">
                 <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
               </template></el-table-column>
-              <el-table-column prop="judgeStatus" label="判题状态" width="150" />
-              <el-table-column prop="timeMs" label="耗时(ms)" width="100" />
+              <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Judge_Status')" width="150" />
+              <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
               <el-table-column prop="stderr" label="stderr" />
             </el-table>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item v-if="result.issues && result.issues.length" title="问题清单" name="issues">
+        <el-collapse-item v-if="result.issues && result.issues.length" :title="$t('m.ProbAI_Issue_List')" name="issues">
           <div v-for="(issue, index) in result.issues" :key="index" class="issue-row">
             <el-tag size="mini" :type="issueType(issue.severity)">{{ issue.severity }}</el-tag>
             <div><strong>{{ issue.location }}</strong><p>{{ issue.detail }}</p><small>{{ issue.suggestion }}</small></div>
@@ -157,9 +157,9 @@
     <el-alert v-if="error" class="result-alert" :title="error" type="error" :closable="false" show-icon />
 
     <span slot="footer">
-      <el-button @click="visibleProxy = false">关闭</el-button>
+      <el-button @click="visibleProxy = false">{{ $t('m.Close') }}</el-button>
       <el-button type="primary" :loading="running" :disabled="!canRun" @click="run">
-        {{ result ? '重新 AI 验题' : '开始 AI 验题' }}
+        {{ result ? $t('m.ProbAI_Revalidate') : $t('m.ProbAI_Start_Validation') }}
       </el-button>
     </span>
   </el-dialog>
@@ -185,7 +185,8 @@ export default {
       activeStage: 0,
       generatedProgram: null,
       validationRecordId: null,
-      runningStages: ['AI 生成标准程序', '生成 testlib 校验器', '正式全点判题', '题面与约束', '样例推演', '测试点与 testlib', '最终结论']
+      // 模块级数据存 i18n 键名字符串，模板中通过 $t('m.' + stage) 翻译
+      runningStages: ['ProbAI_Generated_Program_Tag', 'ProbAI_Stage_Testlib', 'ProbAI_Stage_Official_Judge', 'ProbAI_Stage_Statement', 'ProbAI_Sample_Simulation', 'ProbAI_Stage_TestPoints_Testlib', 'ProbAI_Final_Conclusion']
     }
   },
   computed: {
@@ -203,8 +204,8 @@ export default {
       return this.hasWarnings(this.result) ? 'warning' : 'success'
     },
     resultTitle() {
-      if (this.resultType === 'error') return 'AI 验题发现问题'
-      return this.resultType === 'warning' ? 'AI 验题通过（有提示）' : 'AI 验题通过'
+      if (this.resultType === 'error') return this.$t('m.ProbAI_Result_Found_Issues')
+      return this.resultType === 'warning' ? this.$t('m.ProbAI_Result_Pass_Warnings') : this.$t('m.ProbAI_Result_Passed')
     },
     testPointCount() { return (this.result && this.result.testPointResults && this.result.testPointResults.length) || 0 },
     issueCount() { return (this.result && this.result.issues && this.result.issues.length) || 0 }
@@ -219,14 +220,14 @@ export default {
       }
     },
     async run() {
-      if (!this.canRun) return this.$message.warning('请先选择标准程序语言')
+      if (!this.canRun) return this.$message.warning(this.$t('m.ProbAI_Select_Language_First'))
       this.running = true
       this.error = ''
       this.result = null
       this.generatedProgram = null
       this.activeStage = 0
-      this.judgeProgress = '正在生成标准程序'
-      this.judgeMessage = 'AI 正在生成可提交的完整标准程序，生成完成后才会进入正式全测试点判题'
+      this.judgeProgress = this.$t('m.ProbAI_Progress_Generating')
+      this.judgeMessage = this.$t('m.ProbAI_Progress_Generating_Desc')
       try {
         const generated = (await api.admin_generateProblemAIStandardProgram({
           pid: this.pid, language: this.language
@@ -235,14 +236,14 @@ export default {
         this.validationRecordId = generated.validationRecordId || null
         this.$emit('program-generated', this.generatedProgram)
         this.activeStage = Math.max(this.activeStage, 1)
-        this.judgeProgress = '后台任务已创建'
-        this.judgeMessage = '标准程序、正式全测试点判题和 AI 综合分析已交由后台执行，关闭页面不会中断任务'
+        this.judgeProgress = this.$t('m.ProbAI_Progress_Backend_Created')
+        this.judgeMessage = this.$t('m.ProbAI_Progress_Backend_Desc')
         const res = this.validationRecordId
           ? await this.waitForValidationRecord(this.validationRecordId)
           : await this.runLegacyValidation(this.generatedProgram)
         this.activeStage = this.runningStages.length - 1
-        this.judgeProgress = '验题完成'
-        this.judgeMessage = 'AI 验题报告已生成，可查看最终结论和详细过程'
+        this.judgeProgress = this.$t('m.ProbAI_Progress_Done')
+        this.judgeMessage = this.$t('m.ProbAI_Progress_Done_Desc')
         const record = res && res.data ? res.data.data : res
         this.showRecord(record)
         const parsed = record && this.parseResult(record.response)
@@ -270,16 +271,16 @@ export default {
       return this.waitForJudge(status)
     },
     async runLegacyValidation(program) {
-      this.judgeProgress = '正在正式判题'
-      this.judgeMessage = 'AI 标准程序已生成，正在进行正式全测试点判题'
+      this.judgeProgress = this.$t('m.ProbAI_Progress_Official_Judging')
+      this.judgeMessage = this.$t('m.ProbAI_Progress_Official_Desc')
       const verification = await this.runOfficialJudge(program)
       const officialPassed = verification && verification.verificationStatus === 2
       if (officialPassed) this.$emit('verified')
       this.activeStage = 2
-      this.judgeProgress = officialPassed ? '正在分析题面与测试结果' : '正式判题未通过，正在分析失败详情'
+      this.judgeProgress = officialPassed ? this.$t('m.ProbAI_Progress_Analyzing') : this.$t('m.ProbAI_Progress_Analyzing_Failed')
       this.judgeMessage = officialPassed
-        ? '正在检查题面、约束、样例推演、全部测试点结果及 stderr'
-        : '正在保留失败测试点、判题状态和 stderr，并生成完整 AI 验题报告'
+        ? this.$t('m.ProbAI_Progress_Checking_Desc')
+        : this.$t('m.ProbAI_Progress_Keeping_Desc')
       return api.admin_problemAIValidate({
         pid: this.pid, language: program.language,
         standardProgram: program.code, aiGenerated: true,
@@ -292,19 +293,19 @@ export default {
       for (let count = 0; count < 1200; count += 1) {
         const record = (await api.admin_getProblemAIRecord(recordId)).data.data
         if (record.status !== 'running') return record
-        this.judgeProgress = '后台任务处理中'
-        this.judgeMessage = '后台正在等待正式判题完成并生成 AI 综合验题报告'
+        this.judgeProgress = this.$t('m.ProbAI_Progress_Backend_Running')
+        this.judgeMessage = this.$t('m.ProbAI_Progress_Backend_Waiting')
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
-      throw new Error('后台 AI 验题等待超时，请到历史 AI 验题页面查看任务状态')
+      throw new Error(this.$t('m.ProbAI_Err_Backend_Timeout'))
     },
     useGeneratedProgram() {
       this.$emit('program-generated', this.generatedProgram)
-      this.$message.success('AI 标准程序已填入创建者代码框')
+      this.$message.success(this.$t('m.ProbAI_Program_Filled'))
     },
     async copyCode(code, label) {
       const text = String(code || '')
-      if (!text) return this.$message.warning('暂无可复制的代码')
+      if (!text) return this.$message.warning(this.$t('m.ProbAI_No_Code_To_Copy'))
       try {
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(text)
@@ -320,18 +321,18 @@ export default {
           document.body.removeChild(textarea)
           if (!copied) throw new Error('copy failed')
         }
-        this.$message.success(`${label || '代码'}已复制`)
-      } catch (e) { this.$message.error('复制失败，请手动选择代码') }
+        this.$message.success((label || this.$t('m.ProbAI_Code')) + this.$t('m.ProbAI_Copied'))
+      } catch (e) { this.$message.error(this.$t('m.ProbAI_Copy_Failed')) }
     },
     async waitForJudge(status) {
       for (let count = 0; count < 1200; count += 1) {
-        this.judgeProgress = status.judgeStatusText || '正在等待评测机开始'
-        this.judgeMessage = status.judgeMessage || '正在等待判题机返回当前测试点状态'
+        this.judgeProgress = status.judgeStatusText || this.$t('m.ProbAI_Progress_Waiting_Judge')
+        this.judgeMessage = status.judgeMessage || this.$t('m.ProbAI_Progress_Waiting_Judge_Desc')
         if (status.verificationStatus !== 1) return status
         await new Promise(resolve => setTimeout(resolve, 1000))
         status = (await api.admin_getProblemVerification(this.pid)).data.data
       }
-      throw new Error('正式判题等待超时，请检查判题机状态后重试')
+      throw new Error(this.$t('m.ProbAI_Err_Judge_Timeout'))
     },
     parseResult(response) {
       if (!response) return null
@@ -344,15 +345,15 @@ export default {
       const responseData = response && response.data
       const backendMessage = error && error.data && (error.data.msg || error.data.message)
       const responseMessage = responseData && (responseData.msg || responseData.message)
-      if (status === 524) return 'AI 上游网关生成超时（HTTP 524），请稍后重试或检查管理员配置的 AI 直连地址'
+      if (status === 524) return this.$t('m.ProbAI_Err_524')
       if (status === 502 || status === 503 || status === 504) {
-        return `AI 上游服务暂时不可用（HTTP ${status}），请稍后重试`
+        return this.$t('m.ProbAI_Err_Upstream', { status: status })
       }
       if (status === 408 || /timed?\s*out|timeout|超时/i.test((error && error.message) || '')) {
-        return 'AI 服务连接或生成超时，请稍后重试'
+        return this.$t('m.ProbAI_Err_Connection_Timeout')
       }
       return backendMessage || responseMessage || (error && error.message)
-        || 'AI 验题失败，请检查判题机和管理员 AI 配置'
+        || this.$t('m.ProbAI_Err_Validation_Failed')
     },
     hasBlockingProblems(result) {
       if (!result) return true

@@ -13,7 +13,7 @@
         <el-card class="contest-attention-item running">
           <span class="state-phase">Contest is running</span>
           <br />
-          <el-link type="primary">正规比赛</el-link>
+          <el-link type="primary">{{ $t('m.Rating_Contest') }}</el-link>
           <br />
           <span class="countdown-text">08:05:37</span>
         </el-card>
@@ -28,7 +28,7 @@
         <el-card class="contest-attention-item scheduled">
           <span class="state-phase">Before contest</span>
           <br />
-          <el-link type="primary">正规比赛</el-link>
+          <el-link type="primary">{{ $t('m.Rating_Contest') }}</el-link>
           <br />
           <span class="countdown-text">08:05:37</span>
         </el-card>

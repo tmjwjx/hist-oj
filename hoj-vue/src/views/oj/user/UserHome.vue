@@ -131,7 +131,7 @@
           <el-row :gutter="16" class="rating-stat-row">
             <el-col :xs="24" :sm="8">
               <div class="rating-stat">
-                <div class="rating-stat-label">当前 Rating</div>
+                <div class="rating-stat-label">{{ $t('m.Current_Rating') }}</div>
                 <div class="rating-stat-value" :style="{ color: ratingColor }">
                   {{ userRating }}
                 </div>
@@ -139,7 +139,7 @@
             </el-col>
             <el-col :xs="24" :sm="8">
               <div class="rating-stat">
-                <div class="rating-stat-label">最高 Rating</div>
+                <div class="rating-stat-label">{{ $t('m.Max_Rating') }}</div>
                 <div class="rating-stat-value" :style="{ color: maxRatingColor }">
                   {{ displayMaxRating }}
                 </div>
@@ -147,7 +147,7 @@
             </el-col>
             <el-col :xs="24" :sm="8">
               <div class="rating-stat">
-                <div class="rating-stat-label">参赛次数</div>
+                <div class="rating-stat-label">{{ $t('m.Contest_Count') }}</div>
                 <div class="rating-stat-value rating-stat-value--contest">
                   {{ contestCountLabel }}
                 </div>
@@ -155,8 +155,8 @@
             </el-col>
           </el-row>
           <div class="rating-meta">
-            <span>当前段位：<b :style="{ color: ratingColor }">{{ ratingTitle }}</b></span>
-            <span>最高段位：<b :style="{ color: maxRatingColor }">{{ maxRatingTitle }}</b></span>
+            <span>{{ $t('m.Current_Title') }}: <b :style="{ color: ratingColor }">{{ ratingTitle }}</b></span>
+            <span>{{ $t('m.Max_Title') }}: <b :style="{ color: maxRatingColor }">{{ maxRatingTitle }}</b></span>
           </div>
         </el-card>
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
@@ -176,13 +176,13 @@
         </el-card>
         <el-card style="margin-top:1rem;" v-if="ratingLoading">
           <div style="text-align: center; padding: 20px; color: #999;">
-            <i class="el-icon-loading"></i> 加载 Rating 数据中...
+            <i class="el-icon-loading"></i> {{ $t('m.Loading_Rating_Data') }}
           </div>
         </el-card>
         <el-card style="margin-top:1rem;" v-else-if="userRating !== null && userIdentifier">
           <div class="card-title">
             <i class="el-icon-data-line" style="color:#409eff"></i>
-            Rating 变化历史
+            {{ $t('m.Rating_History_Title') }}
           </div>
           <RatingChart :uid="userIdentifier" />
         </el-card>
@@ -352,7 +352,7 @@ export default {
       return this.maxRating;
     },
     contestCountLabel() {
-      return `${this.contestCount} 场`;
+      return `${this.contestCount} ${this.$t('m.Contests_Unit')}`;
     }
   },
   created(){

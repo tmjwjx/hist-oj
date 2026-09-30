@@ -3,19 +3,19 @@
     <el-card>
       <div slot="header" class="page-header">
         <div>
-          <div class="panel-title home-title">历史 AI 验题</div>
-          <div class="page-subtitle">题目 #{{ pid }} 的全部 AI 验题结果</div>
+          <div class="panel-title home-title">{{ $t('m.ProbAI_Page_Title') }}</div>
+          <div class="page-subtitle">{{ $t('m.ProbAI_Page_Subtitle', { pid: pid }) }}</div>
         </div>
         <div class="page-actions">
-          <el-button icon="el-icon-refresh" :loading="loading" @click="load">刷新记录</el-button>
-          <el-button type="primary" plain @click="backToValidation">返回题目验题</el-button>
+          <el-button icon="el-icon-refresh" :loading="loading" @click="load">{{ $t('m.ProbAI_Refresh_Records') }}</el-button>
+          <el-button type="primary" plain @click="backToValidation">{{ $t('m.ProbAI_Back_To_Validation') }}</el-button>
         </div>
       </div>
 
       <div v-loading="loading" class="history-layout">
         <aside class="record-panel">
-          <div class="section-heading">验题记录 <span>({{ records.length }})</span></div>
-          <el-empty v-if="!loading && !records.length" description="暂无历史 AI 验题记录" />
+          <div class="section-heading">{{ $t('m.ProbAI_Records') }} <span>({{ records.length }})</span></div>
+          <el-empty v-if="!loading && !records.length" :description="$t('m.ProbAI_Empty_Records')" />
           <button v-for="record in pagedRecords" :key="record.id"
             class="record-item" :class="{ active: selectedRecord && selectedRecord.id === record.id }"
             @click="selectRecord(record)">
@@ -41,7 +41,7 @@
             </div>
             <div class="report-actions">
               <el-button v-if="canRecheck" size="small" type="primary" plain
-                icon="el-icon-refresh" @click="openRecheck">复检此报告</el-button>
+                icon="el-icon-refresh" @click="openRecheck">{{ $t('m.ProbAI_Recheck_This_Report') }}</el-button>
               <el-tag class="report-result" :type="reportType" effect="light">{{ reportTitle }}</el-tag>
             </div>
           </div>
@@ -52,30 +52,30 @@
             <div class="generated-heading">
               <strong>{{ programHeading }}</strong>
               <div class="program-actions">
-                <el-tag size="mini" type="success">{{ generatedProgram.language || '自动识别语言' }}</el-tag>
+                <el-tag size="mini" type="success">{{ generatedProgram.language || $t('m.ProbAI_Auto_Language') }}</el-tag>
                 <el-button size="mini" plain icon="el-icon-document-copy"
-                  @click="copyCode(generatedProgram.code, '标准程序')">复制代码</el-button>
+                  @click="copyCode(generatedProgram.code, $t('m.ProbAI_Standard_Program'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
               </div>
             </div>
             <p v-if="generatedProgram.algorithm">{{ generatedProgram.algorithm }}</p>
             <el-collapse>
-              <el-collapse-item title="查看生成源码" name="generated-source">
+              <el-collapse-item :title="$t('m.ProbAI_View_Generated_Source')" name="generated-source">
                 <pre>{{ generatedProgram.code }}</pre>
               </el-collapse-item>
             </el-collapse>
           </section>
           <section v-if="generatedProgram && generatedProgram.validatorCode" class="validator-program">
             <div class="generated-heading">
-              <strong>已生成 testlib 输入校验器</strong>
+              <strong>{{ $t('m.ProbAI_Testlib_Validator_Generated') }}</strong>
               <div class="program-actions">
                 <el-tag size="mini" type="warning">{{ generatedProgram.validatorLanguage || 'C++' }}</el-tag>
                 <el-button size="mini" plain icon="el-icon-document-copy"
-                  @click="copyCode(generatedProgram.validatorCode, 'testlib 校验器')">复制代码</el-button>
+                  @click="copyCode(generatedProgram.validatorCode, $t('m.ProbAI_Testlib_Validator'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
               </div>
             </div>
             <p v-if="generatedProgram.validatorAlgorithm">{{ generatedProgram.validatorAlgorithm }}</p>
             <el-collapse>
-              <el-collapse-item title="查看 testlib 校验器源码" name="validator-source">
+              <el-collapse-item :title="$t('m.ProbAI_View_Testlib_Source')" name="validator-source">
                 <pre>{{ generatedProgram.validatorCode }}</pre>
               </el-collapse-item>
             </el-collapse>
@@ -83,70 +83,70 @@
 
           <template v-if="report">
             <el-alert v-if="report.recheck" class="recheck-note" type="info" :closable="false" show-icon
-              :title="`复检来源：报告 #${report.recheck.sourceRecordId || '—'}`"
-              :description="report.recheck.note || '本次为报告复检，未重新执行全量判题。'" />
+              :title="$t('m.ProbAI_Recheck_Source_Report', { id: report.recheck.sourceRecordId || '—' })"
+              :description="report.recheck.note || $t('m.ProbAI_Recheck_Note_Default')" />
             <div class="summary-card" :class="reportType">
-              <div class="summary-label">最终结论</div>
-              <div class="summary-text">{{ report.summary || '未返回摘要' }}</div>
+              <div class="summary-label">{{ $t('m.ProbAI_Final_Conclusion') }}</div>
+              <div class="summary-text">{{ report.summary || $t('m.ProbAI_No_Summary') }}</div>
             </div>
 
             <el-collapse class="report-sections" :value="['steps', 'tests', 'issues']">
-              <el-collapse-item title="验题过程" name="steps">
+              <el-collapse-item :title="$t('m.ProbAI_Validation_Process')" name="steps">
                 <div v-for="(step, index) in report.steps || []" :key="'step' + index" class="report-row">
                   <el-tag size="mini" :type="tagType(step.status)">{{ step.status || 'WARN' }}</el-tag>
                   <div><strong>{{ step.name }}</strong><p>{{ step.detail }}</p></div>
                 </div>
-                <el-empty v-if="!report.steps || !report.steps.length" description="暂无过程记录" />
+                <el-empty v-if="!report.steps || !report.steps.length" :description="$t('m.ProbAI_No_Steps')" />
               </el-collapse-item>
               <el-collapse-item v-if="report.testPointResults && report.testPointResults.length"
-                :title="`测试点与 stderr（${report.testPointResults.length} 个）`" name="tests">
+                :title="$t('m.ProbAI_TestPoints_And_Stderr', { count: report.testPointResults.length })" name="tests">
                 <!-- Match the per-language detail tables: show ten rows and
                      keep the remaining points in an internal scrollbar. -->
                 <el-table :data="report.testPointResults" border stripe size="mini" max-height="390">
-                  <el-table-column prop="index" label="测试点" width="80" />
-                  <el-table-column prop="status" label="AI 结论" width="100">
+                  <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
+                  <el-table-column prop="status" :label="$t('m.ProbAI_AI_Conclusion')" width="100">
                     <template slot-scope="scope"><el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status || 'WARN' }}</el-tag></template>
                   </el-table-column>
-                  <el-table-column prop="judgeStatus" label="正式判题状态" width="180" />
-                  <el-table-column label="testlib 校验" width="110">
+                  <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Formal_Judge_Status')" width="180" />
+                  <el-table-column :label="$t('m.ProbAI_Testlib_Check')" width="110">
                     <template slot-scope="scope">
                       <el-tag size="mini" :type="tagType(scope.row.testlibValidator && scope.row.testlibValidator.status === 'PASS' ? 'PASS' : 'FAIL')">
-                        {{ scope.row.testlibValidator ? scope.row.testlibValidator.status : '未执行' }}
+                        {{ scope.row.testlibValidator ? scope.row.testlibValidator.status : $t('m.ProbAI_Not_Executed') }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="timeMs" label="耗时(ms)" width="100" />
+                  <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
                   <el-table-column label="stderr" min-width="260">
-                    <template slot-scope="scope"><pre class="stderr-output">{{ scope.row.stderr || '[stderr 为空]' }}</pre></template>
+                    <template slot-scope="scope"><pre class="stderr-output">{{ scope.row.stderr || $t('m.ProbAI_Stderr_Empty') }}</pre></template>
                   </el-table-column>
                 </el-table>
               </el-collapse-item>
               <el-collapse-item v-if="report.multiLanguageResults && report.multiLanguageResults.length"
-                title="多语言全测试点判题（C++17 / Java / PyPy3）" name="multilanguage">
+                :title="$t('m.ProbAI_Multi_Language_Judging')" name="multilanguage">
                 <el-table :data="report.multiLanguageResults" border stripe>
-                  <el-table-column prop="language" label="语言" width="150" />
-                  <el-table-column label="结果" width="100"><template slot-scope="scope">
+                  <el-table-column prop="language" :label="$t('m.Language')" width="150" />
+                  <el-table-column :label="$t('m.ProbAI_Result')" width="100"><template slot-scope="scope">
                     <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
                   </template></el-table-column>
-                  <el-table-column label="通过测试点" width="120"><template slot-scope="scope">
+                  <el-table-column :label="$t('m.ProbAI_Passed_Test_Points')" width="120"><template slot-scope="scope">
                     {{ scope.row.passed || 0 }} / {{ scope.row.total || 0 }}
                   </template></el-table-column>
-                  <el-table-column prop="message" label="说明" />
+                  <el-table-column prop="message" :label="$t('m.ProbAI_Message')" />
                 </el-table>
                 <div v-for="language in report.multiLanguageResults" :key="language.language" class="multi-language-details">
-                  <strong>{{ language.language }} 测试点明细</strong>
+                  <strong>{{ $t('m.ProbAI_TestPoint_Details', { lang: language.language }) }}</strong>
                   <el-table :data="language.testPoints || []" border size="mini" max-height="390">
-                    <el-table-column prop="index" label="测试点" width="80" />
-                    <el-table-column label="状态" width="100"><template slot-scope="scope">
+                    <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
+                    <el-table-column :label="$t('m.Status')" width="100"><template slot-scope="scope">
                       <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
                     </template></el-table-column>
-                    <el-table-column prop="judgeStatus" label="判题状态" width="150" />
-                    <el-table-column prop="timeMs" label="耗时(ms)" width="100" />
+                    <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Judge_Status')" width="150" />
+                    <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
                     <el-table-column prop="stderr" label="stderr" />
                   </el-table>
                 </div>
               </el-collapse-item>
-              <el-collapse-item v-if="report.issues && report.issues.length" title="问题清单" name="issues">
+              <el-collapse-item v-if="report.issues && report.issues.length" :title="$t('m.ProbAI_Issue_List')" name="issues">
                 <div v-for="(issue, index) in report.issues" :key="'issue' + index" class="report-row">
                   <el-tag size="mini" :type="issueType(issue.severity)">{{ issue.severity }}</el-tag>
                   <div><strong>{{ issue.location }}</strong><p>{{ issue.detail }}</p><small>{{ issue.suggestion }}</small></div>
@@ -155,29 +155,29 @@
             </el-collapse>
           </template>
         </main>
-        <el-empty v-else-if="!loading" class="report-empty" description="请选择一条验题记录" />
+        <el-empty v-else-if="!loading" class="report-empty" :description="$t('m.ProbAI_Select_Record')" />
       </div>
     </el-card>
 
-    <el-dialog title="复检这份 AI 验题报告" :visible.sync="recheckVisible"
+    <el-dialog :title="$t('m.ProbAI_Recheck_Dialog_Title')" :visible.sync="recheckVisible"
       width="620px" append-to-body :close-on-click-modal="false">
       <el-alert type="info" :closable="false" show-icon
-        title="复检会使用当前题目内容和这份历史报告作为上下文"
-        description="管理员修改题面、约束、样例、测试数据或标准程序后，可在此补充重点要求。系统会生成一份新的复检报告，不会覆盖原报告。" />
+        :title="$t('m.ProbAI_Recheck_Alert_Title')"
+        :description="$t('m.ProbAI_Recheck_Alert_Desc')" />
       <div class="recheck-source">
-        <span>复检来源：</span>
-        <el-tag size="mini" type="info">报告 #{{ selectedRecord && selectedRecord.id }}</el-tag>
+        <span>{{ $t('m.ProbAI_Recheck_Source') }}</span>
+        <el-tag size="mini" type="info">{{ $t('m.ProbAI_Report') }} #{{ selectedRecord && selectedRecord.id }}</el-tag>
         <span v-if="selectedRecord">{{ beijingTime(selectedRecord.gmtCreate) || '—' }}</span>
       </div>
       <el-form label-position="top" class="recheck-form">
-        <el-form-item label="复检要求">
+        <el-form-item :label="$t('m.ProbAI_Recheck_Requirements')">
           <el-input v-model="recheckRequirements" type="textarea" :rows="7" maxlength="4000"
-            show-word-limit placeholder="例如：重点确认我修改后的输入约束、样例 2 和标准程序的边界处理是否仍有问题。" />
+            show-word-limit :placeholder="$t('m.ProbAI_Recheck_Placeholder')" />
         </el-form-item>
       </el-form>
       <span slot="footer">
-        <el-button @click="recheckVisible = false">取消</el-button>
-        <el-button type="primary" :loading="rechecking" @click="submitRecheck">开始复检</el-button>
+        <el-button @click="recheckVisible = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" :loading="rechecking" @click="submitRecheck">{{ $t('m.ProbAI_Start_Recheck') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -211,7 +211,7 @@ export default {
         const current = this.selectedRecord && this.records.find(item => item.id === this.selectedRecord.id)
         this.selectedRecord = current || this.records[0] || null
         this.recordPage = this.selectedRecord ? Math.floor(this.records.indexOf(this.selectedRecord) / this.recordPageSize) + 1 : 1
-      } catch (e) { this.$message.error('历史 AI 验题记录加载失败') }
+      } catch (e) { this.$message.error(this.$t('m.ProbAI_Load_Failed')) }
       finally { this.loading = false }
     },
     selectRecord(record) { this.selectedRecord = record },
@@ -219,13 +219,13 @@ export default {
     beijingTime(value) { return time.utcToBeijing(value) },
     openRecheck() {
       if (!this.canRecheck) return
-      this.recheckRequirements = '请基于这份历史 AI 验题报告，结合当前管理员修改后的题面、输入输出、约束、样例、测试数据和标准程序，逐项复核是否仍存在问题，并明确给出问题依据、风险等级和修改建议。'
+      this.recheckRequirements = this.$t('m.ProbAI_Recheck_Default_Requirements')
       this.recheckVisible = true
     },
     async submitRecheck() {
       if (!this.canRecheck) return
       const requirements = String(this.recheckRequirements || '').trim()
-      if (!requirements) return this.$message.warning('请填写复检要求')
+      if (!requirements) return this.$message.warning(this.$t('m.ProbAI_Recheck_Required'))
       const sourceId = this.selectedRecord.id
       this.rechecking = true
       try {
@@ -233,7 +233,7 @@ export default {
         const returned = res && res.data && res.data.data
         const newRecordId = returned && (returned.id || returned.recordId)
         this.recheckVisible = false
-        this.$message.success(returned && returned.status === 'running' ? '复检任务已创建，报告生成后会显示在历史记录顶部' : '复检完成，已生成新的报告')
+        this.$message.success(returned && returned.status === 'running' ? this.$t('m.ProbAI_Recheck_Created') : this.$t('m.ProbAI_Recheck_Done'))
         await this.load()
         if (newRecordId) {
           const record = this.records.find(item => String(item.id) === String(newRecordId))
@@ -253,7 +253,7 @@ export default {
     },
     async copyCode(code, label) {
       const text = String(code || '')
-      if (!text) return this.$message.warning('暂无可复制的代码')
+      if (!text) return this.$message.warning(this.$t('m.ProbAI_No_Code_To_Copy'))
       try {
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(text)
@@ -269,8 +269,8 @@ export default {
           document.body.removeChild(textarea)
           if (!copied) throw new Error('copy failed')
         }
-        this.$message.success(`${label || '代码'}已复制`)
-      } catch (e) { this.$message.error('复制失败，请手动选择代码') }
+        this.$message.success((label || this.$t('m.ProbAI_Code')) + this.$t('m.ProbAI_Copied'))
+      } catch (e) { this.$message.error(this.$t('m.ProbAI_Copy_Failed')) }
     },
     isValidationRecord(record) {
       return record && (record.question === 'AI 一键验题' || record.question === 'AI 生成标准程序' || record.question === 'AI 验题复检')
@@ -278,15 +278,15 @@ export default {
     isGenerationRecord(record) { return record && record.question === 'AI 生成标准程序' },
     isRecheckRecord(record) { return record && record.question === 'AI 验题复检' },
     recordStage(record) {
-      if (this.isGenerationRecord(record)) return '生成标准程序'
-      return this.isRecheckRecord(record) ? '复检报告' : '综合验题'
+      if (this.isGenerationRecord(record)) return this.$t('m.ProbAI_Stage_Generate')
+      return this.isRecheckRecord(record) ? this.$t('m.ProbAI_Recheck_Report') : this.$t('m.ProbAI_Stage_Comprehensive')
     },
     friendlyError(message) {
       const text = String(message || '')
-      if (/\b524\b/.test(text)) return 'AI 上游网关生成超时，系统已自动重试；请稍后再试或联系管理员检查 AI 直连地址'
-      if (/\b50[234]\b/.test(text)) return 'AI 上游服务暂时不可用，系统已自动重试，请稍后再试'
-      if (/timed?\s*out|timeout|超时/i.test(text)) return 'AI 服务连接或生成超时，请稍后重试'
-      return text || 'AI 任务执行失败，请稍后重试'
+      if (/\b524\b/.test(text)) return this.$t('m.ProbAI_Err_Gateway_Timeout')
+      if (/\b50[234]\b/.test(text)) return this.$t('m.ProbAI_Err_Upstream_Unavailable')
+      if (/timed?\s*out|timeout|超时/i.test(text)) return this.$t('m.ProbAI_Err_Connection_Timeout')
+      return text || this.$t('m.ProbAI_Err_Task_Failed')
     },
     backToValidation() {
       this.$router.push({
@@ -301,7 +301,7 @@ export default {
       catch (e) { return { overall: 'WARN', summary: record.response, steps: [], issues: [] } }
     },
     statusType(status) { return status === 'success' ? 'success' : status === 'failed' ? 'danger' : 'warning' },
-    statusText(status) { return status === 'success' ? '成功' : status === 'failed' ? '失败' : '处理中' },
+    statusText(status) { return status === 'success' ? this.$t('m.Success') : status === 'failed' ? this.$t('m.ProbAI_Failed') : this.$t('m.ProbAI_Processing') },
     tagType(status) { return status === 'PASS' ? 'success' : status === 'FAIL' ? 'danger' : 'warning' },
     issueType(level) { return level === 'ERROR' ? 'danger' : level === 'INFO' ? 'info' : 'warning' },
     hasBlockingProblems(result) {
@@ -331,12 +331,12 @@ export default {
       return this.report && this.report.standardProgram ? this.report.standardProgram : null
     },
     recordHeading() {
-      if (this.isGenerationRecord(this.selectedRecord)) return '标准程序生成记录'
-      return this.isRecheckRecord(this.selectedRecord) ? '复检报告' : '验题报告'
+      if (this.isGenerationRecord(this.selectedRecord)) return this.$t('m.ProbAI_Generate_Record_Heading')
+      return this.isRecheckRecord(this.selectedRecord) ? this.$t('m.ProbAI_Recheck_Report') : this.$t('m.ProbAI_Validation_Report')
     },
     programHeading() {
-      if (this.isGenerationRecord(this.selectedRecord)) return '已生成标准程序'
-      return this.isRecheckRecord(this.selectedRecord) ? '本次复检使用的当前标准程序' : '综合验题使用的标准程序'
+      if (this.isGenerationRecord(this.selectedRecord)) return this.$t('m.ProbAI_Program_Generated')
+      return this.isRecheckRecord(this.selectedRecord) ? this.$t('m.ProbAI_Program_Current_Recheck') : this.$t('m.ProbAI_Program_Comprehensive')
     },
     canRecheck() {
       return Boolean(this.selectedRecord && !this.isGenerationRecord(this.selectedRecord)
@@ -349,11 +349,11 @@ export default {
       return this.hasBlockingProblems(this.report) ? 'danger' : this.hasWarnings(this.report) ? 'warning' : 'success'
     },
     reportTitle() {
-      if (!this.selectedRecord || this.selectedRecord.status === 'failed') return '执行失败'
-      if (this.selectedRecord.status === 'running') return '处理中'
-      if (this.isGenerationRecord(this.selectedRecord)) return '生成完成'
-      if (this.hasBlockingProblems(this.report)) return '发现问题'
-      return this.hasWarnings(this.report) ? '验题通过（有提示）' : '验题通过'
+      if (!this.selectedRecord || this.selectedRecord.status === 'failed') return this.$t('m.ProbAI_Status_Failed')
+      if (this.selectedRecord.status === 'running') return this.$t('m.ProbAI_Processing')
+      if (this.isGenerationRecord(this.selectedRecord)) return this.$t('m.ProbAI_Status_Generated')
+      if (this.hasBlockingProblems(this.report)) return this.$t('m.ProbAI_Status_Found_Issues')
+      return this.hasWarnings(this.report) ? this.$t('m.ProbAI_Status_Pass_Warnings') : this.$t('m.ProbAI_Status_Passed')
     }
   }
 }

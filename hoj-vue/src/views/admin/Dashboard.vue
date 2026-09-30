@@ -170,7 +170,7 @@
               min-width="80"
             >
               <template v-slot="{ row }">
-                <el-tooltip content="是否触发保护阈值" placement="top">
+                <el-tooltip :content="$t('m.Sys_Secure_Tip')" placement="top">
                   <el-tag effect="dark" color="#ed3f14" v-if="row.secure"
                     >True</el-tag
                   >
@@ -247,7 +247,7 @@
 
         <vxe-table-column :title="$t('m.Secure')" min-width="80">
           <template v-slot="{ row }">
-            <el-tooltip content="是否触发保护阈值" placement="top">
+            <el-tooltip :content="$t('m.Sys_Secure_Tip')" placement="top">
               <el-tag effect="dark" color="#ed3f14" v-if="row.service.secure"
                 >True</el-tag
               >

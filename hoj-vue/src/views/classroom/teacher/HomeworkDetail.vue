@@ -1,13 +1,13 @@
 <template>
   <div class="homework-detail">
     <div class="header">
-      <h3>{{ homework.title || '作业详情' }}</h3>
+      <h3>{{ homework.title || $t('m.Homework_Detail') }}</h3>
       <div>
         <el-button v-if="isExamMode" type="warning" @click="viewExamMonitoring">
           <i class="el-icon-view"></i>
-          <span>考试监控</span>
+          <span>{{ $t('m.Exam_Monitoring') }}</span>
         </el-button>
-        <el-button type="primary" @click="viewAnalysis">学情分析</el-button>
+        <el-button type="primary" @click="viewAnalysis">{{ $t('m.Homework_Analysis_Title') }}</el-button>
         <el-button @click="editHomework">{{ $t('m.Edit') }}</el-button>
         <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -26,10 +26,10 @@
         <h4>{{ $t('m.Student_Submissions') }}</h4>
         <div style="margin-bottom: 15px;">
           <el-button type="primary" icon="el-icon-document" @click="showPaperContentDialog = true">
-            查看试卷内容
+            {{ $t('m.View_Paper_Content') }}
           </el-button>
           <el-button type="success" icon="el-icon-download" @click="exportHomeworkScores">
-            导出成绩
+            {{ $t('m.Export_Scores') }}
           </el-button>
         </div>
         <el-table :data="studentSubmissions" stripe>
@@ -67,7 +67,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="违规" width="100">
+          <el-table-column :label="$t('m.Violations')" width="100">
             <template slot-scope="{ row }">
               <el-button
                 v-if="hasViolations(row)"
@@ -76,10 +76,10 @@
                 @click="viewViolations(row)"
                 circle
                 icon="el-icon-warning"
-                :title="`有 ${getViolationCount(row)} 条违规记录`"
+                :title="$t('m.Has_Violation_Records').replace('{count}', getViolationCount(row))"
               >
               </el-button>
-              <span v-else style="color: #909399; font-size: 12px;">无违规</span>
+              <span v-else style="color: #909399; font-size: 12px;">{{ $t('m.No_Violations') }}</span>
             </template>
           </el-table-column>
           <el-table-column :label="$t('m.Operation')" width="150">
@@ -94,7 +94,7 @@
     </el-card>
 
     <el-dialog
-      title="试卷内容"
+      :title="$t('m.Paper_Content')"
       :visible.sync="showPaperContentDialog"
       width="900px"
       top="5vh"
@@ -112,7 +112,7 @@
               type="warning"
               size="small"
             >
-              编程题
+              {{ $t('m.Programming_Question') }}
             </el-tag>
             <el-tag
               v-else-if="item.question"
@@ -121,7 +121,7 @@
             >
               {{ getQuestionTypeText(item.question.type) }}
             </el-tag>
-            <span class="paper-question-score">{{ item.score || 0 }}分</span>
+            <span class="paper-question-score">{{ item.score || 0 }}{{ $t('m.Score_Unit') }}</span>
           </div>
 
           <template v-if="item.question">
@@ -141,8 +141,8 @@
             </div>
 
             <div v-else-if="item.question.type === 'judge'" class="paper-question-options">
-              <div class="paper-option-item"><span class="paper-option-label">✓</span><span>正确</span></div>
-              <div class="paper-option-item"><span class="paper-option-label">✗</span><span>错误</span></div>
+              <div class="paper-option-item"><span class="paper-option-label">✓</span><span>{{ $t('m.True') }}</span></div>
+              <div class="paper-option-item"><span class="paper-option-label">✗</span><span>{{ $t('m.False') }}</span></div>
             </div>
 
             <div v-else-if="item.question.type === 'composite'" class="paper-composite-list">
@@ -152,8 +152,8 @@
                 class="paper-composite-item"
               >
                 <div class="paper-composite-header">
-                  <span>子题 {{ subIndex + 1 }}</span>
-                  <span>{{ Number(subQuestion.score || 0) }}分</span>
+                  <span>{{ $t('m.Sub_Question') }} {{ subIndex + 1 }}</span>
+                  <span>{{ Number(subQuestion.score || 0) }}{{ $t('m.Score_Unit') }}</span>
                 </div>
                 <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
                 <div class="paper-question-options">
@@ -167,58 +167,58 @@
                   </div>
                 </div>
                 <div class="paper-answer-box answer-info compact-answer-info">
-                  <span class="paper-answer-label">正确答案：</span>
+                  <span class="paper-answer-label">{{ $t('m.Correct_Answer') }}:</span>
                   <span class="paper-answer-value">{{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id, subIndex) }}</span>
                 </div>
               </div>
             </div>
 
             <div v-else-if="item.question.type === 'fill_blank'" class="paper-hint-box">
-              填空题，学生作答时填写文本答案
+              {{ $t('m.Fill_Blank_Hint') }}
             </div>
             <div v-else-if="item.question.type === 'subjective'" class="paper-hint-box">
-              主观题，学生作答时输入文字答案
+              {{ $t('m.Subjective_Hint') }}
             </div>
 
             <div
               v-if="['single_choice', 'multiple_choice', 'judge', 'fill_blank'].includes(item.question.type)"
               class="paper-answer-box answer-info compact-answer-info"
             >
-              <span class="paper-answer-label">正确答案：</span>
+              <span class="paper-answer-label">{{ $t('m.Correct_Answer') }}:</span>
               <span class="paper-answer-value">{{ formatAnswerForDisplay(item.question) }}</span>
             </div>
             <div v-else-if="item.question.type === 'subjective'" class="paper-answer-box answer-info compact-answer-info">
-              <span class="paper-answer-label">参考答案：</span>
+              <span class="paper-answer-label">{{ $t('m.Reference_Answer') }}:</span>
               <div
                 v-if="normalizeTextValue(item.question.answer)"
                 class="markdown-body paper-answer-markdown"
                 v-html="renderMarkdown(item.question.answer)"
                 v-highlight
               ></div>
-              <span v-else class="paper-answer-value">暂无参考答案</span>
+              <span v-else class="paper-answer-value">{{ $t('m.No_Reference_Answer') }}</span>
             </div>
           </template>
 
           <template v-else>
-            <div class="paper-question-content">BingOJ 编程题 - {{ item.problemId }}</div>
+            <div class="paper-question-content">{{ $t('m.Programming_Question') }} - {{ item.problemId }}</div>
             <div class="paper-answer-box answer-info compact-answer-info">
-              <span class="paper-answer-label">参考答案：</span>
-              <span class="paper-answer-value">请在题库中查看标准答案与解析</span>
+              <span class="paper-answer-label">{{ $t('m.Reference_Answer') }}:</span>
+              <span class="paper-answer-value">{{ $t('m.View_Answer_In_Bank') }}</span>
             </div>
           </template>
         </div>
       </div>
-      <el-empty v-else description="暂无试卷内容"></el-empty>
+      <el-empty v-else :description="$t('m.No_Paper_Content')"></el-empty>
     </el-dialog>
 
     <!-- 违规记录对话框 -->
     <el-dialog
-      title="学生违规记录"
+      :title="$t('m.Student_Violation_Records')"
       :visible.sync="violationsDialogVisible"
       width="600px"
     >
       <div v-if="currentStudent">
-        <p><strong>学生：</strong>{{ currentStudent.realName || currentStudent.studentName }}</p>
+        <p><strong>{{ $t('m.Student') }}:</strong> {{ currentStudent.realName || currentStudent.studentName }}</p>
         <el-divider></el-divider>
         <div v-if="currentStudentViolations && currentStudentViolations.length > 0">
           <el-timeline>
@@ -240,7 +240,7 @@
           </el-timeline>
         </div>
         <div v-else>
-          <el-empty description="暂无违规记录"></el-empty>
+          <el-empty :description="$t('m.No_Violation_Records')"></el-empty>
         </div>
       </div>
     </el-dialog>
@@ -552,8 +552,8 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        fill_blank: '填空题',
-        composite: '组合题',
+        fill_blank: this.$t('m.Fill_Blank'),
+        composite: this.$t('m.Composite_Question'),
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
       }
@@ -653,8 +653,8 @@ export default {
         }
         case 'judge': {
           const raw = String(this.parseMaybeSerializedJson(question.answer) || '').trim().toLowerCase()
-          if (['true', '1', 'yes', 'y', '正确'].includes(raw)) return '正确'
-          if (['false', '0', 'no', 'n', '错误'].includes(raw)) return '错误'
+          if (['true', '1', 'yes', 'y'].includes(raw) || raw === this.$t('m.True')) return this.$t('m.True')
+          if (['false', '0', 'no', 'n'].includes(raw) || raw === this.$t('m.False')) return this.$t('m.False')
           return '-'
         }
         case 'fill_blank': {
@@ -747,20 +747,20 @@ export default {
     },
     exportHomeworkScores() {
       if (!this.homework.questions || this.homework.questions.length === 0) {
-        this.$message.warning('没有题目数据')
+        this.$message.warning(this.$t('m.No_Question_Data'))
         return
       }
 
       // 创建CSV内容
       let csvContent = '\uFEFF' // UTF-8 BOM
-      csvContent += `作业成绩_${this.homework.title}_${this.formatTime(this.homework.endTime)}\n\n`
+      csvContent += `${this.$t('m.Homework_Scores')}_${this.homework.title}_${this.formatTime(this.homework.endTime)}\n\n`
 
       // 表头：真实姓名 + 系统用户名 + 每题得分
-      const headers = ['真实姓名', '系统用户名']
+      const headers = [this.$t('m.Real_Name'), this.$t('m.System_Username')]
       this.homework.questions.forEach((item, index) => {
-        headers.push(`题目${index + 1}_${item.question?.title || ''}(${item.score}分)`)
+        headers.push(`${this.$t('m.Question')}${index + 1}_${item.question?.title || ''}(${item.score}${this.$t('m.Score_Unit')})`)
       })
-      headers.push('总分', '提交时间', '完成进度', '评分状态')
+      headers.push(this.$t('m.Total_Score'), this.$t('m.Submit_Time'), this.$t('m.Progress'), this.$t('m.Grading_Status'))
       csvContent += headers.map(h => `"${h}"`).join(',') + '\n'
 
       // 数据行
@@ -788,7 +788,7 @@ export default {
         row.push(`${student.completedCount}/${student.totalCount}`)
 
         // 评分状态
-        const gradingStatus = this.isFullyGraded(student) ? '已评分' : '部分评分'
+        const gradingStatus = this.isFullyGraded(student) ? this.$t('m.Graded') : this.$t('m.Partial_Graded')
         row.push(gradingStatus)
 
         csvContent += row.map(field => `"${field}"`).join(',') + '\n'
@@ -799,7 +799,7 @@ export default {
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', `作业成绩_${this.homework.title}_${new Date().getTime()}.csv`)
+      link.setAttribute('download', `homework_scores_${new Date().getTime()}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -848,21 +848,21 @@ export default {
           for (let i = 0; i < tabSwitchCount; i++) {
             violations.push({
               violationType: 'tab_switch',
-              description: '切换浏览器标签页',
+              description: this.$t('m.Tab_Switch_Desc'),
               createdAt: q.createdAt
             })
           }
           for (let i = 0; i < fullscreenExitCount; i++) {
             violations.push({
               violationType: 'fullscreen_exit',
-              description: '退出全屏模式',
+              description: this.$t('m.Fullscreen_Exit_Desc'),
               createdAt: q.createdAt
             })
           }
           for (let i = 0; i < copyPasteAttemptCount; i++) {
             violations.push({
               violationType: 'copy_paste_attempt',
-              description: '尝试复制或粘贴',
+              description: this.$t('m.Copy_Paste_Desc'),
               createdAt: q.createdAt
             })
           }
@@ -886,11 +886,11 @@ export default {
     // 获取违规类型文本
     getViolationTypeText(type) {
       const typeMap = {
-        'tab_switch': '切换标签页',
-        'fullscreen_exit': '退出全屏',
-        'copy_paste_attempt': '尝试复制/粘贴',
-        'context_menu': '右键菜单',
-        'devtools_attempt': '开发者工具'
+        'tab_switch': this.$t('m.Tab_Switch_Desc'),
+        'fullscreen_exit': this.$t('m.Fullscreen_Exit_Desc'),
+        'copy_paste_attempt': this.$t('m.Copy_Paste_Desc'),
+        'context_menu': this.$t('m.Context_Menu'),
+        'devtools_attempt': this.$t('m.Devtools_Attempt')
       }
       return typeMap[type] || type
     }

@@ -14,19 +14,19 @@
     <div class="filter-bar" style="margin-bottom: 20px;">
       <el-row :gutter="15">
         <el-col :span="4">
-          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="handleFilterChange">
-            <el-option label="全部题型" value=""></el-option>
-            <el-option label="单选题" value="single_choice"></el-option>
-            <el-option label="多选题" value="multiple_choice"></el-option>
-            <el-option label="判断题" value="judge"></el-option>
-            <el-option label="填空题" value="fill_blank"></el-option>
-            <el-option label="主观题" value="subjective"></el-option>
-            <el-option label="组合题" value="composite"></el-option>
+          <el-select v-model="filters.type" :placeholder="$t('m.CH_Filter_By_Type')" clearable size="small" @change="handleFilterChange">
+            <el-option :label="$t('m.CH_All_Types')" value=""></el-option>
+            <el-option :label="$t('m.Single_Choice')" value="single_choice"></el-option>
+            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice"></el-option>
+            <el-option :label="$t('m.Judge')" value="judge"></el-option>
+            <el-option :label="$t('m.CH_Fill_Blank')" value="fill_blank"></el-option>
+            <el-option :label="$t('m.Subjective')" value="subjective"></el-option>
+            <el-option :label="$t('m.CH_Composite')" value="composite"></el-option>
           </el-select>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="handleFilterChange">
-            <el-option label="全部课程" value=""></el-option>
+          <el-select v-model="filters.course" :placeholder="$t('m.CH_Filter_By_Course')" clearable size="small" filterable @change="handleFilterChange">
+            <el-option :label="$t('m.CH_All_Courses')" value=""></el-option>
             <el-option
               v-for="course in commonCourses"
               :key="course"
@@ -38,7 +38,7 @@
         <el-col :span="4">
           <el-input
             v-model="filters.tag"
-            placeholder="标签筛选"
+            :placeholder="$t('m.CH_Filter_By_Tag')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -47,17 +47,17 @@
           </el-input>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="handleFilterChange">
-            <el-option label="全部难度" value=""></el-option>
-            <el-option label="简单" value="1"></el-option>
-            <el-option label="中等" value="2"></el-option>
-            <el-option label="困难" value="3"></el-option>
+          <el-select v-model="filters.difficulty" :placeholder="$t('m.QB_Filter_By_Difficulty')" clearable size="small" @change="handleFilterChange">
+            <el-option :label="$t('m.QB_All_Difficulty')" value=""></el-option>
+            <el-option :label="$t('m.CH_Diff_Easy')" value="1"></el-option>
+            <el-option :label="$t('m.CH_Diff_Medium')" value="2"></el-option>
+            <el-option :label="$t('m.CH_Diff_Hard')" value="3"></el-option>
           </el-select>
         </el-col>
         <el-col :span="4">
           <el-input
             v-model="filters.questionId"
-            placeholder="搜索题目ID"
+            :placeholder="$t('m.QB_Search_Problem_Id')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -68,7 +68,7 @@
         <el-col :span="4">
           <el-input
             v-model="filters.keyword"
-            placeholder="搜索标题"
+            :placeholder="$t('m.QB_Search_Title')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -92,21 +92,21 @@
             <div class="inline-meta-row">
               <el-tag type="info" size="mini">ID:{{ row.id }}</el-tag>
               <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
-              <el-tag type="danger" size="mini">难度：{{ getDifficultyText(row.difficulty) }}</el-tag>
-              <el-tag type="primary" size="mini">分值：{{ Number(row.score || 0) }}分</el-tag>
-              <el-tag type="info" size="mini">创建者：{{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
-              <el-tag type="info" size="mini">创建时间：{{ formatTime(row.createTime || row.createdAt) }}</el-tag>
-              <el-tag v-if="row.course" type="warning" size="mini">所属课程：{{ row.course }}</el-tag>
+              <el-tag type="danger" size="mini">{{ $t('m.QB_Difficulty_Colon', { name: getDifficultyText(row.difficulty) }) }}</el-tag>
+              <el-tag type="primary" size="mini">{{ $t('m.QB_Score_Colon', { score: Number(row.score || 0) }) }}</el-tag>
+              <el-tag type="info" size="mini">{{ $t('m.QB_Creator_Colon', { name: row.creator ? row.creator.username : (row.creatorId || '-') }) }}</el-tag>
+              <el-tag type="info" size="mini">{{ $t('m.QB_Create_Time_Colon', { time: formatTime(row.createTime || row.createdAt) }) }}</el-tag>
+              <el-tag v-if="row.course" type="warning" size="mini">{{ $t('m.QB_Course_Colon', { course: row.course }) }}</el-tag>
               <el-tag
                 v-for="(tag, idx) in parseQuestionTags(row.tags)"
                 :key="`meta-tag-${row.id}-${idx}`"
                 size="mini"
                 type="info"
               >
-                标签：{{ tag }}
+                {{ $t('m.QB_Tag_Colon', { tag }) }}
               </el-tag>
               <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
-                开放权限：{{ row.isShared ? '共享' : '个人' }}
+                {{ $t('m.QB_Open_Permission', { value: row.isShared ? $t('m.CH_Shared') : $t('m.QB_Personal') }) }}
               </el-tag>
             </div>
             <div v-html="renderMarkdown(row.title)" class="markdown-body inline-question-title" v-highlight></div>
@@ -131,11 +131,11 @@
             <div v-else-if="row.type === 'judge'" class="inline-options-list">
               <div class="inline-option-item">
                 <span class="inline-option-label">A.</span>
-                <span class="inline-option-text">正确</span>
+                <span class="inline-option-text">{{ $t('m.True') }}</span>
               </div>
               <div class="inline-option-item">
                 <span class="inline-option-label">B.</span>
-                <span class="inline-option-text">错误</span>
+                <span class="inline-option-text">{{ $t('m.False') }}</span>
               </div>
             </div>
 
@@ -145,7 +145,7 @@
                 :key="`sub-${row.id}-${sub.id || subIndex}`"
                 class="inline-composite-item"
               >
-                <div class="inline-composite-head">子题 {{ subIndex + 1 }}（{{ Number(sub.score || 0) }}分）</div>
+                <div class="inline-composite-head">{{ $t('m.QB_Sub_Question_Score', { index: subIndex + 1, score: Number(sub.score || 0) }) }}</div>
                 <div
                   class="markdown-body inline-composite-content"
                   v-html="renderMarkdown(sub.content || '')"
@@ -162,14 +162,14 @@
                   </div>
                 </div>
                 <div class="answer-info compact-answer-info">
-                  <strong>正确答案：</strong>
+                  <strong>{{ $t('m.CH_Correct_Answer') }}</strong>
                   <el-tag type="success">{{ getCompositeAnswerBySubQuestion(row.answer, sub.id, subIndex) || '-' }}</el-tag>
                 </div>
               </div>
             </div>
 
             <div v-if="row.type !== 'composite'" class="inline-answer-row answer-info compact-answer-info">
-              <span class="inline-answer-label">{{ row.type === 'subjective' ? '参考答案：' : '正确答案：' }}</span>
+              <span class="inline-answer-label">{{ row.type === 'subjective' ? $t('m.CH_Reference_Answer') : $t('m.CH_Correct_Answer') }}</span>
               <span v-if="row.type !== 'subjective'" class="inline-answer-text">{{ formatInlineAnswer(row) }}</span>
               <span
                 v-else-if="row.answer"
@@ -177,7 +177,7 @@
                 v-html="renderMarkdown(row.answer)"
                 v-highlight
               ></span>
-              <span v-else class="inline-answer-text">暂无答案</span>
+              <span v-else class="inline-answer-text">{{ $t('m.QB_No_Answer') }}</span>
             </div>
           </div>
         </template>
@@ -185,7 +185,7 @@
       <el-table-column :label="$t('m.Operation')" width="280">
         <template slot-scope="{ row }">
           <el-button size="small" type="info" @click="handleViewDetail(row)">
-            {{ $t('m.View_Detail') || '查看详情' }}
+            {{ $t('m.View_Detail') }}
           </el-button>
           <el-button size="small" @click="goEditPage(row)">{{ $t('m.Edit') }}</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">
@@ -280,12 +280,12 @@
         </template>
 
         <!-- 题目解析 -->
-        <el-form-item label="题目解析">
-          <el-input type="textarea" v-model="createForm.analysis" :rows="2" placeholder="请输入题目解析（可选）" />
+        <el-form-item :label="$t('m.QB_Analysis')">
+          <el-input type="textarea" v-model="createForm.analysis" :rows="2" :placeholder="$t('m.QB_Enter_Analysis')" />
         </el-form-item>
 
         <!-- 题目标签 -->
-        <el-form-item label="题目标签">
+        <el-form-item :label="$t('m.QB_Question_Tags')">
           <div class="tags-input-container">
             <div class="tags-list">
               <el-tag
@@ -300,23 +300,23 @@
             </div>
             <el-input
               v-model="createTagInput"
-              placeholder="输入标签名称，按回车添加"
+              :placeholder="$t('m.QB_Tag_Input_Placeholder')"
               @keyup.enter.native="addCreateTag"
               style="width: 100%;"
             />
           </div>
           <div class="form-tip">
             <i class="el-icon-info"></i>
-            输入标签名称后按回车添加，可添加多个标签
+            {{ $t('m.QB_Tag_Input_Tip') }}
           </div>
         </el-form-item>
 
         <el-row :gutter="12" class="compact-form-row">
           <el-col :span="12">
-            <el-form-item label="所属课程">
+            <el-form-item :label="$t('m.QB_Course')">
               <el-select
                 v-model="createForm.course"
-                placeholder="请选择课程"
+                :placeholder="$t('m.QB_Select_Course')"
                 style="width: 100%"
               >
                 <el-option
@@ -355,14 +355,14 @@
         <el-col :span="10" class="preview-column">
           <el-card class="preview-card markdown-preview">
             <div slot="header">
-              <i class="el-icon-view"></i> 实时预览
+              <i class="el-icon-view"></i> {{ $t('m.QB_Live_Preview') }}
             </div>
             <div class="preview-content">
               <div v-if="createForm.title" v-html="renderMarkdown(createForm.title)" class="markdown-body preview-title" v-highlight></div>
-              <p v-else class="preview-placeholder">题目标题预览</p>
+              <p v-else class="preview-placeholder">{{ $t('m.QB_Title_Preview') }}</p>
 
               <div v-if="createForm.content" v-html="renderMarkdown(createForm.content)" class="markdown-body preview-content-text" v-highlight></div>
-              <p v-else class="preview-placeholder">题目内容预览</p>
+              <p v-else class="preview-placeholder">{{ $t('m.QB_Content_Preview') }}</p>
 
               <!-- 单选题选项预览 -->
               <!-- 单选题选项预览 -->
@@ -372,7 +372,7 @@
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
                   <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
-                  <div v-else class="preview-placeholder">选项内容</div>
+                  <div v-else class="preview-placeholder">{{ $t('m.QB_Option_Content') }}</div>
                 </div>
               </div>
 
@@ -383,7 +383,7 @@
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
                   <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
-                  <div v-else class="preview-placeholder">选项内容</div>
+                  <div v-else class="preview-placeholder">{{ $t('m.QB_Option_Content') }}</div>
                 </div>
               </div>
 
@@ -402,7 +402,7 @@
               <!-- 主观题预览 -->
               <div v-if="createForm.type === 'subjective'" class="preview-subjective">
                 <el-alert type="info" :closable="false">
-                  <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
+                  <i class="el-icon-edit"></i> {{ $t('m.QB_Subjective_Preview_Tip') }}
                 </el-alert>
               </div>
 
@@ -410,11 +410,11 @@
               <div v-if="createForm.analysis" class="preview-analysis">
                 <el-divider content-position="left">
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
-                  <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+                  <span style="color: #E6A23C; font-weight: bold;">{{ $t('m.QB_Analysis') }}</span>
                 </el-divider>
                 <div v-html="renderMarkdown(createForm.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
               </div>
-              <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
+              <p v-else class="preview-placeholder" style="margin-top: 15px;">{{ $t('m.QB_Analysis_Preview') }}</p>
             </div>
           </el-card>
         </el-col>
@@ -491,12 +491,12 @@
         </template>
 
         <!-- 题目解析 -->
-        <el-form-item label="题目解析">
-          <el-input type="textarea" v-model="editForm.analysis" :rows="2" placeholder="请输入题目解析（可选）" />
+        <el-form-item :label="$t('m.QB_Analysis')">
+          <el-input type="textarea" v-model="editForm.analysis" :rows="2" :placeholder="$t('m.QB_Enter_Analysis')" />
         </el-form-item>
 
         <!-- 题目标签 -->
-        <el-form-item label="题目标签">
+        <el-form-item :label="$t('m.QB_Question_Tags')">
           <div class="tags-input-container">
             <div class="tags-list">
               <el-tag
@@ -511,23 +511,23 @@
             </div>
             <el-input
               v-model="editTagInput"
-              placeholder="输入标签名称，按回车添加"
+              :placeholder="$t('m.QB_Tag_Input_Placeholder')"
               @keyup.enter.native="addEditTag"
               style="width: 100%;"
             />
           </div>
           <div class="form-tip">
             <i class="el-icon-info"></i>
-            输入标签名称后按回车添加，可添加多个标签
+            {{ $t('m.QB_Tag_Input_Tip') }}
           </div>
         </el-form-item>
 
         <el-row :gutter="12" class="compact-form-row">
           <el-col :span="12">
-            <el-form-item label="所属课程">
+            <el-form-item :label="$t('m.QB_Course')">
               <el-select
                 v-model="editForm.course"
-                placeholder="请选择课程"
+                :placeholder="$t('m.QB_Select_Course')"
                 style="width: 100%"
               >
                 <el-option
@@ -566,14 +566,14 @@
         <el-col :span="10" class="preview-column">
           <el-card class="preview-card markdown-preview">
             <div slot="header">
-              <i class="el-icon-view"></i> 实时预览
+              <i class="el-icon-view"></i> {{ $t('m.QB_Live_Preview') }}
             </div>
             <div class="preview-content">
               <div v-if="editForm.title" v-html="renderMarkdown(editForm.title)" class="markdown-body preview-title" v-highlight></div>
-              <p v-else class="preview-placeholder">题目标题预览</p>
+              <p v-else class="preview-placeholder">{{ $t('m.QB_Title_Preview') }}</p>
 
               <div v-if="editForm.content" v-html="renderMarkdown(editForm.content)" class="markdown-body preview-content-text" v-highlight></div>
-              <p v-else class="preview-placeholder">题目内容预览</p>
+              <p v-else class="preview-placeholder">{{ $t('m.QB_Content_Preview') }}</p>
 
               <!-- 单选题选项预览 -->
               <div v-if="editForm.type === 'single_choice'" class="preview-options">
@@ -582,7 +582,7 @@
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
                   <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
-                  <div v-else class="preview-placeholder">选项内容</div>
+                  <div v-else class="preview-placeholder">{{ $t('m.QB_Option_Content') }}</div>
                 </div>
               </div>
 
@@ -593,7 +593,7 @@
                     {{ ['A', 'B', 'C', 'D'][index] }}
                   </el-tag>
                   <div v-if="option" v-html="renderMarkdown(option)" class="markdown-body" v-highlight></div>
-                  <div v-else class="preview-placeholder">选项内容</div>
+                  <div v-else class="preview-placeholder">{{ $t('m.QB_Option_Content') }}</div>
                 </div>
               </div>
 
@@ -612,7 +612,7 @@
               <!-- 主观题预览 -->
               <div v-if="editForm.type === 'subjective'" class="preview-subjective">
                 <el-alert type="info" :closable="false">
-                  <i class="el-icon-edit"></i> 主观题，学生需要输入文字答案
+                  <i class="el-icon-edit"></i> {{ $t('m.QB_Subjective_Preview_Tip') }}
                 </el-alert>
               </div>
 
@@ -620,11 +620,11 @@
               <div v-if="editForm.analysis" class="preview-analysis">
                 <el-divider content-position="left">
                   <i class="el-icon-document" style="color: #E6A23C;"></i>
-                  <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+                  <span style="color: #E6A23C; font-weight: bold;">{{ $t('m.QB_Analysis') }}</span>
                 </el-divider>
                 <div v-html="renderMarkdown(editForm.analysis)" class="markdown-body preview-analysis-content" v-highlight></div>
               </div>
-              <p v-else class="preview-placeholder" style="margin-top: 15px;">题目解析预览</p>
+              <p v-else class="preview-placeholder" style="margin-top: 15px;">{{ $t('m.QB_Analysis_Preview') }}</p>
             </div>
           </el-card>
         </el-col>
@@ -636,7 +636,7 @@
     </el-dialog>
 
     <!-- 查看题目详情对话框 -->
-    <el-dialog :title="$t('m.Question_Detail') || '题目详情'" :visible.sync="showViewDialog" width="900px">
+    <el-dialog :title="$t('m.Question_Detail')" :visible.sync="showViewDialog" width="900px">
       <div v-if="viewQuestion" class="question-detail-content">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="$t('m.Question_Type')">
@@ -648,18 +648,18 @@
             <el-rate :value="getDifficultyStars(viewQuestion.difficulty)" :max="3" disabled />
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Score')">
-            {{ viewQuestion.score }} 分
+            {{ viewQuestion.score }} {{ $t('m.CH_Score_Unit') }}
           </el-descriptions-item>
           <el-descriptions-item :label="$t('m.Shared')">
             <el-tag :type="viewQuestion.isShared ? 'success' : 'info'">
               {{ viewQuestion.isShared ? $t('m.Yes') : $t('m.No') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="所属课程" :span="2">
+          <el-descriptions-item :label="$t('m.QB_Course')" :span="2">
             <el-tag v-if="viewQuestion.course" type="warning" size="small">{{ viewQuestion.course }}</el-tag>
             <span v-else style="color: #909399;">-</span>
           </el-descriptions-item>
-          <el-descriptions-item label="标签" :span="2">
+          <el-descriptions-item :label="$t('m.Tags')" :span="2">
             <el-tag
               v-for="(tag, idx) in parseQuestionTags(viewQuestion.tags)"
               :key="idx"
@@ -675,24 +675,24 @@
 
         <el-divider content-position="left">
           <i class="el-icon-document"></i>
-          <span>题目内容</span>
+          <span>{{ $t('m.CH_Question_Content') }}</span>
         </el-divider>
 
         <!-- 题目标题 -->
         <div class="detail-section">
-          <h4 class="detail-label">题目标题：</h4>
+          <h4 class="detail-label">{{ $t('m.QB_Question_Title_Colon') }}</h4>
           <div v-html="renderMarkdown(viewQuestion.title)" class="markdown-body detail-content" v-highlight></div>
         </div>
 
         <!-- 题目描述 -->
         <div v-if="viewQuestion.content" class="detail-section">
-          <h4 class="detail-label">题目描述：</h4>
+          <h4 class="detail-label">{{ $t('m.QB_Description_Colon') }}</h4>
           <div v-html="renderMarkdown(viewQuestion.content)" class="markdown-body detail-content" v-highlight></div>
         </div>
 
         <!-- 选择题选项 -->
         <div v-if="viewQuestion.type === 'single_choice' || viewQuestion.type === 'multiple_choice'" class="detail-section">
-          <h4 class="detail-label">选项：</h4>
+          <h4 class="detail-label">{{ $t('m.QB_Options_Colon') }}</h4>
           <div class="detail-content">
             <div v-if="parseOptionEntries(viewQuestion.options).length > 0">
               <div v-for="(option, index) in parseOptionEntries(viewQuestion.options)" :key="index" class="option-item-detail">
@@ -701,14 +701,14 @@
               </div>
             </div>
             <div v-else class="no-options">
-              <el-alert type="info" :closable="false">暂无选项数据</el-alert>
+              <el-alert type="info" :closable="false">{{ $t('m.QB_No_Options_Data') }}</el-alert>
             </div>
           </div>
         </div>
 
         <!-- 组合题子题 -->
         <div v-if="viewQuestion.type === 'composite'" class="detail-section">
-          <h4 class="detail-label">组合题子题：</h4>
+          <h4 class="detail-label">{{ $t('m.QB_Composite_Sub_Colon') }}</h4>
           <div class="composite-detail-list">
             <div
               v-for="(subQuestion, subIndex) in parseCompositeSubQuestions(viewQuestion.options)"
@@ -716,8 +716,8 @@
               class="composite-detail-item"
             >
               <div class="composite-detail-header">
-                <span>子题 {{ subIndex + 1 }}</span>
-                <span>{{ Number(subQuestion.score || 0) }}分</span>
+                <span>{{ $t('m.CH_Sub_Question', { index: subIndex + 1 }) }}</span>
+                <span>{{ Number(subQuestion.score || 0) }}{{ $t('m.CH_Score_Unit') }}</span>
               </div>
               <div v-html="renderMarkdown(subQuestion.content || '')" class="markdown-body detail-content" v-highlight></div>
               <div class="detail-content composite-detail-options">
@@ -732,18 +732,18 @@
                   </div>
                 </div>
                 <div v-else class="no-options">
-                  <el-alert type="info" :closable="false">暂无子题选项数据</el-alert>
+                  <el-alert type="info" :closable="false">{{ $t('m.QB_No_Sub_Options_Data') }}</el-alert>
                 </div>
               </div>
               <div class="composite-answer-row answer-info compact-answer-info">
                 <el-tag type="success">
-                  正确答案：{{ getCompositeAnswerBySubQuestion(viewQuestion.answer, subQuestion.id, subIndex) || '-' }}
+                  {{ $t('m.CH_Correct_Answer') }}{{ getCompositeAnswerBySubQuestion(viewQuestion.answer, subQuestion.id, subIndex) || '-' }}
                 </el-tag>
               </div>
             </div>
             <el-empty
               v-if="parseCompositeSubQuestions(viewQuestion.options).length === 0"
-              description="暂无组合题子题数据"
+              :description="$t('m.CH_No_Composite_Data')"
               :image-size="90"
             />
           </div>
@@ -751,7 +751,7 @@
 
         <!-- 正确答案 -->
         <div v-if="viewQuestion.type !== 'composite'" class="detail-section">
-          <h4 class="detail-label">正确答案：</h4>
+          <h4 class="detail-label">{{ $t('m.CH_Correct_Answer') }}</h4>
           <div class="detail-content answer-info compact-answer-info">
             <el-tag v-if="viewQuestion.type === 'single_choice'" type="success">
               {{ parseSingleChoiceAnswer(viewQuestion) }}
@@ -760,14 +760,14 @@
               {{ parseMultipleChoiceAnswer(viewQuestion) }}
             </el-tag>
             <el-tag v-else-if="viewQuestion.type === 'judge'" :type="isJudgeTrue(viewQuestion.answer) ? 'success' : 'danger'">
-              {{ isJudgeTrue(viewQuestion.answer) ? $t('m.True') || '正确' : $t('m.False') || '错误' }}
+              {{ isJudgeTrue(viewQuestion.answer) ? $t('m.True') : $t('m.False') }}
             </el-tag>
             <el-tag v-else-if="viewQuestion.type === 'fill_blank'" type="success">
               {{ parseFillBlankAnswer(viewQuestion.answer) }}
             </el-tag>
             <div v-else-if="viewQuestion.type === 'subjective'" class="subjective-answer">
               <div v-if="viewQuestion.answer" v-html="renderMarkdown(viewQuestion.answer)" class="markdown-body" v-highlight></div>
-              <span v-else style="color: #909399;">暂无参考答案</span>
+              <span v-else style="color: #909399;">{{ $t('m.QB_No_Reference_Answer') }}</span>
             </div>
           </div>
         </div>
@@ -776,7 +776,7 @@
         <div v-if="viewQuestion.analysis" class="detail-section">
           <el-divider content-position="left">
             <i class="el-icon-document" style="color: #E6A23C;"></i>
-            <span style="color: #E6A23C; font-weight: bold;">题目解析</span>
+            <span style="color: #E6A23C; font-weight: bold;">{{ $t('m.QB_Analysis') }}</span>
           </el-divider>
           <div v-html="renderMarkdown(viewQuestion.analysis)" class="markdown-body detail-content" v-highlight></div>
         </div>
@@ -784,15 +784,15 @@
         <!-- 创建和更新时间 -->
         <div class="detail-meta">
           <el-tag size="mini" type="info">
-            创建时间：{{ formatTime(viewQuestion.createdAt) }}
+            {{ $t('m.QB_Create_Time_Colon', { time: formatTime(viewQuestion.createdAt) }) }}
           </el-tag>
           <el-tag size="mini" type="info" style="margin-left: 10px;">
-            更新时间：{{ formatTime(viewQuestion.updatedAt) }}
+            {{ $t('m.QB_Update_Time_Colon', { time: formatTime(viewQuestion.updatedAt) }) }}
           </el-tag>
         </div>
       </div>
       <span slot="footer">
-        <el-button @click="showViewDialog = false">{{ $t('m.Close') || '关闭' }}</el-button>
+        <el-button @click="showViewDialog = false">{{ $t('m.Close') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -888,17 +888,6 @@ export default {
         syncFunction: 'loadQuestions',
         immediate: true
       },
-      // 常用标签
-      commonTags: [
-        '基础概念',
-        '逻辑推理',
-        '计算题',
-        '应用题',
-        '综合分析',
-        '易错题',
-        '重点',
-        '难点'
-      ],
       // 常用课程
       commonCourses: [
         '数据结构',
@@ -1023,11 +1012,11 @@ export default {
     async createQuestion() {
       // 验证必填字段
       if (!this.createForm.title || !this.createForm.title.trim()) {
-        this.$message.warning('请输入题目标题')
+        this.$message.warning(this.$t('m.Enter_Question_Title'))
         return
       }
       if (!this.createForm.content || !this.createForm.content.trim()) {
-        this.$message.warning('请输入题目内容')
+        this.$message.warning(this.$t('m.Enter_Question_Content'))
         return
       }
 
@@ -1071,7 +1060,7 @@ export default {
         submitData.options = null // 判断题不需要选项
       } else if (this.createForm.type === 'subjective') {
         // 主观题
-        submitData.answer = this.createForm.referenceAnswer || '需人工评分'
+        submitData.answer = this.createForm.referenceAnswer || this.$t('m.Needs_Manual_Grading')
         submitData.options = null // 主观题不需要选项
       }
 
@@ -1145,7 +1134,7 @@ export default {
     },
     goEditPage(question) {
       if (!question || !question.id) {
-        this.$message.warning('题目ID无效')
+        this.$message.warning(this.$t('m.Invalid_Question_Id'))
         return
       }
       this.$router.push({ name: 'QuestionBankEdit', params: { questionId: String(question.id) } })
@@ -1235,11 +1224,11 @@ export default {
     async updateQuestion() {
       // 验证必填字段
       if (!this.editForm.title || !this.editForm.title.trim()) {
-        this.$message.warning('请输入题目标题')
+        this.$message.warning(this.$t('m.Enter_Question_Title'))
         return
       }
       if (!this.editForm.content || !this.editForm.content.trim()) {
-        this.$message.warning('请输入题目内容')
+        this.$message.warning(this.$t('m.Enter_Question_Content'))
         return
       }
 
@@ -1278,7 +1267,7 @@ export default {
         submitData.answer = answerValue === 'true' ? 'true' : 'false'
         submitData.options = null // 判断题不需要选项
       } else if (this.editForm.type === 'subjective') {
-        submitData.answer = this.editForm.referenceAnswer || '需人工评分'
+        submitData.answer = this.editForm.referenceAnswer || this.$t('m.Needs_Manual_Grading')
         submitData.options = null // 主观题不需要选项
       }
 
@@ -1325,9 +1314,9 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        fill_blank: '填空题',
+        fill_blank: this.$t('m.Fill_Blank'),
         subjective: this.$t('m.Subjective'),
-        composite: '组合题'
+        composite: this.$t('m.Composite_Question')
       }
       return map[type] || type
     },
@@ -1336,10 +1325,10 @@ export default {
     },
     getDifficultyText(difficulty) {
       const level = Number(difficulty)
-      if (level === 1) return '简单'
-      if (level === 2) return '中等'
-      if (level === 3) return '困难'
-      return `等级${difficulty}`
+      if (level === 1) return this.$t('m.Easy')
+      if (level === 2) return this.$t('m.Medium')
+      if (level === 3) return this.$t('m.Hard')
+      return `${this.$t('m.Level')}${difficulty}`
     },
     // 解析题目标签
     parseQuestionTags(tags) {
@@ -1485,7 +1474,8 @@ export default {
       }
       return ''
     },
-    formatCompositeAnswerSummary(answerInput, optionsInput, emptyText = '暂无答案') {
+    formatCompositeAnswerSummary(answerInput, optionsInput, emptyText) {
+      emptyText = emptyText === undefined ? this.$t('m.No_Answer_Text') : emptyText
       const subQuestions = this.parseCompositeSubQuestions(optionsInput)
       if (subQuestions.length === 0) {
         const answerMap = this.parseCompositeAnswerMap(answerInput)
@@ -1498,36 +1488,36 @@ export default {
       subQuestions.forEach((subQuestion, index) => {
         const value = this.getCompositeAnswerBySubQuestion(answerInput, subQuestion.id, index)
         if (value) {
-          segments.push(`子题${index + 1}: ${value}`)
+          segments.push(`${this.$t('m.Sub_Question')}${index + 1}: ${value}`)
         }
       })
       return segments.length > 0 ? segments.join('； ') : emptyText
     },
     formatInlineAnswer(question) {
-      if (!question) return '暂无答案'
+      if (!question) return this.$t('m.No_Answer_Text')
       switch (question.type) {
         case 'single_choice': {
           const value = String(question.answer || '').trim()
-          return value || '暂无答案'
+          return value || this.$t('m.No_Answer_Text')
         }
         case 'multiple_choice': {
           const values = this.parseAnswerArray(question.answer)
-          return values.length > 0 ? values.join('、') : '暂无答案'
+          return values.length > 0 ? values.join(', ') : this.$t('m.No_Answer_Text')
         }
         case 'judge': {
           const raw = String(question.answer || '').trim()
-          if (!raw) return '暂无答案'
-          return this.isJudgeTrue(raw) ? '正确' : '错误'
+          if (!raw) return this.$t('m.No_Answer_Text')
+          return this.isJudgeTrue(raw) ? this.$t('m.True') : this.$t('m.False')
         }
         case 'fill_blank': {
           const values = this.parseAnswerArray(question.answer, { allowCommaSplit: false })
-          return values.length > 0 ? values.join(' / ') : '暂无答案'
+          return values.length > 0 ? values.join(' / ') : this.$t('m.No_Answer_Text')
         }
         case 'composite':
           return this.formatCompositeAnswerSummary(question.answer, question.options)
         default: {
           const value = String(question.answer || '').trim()
-          return value || '暂无答案'
+          return value || this.$t('m.No_Answer_Text')
         }
       }
     },
@@ -1552,9 +1542,9 @@ export default {
     // 解析单选题答案
     parseSingleChoiceAnswer(question) {
       if (question.answer) {
-        return `答案：${question.answer}`
+        return `${this.$t('m.Answer_Label')}${question.answer}`
       }
-      return '暂无答案'
+      return this.$t('m.No_Answer_Text')
     },
     // 解析多选题答案
     parseMultipleChoiceAnswer(question) {
@@ -1563,12 +1553,12 @@ export default {
           const answers = typeof question.answer === 'string'
             ? JSON.parse(question.answer)
             : question.answer
-          return `答案：${answers.join('、')}`
+          return `${this.$t('m.Answer_Label')}${answers.join(', ')}`
         } catch (e) {
-          return `答案：${question.answer}`
+          return `${this.$t('m.Answer_Label')}${question.answer}`
         }
       }
-      return '暂无答案'
+      return this.$t('m.No_Answer_Text')
     },
     isJudgeTrue(answer) {
       const raw = String(answer || '').trim()
@@ -1576,18 +1566,18 @@ export default {
       return lowered === 'true'
     },
     parseFillBlankAnswer(answer) {
-      if (!answer) return '暂无答案'
+      if (!answer) return this.$t('m.No_Answer_Text')
       try {
         const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
         if (Array.isArray(parsed)) {
           const values = parsed.map(item => String(item || '').trim()).filter(Boolean)
-          return values.length > 0 ? `答案：${values.join(' / ')}` : '暂无答案'
+          return values.length > 0 ? `${this.$t('m.Answer_Label')}${values.join(' / ')}` : this.$t('m.No_Answer_Text')
         }
       } catch (e) {
         // fall through
       }
       const normalized = String(answer || '').trim()
-      return normalized ? `答案：${normalized}` : '暂无答案'
+      return normalized ? `${this.$t('m.Answer_Label')}${normalized}` : this.$t('m.No_Answer_Text')
     },
     // 格式化时间
     formatTime(time) {

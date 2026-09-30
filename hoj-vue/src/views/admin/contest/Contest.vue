@@ -82,7 +82,7 @@
         <ContestRegistrationConfig :contest="contest" />
 
         <section class="contest-options">
-          <div class="contest-options-title">赛制、榜单、权限与奖项</div>
+          <div class="contest-options-title">{{ $t('m.ContestAdm_Options_Title') }}</div>
 
         <el-row>
           <el-col
@@ -249,9 +249,9 @@
           <el-col class="contest-grid-rank-name">
             <el-form-item :label="$t('m.Rank_Show_Name')" required>
               <el-select v-model="contest.rankShowName" class="compact-select">
-                <el-option label="用户名" value="username" />
-                <el-option label="昵称" value="nickname" />
-                <el-option label="真实姓名" value="realname" />
+                <el-option :label="$t('m.Username')" value="username" />
+                <el-option :label="$t('m.Nickname')" value="nickname" />
+                <el-option :label="$t('m.ContestAdm_Realname')" value="realname" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -803,14 +803,14 @@ export default {
         return;
       }
       if (this.contest.openRegistration && !this.contest.registrationFields.length) {
-        myMessage.error("开启比赛报名后，至少选择一个报名字段");
+        myMessage.error(this.$i18n.t("m.ContestAdm_Registration_Fields_Required"));
         return;
       }
       if (
         this.contest.useRegistrationName &&
         !this.contest.registrationNameFields.length
       ) {
-        myMessage.error("请选择比赛内名称的组合字段");
+        myMessage.error(this.$i18n.t("m.ContestAdm_Name_Fields_Required"));
         return;
       }
 

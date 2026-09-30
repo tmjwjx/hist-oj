@@ -14,12 +14,12 @@
           <img
             v-if="qrcodeImageUrl"
             :src="qrcodeImageUrl"
-            alt="签到二维码"
+            :alt="$t('m.Checkin_Qrcode')"
             class="qrcode-image"
           />
           <div v-else class="qrcode-placeholder">
             <i class="el-icon-loading"></i>
-            <span>生成中...</span>
+            <span>{{ $t('m.Generating') }}</span>
           </div>
         </div>
       </div>

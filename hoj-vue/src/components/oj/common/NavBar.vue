@@ -54,7 +54,7 @@
                 $t('m.NavBar_OI_Rank')
               }}</el-menu-item>
               <el-menu-item index="/rating-rank">
-                <i class="el-icon-trophy"></i> Rating 排名
+                <i class="el-icon-trophy"></i> {{ $t('m.Rating_Rank') }}
               </el-menu-item>
             </el-submenu>
             <el-menu-item index="/discussion"
@@ -545,7 +545,7 @@
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
-              <mu-list-item-title>Rating 排名</mu-list-item-title>
+              <mu-list-item-title>{{ $t('m.Rating_Rank') }}</mu-list-item-title>
             </mu-list-item>
           </mu-list-item>
 
@@ -761,31 +761,14 @@ export default {
 
         // 只有当未读消息数量增加时才弹窗通知（避免重复通知已读的消息）
         if (sumMsg > 0 && sumMsg > this.lastUnreadCount) {
-          if (this.webLanguage == 'zh-CN') {
-            this.$notify.info({
-              title: '未读消息',
-              message:
-                '亲爱的【' +
-                this.userInfo.username +
-                '】，您有最新的' +
-                sumMsg +
-                '条未读消息，请注意查看！',
-              position: 'bottom-right',
-              duration: 5000,
-            });
-          } else {
-            this.$notify.info({
-              title: 'Unread Message',
-              message:
-                'Dear【' +
-                this.userInfo.username +
-                '】, you have the latest ' +
-                sumMsg +
-                ' unread messages. Please check them!',
-              position: 'bottom-right',
-              duration: 5000,
-            });
-          }
+          this.$notify.info({
+            title: this.$t('m.Unread_Message_Title'),
+            message: this.$t('m.Unread_Message_Body')
+              .replace('{name}', this.userInfo.username)
+              .replace('{count}', String(sumMsg)),
+            position: 'bottom-right',
+            duration: 5000,
+          });
         }
         // 更新上次的未读消息数
         this.lastUnreadCount = sumMsg;

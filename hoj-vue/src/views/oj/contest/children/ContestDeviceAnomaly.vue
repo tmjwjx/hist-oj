@@ -12,39 +12,39 @@
 
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
-      <span>加载中...</span>
+      <span>{{ $t('m.Plag_Loading') }}</span>
     </div>
 
     <template v-else>
       <el-card class="summary-card" shadow="never">
         <div slot="header" class="card-header">
-          <span>设备异常筛查</span>
+          <span>{{ $t('m.DevAnom_Title') }}</span>
           <div class="header-actions">
-            <el-button size="small" icon="el-icon-refresh" :loading="loading" @click="loadData">刷新</el-button>
+            <el-button size="small" icon="el-icon-refresh" :loading="loading" @click="loadData">{{ $t('m.Refresh') }}</el-button>
             <el-button size="small" icon="el-icon-download" :loading="exporting" @click="exportCsv"
-              :disabled="!report || report.suspiciousAccountCount === 0">导出CSV</el-button>
+              :disabled="!report || report.suspiciousAccountCount === 0">{{ $t('m.DevAnom_Export_CSV') }}</el-button>
           </div>
         </div>
         <div class="summary-row">
           <div class="stat-item">
             <div class="stat-value">{{ report ? report.totalSubmissions : 0 }}</div>
-            <div class="stat-label">比赛内提交总数</div>
+            <div class="stat-label">{{ $t('m.DevAnom_Total_Submissions') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-value">{{ report ? report.unknownDeviceSubmissions : 0 }}</div>
-            <div class="stat-label">未采集设备的提交（历史数据）</div>
+            <div class="stat-label">{{ $t('m.DevAnom_Unknown_Device_Submissions') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-value suspicious">{{ report ? report.suspiciousAccountCount : 0 }}</div>
-            <div class="stat-label">作弊嫌疑账号</div>
+            <div class="stat-label">{{ $t('m.DevAnom_Suspicious_Accounts') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-value suspicious">{{ report && report.sharedDevices ? report.sharedDevices.length : 0 }}</div>
-            <div class="stat-label">被共用的设备</div>
+            <div class="stat-label">{{ $t('m.DevAnom_Shared_Devices') }}</div>
           </div>
         </div>
         <el-alert
-          title="判定规则：一个账号使用多台不同设备提交，或一台设备出现多个账号提交。设备ID为每台电脑独立生成的随机ID；比赛开始前产生的提交没有设备ID，仅计入“未采集”不参与判定。标记结果供教师人工复核。"
+          :title="$t('m.DevAnom_Rule_Tip')"
           type="info"
           :closable="false"
           class="rule-tip"
@@ -54,12 +54,12 @@
       <!-- 作弊团伙（传递连通分组） -->
       <el-card v-if="clusters.length > 0" class="section-card" shadow="never">
         <div slot="header" class="card-header">
-          <span>作弊团伙（{{ clusters.length }} 组，沿共用设备逐层串联）</span>
+          <span>{{ $t('m.DevAnom_Clusters_Header', { count: clusters.length }) }}</span>
         </div>
         <div v-for="cluster in clusters" :key="cluster.clusterId" class="cluster-block">
           <div class="cluster-title">
-            <el-tag size="small" type="danger">团伙 #{{ cluster.clusterId }}</el-tag>
-            <span class="cluster-size">{{ cluster.usernames.length }} 个账号</span>
+            <el-tag size="small" type="danger">{{ $t('m.DevAnom_Cluster_Tag', { id: cluster.clusterId }) }}</el-tag>
+            <span class="cluster-size">{{ $t('m.DevAnom_Account_Count', { count: cluster.usernames.length }) }}</span>
           </div>
           <div class="cluster-members">
             <el-tag v-for="name in cluster.usernames" :key="name" size="medium" effect="dark"
@@ -67,60 +67,60 @@
           </div>
           <div v-for="link in cluster.links" :key="link.deviceId" class="cluster-link">
             <i class="el-icon-connection"></i>
-            共用设备 <code>{{ shortId(link.deviceId) }}</code>：
+            {{ $t('m.DevAnom_Shared_Device') }} <code>{{ shortId(link.deviceId) }}</code>：
             <span class="link-users">{{ link.usernames.join(' ⇄ ') }}</span>
           </div>
           <div v-if="cluster.links.length === 0" class="cluster-link muted">
-            该账号单独命中“一账号多设备”规则，未与其它账号共道设备
+            {{ $t('m.DevAnom_Single_Rule_Hit') }}
           </div>
         </div>
-        <div class="cluster-tip">关联关系沿设备逐层推进：A 的设备上有 B，B 的另一台设备上有 C，则 A、B、C 同属一个团伙。</div>
+        <div class="cluster-tip">{{ $t('m.DevAnom_Cluster_Tip') }}</div>
       </el-card>
 
       <!-- 嫌疑账号清单 -->
       <el-card class="section-card" shadow="never">
         <div slot="header" class="card-header">
-          <span>作弊嫌疑账号（{{ suspiciousAccounts.length }}）</span>
+          <span>{{ $t('m.DevAnom_Suspicious_Header', { count: suspiciousAccounts.length }) }}</span>
         </div>
         <el-table :data="suspiciousAccounts" border stripe row-key="uid">
           <el-table-column type="expand">
             <template slot-scope="scope">
               <div class="expand-body">
-                <div class="expand-title">团伙内关联账号（沿共用设备逐层推进）</div>
+                <div class="expand-title">{{ $t('m.DevAnom_Related_Accounts') }}</div>
                 <div v-if="scope.row.relatedUsernames && scope.row.relatedUsernames.length > 0"
                   class="related-users">
                   <el-tag v-for="name in scope.row.relatedUsernames" :key="name" size="small"
                     type="danger" class="member-tag">{{ name }}</el-tag>
                 </div>
-                <div v-else class="muted" style="margin-bottom:10px;">无（该账号单独命中规则）</div>
-                <div class="expand-title">该账号的设备使用明细</div>
+                <div v-else class="muted" style="margin-bottom:10px;">{{ $t('m.DevAnom_No_Related') }}</div>
+                <div class="expand-title">{{ $t('m.DevAnom_Device_Detail_Title') }}</div>
                 <el-table :data="scope.row.devices" size="small" border>
-                  <el-table-column label="设备ID" width="140">
+                  <el-table-column :label="$t('m.DevAnom_Device_ID')" width="140">
                     <template slot-scope="d">{{ shortId(d.row.deviceId) }}</template>
                   </el-table-column>
-                  <el-table-column prop="userAgent" label="浏览器标识 (User-Agent)" min-width="220" show-overflow-tooltip>
-                    <template slot-scope="d">{{ d.row.userAgent || '未知' }}</template>
+                  <el-table-column prop="userAgent" :label="$t('m.DevAnom_User_Agent')" min-width="220" show-overflow-tooltip>
+                    <template slot-scope="d">{{ d.row.userAgent || $t('m.Unknown') }}</template>
                   </el-table-column>
-                  <el-table-column prop="submissionCount" label="提交数" width="80" align="center" />
-                  <el-table-column label="首次提交" width="160">
+                  <el-table-column prop="submissionCount" :label="$t('m.DevAnom_Submission_Count')" width="80" align="center" />
+                  <el-table-column :label="$t('m.DevAnom_First_Submission')" width="160">
                     <template slot-scope="d">{{ fmtTime(d.row.firstSubmitTime) }}</template>
                   </el-table-column>
-                  <el-table-column label="最后提交" width="160">
+                  <el-table-column :label="$t('m.DevAnom_Last_Submission')" width="160">
                     <template slot-scope="d">{{ fmtTime(d.row.lastSubmitTime) }}</template>
                   </el-table-column>
-                  <el-table-column label="该设备上的其它账号" min-width="160">
+                  <el-table-column :label="$t('m.DevAnom_Other_Accounts')" min-width="160">
                     <template slot-scope="d">
                       <el-tag v-for="name in d.row.otherUsernames" :key="name" size="mini" type="danger"
                         class="other-user-tag">{{ name }}</el-tag>
-                      <span v-if="!d.row.otherUsernames || d.row.otherUsernames.length === 0" class="muted">无</span>
+                      <span v-if="!d.row.otherUsernames || d.row.otherUsernames.length === 0" class="muted">{{ $t('m.DevAnom_None') }}</span>
                     </template>
                   </el-table-column>
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="username" label="账号" min-width="110" />
-          <el-table-column label="团伙" width="80" align="center">
+          <el-table-column prop="username" :label="$t('m.DevAnom_Account')" min-width="110" />
+          <el-table-column :label="$t('m.DevAnom_Cluster')" width="80" align="center">
             <template slot-scope="scope">
               <el-tag v-if="scope.row.clusterId && scope.row.relatedUsernames
                 && scope.row.relatedUsernames.length > 0" size="mini" type="danger">
@@ -129,63 +129,63 @@
               <span v-else class="muted">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="命中原因" width="190">
+          <el-table-column :label="$t('m.DevAnom_Reason')" width="190">
             <template slot-scope="scope">
-              <el-tag v-if="scope.row.multiDevice" size="small" type="warning">一账号多设备</el-tag>
-              <el-tag v-if="scope.row.deviceSharing" size="small" type="danger">使用了共用设备</el-tag>
+              <el-tag v-if="scope.row.multiDevice" size="small" type="warning">{{ $t('m.DevAnom_Reason_Multi_Device') }}</el-tag>
+              <el-tag v-if="scope.row.deviceSharing" size="small" type="danger">{{ $t('m.DevAnom_Reason_Shared_Device') }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="deviceCount" label="设备数" width="80" align="center" />
-          <el-table-column prop="submissionCount" label="提交数" width="80" align="center" />
-          <el-table-column label="首次提交" width="160">
+          <el-table-column prop="deviceCount" :label="$t('m.DevAnom_Device_Count')" width="80" align="center" />
+          <el-table-column prop="submissionCount" :label="$t('m.DevAnom_Submission_Count')" width="80" align="center" />
+          <el-table-column :label="$t('m.DevAnom_First_Submission')" width="160">
             <template slot-scope="scope">{{ fmtTime(scope.row.firstSubmitTime) }}</template>
           </el-table-column>
-          <el-table-column label="最后提交" width="160">
+          <el-table-column :label="$t('m.DevAnom_Last_Submission')" width="160">
             <template slot-scope="scope">{{ fmtTime(scope.row.lastSubmitTime) }}</template>
           </el-table-column>
         </el-table>
-        <div v-if="suspiciousAccounts.length === 0" class="empty-tip">未发现设备异常，暂无嫌疑账号。</div>
+        <div v-if="suspiciousAccounts.length === 0" class="empty-tip">{{ $t('m.DevAnom_No_Suspicious') }}</div>
       </el-card>
 
       <!-- 共用设备清单 -->
       <el-card class="section-card" shadow="never">
         <div slot="header" class="card-header">
-          <span>被共用的设备（{{ sharedDevices.length }}）</span>
+          <span>{{ $t('m.DevAnom_Shared_Header', { count: sharedDevices.length }) }}</span>
         </div>
         <el-table :data="sharedDevices" border stripe row-key="deviceId">
           <el-table-column type="expand">
             <template slot-scope="scope">
               <div class="expand-body">
-                <div class="expand-title">使用过该设备的账号</div>
+                <div class="expand-title">{{ $t('m.DevAnom_Device_Users_Title') }}</div>
                 <el-table :data="scope.row.users" size="small" border>
-                  <el-table-column prop="username" label="账号" min-width="120" />
-                  <el-table-column prop="submissionCount" label="在该设备上的提交数" width="160" align="center" />
-                  <el-table-column label="首次提交" width="160">
+                  <el-table-column prop="username" :label="$t('m.DevAnom_Account')" min-width="120" />
+                  <el-table-column prop="submissionCount" :label="$t('m.DevAnom_Submissions_On_Device')" width="160" align="center" />
+                  <el-table-column :label="$t('m.DevAnom_First_Submission')" width="160">
                     <template slot-scope="u">{{ fmtTime(u.row.firstSubmitTime) }}</template>
                   </el-table-column>
-                  <el-table-column label="最后提交" width="160">
+                  <el-table-column :label="$t('m.DevAnom_Last_Submission')" width="160">
                     <template slot-scope="u">{{ fmtTime(u.row.lastSubmitTime) }}</template>
                   </el-table-column>
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="设备ID" width="140">
+          <el-table-column :label="$t('m.DevAnom_Device_ID')" width="140">
             <template slot-scope="scope">{{ shortId(scope.row.deviceId) }}</template>
           </el-table-column>
-          <el-table-column prop="userAgent" label="浏览器标识 (User-Agent)" min-width="220" show-overflow-tooltip>
-            <template slot-scope="scope">{{ scope.row.userAgent || '未知' }}</template>
+          <el-table-column prop="userAgent" :label="$t('m.DevAnom_User_Agent')" min-width="220" show-overflow-tooltip>
+            <template slot-scope="scope">{{ scope.row.userAgent || $t('m.Unknown') }}</template>
           </el-table-column>
-          <el-table-column prop="userCount" label="账号数" width="80" align="center" />
-          <el-table-column prop="submissionCount" label="提交数" width="80" align="center" />
-          <el-table-column label="首次提交" width="160">
+          <el-table-column prop="userCount" :label="$t('m.DevAnom_Account_Count_Col')" width="80" align="center" />
+          <el-table-column prop="submissionCount" :label="$t('m.DevAnom_Submission_Count')" width="80" align="center" />
+          <el-table-column :label="$t('m.DevAnom_First_Submission')" width="160">
             <template slot-scope="scope">{{ fmtTime(scope.row.firstSubmitTime) }}</template>
           </el-table-column>
-          <el-table-column label="最后提交" width="160">
+          <el-table-column :label="$t('m.DevAnom_Last_Submission')" width="160">
             <template slot-scope="scope">{{ fmtTime(scope.row.lastSubmitTime) }}</template>
           </el-table-column>
         </el-table>
-        <div v-if="sharedDevices.length === 0" class="empty-tip">未发现多账号共用的设备。</div>
+        <div v-if="sharedDevices.length === 0" class="empty-tip">{{ $t('m.DevAnom_No_Shared_Devices') }}</div>
       </el-card>
     </template>
   </div>
@@ -234,13 +234,13 @@ export default {
     }
   },
   methods: {
-    getErrorMessage(error, fallback = '请求失败') {
+    getErrorMessage(error, fallback = this.$t('m.Plag_Request_Failed')) {
       return error?.message || error?.response?.data?.msg || error?.response?.data?.message || fallback
     },
     async loadData() {
       if (!this.contestId) {
         this.loading = false
-        this.errorMessage = '比赛信息尚未加载完成，请稍后重试'
+        this.errorMessage = this.$t('m.DevAnom_Contest_Not_Loaded')
         return
       }
       this.loading = true
@@ -249,13 +249,13 @@ export default {
         const response = await api.getDeviceAnomalies(this.contestId)
         this.report = response.data.data
       } catch (error) {
-        this.errorMessage = this.getErrorMessage(error, '设备异常数据加载失败')
+        this.errorMessage = this.getErrorMessage(error, this.$t('m.DevAnom_Load_Failed'))
       } finally {
         this.loading = false
       }
     },
     shortId(deviceId) {
-      if (!deviceId) return '未知'
+      if (!deviceId) return this.$t('m.Unknown')
       return deviceId.length > 8 ? deviceId.slice(0, 8) : deviceId
     },
     fmtTime(time) {
@@ -269,28 +269,28 @@ export default {
       if (!this.report) return
       this.exporting = true
       try {
-        const rows = [['类别', '账号/设备', '团伙', '命中原因', '数量', '明细', '关联账号', '首次提交', '最后提交']]
+        const rows = [[this.$t('m.DevAnom_CSV_Category'), this.$t('m.DevAnom_CSV_Account_Device'), this.$t('m.DevAnom_CSV_Cluster'), this.$t('m.DevAnom_CSV_Reason'), this.$t('m.DevAnom_CSV_Count'), this.$t('m.DevAnom_CSV_Detail'), this.$t('m.DevAnom_CSV_Related'), this.$t('m.DevAnom_First_Submission'), this.$t('m.DevAnom_Last_Submission')]]
         this.suspiciousAccounts.forEach(account => {
           const reasons = [
-            account.multiDevice ? '一账号多设备' : '',
-            account.deviceSharing ? '使用了共用设备' : ''
+            account.multiDevice ? this.$t('m.DevAnom_Reason_Multi_Device') : '',
+            account.deviceSharing ? this.$t('m.DevAnom_Reason_Shared_Device') : ''
           ].filter(Boolean).join('+')
           const deviceDetail = (account.devices || [])
-            .map(d => `${this.shortId(d.deviceId)}(${d.submissionCount}次${(d.otherUsernames || []).length ? ',同设备:' + d.otherUsernames.join('/') : ''})`)
+            .map(d => `${this.shortId(d.deviceId)}(${this.$t('m.DevAnom_CSV_Times', { count: d.submissionCount })}${(d.otherUsernames || []).length ? this.$t('m.DevAnom_CSV_Same_Device') + d.otherUsernames.join('/') : ''})`)
             .join('; ')
           const related = (account.relatedUsernames || []).join('/')
-          rows.push(['嫌疑账号', account.username,
+          rows.push([this.$t('m.DevAnom_CSV_Suspicious_Account'), account.username,
             account.clusterId && related ? '#' + account.clusterId : '',
-            reasons, account.deviceCount + '台设备/' + account.submissionCount + '次提交',
+            reasons, this.$t('m.DevAnom_CSV_Device_Summary', { devices: account.deviceCount, submissions: account.submissionCount }),
             deviceDetail, related,
             this.fmtTime(account.firstSubmitTime), this.fmtTime(account.lastSubmitTime)])
         })
         this.sharedDevices.forEach(device => {
           const userDetail = (device.users || [])
-            .map(u => `${u.username}(${u.submissionCount}次)`)
+            .map(u => this.$t('m.DevAnom_CSV_User_Detail', { name: u.username, count: u.submissionCount }))
             .join('; ')
-          rows.push(['共用设备', this.shortId(device.deviceId), '', '一设备多账号',
-            device.userCount + '个账号/' + device.submissionCount + '次提交', userDetail, '',
+          rows.push([this.$t('m.DevAnom_Shared_Device'), this.shortId(device.deviceId), '', this.$t('m.DevAnom_Reason_Multi_Account'),
+            this.$t('m.DevAnom_CSV_Account_Summary', { accounts: device.userCount, submissions: device.submissionCount }), userDetail, '',
             this.fmtTime(device.firstSubmitTime), this.fmtTime(device.lastSubmitTime)])
         })
         const csv = '\uFEFF' + rows

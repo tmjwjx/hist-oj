@@ -3,7 +3,7 @@
     <!-- 全屏按钮（悬浮） -->
     <div v-if="!loading && !error" class="fullscreen-btn" @click="toggleFullscreen">
       <i :class="isFullscreen ? 'el-icon-close' : 'el-icon-full-screen'"></i>
-      <span>{{ isFullscreen ? '退出全屏' : '全屏' }}</span>
+      <span>{{ isFullscreen ? $t('m.Exit_Fullscreen') : $t('m.Fullscreen') }}</span>
     </div>
 
     <!-- 视频预览 - 使用TCPlayer -->
@@ -27,7 +27,7 @@
         @loadedmetadata="onMediaLoad"
         @error="onMediaError"
       >
-        您的浏览器不支持音频播放
+        {{ $t('m.Audio_Not_Supported') }}
       </audio>
     </div>
 
@@ -53,8 +53,8 @@
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
-      <p>正在加载预览...</p>
-      <p class="hint-text">大文件可能需要几秒钟</p>
+      <p>{{ $t('m.Loading_Preview') }}</p>
+      <p class="hint-text">{{ $t('m.Large_File_Hint') }}</p>
       <el-progress
         v-if="loadStartTime"
         :percentage="getLoadProgress()"
@@ -69,7 +69,7 @@
       <i class="el-icon-warning-outline"></i>
       <p class="error-message">{{ error }}</p>
       <el-button type="primary" @click="retry" size="small">
-        重试
+        {{ $t('m.Retry') }}
       </el-button>
       <el-button
         v-if="allowDownload"
@@ -77,7 +77,7 @@
         @click="downloadFile"
         size="small"
       >
-        下载文件
+        {{ $t('m.Download_File') }}
       </el-button>
     </div>
   </div>
@@ -212,7 +212,7 @@ export default {
               }))
             }
           } else {
-            throw new Error(response.data.message || '获取预览URL失败')
+            throw new Error(response.data.message || this.$t('m.Get_Preview_Url_Failed'))
           }
         }
 
@@ -231,14 +231,14 @@ export default {
         }
 
         if (uploaded) {
-          this.$message.success('预览准备完成')
+          this.$message.success(this.$t('m.Preview_Ready'))
         } else {
-          this.$message.success('文件已上传到云端，预览准备完成')
+          this.$message.success(this.$t('m.File_Uploaded_Preview_Ready'))
         }
       } catch (err) {
         console.error('[COS Viewer] 加载失败:', err)
-        const errorMsg = err.response?.data?.message || err.message || err.toString() || '未知错误'
-        this.error = '加载失败：' + errorMsg
+        const errorMsg = err.response?.data?.message || err.message || err.toString() || this.$t('m.Unknown_Error')
+        this.error = this.$t('m.Load_Failed_Colon') + errorMsg
         this.loading = false
       }
     },
@@ -256,13 +256,13 @@ export default {
             plugins: {
               ContinuePlay: { // 开启续播功能
                 auto: true,
-                text: '上次播放至 {time}，继续播放？'
+                text: this.$t('m.Resume_Playback_At')
               }
             }
           })
           this.tcplayer.src(this.previewUrl)
 
-          this.$message.success('视频加载完成')
+          this.$message.success(this.$t('m.Video_Loaded'))
           this.$emit('viewer-loaded')
         } else {
           // TCPlayer还未加载，等待
@@ -300,7 +300,7 @@ export default {
 
     onMediaError(event) {
       console.error('[COS Viewer] 媒体加载失败:', event)
-      this.error = '媒体文件加载失败，请稍后重试'
+      this.error = this.$t('m.Media_Load_Failed')
       this.loading = false
     },
 

@@ -1,18 +1,18 @@
 <template>
-  <el-dialog title="上次通过的标准程序" :visible.sync="visibleProxy" width="760px" append-to-body>
+  <el-dialog :title="$t('m.Last_Passed_Code')" :visible.sync="visibleProxy" width="760px" append-to-body>
     <div v-loading="loading">
-      <el-alert v-if="loaded && !record.code" title="该题暂无通过的标准程序" type="info" :closable="false" show-icon />
+      <el-alert v-if="loaded && !record.code" :title="$t('m.No_Passed_Code')" type="info" :closable="false" show-icon />
       <template v-else-if="record.code">
         <div class="code-meta">
           <el-tag type="success">{{ record.language }}</el-tag>
-          <span>提交 #{{ record.submitId }}</span>
+          <span>{{ $t('m.Submission') }} #{{ record.submitId }}</span>
         </div>
         <pre class="code-preview">{{ record.code }}</pre>
       </template>
     </div>
     <span slot="footer">
-      <el-button @click="visibleProxy = false">关闭</el-button>
-      <el-button type="primary" :disabled="!record.code" @click="useCode">填入标准程序</el-button>
+      <el-button @click="visibleProxy = false">{{ $t('m.Close') }}</el-button>
+      <el-button type="primary" :disabled="!record.code" @click="useCode">{{ $t('m.Use_Passed_Code') }}</el-button>
     </span>
   </el-dialog>
 </template>

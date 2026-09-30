@@ -3,18 +3,18 @@
     <el-card>
       <div slot="header">
         <div class="header-container">
-          <span class="panel-title home-title">{{ trainingTitle }} - 参与者列表</span>
+          <span class="panel-title home-title">{{ trainingTitle }} - {{ $t('m.TrainAdm_Participants_List') }}</span>
           <el-button
             size="small"
             @click="goBack"
             icon="el-icon-back"
-          >返回训练列表
+          >{{ $t('m.TrainAdm_Back_To_List') }}
           </el-button>
         </div>
         <div class="filter-row">
           <vxe-input
             v-model="searchKeyword"
-            placeholder="搜索用户名、真实姓名、昵称"
+            :placeholder="$t('m.TrainAdm_Search_Participant')"
             type="search"
             size="medium"
             @search-click="handleSearch"
@@ -23,16 +23,16 @@
           ></vxe-input>
           <el-select
             v-model="statusFilter"
-            placeholder="筛选状态"
+            :placeholder="$t('m.TrainAdm_Filter_Status')"
             clearable
             size="medium"
             @change="handleSearch"
             style="width: 150px"
           >
-            <el-option label="全部" value=""></el-option>
-            <el-option label="未开始" value="not_started"></el-option>
-            <el-option label="进行中" value="in_progress"></el-option>
-            <el-option label="已完成" value="completed"></el-option>
+            <el-option :label="$t('m.All')" value=""></el-option>
+            <el-option :label="$t('m.TrainAdm_Not_Started')" value="not_started"></el-option>
+            <el-option :label="$t('m.TrainAdm_In_Progress')" value="in_progress"></el-option>
+            <el-option :label="$t('m.TrainAdm_Completed')" value="completed"></el-option>
           </el-select>
         </div>
       </div>
@@ -46,7 +46,7 @@
         align="center"
       >
         <vxe-table-column field="id" width="80" title="ID"></vxe-table-column>
-        <vxe-table-column field="user.username" width="150" title="用户名">
+        <vxe-table-column field="user.username" width="150" :title="$t('m.BatRec_Username')">
           <template v-slot="{ row }">
             <span v-if="row.user" :style="{ color: getRatingColor(row.user.rating || 0) }">
               {{ row.user.username }}
@@ -54,7 +54,7 @@
             <span v-else>-</span>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="真实姓名" width="150">
+        <vxe-table-column :title="$t('m.TrainAdm_Realname')" width="150">
           <template v-slot="{ row }">
             <span v-if="row.user">
               {{ row.user.realname || row.user.nickname || row.user.username || '-' }}
@@ -62,20 +62,20 @@
             <span v-else>-</span>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="昵称" width="150">
+        <vxe-table-column :title="$t('m.TrainAdm_Nickname')" width="150">
           <template v-slot="{ row }">
             <span v-if="row.user">{{ row.user.nickname || '-' }}</span>
             <span v-else>-</span>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="状态" width="120">
+        <vxe-table-column :title="$t('m.Status')" width="120">
           <template v-slot="{ row }">
             <el-tag :type="getParticipantStatusType(row)" size="small">
               {{ getParticipantStatusText(row) }}
             </el-tag>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="完成进度" width="200">
+        <vxe-table-column :title="$t('m.TrainAdm_Progress')" width="200">
           <template v-slot="{ row }">
             <el-tooltip
               effect="dark"
@@ -90,20 +90,20 @@
             </el-tooltip>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="完成情况" width="150">
+        <vxe-table-column :title="$t('m.TrainAdm_Solved_Status')" width="150">
           <template v-slot="{ row }">
             <span>{{ getParticipantSolvedCount(row) }} / {{ getParticipantTotalCount(row) }}</span>
           </template>
         </vxe-table-column>
-        <vxe-table-column prop="joinTime" title="加入时间" width="180">
+        <vxe-table-column prop="joinTime" :title="$t('m.Join_Time')" width="180">
           <template v-slot="{ row }">
             {{ row.joinTime ? $options.filters.localtime(row.joinTime) : '-' }}
           </template>
         </vxe-table-column>
         <template v-slot:empty>
           <div v-if="!loading">
-            <span v-if="participantsList.length === 0">暂无参与者</span>
-            <span v-else>未找到匹配的参与者</span>
+            <span v-if="participantsList.length === 0">{{ $t('m.TrainAdm_No_Participants') }}</span>
+            <span v-else>{{ $t('m.TrainAdm_No_Matched') }}</span>
           </div>
         </template>
       </vxe-table>
@@ -152,9 +152,9 @@ export default {
   },
   mounted() {
     // 设置页面标题,避免显示国际化key
-    document.title = '训练参与者列表';
+    document.title = this.$t('m.TrainAdm_Page_Title');
     this.trainingId = this.$route.params.trainingId;
-    this.trainingTitle = this.$route.query.title || `训练 ${this.trainingId}`;
+    this.trainingTitle = this.$route.query.title || this.$t('m.TrainAdm_Training_Default', { id: this.trainingId });
     this.getParticipants();
   },
   methods: {
@@ -168,12 +168,12 @@ export default {
             this.participantsList = res.data.data || [];
             this.filteredParticipants = [...this.participantsList];
           } else {
-            myMessage.error(res.data.message || '获取参与者列表失败');
+            myMessage.error(res.data.message || this.$t('m.TrainAdm_Load_Failed'));
           }
         },
         (err) => {
           this.loading = false;
-          myMessage.error('获取参与者列表失败');
+          myMessage.error(this.$t('m.TrainAdm_Load_Failed'));
         }
       );
     },
@@ -253,11 +253,11 @@ export default {
     getParticipantStatusText(participant) {
       const status = this.getParticipantActualStatus(participant);
       const statusMap = {
-        not_started: '未开始',
-        in_progress: '进行中',
-        completed: '已完成',
+        not_started: this.$t('m.TrainAdm_Not_Started'),
+        in_progress: this.$t('m.TrainAdm_In_Progress'),
+        completed: this.$t('m.TrainAdm_Completed'),
       };
-      return statusMap[status] || '未知';
+      return statusMap[status] || this.$t('m.TrainAdm_Unknown');
     },
     getParticipantStatusType(participant) {
       const status = this.getParticipantActualStatus(participant);

@@ -1,5 +1,5 @@
 <template>
-  <div class="pptx-hybrid-viewer" v-loading="loading" element-loading-text="正在加载PPT...">
+  <div class="pptx-hybrid-viewer" v-loading="loading" :element-loading-text="$t('m.Parsing_PPT')">
     <!-- PPTX内容 -->
     <PPTXViewer
       v-if="!error && fileUrl"
@@ -14,7 +14,7 @@
       <i class="el-icon-warning-outline"></i>
       <p class="error-message">{{ error }}</p>
       <el-button type="primary" @click="retry" size="small">
-        重试
+        {{ $t('m.Retry') }}
       </el-button>
       <el-button
         v-if="allowDownload"
@@ -22,7 +22,7 @@
         @click="downloadFile"
         size="small"
       >
-        下载文件
+        {{ $t('m.Download_File') }}
       </el-button>
     </div>
   </div>
@@ -65,7 +65,7 @@ export default {
   },
   methods: {
     handleViewerError(errorMessage) {
-      this.error = errorMessage || 'PPT文件加载失败，请稍后重试'
+      this.error = errorMessage || this.$t('m.Pptx_Load_Failed_Retry')
       this.loading = false
     },
 

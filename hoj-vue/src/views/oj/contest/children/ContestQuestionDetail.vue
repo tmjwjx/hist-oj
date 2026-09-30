@@ -2,19 +2,19 @@
   <div class="contest-question-detail">
     <el-card shadow>
       <div slot="header">
-        <el-button icon="el-icon-arrow-left" size="small" @click="goBack">返回</el-button>
+        <el-button icon="el-icon-arrow-left" size="small" @click="goBack">{{ $t('m.Back') }}</el-button>
         <el-dropdown
           v-if="isContestAdmin"
           style="float: right; margin-left: 10px"
           @command="handleStatusChange"
         >
           <el-button size="small">
-            状态：{{ getStatusText(question.status) }}<i class="el-icon-arrow-down el-icon--right"></i>
+            {{ $t('m.CQ_Status_Label') }}{{ getStatusText(question.status) }}<i class="el-icon-arrow-down el-icon--right"></i>
           </el-button>
           <el-dropdown-menu slot="dropdown">
-            <el-dropdown-item command="pending">待回复</el-dropdown-item>
-            <el-dropdown-item command="answered">已回复</el-dropdown-item>
-            <el-dropdown-item command="closed">已关闭</el-dropdown-item>
+            <el-dropdown-item command="pending">{{ $t('m.CQ_Status_Pending') }}</el-dropdown-item>
+            <el-dropdown-item command="answered">{{ $t('m.CQ_Status_Answered') }}</el-dropdown-item>
+            <el-dropdown-item command="closed">{{ $t('m.CQ_Status_Closed') }}</el-dropdown-item>
           </el-dropdown-menu>
         </el-dropdown>
         <el-button
@@ -24,12 +24,12 @@
           style="float: right"
           @click="handleDelete"
         >
-          删除
+          {{ $t('m.Delete') }}
         </el-button>
       </div>
 
       <div v-loading="loading">
-        <el-empty v-if="!question.id && !loading" description="问题不存在或加载失败"></el-empty>
+        <el-empty v-if="!question.id && !loading" :description="$t('m.CQ_Not_Found')"></el-empty>
 
         <div v-if="question.id" class="question-info">
           <h2 class="question-title">{{ question.title }}</h2>
@@ -42,7 +42,7 @@
             >
               {{ question.questioner.username }}
             </UserName>
-            <span class="meta-item">状态：{{ getStatusText(question.status) }}</span>
+            <span class="meta-item">{{ $t('m.CQ_Status_Label') }}{{ getStatusText(question.status) }}</span>
             <span class="meta-item">{{ formatTime(question.createdAt) }}</span>
           </div>
           <div class="question-content">{{ question.content }}</div>
@@ -87,13 +87,13 @@
 
         <div class="reply-input" v-if="question.status !== 'closed' || isContestAdmin">
           <div v-if="question.status === 'closed' && isContestAdmin" class="closed-notice">
-            <i class="el-icon-warning"></i> 问题已关闭，管理员仍可回复
+            <i class="el-icon-warning"></i> {{ $t('m.CQ_Closed_Notice') }}
           </div>
           <el-input
             v-model="newReply"
             type="textarea"
             :rows="3"
-            placeholder="输入回复内容..."
+            :placeholder="$t('m.CQ_Reply_Placeholder')"
             @keydown.enter.native="handleEnterKey"
           ></el-input>
           <div class="input-actions">
@@ -103,7 +103,7 @@
               :loading="sending"
               :disabled="!newReply.trim()"
             >
-              发送
+              {{ $t('m.Send') }}
             </el-button>
           </div>
         </div>
@@ -189,10 +189,10 @@ export default {
             }
           }
         } else {
-          this.$message.error(res.data.msg || '加载失败')
+          this.$message.error(res.data.msg || this.$t('m.Load_Failed'))
         }
       } catch (error) {
-        this.$message.error('加载失败: ' + (error.response?.data?.msg || error.message))
+        this.$message.error(this.$t('m.CQ_Load_Failed_Detail') + (error.response?.data?.msg || error.message))
       } finally {
         this.loading = false
       }
@@ -210,10 +210,10 @@ export default {
           this.newReply = ''
           this.loadQuestionDetail()
         } else {
-          this.$message.error(res.data.msg || '发送失败')
+          this.$message.error(res.data.msg || this.$t('m.Send_Failed'))
         }
       } catch (error) {
-        this.$message.error('发送失败')
+        this.$message.error(this.$t('m.Send_Failed'))
       } finally {
         this.sending = false
       }
@@ -231,31 +231,31 @@ export default {
           status
         })
         if (res.data.code === 200) {
-          this.$message.success('状态更新成功')
+          this.$message.success(this.$t('m.CQ_Status_Updated'))
           this.loadQuestionDetail()
         } else {
-          this.$message.error(res.data.msg || '更新失败')
+          this.$message.error(res.data.msg || this.$t('m.Update_Failed'))
         }
       } catch (error) {
-        this.$message.error('更新失败')
+        this.$message.error(this.$t('m.Update_Failed'))
       }
     },
     async handleDelete() {
-      this.$confirm('确定要删除这个问题吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.CQ_Delete_Confirm'), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.OK'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await this.$store.dispatch('contestQuestion/deleteQuestion', this.questionId)
           if (res.data.code === 200) {
-            this.$message.success('删除成功')
+            this.$message.success(this.$t('m.Delete_successfully'))
             this.goBack()
           } else {
-            this.$message.error(res.data.msg || '删除失败')
+            this.$message.error(res.data.msg || this.$t('m.Delete_Failed'))
           }
         } catch (error) {
-          this.$message.error('删除失败')
+          this.$message.error(this.$t('m.Delete_Failed'))
         }
       })
     },
@@ -273,9 +273,9 @@ export default {
     },
     getStatusText(status) {
       const map = {
-        pending: '待回复',
-        answered: '已回复',
-        closed: '已关闭'
+        pending: this.$t('m.CQ_Status_Pending'),
+        answered: this.$t('m.CQ_Status_Answered'),
+        closed: this.$t('m.CQ_Status_Closed')
       }
       return map[status] || status
     },

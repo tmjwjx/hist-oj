@@ -18,7 +18,7 @@
                 :underline="false"
                 @click="returnToBattleRoom"
               ><i class="fa fa-arrow-left" aria-hidden="true"></i>
-                返回对战房间</el-link>
+                {{ $t('m.Back_To_Battle_Room') }}</el-link>
             </span>
             <span v-if="isShowProblemDiscussion">
               <el-link
@@ -176,7 +176,7 @@
                         }}MB</span><br />
                     </template>
                     <div class="problem-meta-row">
-                      <span>判题模式：{{ getJudgeModeText(problemData.problem.judgeMode) }}</span>
+                      <span>{{ $t('m.Judge_Mode') }}: {{ getJudgeModeText(problemData.problem.judgeMode) }}</span>
                       <template v-if="problemData.problem.difficulty != null">
                         <span>{{ $t('m.Level') }}：<span
                           class="el-tag el-tag--small"
@@ -277,7 +277,7 @@
                         </div>
                       </div>
                       <div v-if="example.explanation" class="example-explanation">
-                        <p class="title">样例解释 {{ index + 1 }}</p>
+                        <p class="title">{{ $t('m.Sample_Explanation') }} {{ index + 1 }}</p>
                         <Markdown
                           class="md-content"
                           :isAvoidXss="true"
@@ -307,7 +307,7 @@
             </el-tab-pane>
             <el-tab-pane name="submitCode" lazy>
               <span slot="label">
-                <i class="el-icon-edit-outline"></i> 提交代码
+                <i class="el-icon-edit-outline"></i> {{ $t('m.Submit_Code') }}
               </span>
               <ProblemSubmit
                 v-if="activeName === 'submitCode'"
@@ -1041,12 +1041,12 @@ export default {
     },
     getJudgeModeText(mode) {
       const modeMap = {
-        'default': '默认模式',
-        'spj': '特殊判题 (SPJ)',
-        'interactive': '交互式',
-        'subtask': '子任务'
+        'default': this.$t('m.Judge_Mode_Default'),
+        'spj': this.$t('m.Judge_Mode_Spj'),
+        'interactive': this.$t('m.Judge_Mode_Interactive'),
+        'subtask': this.$t('m.Judge_Mode_Subtask')
       }
-      return modeMap[mode] || mode || '默认模式'
+      return modeMap[mode] || mode || this.$t('m.Judge_Mode_Default')
     },
     goUserHome(username) {
       this.$router.push({
@@ -1152,27 +1152,27 @@ export default {
             // 根据胜负和结束原因显示不同的消息
             let message, title, type;
             if (isWinner) {
-              title = '对局胜利';
+              title = this.$t('m.Battle_Win_Title');
               if (endReason === 'ac') {
-                message = '🎉 对战胜利，成功解决题目！';
+                message = this.$t('m.Battle_Win_AC');
               } else if (endReason === 'giveup') {
-                message = '🎉 对局胜利，对方放弃！';
+                message = this.$t('m.Battle_Win_Giveup');
               } else if (endReason === 'timeout') {
-                message = '🎉 对局胜利，对方超时！';
+                message = this.$t('m.Battle_Win_Timeout');
               } else {
-                message = '🎉 对局胜利！';
+                message = this.$t('m.Battle_Win');
               }
               type = 'success';
             } else {
-              title = '对局失败';
+              title = this.$t('m.Battle_Lose_Title');
               if (endReason === 'ac') {
-                message = '😔 对战失败，对手已成功解决题目！';
+                message = this.$t('m.Battle_Lose_AC');
               } else if (endReason === 'giveup') {
-                message = '😔 对局失败，你选择放弃对战';
+                message = this.$t('m.Battle_Lose_Giveup');
               } else if (endReason === 'timeout') {
-                message = '😔 对局失败，你超时了！';
+                message = this.$t('m.Battle_Lose_Timeout');
               } else {
-                message = '😔 对局失败！';
+                message = this.$t('m.Battle_Lose');
               }
               type = 'warning';
             }
@@ -1261,7 +1261,7 @@ export default {
         // 调用退出房间API
         const res = await leaveRoom({ roomId: this.battleRoomId });
         if (res.data.code === 0) {
-          this.$message.success('已退出房间');
+          this.$message.success(this.$t('m.Left_Room'));
         }
       } catch (error) {
         // 退出失败也静默处理,不影响返回大厅

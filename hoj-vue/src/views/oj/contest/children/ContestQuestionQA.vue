@@ -2,7 +2,7 @@
   <div class="contest-question-qa">
     <el-card shadow>
       <div slot="header">
-        <span>我的问题</span>
+        <span>{{ $t('m.CQ_My_Questions') }}</span>
         <el-button
           style="float: right"
           type="primary"
@@ -10,12 +10,12 @@
           icon="el-icon-plus"
           @click="showCreateDialog = true"
         >
-          提问
+          {{ $t('m.CQ_Ask') }}
         </el-button>
       </div>
 
       <div v-loading="loading">
-        <el-empty v-if="questions.length === 0 && !loading" description="暂无提问"></el-empty>
+        <el-empty v-if="questions.length === 0 && !loading" :description="$t('m.CQ_No_Questions')"></el-empty>
 
         <div v-else class="question-list">
           <div
@@ -49,35 +49,35 @@
 
     <!-- 创建问题对话框 -->
     <el-dialog
-      title="提问"
+      :title="$t('m.CQ_Ask')"
       :visible.sync="showCreateDialog"
       width="600px"
       @close="resetForm"
     >
       <el-form :model="form" :rules="rules" ref="form" label-width="80px">
-        <el-form-item label="标题" prop="title">
+        <el-form-item :label="$t('m.Title')" prop="title">
           <el-input
             v-model="form.title"
-            placeholder="请输入问题标题"
+            :placeholder="$t('m.CQ_Title_Placeholder')"
             maxlength="200"
             show-word-limit
           ></el-input>
         </el-form-item>
-        <el-form-item label="内容" prop="content">
+        <el-form-item :label="$t('m.Content')" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="8"
-            placeholder="请详细描述您的问题"
+            :placeholder="$t('m.CQ_Content_Placeholder')"
             maxlength="1000"
             show-word-limit
           ></el-input>
         </el-form-item>
       </el-form>
       <span slot="footer">
-        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitting">
-          提交
+          {{ $t('m.CQ_Submit') }}
         </el-button>
       </span>
     </el-dialog>
@@ -103,8 +103,8 @@ export default {
         content: ''
       },
       rules: {
-        title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-        content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
+        title: [{ required: true, message: this.$t('m.CQ_Title_Required'), trigger: 'blur' }],
+        content: [{ required: true, message: this.$t('m.CQ_Content_Required'), trigger: 'blur' }]
       }
     }
   },
@@ -129,7 +129,7 @@ export default {
           this.total = res.data.data.total || 0
         }
       } catch (error) {
-        this.$message.error('加载失败')
+        this.$message.error(this.$t('m.Load_Failed'))
       } finally {
         this.loading = false
       }
@@ -158,15 +158,15 @@ export default {
             content: this.form.content
           })
           if (res.data.code === 200) {
-            this.$message.success('提问成功')
+            this.$message.success(this.$t('m.CQ_Ask_Success'))
             this.showCreateDialog = false
             this.resetForm()
             this.loadQuestions()
           } else {
-            this.$message.error(res.data.msg || '提问失败')
+            this.$message.error(res.data.msg || this.$t('m.CQ_Ask_Failed'))
           }
         } catch (error) {
-          this.$message.error('提问失败')
+          this.$message.error(this.$t('m.CQ_Ask_Failed'))
         } finally {
           this.submitting = false
         }
@@ -189,9 +189,9 @@ export default {
     },
     getStatusText(status) {
       const map = {
-        pending: '待回复',
-        answered: '已回复',
-        closed: '已关闭'
+        pending: this.$t('m.CQ_Status_Pending'),
+        answered: this.$t('m.CQ_Status_Answered'),
+        closed: this.$t('m.CQ_Status_Closed')
       }
       return map[status] || status
     },

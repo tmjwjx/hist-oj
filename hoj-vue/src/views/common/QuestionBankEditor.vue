@@ -2,11 +2,11 @@
   <div class="question-editor-page" v-loading="loading">
     <div class="page-header">
       <div class="header-left">
-        <el-button icon="el-icon-arrow-left" @click="goBack">返回</el-button>
+        <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
         <h3>{{ pageTitle }}</h3>
       </div>
       <div class="header-right">
-        <el-button @click="goBack">取消</el-button>
+        <el-button @click="goBack">{{ $t('m.Cancel') }}</el-button>
         <el-button type="primary" :loading="saving" @click="submitQuestion">{{ submitButtonText }}</el-button>
       </div>
     </div>
@@ -15,27 +15,27 @@
       <el-col :span="24" class="form-column">
         <el-card shadow="never" class="form-card">
           <el-form :model="form" label-width="110px" class="question-form">
-            <el-form-item label="题型" required>
+            <el-form-item :label="$t('m.Question_Type')" required>
               <el-select v-model="form.type" @change="handleTypeChange">
-                <el-option label="单选题" value="single_choice"></el-option>
-                <el-option label="多选题" value="multiple_choice"></el-option>
-                <el-option label="判断题" value="judge"></el-option>
-                <el-option label="填空题" value="fill_blank"></el-option>
-                <el-option label="主观题" value="subjective"></el-option>
-                <el-option label="组合题" value="composite"></el-option>
+                <el-option :label="$t('m.Single_Choice')" value="single_choice"></el-option>
+                <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice"></el-option>
+                <el-option :label="$t('m.Judge_Question')" value="judge"></el-option>
+                <el-option :label="$t('m.Fill_Blank')" value="fill_blank"></el-option>
+                <el-option :label="$t('m.Subjective_Question')" value="subjective"></el-option>
+                <el-option :label="$t('m.Composite_Question')" value="composite"></el-option>
               </el-select>
             </el-form-item>
 
-            <el-form-item label="题目标题" required>
-              <el-input v-model="form.title" placeholder="请输入题目标题"></el-input>
+            <el-form-item :label="$t('m.Question_Title')" required>
+              <el-input v-model="form.title" :placeholder="$t('m.Enter_Question_Title')"></el-input>
             </el-form-item>
 
-            <el-form-item label="题目内容" required>
+            <el-form-item :label="$t('m.Question_Content')" required>
               <Editor :value.sync="form.content" :allow-upload="true" class="question-content-markdown-editor" />
             </el-form-item>
 
             <template v-if="form.type === 'single_choice'">
-              <el-form-item label="选项" required>
+              <el-form-item :label="$t('m.Options_Label')" required>
                 <div class="options-container">
                   <div v-for="(_, index) in form.choiceOptions" :key="index" class="option-item">
                     <div class="option-select-wrap">
@@ -48,21 +48,21 @@
                         type="textarea"
                         :rows="2"
                         v-model="form.choiceOptions[index]"
-                        :placeholder="`${optionLetters[index]}. 选项内容（支持 Markdown）`"
+                        :placeholder="`${optionLetters[index]}. ${$t('m.Option_Content_Markdown')}`"
                       ></el-input>
                     </div>
-                    <el-button size="mini" @click="openOptionEditor(index)">窗口编辑</el-button>
+                    <el-button size="mini" @click="openOptionEditor(index)">{{ $t('m.Window_Edit') }}</el-button>
                   </div>
                 </div>
                 <div class="form-tip">
                   <i class="el-icon-info"></i>
-                  既可直接输入，也可点击“窗口编辑”使用完整 Markdown 编辑器
+                  {{ $t('m.Option_Input_Hint') }}
                 </div>
               </el-form-item>
             </template>
 
             <template v-if="form.type === 'multiple_choice'">
-              <el-form-item label="选项" required>
+              <el-form-item :label="$t('m.Options_Label')" required>
                 <div class="options-container">
                   <div v-for="(_, index) in form.choiceOptions" :key="index" class="option-item">
                     <div class="option-select-wrap">
@@ -75,30 +75,30 @@
                         type="textarea"
                         :rows="2"
                         v-model="form.choiceOptions[index]"
-                        :placeholder="`${optionLetters[index]}. 选项内容（支持 Markdown）`"
+                        :placeholder="`${optionLetters[index]}. ${$t('m.Option_Content_Markdown')}`"
                       ></el-input>
                     </div>
-                    <el-button size="mini" @click="openOptionEditor(index)">窗口编辑</el-button>
+                    <el-button size="mini" @click="openOptionEditor(index)">{{ $t('m.Window_Edit') }}</el-button>
                   </div>
                 </div>
                 <div class="form-tip">
                   <i class="el-icon-info"></i>
-                  既可直接输入，也可点击“窗口编辑”使用完整 Markdown 编辑器
+                  {{ $t('m.Option_Input_Hint') }}
                 </div>
               </el-form-item>
             </template>
 
             <template v-if="form.type === 'judge'">
-              <el-form-item label="正确答案" required>
+              <el-form-item :label="$t('m.Correct_Answer')" required>
                 <el-radio-group v-model="form.correctAnswer">
-                  <el-radio label="true">正确</el-radio>
-                  <el-radio label="false">错误</el-radio>
+                  <el-radio label="true">{{ $t('m.True') }}</el-radio>
+                  <el-radio label="false">{{ $t('m.False') }}</el-radio>
                 </el-radio-group>
               </el-form-item>
             </template>
 
             <template v-if="form.type === 'fill_blank'">
-              <el-form-item label="正确答案" required>
+              <el-form-item :label="$t('m.Correct_Answer')" required>
                 <div class="fill-blank-answer-list">
                   <div
                     v-for="(answer, index) in form.fillBlankAnswers"
@@ -107,14 +107,14 @@
                   >
                     <el-input
                       v-model="form.fillBlankAnswers[index]"
-                      placeholder="请输入一个可判对的答案"
+                      :placeholder="$t('m.Enter_Acceptable_Answer')"
                     ></el-input>
                     <el-button
                       type="primary"
                       icon="el-icon-plus"
                       circle
                       plain
-                      title="新增答案"
+                      :title="$t('m.Add_Answer')"
                       @click="addFillBlankAnswer"
                     ></el-button>
                     <el-button
@@ -123,31 +123,31 @@
                       icon="el-icon-minus"
                       circle
                       plain
-                      title="删除答案"
+                      :title="$t('m.Delete_Answer')"
                       @click="removeFillBlankAnswer(index)"
                     ></el-button>
                   </div>
                 </div>
                 <div class="form-tip">
                   <i class="el-icon-info"></i>
-                  教师和管理员可设置多个标准答案，学生答案命中任意一个即判对。
+                  {{ $t('m.Multi_Answer_Hint') }}
                 </div>
               </el-form-item>
             </template>
 
             <template v-if="form.type === 'subjective'">
-              <el-form-item label="参考答案">
+              <el-form-item :label="$t('m.Reference_Answer')">
                 <el-input
                   type="textarea"
                   v-model="form.referenceAnswer"
                   :rows="3"
-                  placeholder="请输入参考答案（可选）"
+                  :placeholder="$t('m.Enter_Reference_Answer')"
                 ></el-input>
               </el-form-item>
             </template>
 
             <template v-if="form.type === 'composite'">
-              <el-form-item label="子题配置" required>
+              <el-form-item :label="$t('m.Sub_Question_Config')" required>
                 <div class="composite-panel">
                   <div
                     v-for="(subQuestion, subIndex) in form.compositeQuestions"
@@ -155,9 +155,9 @@
                     class="composite-sub-question"
                   >
                     <div class="composite-sub-header">
-                      <span>子题 {{ subIndex + 1 }}</span>
+                      <span>{{ $t('m.Sub_Question') }} {{ subIndex + 1 }}</span>
                       <div class="composite-sub-actions">
-                        <span class="composite-sub-score-label">分值</span>
+                        <span class="composite-sub-score-label">{{ $t('m.Score_Value') }}</span>
                         <el-input-number
                           v-model="subQuestion.score"
                           :min="1"
@@ -171,7 +171,7 @@
                           @click="removeCompositeQuestion(subIndex)"
                           :disabled="form.compositeQuestions.length <= 1"
                         >
-                          删除
+                          {{ $t('m.Delete') }}
                         </el-button>
                       </div>
                     </div>
@@ -181,9 +181,9 @@
                         type="textarea"
                         :rows="3"
                         v-model="subQuestion.content"
-                        :placeholder="`请输入子题 ${subIndex + 1} 题干（支持 Markdown）`"
+                        :placeholder="`${$t('m.Sub_Question_Content_Markdown').replace('{n}', subIndex + 1)}`"
                       ></el-input>
-                      <el-button size="mini" @click="openCompositeContentEditor(subIndex)">窗口编辑</el-button>
+                      <el-button size="mini" @click="openCompositeContentEditor(subIndex)">{{ $t('m.Window_Edit') }}</el-button>
                     </div>
 
                     <div class="composite-options">
@@ -198,24 +198,24 @@
                             type="textarea"
                             :rows="2"
                             v-model="subQuestion.choiceOptions[optionIndex]"
-                            :placeholder="`${optionLetters[optionIndex]}. 子题选项内容（支持 Markdown）`"
+                            :placeholder="`${optionLetters[optionIndex]}. ${$t('m.Sub_Option_Content_Markdown')}`"
                           ></el-input>
                         </div>
-                        <el-button size="mini" @click="openCompositeOptionEditor(subIndex, optionIndex)">窗口编辑</el-button>
+                        <el-button size="mini" @click="openCompositeOptionEditor(subIndex, optionIndex)">{{ $t('m.Window_Edit') }}</el-button>
                       </div>
                     </div>
 
                   </div>
                 </div>
-                <el-button size="mini" type="primary" plain @click="addCompositeQuestion">新增子题</el-button>
+                <el-button size="mini" type="primary" plain @click="addCompositeQuestion">{{ $t('m.Add_Sub_Question') }}</el-button>
               </el-form-item>
             </template>
 
-            <el-form-item label="题目解析">
+            <el-form-item :label="$t('m.Question_Analysis_Text')">
               <Editor :value.sync="form.analysis" :allow-upload="true" class="question-analysis-markdown-editor" />
             </el-form-item>
 
-            <el-form-item label="题目标签">
+            <el-form-item :label="$t('m.Question_Tags')">
               <div class="tags-input-container">
                 <div class="tags-list">
                   <el-tag
@@ -230,7 +230,7 @@
                 </div>
                 <el-input
                   v-model="tagInput"
-                  placeholder="输入标签名称，按回车添加"
+                  :placeholder="$t('m.Enter_Tag_Name')"
                   @keyup.enter.native="addTag"
                 />
               </div>
@@ -238,8 +238,8 @@
 
             <el-row :gutter="12" class="compact-form-row">
               <el-col :span="12">
-                <el-form-item label="所属课程">
-                  <el-select v-model="form.course" placeholder="请选择课程" style="width: 100%">
+                <el-form-item :label="$t('m.Belongs_To_Course')">
+                  <el-select v-model="form.course" :placeholder="$t('m.Select_Course')" style="width: 100%">
                     <el-option
                       v-for="course in commonCourses"
                       :key="course"
@@ -250,7 +250,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="难度">
+                <el-form-item :label="$t('m.Difficulty')">
                   <el-rate v-model="form.difficulty" :max="3" />
                 </el-form-item>
               </el-col>
@@ -258,14 +258,14 @@
 
             <el-row :gutter="12" class="compact-form-row">
               <el-col :span="12">
-                <el-form-item label="默认分值">
+                <el-form-item :label="$t('m.Default_Score')">
                   <el-input-number v-model="form.score" :min="1" :max="100" :disabled="form.type === 'composite'"></el-input-number>
-                  <div v-if="form.type === 'composite'" class="compact-tip">组合题总分自动等于所有子题分值之和</div>
+                  <div v-if="form.type === 'composite'" class="compact-tip">{{ $t('m.Composite_Total_Hint') }}</div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="共享状态">
-                  <el-switch v-model="form.isShared" active-text="共享" inactive-text="个人"></el-switch>
+                <el-form-item :label="$t('m.Share_Status')">
+                  <el-switch v-model="form.isShared" :active-text="$t('m.Shared')" :inactive-text="$t('m.Private')"></el-switch>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -288,7 +288,7 @@
         @update:value="syncOptionEditorContent"
       />
       <span slot="footer">
-        <el-button @click="closeOptionEditor">关闭</el-button>
+        <el-button @click="closeOptionEditor">{{ $t('m.Close') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -374,30 +374,30 @@ export default {
       return !!this.questionId
     },
     pageTitle() {
-      return this.isEdit ? '编辑客观题' : '创建客观题'
+      return this.isEdit ? this.$t('m.Edit_Objective_Question') : this.$t('m.Create_Objective_Question')
     },
     submitButtonText() {
-      return this.isEdit ? '保存修改' : '创建题目'
+      return this.isEdit ? this.$t('m.Save_Changes') : this.$t('m.Create_Question')
     },
     optionEditorTitle() {
       if (!this.optionEditor.mode) {
-        return '编辑内容'
+        return this.$t('m.Edit_Content')
       }
       if (this.optionEditor.mode === 'normal_option') {
         const index = this.optionEditor.index
         const letter = this.optionLetters[index] || ''
-        return `编辑选项 ${letter}`
+        return `${this.$t('m.Edit_Option')} ${letter}`
       }
       if (this.optionEditor.mode === 'composite_content') {
         const subIndex = this.optionEditor.subIndex
-        return `编辑子题 ${subIndex + 1} 题干`
+        return `${this.$t('m.Edit_Sub_Question')} ${subIndex + 1}`
       }
       if (this.optionEditor.mode === 'composite_option') {
         const subIndex = this.optionEditor.subIndex
         const letter = this.optionLetters[this.optionEditor.index] || ''
-        return `编辑子题 ${subIndex + 1} 选项 ${letter}`
+        return `${this.$t('m.Edit_Sub_Option')} ${subIndex + 1} ${letter}`
       }
-      return '编辑内容'
+      return this.$t('m.Edit_Content')
     }
   },
   created() {
@@ -589,12 +589,12 @@ export default {
       try {
         const res = await classroomApi.deleteQuestionImages(targetUrls)
         if (res.data.code !== 200) {
-          if (!silent) this.$message.warning(res.data.message || '图片回收失败')
+          if (!silent) this.$message.warning(res.data.message || this.$t('m.Image_Recycle_Failed'))
           return false
         }
         return true
       } catch (error) {
-        if (!silent) this.$message.warning('图片回收失败')
+        if (!silent) this.$message.warning(this.$t('m.Image_Recycle_Failed'))
         return false
       }
     },
@@ -682,7 +682,7 @@ export default {
     removeFillBlankAnswer(index) {
       if (!Array.isArray(this.form.fillBlankAnswers)) return
       if (this.form.fillBlankAnswers.length <= 1) {
-        this.$message.warning('填空题至少保留一个答案输入框')
+        this.$message.warning(this.$t('m.Fill_Blank_Min_One'))
         return
       }
       this.form.fillBlankAnswers.splice(index, 1)
@@ -760,7 +760,7 @@ export default {
     removeCompositeQuestion(index) {
       if (!Array.isArray(this.form.compositeQuestions)) return
       if (this.form.compositeQuestions.length <= 1) {
-        this.$message.warning('组合题至少保留一个子题')
+        this.$message.warning(this.$t('m.Composite_Min_One'))
         return
       }
       this.form.compositeQuestions.splice(index, 1)
@@ -768,18 +768,18 @@ export default {
     },
     validateForm() {
       if (!this.form.title || !this.form.title.trim()) {
-        this.$message.warning('请输入题目标题')
+        this.$message.warning(this.$t('m.Enter_Question_Title'))
         return false
       }
       if (!this.form.content || !this.form.content.trim()) {
-        this.$message.warning('请输入题目内容')
+        this.$message.warning(this.$t('m.Enter_Question_Content'))
         return false
       }
 
       if (this.form.type === 'single_choice' || this.form.type === 'multiple_choice') {
         const hasEmptyOption = this.form.choiceOptions.some(opt => !opt || !String(opt).trim())
         if (hasEmptyOption) {
-          this.$message.warning('请填写完整的四个选项内容')
+          this.$message.warning(this.$t('m.Complete_Four_Options'))
           return false
         }
       }
@@ -787,7 +787,7 @@ export default {
       if (this.form.type === 'multiple_choice') {
         const selectedCount = this.form.correctAnswers.filter(Boolean).length
         if (selectedCount === 0) {
-          this.$message.warning('请至少选择一个正确答案')
+          this.$message.warning(this.$t('m.Select_One_Answer'))
           return false
         }
       }
@@ -795,34 +795,34 @@ export default {
       if (this.form.type === 'fill_blank') {
         const answers = this.getNormalizedFillBlankAnswers(this.form.fillBlankAnswers)
         if (answers.length === 0) {
-          this.$message.warning('填空题至少需要填写一个有效答案')
+          this.$message.warning(this.$t('m.Fill_Blank_Need_Answer'))
           return false
         }
       }
 
       if (this.form.type === 'composite') {
         if (!Array.isArray(this.form.compositeQuestions) || this.form.compositeQuestions.length === 0) {
-          this.$message.warning('请至少添加一个子题')
+          this.$message.warning(this.$t('m.Add_At_Least_One_Sub'))
           return false
         }
         for (let i = 0; i < this.form.compositeQuestions.length; i++) {
           const subQuestion = this.form.compositeQuestions[i]
           if (!subQuestion || !String(subQuestion.content || '').trim()) {
-            this.$message.warning(`请填写子题 ${i + 1} 的题干`)
+            this.$message.warning(this.$t('m.Fill_Sub_Content').replace('{n}', i + 1))
             return false
           }
           const invalidOptionIndex = (subQuestion.choiceOptions || []).findIndex(option => !String(option || '').trim())
           if (invalidOptionIndex !== -1) {
-            this.$message.warning(`请填写子题 ${i + 1} 的 ${this.optionLetters[invalidOptionIndex]} 选项内容`)
+            this.$message.warning(this.$t('m.Fill_Sub_Option').replace('{n}', i + 1).replace('{letter}', this.optionLetters[invalidOptionIndex]))
             return false
           }
           const subScore = Number(subQuestion.score || 0)
           if (!Number.isFinite(subScore) || subScore <= 0) {
-            this.$message.warning(`子题 ${i + 1} 的分值必须大于0`)
+            this.$message.warning(this.$t('m.Sub_Score_Positive').replace('{n}', i + 1))
             return false
           }
           if (subQuestion.correctAnswer === null || subQuestion.correctAnswer === undefined || subQuestion.correctAnswer < 0 || subQuestion.correctAnswer > 3) {
-            this.$message.warning(`请选择子题 ${i + 1} 的正确答案`)
+            this.$message.warning(this.$t('m.Select_Sub_Answer').replace('{n}', i + 1))
             return false
           }
         }
@@ -861,7 +861,7 @@ export default {
         submitData.answer = JSON.stringify(normalizedAnswers)
         submitData.options = null
       } else if (this.form.type === 'subjective') {
-        submitData.answer = this.form.referenceAnswer || '需人工评分'
+        submitData.answer = this.form.referenceAnswer || this.$t('m.Needs_Manual_Grading')
         submitData.options = null
       } else if (this.form.type === 'composite') {
         const compositeQuestions = (this.form.compositeQuestions || []).map((subQuestion, subIndex) => {
@@ -900,13 +900,13 @@ export default {
       try {
         const res = await classroomApi.getQuestionDetail(this.questionId)
         if (res.data.code !== 200 || !res.data.data) {
-          this.$message.error(res.data.message || '加载题目失败')
+          this.$message.error(res.data.message || this.$t('m.Load_Question_Failed'))
           this.goBack()
           return
         }
         this.fillFormByQuestion(res.data.data)
       } catch (error) {
-        this.$message.error('加载题目失败')
+        this.$message.error(this.$t('m.Load_Question_Failed'))
         this.goBack()
       } finally {
         this.loading = false
@@ -1046,13 +1046,13 @@ export default {
           await this.cleanupUnusedSessionUploadedQuestionImages()
           this.originalQuestionImageUrls = this.collectQuestionImageUrlsFromForm()
           this.hasSavedQuestion = true
-          this.$message.success(this.isEdit ? '更新成功' : '创建成功')
+          this.$message.success(this.isEdit ? this.$t('m.Update_Success') : this.$t('m.Create_Success'))
           this.goBack(true)
         } else {
-          this.$message.error(res.data.message || '操作失败')
+          this.$message.error(res.data.message || this.$t('m.Operation_Failed'))
         }
       } catch (error) {
-        this.$message.error('操作失败')
+        this.$message.error(this.$t('m.Operation_Failed'))
       } finally {
         this.saving = false
       }

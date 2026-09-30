@@ -39,7 +39,7 @@
              </el-tooltip>
              <el-tooltip
                v-if="isRating"
-               content="Rating 比赛 - 此比赛会影响选手的 Rating 分数"
+               :content="$t('m.Rating_Contest_Tip')"
                placement="top"
                effect="dark"
                style="margin-left:10px;"
@@ -333,7 +333,7 @@
           :disabled="contestMenuDisabled"
         >
           <span slot="label">
-            <i class="fa fa-question-circle" aria-hidden="true"></i>&nbsp;问题答疑
+            <i class="fa fa-question-circle" aria-hidden="true"></i>&nbsp;{{ $t('m.Contest_QA') }}
           </span>
           <transition name="el-zoom-in-bottom">
             <router-view v-if="route_name === 'ContestQuestionQA'"></router-view>
@@ -347,7 +347,7 @@
           v-if="isContestAdmin"
         >
           <span slot="label">
-            <i class="fa fa-comments" aria-hidden="true"></i>&nbsp;答疑列表
+            <i class="fa fa-comments" aria-hidden="true"></i>&nbsp;{{ $t('m.Contest_QA_List') }}
           </span>
           <transition name="el-zoom-in-bottom">
             <router-view v-if="route_name === 'ContestQuestionList'"></router-view>
@@ -361,7 +361,7 @@
           v-if="showViolationCheck"
         >
           <span slot="label">
-            <i class="fa fa-search" aria-hidden="true"></i>&nbsp;违规查询
+            <i class="fa fa-search" aria-hidden="true"></i>&nbsp;{{ $t('m.Violation_Query') }}
           </span>
           <transition name="el-zoom-in-bottom">
             <router-view v-if="route_name === 'ContestPlagiarism'"></router-view>

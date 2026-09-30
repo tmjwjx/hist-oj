@@ -1,31 +1,31 @@
 <template>
   <div class="homework-preview">
     <div class="header">
-      <h2>全卷预览（学生视角）</h2>
+      <h2>{{ $t('m.Full_Paper_Preview') }}</h2>
       <div class="actions">
-        <el-button @click="goBack">返回</el-button>
+        <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
     </div>
 
     <div class="preview-container" v-loading="loading">
       <!-- 作业基本信息 -->
       <el-card class="preview-info" shadow="never">
-        <h3>{{ homeworkInfo.title || '作业标题' }}</h3>
-        <p><strong>描述：</strong>{{ homeworkInfo.description || '无' }}</p>
-        <p><strong>开始时间：</strong>{{ formatTime(homeworkInfo.startTime) }}</p>
-        <p><strong>结束时间：</strong>{{ formatTime(homeworkInfo.endTime) }}</p>
-        <p><strong>总分：</strong>{{ getTotalScore() }} 分</p>
-        <p><strong>题目数量：</strong>{{ selectedQuestions.length }} 题</p>
+        <h3>{{ homeworkInfo.title || $t('m.Homework_Title') }}</h3>
+        <p><strong>{{ $t('m.Description') }}:</strong> {{ homeworkInfo.description || $t('m.None') }}</p>
+        <p><strong>{{ $t('m.Start_Time') }}:</strong>{{ formatTime(homeworkInfo.startTime) }}</p>
+        <p><strong>{{ $t('m.End_Time') }}:</strong>{{ formatTime(homeworkInfo.endTime) }}</p>
+        <p><strong>{{ $t('m.Total_Score') }}:</strong> {{ getTotalScore() }}</p>
+        <p><strong>{{ $t('m.Question_Count') }}:</strong> {{ selectedQuestions.length }}</p>
       </el-card>
 
       <!-- 题目列表（和学生看到的一样） -->
       <div class="questions-preview">
-        <el-divider content-position="left">题目内容</el-divider>
+        <el-divider content-position="left">{{ $t('m.Question_Content') }}</el-divider>
         <div v-for="(item, index) in selectedQuestions" :key="item.id || item.problemId" class="question-item">
           <div class="question-header">
             <span class="question-number">{{ index + 1 }}.</span>
             <span class="question-type">({{ getQuestionTypeText(item.type) }})</span>
-            <span class="question-score">{{ item.score }}分</span>
+            <span class="question-score">{{ item.score }}{{ $t('m.Score_Unit') }}</span>
           </div>
           <div class="question-title markdown-body preview-markdown" v-html="renderMarkdown(item.title)" v-highlight></div>
           <div
@@ -59,11 +59,11 @@
           <div v-if="item.type === 'judge'" class="question-options">
             <div class="option-preview">
               <span class="option-letter">✓</span>
-              <span class="option-text">正确</span>
+              <span class="option-text">{{ $t('m.True') }}</span>
             </div>
             <div class="option-preview">
               <span class="option-letter">✗</span>
-              <span class="option-text">错误</span>
+              <span class="option-text">{{ $t('m.False') }}</span>
             </div>
           </div>
 
@@ -75,8 +75,8 @@
               class="composite-preview-item"
             >
               <div class="composite-preview-header">
-                <span>子题 {{ subIndex + 1 }}</span>
-                <span>{{ Number(subQuestion.score || 0) }}分</span>
+                <span>{{ $t('m.Sub_Question') }} {{ subIndex + 1 }}</span>
+                <span>{{ Number(subQuestion.score || 0) }}{{ $t('m.Score_Unit') }}</span>
               </div>
               <div class="markdown-body preview-markdown" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
               <div class="question-options" style="padding-left: 0;">
@@ -93,14 +93,14 @@
           <!-- 填空题 -->
           <div v-if="item.type === 'fill_blank'" class="subjective-preview">
             <el-alert type="success" :closable="false">
-              <i class="el-icon-edit"></i> 填空题，学生需要在此处输入文本答案
+              <i class="el-icon-edit"></i> {{ $t('m.Fill_Blank_Student_Hint') }}
             </el-alert>
           </div>
 
           <!-- 主观题 -->
           <div v-if="item.type === 'subjective'" class="subjective-preview">
             <el-alert type="info" :closable="false">
-              <i class="el-icon-edit"></i> 主观题，学生需要在此处输入文字答案
+              <i class="el-icon-edit"></i> {{ $t('m.Subjective_Student_Hint') }}
             </el-alert>
           </div>
 
@@ -108,36 +108,36 @@
           <div v-if="item.type === 'programming'" class="programming-preview">
             <template v-if="getProgrammingProblemInfo(item.problemId)">
               <div class="problem-preview">
-                <el-divider content-position="left">编程题详情</el-divider>
+                <el-divider content-position="left">{{ $t('m.Programming_Detail') }}</el-divider>
                 <el-card>
                   <h3>{{ getProgrammingProblemInfo(item.problemId).problem.title }}</h3>
                   <div class="problem-meta">
-                    <el-tag size="small">题目ID: {{ getProgrammingProblemInfo(item.problemId).problem.problemId }}</el-tag>
-                    <el-tag size="small" type="info">时间限制: {{ getProgrammingProblemInfo(item.problemId).problem.timeLimit }}ms</el-tag>
-                    <el-tag size="small" type="warning">内存限制: {{ getProgrammingProblemInfo(item.problemId).problem.memoryLimit }}MB</el-tag>
-                    <el-tag size="small" type="success">判题模式: {{ getJudgeModeText(getProgrammingProblemInfo(item.problemId).problem.judgeMode) }}</el-tag>
+                    <el-tag size="small">{{ $t('m.Question_Id') }}: {{ getProgrammingProblemInfo(item.problemId).problem.problemId }}</el-tag>
+                    <el-tag size="small" type="info">{{ $t('m.Time_Limit') }}: {{ getProgrammingProblemInfo(item.problemId).problem.timeLimit }}ms</el-tag>
+                    <el-tag size="small" type="warning">{{ $t('m.Memory_Limit') }}: {{ getProgrammingProblemInfo(item.problemId).problem.memoryLimit }}MB</el-tag>
+                    <el-tag size="small" type="success">{{ $t('m.Judge_Mode') }}: {{ getJudgeModeText(getProgrammingProblemInfo(item.problemId).problem.judgeMode) }}</el-tag>
                   </div>
                   <div class="problem-content">
                     <div class="content-section">
-                      <h4>题目描述</h4>
+                      <h4>{{ $t('m.Problem_Description') }}</h4>
                       <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.description)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.input">
-                      <h4>输入格式</h4>
+                      <h4>{{ $t('m.Input_Format') }}</h4>
                       <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.input)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingProblemInfo(item.problemId).problem.output">
-                      <h4>输出格式</h4>
+                      <h4>{{ $t('m.Output_Format') }}</h4>
                       <div class="markdown-body preview-markdown" v-html="renderMarkdown(getProgrammingProblemInfo(item.problemId).problem.output)" v-highlight></div>
                     </div>
                     <div class="content-section" v-if="getProgrammingExamplesForProblem(item.problemId).length > 0">
-                      <h4>样例</h4>
+                      <h4>{{ $t('m.Samples') }}</h4>
                       <div v-for="(example, idx) in getProgrammingExamplesForProblem(item.problemId)" :key="idx" class="example-item">
-                        <el-alert :title="`样例 ${idx + 1}`" type="info" :closable="false">
+                        <el-alert :title="`${$t('m.Sample')} ${idx + 1}`" type="info" :closable="false">
                           <div slot="default">
-                            <p><strong>输入：</strong></p>
+                            <p><strong>{{ $t('m.Input') }}:</strong></p>
                             <pre>{{ example.input }}</pre>
-                            <p><strong>输出：</strong></p>
+                            <p><strong>{{ $t('m.Output') }}:</strong></p>
                             <pre>{{ example.output }}</pre>
                           </div>
                         </el-alert>
@@ -149,11 +149,11 @@
             </template>
 
             <el-alert v-else type="warning" :closable="false">
-              <p>学生将看到完整的编程题目界面，包括题目描述、样例、代码编辑器和提交按钮</p>
+              <p>{{ $t('m.Programming_Student_View_Hint') }}</p>
             </el-alert>
 
             <el-alert v-if="!item.problemId" type="warning" :closable="false">
-              此编程题未关联 BingOJ 题目 ID
+              {{ $t('m.Programming_Not_Linked') }}
             </el-alert>
           </div>
         </div>
@@ -212,7 +212,7 @@ export default {
         // 从 sessionStorage 读取预览数据
         const previewData = sessionStorage.getItem('homework_preview_data')
         if (!previewData) {
-          this.$message.error('未找到预览数据')
+          this.$message.error(this.$t('m.Preview_Data_Not_Found'))
           this.goBack()
           return
         }
@@ -227,7 +227,7 @@ export default {
           await this.loadProgrammingProblemsForPreview()
         }
       } catch (error) {
-        this.$message.error('加载预览数据失败')
+        this.$message.error(this.$t('m.Load_Preview_Failed'))
         console.error(error)
       } finally {
         this.loading = false
@@ -330,8 +330,8 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        fill_blank: '填空题',
-        composite: '组合题',
+        fill_blank: this.$t('m.Fill_Blank'),
+        composite: this.$t('m.Composite_Question'),
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
       }
@@ -339,12 +339,12 @@ export default {
     },
     getJudgeModeText(mode) {
       const modeMap = {
-        'default': '默认模式',
-        'spj': '特殊判题 (SPJ)',
-        'interactive': '交互式',
-        'subtask': '子任务'
+        'default': this.$t('m.Judge_Mode_Default'),
+        'spj': this.$t('m.Judge_Mode_Spj'),
+        'interactive': this.$t('m.Judge_Mode_Interactive'),
+        'subtask': this.$t('m.Judge_Mode_Subtask')
       }
-      return modeMap[mode] || mode || '默认模式'
+      return modeMap[mode] || mode || this.$t('m.Judge_Mode_Default')
     },
     renderMarkdown(text) {
       if (!text) return ''

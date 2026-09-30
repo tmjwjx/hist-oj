@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    title="测试数据同步与标准程序验题"
+    :title="$t('m.Verif_Dialog_Title')"
     :visible.sync="visibleProxy"
     width="720px"
     :close-on-click-modal="false"
@@ -8,7 +8,7 @@
     :show-close="false"
   >
     <div v-if="status" class="verification-body">
-      <el-button v-if="showAi" size="small" plain type="primary" class="ai-button" @click="openAi">一键 AI 生成程序并验题</el-button>
+      <el-button v-if="showAi" size="small" plain type="primary" class="ai-button" @click="openAi">{{ $t('m.Verif_One_Click_AI') }}</el-button>
       <el-alert
         :title="modeText"
         :description="syncDescription"
@@ -19,28 +19,28 @@
       <el-alert
         v-if="status.syncStatus === 2"
         class="verification-alert"
-        title="测试数据同步失败"
-        description="请确认判题服务器在线后重试，同步成功后才能提交标准程序。"
+        :title="$t('m.Verif_Sync_Failed_Title')"
+        :description="$t('m.Verif_Sync_Failed_Desc')"
         type="error"
         show-icon
         :closable="false"
       />
       <el-form v-else label-width="90px" class="verification-form">
-        <el-form-item label="提交语言">
-          <el-select v-model="form.language" @change="formChanged" placeholder="选择语言" style="width: 220px">
+        <el-form-item :label="$t('m.Verif_Language')">
+          <el-select v-model="form.language" @change="formChanged" :placeholder="$t('m.Verif_Select_Language')" style="width: 220px">
             <el-option v-for="language in languageOptions" :key="language" :label="language" :value="language" />
           </el-select>
-          <el-button class="last-code-button" plain @click="lastPassedVisible = true">查看上次通过代码</el-button>
+          <el-button class="last-code-button" plain @click="lastPassedVisible = true">{{ $t('m.Verif_View_Last_Code') }}</el-button>
         </el-form-item>
-        <el-form-item label="标准程序">
-            <el-input v-model="form.code" @input="formChanged" type="textarea" :rows="12" placeholder="提交能够通过全部测试数据的标准程序" />
+        <el-form-item :label="$t('m.Verif_Standard_Program')">
+            <el-input v-model="form.code" @input="formChanged" type="textarea" :rows="12" :placeholder="$t('m.Verif_Program_Placeholder')" />
         </el-form-item>
       </el-form>
       <el-alert
         v-if="status.sampleVerified"
         class="verification-alert"
-        title="样例已通过正式判题"
-        description="样例不是单独调用测试接口，而是随普通、SPJ 或交互题的完整判题流程一起验证。"
+        :title="$t('m.Verif_Sample_Passed_Title')"
+        :description="$t('m.Verif_Sample_Passed_Desc')"
         type="success"
         show-icon
         :closable="false"
@@ -49,7 +49,7 @@
         v-if="status.verificationStatus === 1"
         class="verification-alert"
         :title="status.judgeStatusText || 'Running on test 1'"
-        :description="status.judgeMessage || '标准程序正在正式判题，页面会自动刷新测试点进度。'"
+        :description="status.judgeMessage || $t('m.Verif_Judging_Desc')"
         type="info"
         show-icon
         :closable="false"
@@ -57,8 +57,8 @@
       <el-alert
         v-if="status.verificationStatus === 3"
         class="verification-alert"
-        :title="status.judgeStatusText || '标准程序未通过'"
-        :description="status.judgeMessage || '请修改程序后重新提交'"
+        :title="status.judgeStatusText || $t('m.Verif_Not_Passed')"
+        :description="status.judgeMessage || $t('m.Verif_Modify_And_Resubmit')"
         type="error"
         show-icon
         :closable="false"
@@ -67,23 +67,23 @@
         v-if="status.verificationStatus === 2"
         class="verification-alert"
         :title="status.judgeStatusText || 'Accepted'"
-        description="题目已经可以用于比赛。"
+        :description="$t('m.Verif_Accepted_Desc')"
         type="success"
         show-icon
         :closable="false"
       />
     </div>
-    <div v-else class="verification-loading">正在读取验题状态…</div>
+    <div v-else class="verification-loading">{{ $t('m.Verif_Loading_Status') }}</div>
     <span slot="footer">
-      <el-button v-if="hasDraft" type="danger" plain @click="deleteDraft">删除草稿及测试点</el-button>
-      <el-button v-if="status && status.syncStatus === 2" @click="retrySync" :loading="loading">重新同步</el-button>
-      <el-button @click="cancel">返回编辑</el-button>
+      <el-button v-if="hasDraft" type="danger" plain @click="deleteDraft">{{ $t('m.Verif_Delete_Draft') }}</el-button>
+      <el-button v-if="status && status.syncStatus === 2" @click="retrySync" :loading="loading">{{ $t('m.Verif_Retry_Sync') }}</el-button>
+      <el-button @click="cancel">{{ $t('m.Verif_Back_To_Edit') }}</el-button>
       <el-button
         type="primary"
         :loading="submitting"
         :disabled="!canSubmit"
         @click="submit"
-      >提交标准程序</el-button>
+      >{{ $t('m.Verif_Submit_Program') }}</el-button>
     </span>
     <ProblemAIValidationDialog
       v-if="aiVisible"
@@ -148,15 +148,15 @@ export default {
       return this.status && this.status.canSubmit && !this.submitting
     },
     modeText() {
-      if (!this.status) return '验题状态'
-      if (this.status.judgeMode === 'spj') return '特殊判题题：标准程序会使用已保存的 SPJ 进行校验'
-      if (this.status.judgeMode === 'interactive') return '交互题：标准程序会使用已保存的交互程序进行校验'
-      return '普通题：标准程序必须通过全部标准输出测试点'
+      if (!this.status) return this.$t('m.Verif_Status')
+      if (this.status.judgeMode === 'spj') return this.$t('m.Verif_Mode_Spj')
+      if (this.status.judgeMode === 'interactive') return this.$t('m.Verif_Mode_Interactive')
+      return this.$t('m.Verif_Mode_Default')
     },
     syncDescription() {
-      if (!this.status) return '正在读取测试数据状态'
-      if (this.status.syncStatus === 1) return '测试数据同步成功，可提交标准程序进行正式判题。'
-      return this.status.syncMessage || '正在读取测试数据状态'
+      if (!this.status) return this.$t('m.Verif_Reading_Data_Status')
+      if (this.status.syncStatus === 1) return this.$t('m.Verif_Sync_Success_Desc')
+      return this.status.syncMessage || this.$t('m.Verif_Reading_Data_Status')
     }
   },
   watch: {
@@ -226,7 +226,7 @@ export default {
       }
     },
     async submit() {
-      if (!this.form.code.trim()) return this.$message.warning('请填写标准程序')
+      if (!this.form.code.trim()) return this.$message.warning(this.$t('m.Verif_Program_Required'))
       this.submitting = true
       try {
         await api.admin_submitProblemVerification({ pid: this.pid, ...this.form })
@@ -238,8 +238,8 @@ export default {
       }
     },
     openAi() {
-      if (!this.form.language) return this.$message.warning('请先选择标准程序语言')
-      if (!this.status || this.status.syncStatus !== 1) return this.$message.warning('测试数据尚未同步完成')
+      if (!this.form.language) return this.$message.warning(this.$t('m.ProbAI_Select_Language_First'))
+      if (!this.status || this.status.syncStatus !== 1) return this.$message.warning(this.$t('m.Verif_Data_Not_Synced'))
       this.aiVisible = true
     },
     useAiGeneratedProgram(program) {
@@ -251,15 +251,15 @@ export default {
     async useLastPassedCode(record) {
       if (this.form.code.trim() && this.form.code !== record.code) {
         try {
-          await this.$confirm('填入历史代码会覆盖当前编辑内容，是否继续？', '使用上次通过代码', {
-            confirmButtonText: '确认填入', cancelButtonText: '取消', type: 'warning'
+          await this.$confirm(this.$t('m.Verif_Confirm_Overwrite'), this.$t('m.Verif_Use_Last_Code_Title'), {
+            confirmButtonText: this.$t('m.Verif_Confirm_Fill'), cancelButtonText: this.$t('m.Cancel'), type: 'warning'
           })
         } catch (e) { return }
       }
       this.form.language = record.language
       this.form.code = record.code
       this.formChanged()
-      this.$message.success('已按历史提交语言填入上次通过代码')
+      this.$message.success(this.$t('m.Verif_Filled_Last_Code'))
     },
     cancel() {
       this.stopDraftTimer()
@@ -269,9 +269,9 @@ export default {
         this.$emit('cancel')
         return
       }
-      this.$confirm('退出前是否保存标准程序草稿？', '提示', {
-        confirmButtonText: '保存并退出',
-        cancelButtonText: '不保存退出',
+      this.$confirm(this.$t('m.Verif_Confirm_Save_Draft'), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.Verif_Save_Exit'),
+        cancelButtonText: this.$t('m.Verif_No_Save_Exit'),
         distinguishCancelAndClose: true,
         type: 'warning'
       }).then(async () => {
@@ -291,9 +291,9 @@ export default {
     async deleteDraft() {
       try {
         await this.$confirm(
-          '删除草稿会同时删除该题本地及所有判题服务器上的测试点，之后必须重新上传测试数据。是否继续？',
-          '删除草稿及测试点',
-          { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
+          this.$t('m.Verif_Delete_Draft_Confirm'),
+          this.$t('m.Verif_Delete_Draft'),
+          { confirmButtonText: this.$t('m.Confirm_Delete'), cancelButtonText: this.$t('m.Cancel'), type: 'error' }
         )
       } catch (e) {
         return
@@ -302,7 +302,7 @@ export default {
       await api.admin_deleteProblemVerificationDraft(this.pid)
       this.form.code = ''
       this.hasDraft = false
-      this.$message.success('草稿和对应测试点已删除')
+      this.$message.success(this.$t('m.Verif_Draft_Deleted'))
       await this.load()
     },
     persistDraft(keepalive) {

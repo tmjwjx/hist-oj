@@ -1,7 +1,7 @@
 <template>
   <div class="homework-detail student-homework-page">
     <div class="header">
-      <h3>{{ homework.title || '作业详情' }}</h3>
+      <h3>{{ homework.title || $t('m.SHD_Homework_Detail') }}</h3>
       <div class="header-actions">
         <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -9,10 +9,10 @@
 
     <!-- 自动保存提示 -->
     <div v-if="autoSaving" class="auto-save-tip">
-      <i class="el-icon-loading"></i> 正在自动保存...
+      <i class="el-icon-loading"></i> {{ $t('m.SHD_Auto_Saving') }}
     </div>
     <div v-else-if="lastSaveTime" class="auto-save-tip success">
-      <i class="el-icon-check"></i> 已于 {{ lastSaveTime }} 自动保存
+      <i class="el-icon-check"></i> {{ $t('m.SHD_Saved_At', { time: lastSaveTime }) }}
     </div>
 
     <!-- 移除 v-loading 避免轮询时闪烁 -->
@@ -29,7 +29,7 @@
         <div v-if="canViewScore && submission" class="score-summary-card">
           <div class="score-summary-label">
             <i class="el-icon-medal"></i>
-            <span>{{ submission.hasUngraded ? $t('m.Graded_Score') : '最终成绩' }}</span>
+            <span>{{ submission.hasUngraded ? $t('m.Graded_Score') : $t('m.SHD_Final_Score') }}</span>
           </div>
           <div class="score-summary-value">
             <span :class="{ 'zero-score': scoreSummaryValue === 0 }">{{ scoreSummaryValue }}</span>
@@ -48,7 +48,7 @@
         <div v-if="isExamMode && !examStarted && !isSubmitted && !dataLoading" class="exam-confirm-inline">
           <div class="exam-confirm-header">
             <i class="el-icon-warning-outline" style="color: #E6A23C; font-size: 32px; margin-right: 10px;"></i>
-            <h2>当前为考试模式</h2>
+            <h2>{{ $t('m.SHD_Exam_Mode') }}</h2>
           </div>
 
           <el-alert
@@ -58,53 +58,53 @@
             style="margin: 15px 0;"
           >
             <template slot="title">
-              请认真阅读以下考试规则，开始后将无法修改
+              {{ $t('m.SHD_Exam_Rules_Alert') }}
             </template>
           </el-alert>
 
           <div class="exam-rules-inline">
-            <h3>⏱️ 时间规则</h3>
+            <h3>⏱️ {{ $t('m.SHD_Time_Rules') }}</h3>
             <ul>
-              <li><strong>考试时长：</strong>{{ examConfig.examDuration }} 分钟</li>
+              <li><strong>{{ $t('m.SHD_Exam_Duration') }}</strong>{{ examConfig.examDuration }} {{ $t('m.SHD_Minutes') }}</li>
               <li>
-                <strong>开始时间：</strong>点击"开始答题"后立即开始计时
+                <strong>{{ $t('m.SHD_Start_Time_Label') }}</strong>{{ $t('m.SHD_Start_Time_Hint') }}
               </li>
               <li v-if="examConfig.allowSubmitAfterMinutes > 0">
-                <strong>最早交卷时间：</strong>开考后 {{ examConfig.allowSubmitAfterMinutes }} 分钟
+                <strong>{{ $t('m.SHD_Earliest_Submit_Time') }}</strong>{{ $t('m.SHD_After_Start_Minutes', { minutes: examConfig.allowSubmitAfterMinutes }) }}
               </li>
               <li class="warning">
-                <strong>重要：</strong>考试时间到后系统将<strong>强制收卷</strong>，未保存的答案将丢失
+                <strong>{{ $t('m.SHD_Important') }}</strong>{{ $t('m.SHD_Timeup_Force_Before') }}<strong>{{ $t('m.SHD_Timeup_Force_Submit') }}</strong>{{ $t('m.SHD_Timeup_Force_After') }}
               </li>
             </ul>
 
-            <h3>🔒 防作弊规则</h3>
+            <h3>🔒 {{ $t('m.SHD_Anti_Cheat_Rules') }}</h3>
             <ul>
               <li v-if="examConfig.disableCopyPaste">
-                ✅ 禁止复制、粘贴任何内容
+                ✅ {{ $t('m.SHD_No_Copy_Paste') }}
               </li>
               <li v-if="examConfig.requireFullscreen">
-                ✅ 必须保持全屏模式，退出全屏将被记录
+                ✅ {{ $t('m.SHD_Fullscreen_Required') }}
               </li>
               <li v-if="examConfig.disallowTabSwitch">
-                ✅ 禁止切换浏览器标签页，将被记录
+                ✅ {{ $t('m.SHD_No_Tab_Switch') }}
               </li>
               <li>
-                ✅ 禁止同时打开其他软件或窗口（系统会检测）
+                ✅ {{ $t('m.SHD_No_Other_Windows') }}
               </li>
             </ul>
 
-            <h3>💡 答题建议</h3>
+            <h3>💡 {{ $t('m.SHD_Answer_Tips') }}</h3>
             <ul>
-              <li>请确保网络连接稳定</li>
-              <li>建议使用 Chrome 或 Edge 浏览器</li>
-              <li>系统会自动保存您的答题进度</li>
-              <li>考试结束前可随时修改已答题目</li>
+              <li>{{ $t('m.SHD_Network_Stable') }}</li>
+              <li>{{ $t('m.SHD_Browser_Suggestion') }}</li>
+              <li>{{ $t('m.SHD_Auto_Save_Progress') }}</li>
+              <li>{{ $t('m.SHD_Modify_Before_End') }}</li>
             </ul>
           </div>
 
           <div class="checkbox-group">
             <el-checkbox v-model="hasReadRules">
-              我已仔细阅读并理解以上考试规则，保证遵守考试纪律
+              {{ $t('m.SHD_Read_Rules_Checkbox') }}
             </el-checkbox>
           </div>
 
@@ -113,7 +113,7 @@
               size="large"
               @click="goBack"
             >
-              取消
+              {{ $t('m.Cancel') }}
             </el-button>
             <el-button
               type="primary"
@@ -123,7 +123,7 @@
               @click="startExam"
             >
               <i class="el-icon-edit"></i>
-              开始答题
+              {{ $t('m.SHD_Start_Exam') }}
             </el-button>
           </div>
         </div>
@@ -136,11 +136,11 @@
             <div v-if="item.problemId" class="programming-question-wrapper">
               <div class="question-header">
                 <span class="question-number">{{ index + 1 }}.</span>
-                <span class="question-type">(编程题)</span>
-                <span class="question-score">{{ item.score }}分</span>
+                <span class="question-type">({{ $t('m.Programming') }})</span>
+                <span class="question-score">{{ item.score }}{{ $t('m.Points') }}</span>
                 <!-- 未提交标签（学生提交后老师新增的题目） -->
                 <el-tag v-if="isQuestionUnsubmitted(item)" type="warning" size="small" style="margin-left: 10px">
-                  未提交
+                  {{ $t('m.SHD_Not_Submitted') }}
                 </el-tag>
                 <!-- 编程题作答状态 -->
                 <el-tag
@@ -150,12 +150,12 @@
                   style="margin-left: 10px"
                 >
                   <i v-if="programmingStatus[getProgrammingStatusKey(item)] === 'checking'" class="el-icon-loading"></i>
-                  {{ programmingStatusText[getProgrammingStatusKey(item)] || '未作答' }}
+                  {{ programmingStatusText[getProgrammingStatusKey(item)] || $t('m.No_Answer') }}
                 </el-tag>
                 <!-- 已提交后显示得分 -->
                 <span v-if="canViewScore && questionScores[item.problemId] !== undefined" class="question-score-earned">
-                  得分: <span :style="{ color: questionScores[item.problemId] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.problemId] }}</span>
-                  <span v-if="!questionIsScored[item.problemId]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
+                  {{ $t('m.SHD_Score_Label') }} <span :style="{ color: questionScores[item.problemId] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.problemId] }}</span>
+                  <span v-if="!questionIsScored[item.problemId]" style="color: #909399; font-size: 12px; margin-left: 5px;">({{ $t('m.Not_Graded') }})</span>
                 </span>
               </div>
               <ProgrammingQuestion
@@ -176,15 +176,15 @@
               <div class="question-header">
                 <span class="question-number">{{ index + 1 }}.</span>
                 <span class="question-type">({{ getQuestionTypeText(item.question.type) }})</span>
-                <span class="question-score">{{ item.score }}分</span>
+                <span class="question-score">{{ item.score }}{{ $t('m.Points') }}</span>
                 <!-- 未提交标签（学生提交后老师新增的题目） -->
                 <el-tag v-if="isQuestionUnsubmitted(item)" type="warning" size="small" style="margin-left: 10px">
-                  未提交
+                  {{ $t('m.SHD_Not_Submitted') }}
                 </el-tag>
                 <!-- 已提交后显示得分 -->
                 <span v-if="canViewScore && questionScores[item.question.id] !== undefined" class="question-score-earned">
-                  得分: <span :style="{ color: questionScores[item.question.id] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.question.id] }}</span>
-                  <span v-if="!questionIsScored[item.question.id]" style="color: #909399; font-size: 12px; margin-left: 5px;">(未评分)</span>
+                  {{ $t('m.SHD_Score_Label') }} <span :style="{ color: questionScores[item.question.id] === 0 ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">{{ questionScores[item.question.id] }}</span>
+                  <span v-if="!questionIsScored[item.question.id]" style="color: #909399; font-size: 12px; margin-left: 5px;">({{ $t('m.Not_Graded') }})</span>
                 </span>
               </div>
               <div class="question-title markdown-body" v-html="formatContent(item.question.title)" v-highlight></div>
@@ -213,16 +213,16 @@
                 </div>
                 <!-- 显示学生已选择的选项 -->
                 <div v-if="answers[item.question.id]" class="student-answer">
-                  <el-tag type="info">已选: {{ answers[item.question.id] }}</el-tag>
+                  <el-tag type="info">{{ $t('m.Selected') }}: {{ answers[item.question.id] }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
-                  <el-tag type="success">正确答案: {{ item.question.answer }}</el-tag>
+                  <el-tag type="success">{{ $t('m.Correct_Answer') }}: {{ item.question.answer }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -251,16 +251,16 @@
                 </div>
                 <!-- 显示学生已选择的选项（按字典序排列） -->
                 <div v-if="multipleAnswers[item.question.id] && multipleAnswers[item.question.id].length > 0" class="student-answer">
-                  <el-tag type="info">已选: {{ [...multipleAnswers[item.question.id]].sort().join(', ') }}</el-tag>
+                  <el-tag type="info">{{ $t('m.Selected') }}: {{ [...multipleAnswers[item.question.id]].sort().join(', ') }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
-                  <el-tag type="success">正确答案: {{ formatMultipleChoiceAnswer(item.question.answer) }}</el-tag>
+                  <el-tag type="success">{{ $t('m.Correct_Answer') }}: {{ formatMultipleChoiceAnswer(item.question.answer) }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -273,25 +273,25 @@
                   label="true"
                   @change="handleAnswerChange"
                   :disabled="isSubmitted"
-                >正确</el-radio>
+                >{{ $t('m.True') }}</el-radio>
                 <el-radio
                   v-model="answers[item.question.id]"
                   label="false"
                   @change="handleAnswerChange"
                   :disabled="isSubmitted"
-                >错误</el-radio>
+                >{{ $t('m.False') }}</el-radio>
                 <!-- 显示学生已选择的选项 -->
                 <div v-if="answers[item.question.id]" class="student-answer">
-                  <el-tag type="info">已选: {{ answers[item.question.id] === 'true' ? '正确' : '错误' }}</el-tag>
+                  <el-tag type="info">{{ $t('m.Selected') }}: {{ answers[item.question.id] === 'true' ? $t('m.True') : $t('m.False') }}</el-tag>
                 </div>
                 <!-- 显示正确答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
-                  <el-tag type="success">正确答案: {{ isJudgeTrue(item.question.answer) ? '正确' : '错误' }}</el-tag>
+                  <el-tag type="success">{{ $t('m.Correct_Answer') }}: {{ isJudgeTrue(item.question.answer) ? $t('m.True') : $t('m.False') }}</el-tag>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -303,19 +303,19 @@
                   v-model="answers[item.question.id]"
                   type="textarea"
                   :rows="3"
-                  placeholder="请输入你的填空答案"
+                  :placeholder="$t('m.Practice_Fill_Placeholder')"
                   @blur="handleAnswerChange"
                   :disabled="isSubmitted"
                 />
                 <div v-if="answers[item.question.id]" class="student-answer">
-                  <el-tag type="info">已答: {{ answers[item.question.id] }}</el-tag>
+                  <el-tag type="info">{{ $t('m.SHD_Answered') }}: {{ answers[item.question.id] }}</el-tag>
                 </div>
                 <div v-if="canViewAnswer && isSubmitted" class="correct-answer answer-info compact-answer-info">
-                  <el-tag type="success">正确答案: {{ formatFillBlankAnswer(item.question.answer) }}</el-tag>
+                  <el-tag type="success">{{ $t('m.Correct_Answer') }}: {{ formatFillBlankAnswer(item.question.answer) }}</el-tag>
                 </div>
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -327,14 +327,14 @@
                   v-model="answers[item.question.id]"
                   type="textarea"
                   :rows="4"
-                  placeholder="请输入你的答案"
+                  :placeholder="$t('m.Practice_Answer_Placeholder')"
                   @blur="handleAnswerChange"
                   :disabled="isSubmitted"
                 />
                 <!-- 图片上传区域 -->
                 <div v-if="!isSubmitted" class="image-upload-area">
                   <div class="upload-tip">
-                    <i class="el-icon-picture-outline"></i> 支持上传图片作为答案（可选）
+                    <i class="el-icon-picture-outline"></i> {{ $t('m.SHD_Upload_Image_Tip') }}
                   </div>
                   <el-upload
                     :action="uploadUrl"
@@ -352,13 +352,13 @@
                     <i class="el-icon-plus"></i>
                   </el-upload>
                   <div class="upload-limit-tip">
-                    <i class="el-icon-info"></i> 最多上传5张图片，每张图片不超过10MB
+                    <i class="el-icon-info"></i> {{ $t('m.SHD_Upload_Limit_Tip') }}
                   </div>
                 </div>
                 <!-- 已提交的图片显示 -->
                 <div v-else-if="getSubmittedImages(item.question.id).length > 0" class="submitted-images">
                   <div class="submitted-images-title">
-                    <i class="el-icon-picture"></i> 已提交的图片：
+                    <i class="el-icon-picture"></i> {{ $t('m.SHD_Submitted_Images') }}
                   </div>
                   <div class="submitted-images-list">
                     <el-image
@@ -375,15 +375,15 @@
                 <!-- 显示参考答案（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted" class="reference-answer answer-info compact-answer-info">
                   <div class="reference-answer-title">
-                    <i class="el-icon-document"></i> 参考答案：
+                    <i class="el-icon-document"></i> {{ $t('m.SHD_Reference_Answer') }}
                   </div>
                   <div v-if="item.question.answer" class="reference-answer-content markdown-body" v-html="formatContent(item.question.answer)" v-highlight></div>
-                  <div v-else class="reference-answer-empty">教师未设置答案</div>
+                  <div v-else class="reference-answer-empty">{{ $t('m.SHD_No_Reference_Answer') }}</div>
                 </div>
                 <!-- 显示题目解析（仅在已提交且允许查看答案时） -->
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -397,8 +397,8 @@
                   class="composite-sub-question-card"
                 >
                   <div class="composite-sub-header">
-                    <span>子题 {{ subIndex + 1 }}</span>
-                    <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                    <span>{{ $t('m.SHD_Sub_Question', { index: subIndex + 1 }) }}</span>
+                    <span class="question-score">{{ Number(subQuestion.score || 0) }}{{ $t('m.Points') }}</span>
                   </div>
                   <div class="markdown-body" v-html="formatContent(subQuestion.content || '')" v-highlight></div>
 
@@ -420,16 +420,16 @@
                   </div>
 
                   <div class="student-answer" v-if="getCompositeSelectedAnswer(item.question.id, subQuestion.id)">
-                    <el-tag type="info">已选: {{ getCompositeSelectedAnswer(item.question.id, subQuestion.id) }}</el-tag>
+                    <el-tag type="info">{{ $t('m.Selected') }}: {{ getCompositeSelectedAnswer(item.question.id, subQuestion.id) }}</el-tag>
                   </div>
                   <div class="correct-answer answer-info compact-answer-info" v-if="canViewAnswer && isSubmitted">
-                    <el-tag type="success">正确答案: {{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id) || '-' }}</el-tag>
+                    <el-tag type="success">{{ $t('m.Correct_Answer') }}: {{ getCompositeCorrectAnswer(item.question.answer, subQuestion.id) || '-' }}</el-tag>
                   </div>
                 </div>
 
                 <div v-if="canViewAnswer && isSubmitted && item.question.analysis" class="question-analysis">
                   <div class="analysis-title">
-                    <i class="el-icon-info" style="color: #409EFF;"></i> 题目解析：
+                    <i class="el-icon-info" style="color: #409EFF;"></i> {{ $t('m.SHD_Analysis') }}
                   </div>
                   <div class="analysis-content markdown-body" v-html="formatContent(item.question.analysis)" v-highlight></div>
                 </div>
@@ -443,7 +443,7 @@
         <!-- 操作区域 -->
         <div v-if="canSubmit" class="action-area">
           <el-button type="primary" @click="showSubmitConfirm" :loading="submitting">
-            <i class="el-icon-upload"></i> 提交作业
+            <i class="el-icon-upload"></i> {{ $t('m.Submit_Homework') }}
           </el-button>
         </div>
 
@@ -469,14 +469,14 @@
 
     <!-- 提交确认对话框 -->
     <el-dialog
-      title="确认提交"
+      :title="$t('m.SHD_Confirm_Submit_Title')"
       :visible.sync="showConfirmDialog"
       width="400px"
     >
-      <p>确定要提交作业吗？提交后将无法修改答案。</p>
+      <p>{{ $t('m.SHD_Confirm_Submit_Msg') }}</p>
       <span slot="footer">
-        <el-button @click="showConfirmDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmSubmit" :loading="submitting">确认提交</el-button>
+        <el-button @click="showConfirmDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="confirmSubmit" :loading="submitting">{{ $t('m.SHD_Confirm_Submit_Title') }}</el-button>
       </span>
     </el-dialog>
 
@@ -484,12 +484,12 @@
     <div v-if="showExamRuntimeUi" class="exam-header-bar">
       <div class="exam-badge">
         <i class="el-icon-warning-outline"></i>
-        考试模式进行中
+        {{ $t('m.SHD_Exam_In_Progress') }}
       </div>
 
       <div class="exam-timer">
         <i class="el-icon-time"></i>
-        <span class="timer-label">剩余时间：</span>
+        <span class="timer-label">{{ $t('m.SHD_Remaining_Time') }}</span>
         <span class="timer-value" :style="{ color: timerColor }">{{ formattedTime }}</span>
       </div>
 
@@ -501,14 +501,14 @@
           :loading="submitting"
         >
           <i class="el-icon-check"></i>
-          交卷
+          {{ $t('m.SHD_Submit_Paper') }}
         </el-button>
       </div>
     </div>
 
     <!-- 考试模式题目导航 -->
     <div v-if="showExamRuntimeUi && canViewHomework" class="question-navigator">
-      <div class="navigator-title">题目导航</div>
+      <div class="navigator-title">{{ $t('m.SHD_Question_Navigator') }}</div>
       <div class="navigator-grid">
         <div
           v-for="(item, index) in homework.questions"
@@ -521,15 +521,15 @@
         </div>
       </div>
       <div class="navigator-legend">
-        <span class="legend-item"><span class="legend-color unanswered"></span>未答</span>
-        <span class="legend-item"><span class="legend-color answered"></span>已答</span>
+        <span class="legend-item"><span class="legend-color unanswered"></span>{{ $t('m.SHD_Unanswered') }}</span>
+        <span class="legend-item"><span class="legend-color answered"></span>{{ $t('m.SHD_Answered') }}</span>
       </div>
     </div>
 
     <!-- 考试模式右下角计时器 -->
     <div v-if="showExamRuntimeUi && canViewHomework" class="exam-corner-timer">
       <i class="el-icon-time"></i>
-      <span class="timer-label">剩余时间：</span>
+      <span class="timer-label">{{ $t('m.SHD_Remaining_Time') }}</span>
       <span class="timer-value" :style="{ color: timerColor }">{{ formattedTime }}</span>
     </div>
   </div>
@@ -707,7 +707,7 @@ export default {
     formattedTime() {
       // 如果已提交或时间已到，显示"考试结束"
       if (this.isSubmitted || this.remainingSeconds <= 0) {
-        return '考试结束'
+        return this.$t('m.SHD_Exam_Finished')
       }
       const hours = Math.floor(this.remainingSeconds / 3600)
       const minutes = Math.floor((this.remainingSeconds % 3600) / 60)
@@ -885,14 +885,14 @@ export default {
                   // 判断是否是超时收卷（remainingSeconds <= 0）
                   if (this.remainingSeconds <= 0) {
                     this.$message.warning({
-                      message: '考试时间已到，系统已自动收卷',
+                      message: this.$t('m.SHD_Timeup_Auto_Submitted'),
                       duration: 5000,
                       showClose: true
                     })
                   } else {
                     // 还有剩余时间但被收卷，说明是老师强制收卷
                     this.$message.warning({
-                      message: '您已被老师强制收卷，请停止答题',
+                      message: this.$t('m.SHD_Force_Submitted'),
                       duration: 5000,
                       showClose: true
                     })
@@ -1201,7 +1201,7 @@ export default {
 
         // 检查题目数据是否存在
         if (!this.homework.questions || this.homework.questions.length === 0) {
-          this.$message.warning('题目数据加载中，请稍后再试')
+          this.$message.warning(this.$t('m.SHD_Loading_Questions'))
           return
         }
 
@@ -1240,15 +1240,15 @@ export default {
         if (res.code === 200) {
           this.hasUnsavedChanges = false
           this.lastSaveTime = moment().format('HH:mm:ss')
-          this.$message.success('草稿保存成功')
+          this.$message.success(this.$t('m.SHD_Draft_Saved'))
           // 草稿保存后不需要重新加载提交状态（因为不会改变 isSubmitted）
         } else {
           console.error('保存草稿失败:', res.message)
-          this.$message.error(res.message || '保存失败')
+          this.$message.error(res.message || this.$t('m.Save_Failed'))
         }
       } catch (error) {
         console.error('保存草稿异常:', error.message)
-        this.$message.error('保存失败：' + (error.message || '未知错误'))
+        this.$message.error(this.$t('m.SHD_Save_Failed_Reason', { reason: error.message || this.$t('m.Unknown') }))
       } finally {
         this.autoSaving = false
       }
@@ -1322,7 +1322,7 @@ export default {
       // 检查是否有未完成的题目
       const unanswered = this.getUnansweredQuestions()
       if (unanswered.length > 0) {
-        this.$message.warning(`请完成所有题目后再提交`)
+        this.$message.warning(this.$t('m.SHD_Complete_All_First'))
         return
       }
       this.showConfirmDialog = true
@@ -1337,7 +1337,7 @@ export default {
           const statusKey = this.getProgrammingStatusKey(item)
           const status = statusKey ? this.programmingStatus[statusKey] : undefined
           if (status !== 'submitted') {
-            unanswered.push(`第${this.getQuestionIndex(item)}题 (编程题)`)
+            unanswered.push(this.$t('m.SHD_Question_Index_Programming', { index: this.getQuestionIndex(item) }))
           }
           return
         }
@@ -1349,19 +1349,19 @@ export default {
         if (item.question.type === 'multiple_choice') {
           // 多选题：检查是否至少选择了一个选项
           if (!this.multipleAnswers[qid] || this.multipleAnswers[qid].length === 0) {
-            unanswered.push(`第${this.getQuestionIndex(item)}题`)
+            unanswered.push(this.$t('m.SHD_Question_Index', { index: this.getQuestionIndex(item) }))
           }
         } else if (item.question.type === 'composite') {
           const subQuestions = this.parseCompositeSubQuestions(item.question.options)
           const subAnswers = this.compositeAnswers[qid] || {}
           const hasMissing = subQuestions.some(subQuestion => !subAnswers[subQuestion.id])
           if (hasMissing) {
-            unanswered.push(`第${this.getQuestionIndex(item)}题`)
+            unanswered.push(this.$t('m.SHD_Question_Index', { index: this.getQuestionIndex(item) }))
           }
         } else {
           // 其他题型：检查是否有答案
           if (!this.answers[qid]) {
-            unanswered.push(`第${this.getQuestionIndex(item)}题`)
+            unanswered.push(this.$t('m.SHD_Question_Index', { index: this.getQuestionIndex(item) }))
           }
         }
       })
@@ -1418,7 +1418,7 @@ export default {
 
         // 检查是否有答案
         if (Object.keys(answersData).length === 0) {
-          this.$message.warning('请至少作答一道题目')
+          this.$message.warning(this.$t('m.SHD_Answer_At_Least_One'))
           return
         }
 
@@ -1491,18 +1491,18 @@ export default {
       return answer
     },
     formatFillBlankAnswer(answer) {
-      if (!answer) return '教师未设置答案'
+      if (!answer) return this.$t('m.SHD_No_Reference_Answer')
       try {
         const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer
         if (Array.isArray(parsed)) {
           const answers = parsed.map(item => String(item || '').trim()).filter(Boolean)
-          return answers.length > 0 ? answers.join(' / ') : '教师未设置答案'
+          return answers.length > 0 ? answers.join(' / ') : this.$t('m.SHD_No_Reference_Answer')
         }
       } catch (e) {
         // fall through
       }
       const value = String(answer || '').trim()
-      return value || '教师未设置答案'
+      return value || this.$t('m.SHD_No_Reference_Answer')
     },
     isJudgeTrue(answer) {
       const raw = String(answer || '').trim()
@@ -1532,9 +1532,9 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        fill_blank: '填空题',
+        fill_blank: this.$t('m.Practice_Fill_Blank'),
         subjective: this.$t('m.Subjective'),
-        composite: '组合题',
+        composite: this.$t('m.Practice_Composite'),
         programming: this.$t('m.Programming')
       }
       return map[type] || type
@@ -1602,14 +1602,14 @@ export default {
           // 已确认作答过的题目不允许回退到“未作答”
           if (this.programmingAnsweredOnce[statusKey]) {
             this.$set(this.programmingStatus, statusKey, 'submitted')
-            this.$set(this.programmingStatusText, statusKey, '已作答')
+            this.$set(this.programmingStatusText, statusKey, this.$t('m.Practice_Answered'))
             return
           }
 
           const currentStatus = this.programmingStatus[statusKey]
           if (currentStatus !== 'checking' && currentStatus !== 'submitted') {
             this.$set(this.programmingStatus, statusKey, 'not_started')
-            this.$set(this.programmingStatusText, statusKey, '未作答')
+            this.$set(this.programmingStatusText, statusKey, this.$t('m.No_Answer'))
           }
         }
       })
@@ -1744,13 +1744,13 @@ export default {
                   this.$set(this.programmingStatus, statusKey, 'submitted')
                   statusChanged = true
                 }
-                this.$set(this.programmingStatusText, statusKey, '已作答')
+                this.$set(this.programmingStatusText, statusKey, this.$t('m.Practice_Answered'))
               } else {
                 // 评测中，继续等待
                 // 始终更新为"评测中"状态，避免状态回退
                 if (currentStatus !== 'checking' && currentStatus !== 'submitted') {
                   this.$set(this.programmingStatus, statusKey, 'checking')
-                  this.$set(this.programmingStatusText, statusKey, '评测中...')
+                  this.$set(this.programmingStatusText, statusKey, this.$t('m.SHD_Judging'))
                   statusChanged = true
                 }
                 allCompleted = false
@@ -1765,7 +1765,7 @@ export default {
                 let stableStatus = currentStatus
                 if (this.programmingAnsweredOnce[statusKey] && currentStatus !== 'checking') {
                   this.$set(this.programmingStatus, statusKey, 'submitted')
-                  this.$set(this.programmingStatusText, statusKey, '已作答')
+                  this.$set(this.programmingStatusText, statusKey, this.$t('m.Practice_Answered'))
                   stableStatus = 'submitted'
                 }
                 // 保持当前状态，不回退
@@ -1773,7 +1773,7 @@ export default {
               } else {
                 // 只有当前不是"评测中"或"已完成"时，才设置为"未作答"
                 this.$set(this.programmingStatus, statusKey, 'not_started')
-                this.$set(this.programmingStatusText, statusKey, '未作答')
+                this.$set(this.programmingStatusText, statusKey, this.$t('m.No_Answer'))
                 allCompleted = false
               }
             }
@@ -1890,7 +1890,7 @@ export default {
       if (!statusKey) return
 
       this.$set(this.programmingStatus, statusKey, 'checking')
-      this.$set(this.programmingStatusText, statusKey, '评测中...')
+      this.$set(this.programmingStatusText, statusKey, this.$t('m.SHD_Judging'))
 
       // 提交后尽快触发一次强制刷新，减少“未作答”误判窗口
       setTimeout(() => {
@@ -1905,14 +1905,14 @@ export default {
         const currentStatus = this.programmingStatus[statusKey]
         if (currentStatus !== 'submitted') {
           this.$set(this.programmingStatus, statusKey, 'checking')
-          this.$set(this.programmingStatusText, statusKey, '评测中...')
+          this.$set(this.programmingStatusText, statusKey, this.$t('m.SHD_Judging'))
         }
         return
       }
 
       this.$set(this.programmingAnsweredOnce, statusKey, true)
       this.$set(this.programmingStatus, statusKey, 'submitted')
-      this.$set(this.programmingStatusText, statusKey, '已作答')
+      this.$set(this.programmingStatusText, statusKey, this.$t('m.Practice_Answered'))
     },
     // 图片上传成功回调
     handleUploadSuccess(response, file, fileList, questionId) {
@@ -1931,12 +1931,12 @@ export default {
         // 触发自动保存
         this.handleAnswerChange()
       } else {
-        this.$message.error(response.message || '图片上传失败')
+        this.$message.error(response.message || this.$t('m.SHD_Image_Upload_Failed'))
       }
     },
     // 图片上传失败回调
     handleUploadError(err, file, fileList) {
-      this.$message.error('图片上传失败，请重试')
+      this.$message.error(this.$t('m.SHD_Image_Upload_Failed_Retry'))
     },
     // 删除图片回调
     handleRemoveFile(file, fileList, questionId) {
@@ -1959,7 +1959,7 @@ export default {
     },
     // 超出上传数量限制
     handleExceed(files, fileList) {
-      this.$message.warning('最多只能上传5张图片')
+      this.$message.warning(this.$t('m.SHD_Max_Images'))
     },
     // 获取某题目的图片列表（用于el-upload）
     getImageList(questionId) {
@@ -2072,13 +2072,13 @@ export default {
           // 初始化防作弊
           this.initAntiCheat()
 
-          this.$message.success('考试开始，请认真答题')
+          this.$message.success(this.$t('m.SHD_Exam_Started'))
         } else {
-          this.$message.error(res.message || '开始考试失败')
+          this.$message.error(res.message || this.$t('m.SHD_Start_Exam_Failed'))
         }
       } catch (error) {
         console.error('开始考试失败:', error)
-        this.$message.error('开始考试失败')
+        this.$message.error(this.$t('m.SHD_Start_Exam_Failed'))
       }
     },
     // 启动考试计时器
@@ -2115,7 +2115,7 @@ export default {
         const elapsedMinutes = Math.floor((new Date() - this.examStartTime) / 1000 / 60)
         const remainingMinutes = this.examConfig.allowSubmitAfterMinutes - elapsedMinutes
         this.$message.warning({
-          message: `开考后${this.examConfig.allowSubmitAfterMinutes}分钟内不允许交卷，请再等待${remainingMinutes}分钟`,
+          message: this.$t('m.SHD_Submit_Not_Allowed', { total: this.examConfig.allowSubmitAfterMinutes, remaining: remainingMinutes }),
           duration: 3000,
           showClose: true
         })
@@ -2152,13 +2152,13 @@ export default {
                 this.homework.status === 2) {
               if (this.remainingSeconds <= 0) {
                 this.$message.warning({
-                  message: '考试时间已到，系统已自动收卷',
+                  message: this.$t('m.SHD_Timeup_Auto_Submitted'),
                   duration: 5000,
                   showClose: true
                 })
               } else {
                 this.$message.warning({
-                  message: '您已被老师强制收卷，请停止答题',
+                  message: this.$t('m.SHD_Force_Submitted'),
                   duration: 5000,
                   showClose: true
                 })
@@ -2178,7 +2178,7 @@ export default {
     },
     // 超时处理
     async handleOvertime() {
-      this.$message.warning('考试时间已到，系统正在自动收卷...')
+      this.$message.warning(this.$t('m.SHD_Timeup_Auto_Submitting'))
 
       // 停止计时器
       if (this.examTimerInterval) {
@@ -2262,8 +2262,8 @@ export default {
         return
       }
       e.preventDefault()
-      this.$message.warning('考试模式下禁止使用右键菜单')
-      this.logViolation('context_menu', '尝试打开右键菜单')
+      this.$message.warning(this.$t('m.SHD_No_Right_Click'))
+      this.logViolation('context_menu', this.$t('m.Context_Menu'))
     },
     // 禁止复制
     handleCopy(e) {
@@ -2272,8 +2272,8 @@ export default {
         return
       }
       e.preventDefault()
-      this.$message.warning('考试模式下禁止复制')
-      this.logViolation('copy_attempt', '尝试复制内容')
+      this.$message.warning(this.$t('m.SHD_Exam_No_Copy'))
+      this.logViolation('copy_attempt', this.$t('m.Copy_Attempt'))
     },
     // 禁止粘贴
     handlePaste(e) {
@@ -2282,8 +2282,8 @@ export default {
         return
       }
       e.preventDefault()
-      this.$message.warning('考试模式下禁止粘贴')
-      this.logViolation('paste_attempt', '尝试粘贴内容')
+      this.$message.warning(this.$t('m.SHD_Exam_No_Paste'))
+      this.logViolation('paste_attempt', this.$t('m.Paste_Attempt'))
     },
     // 禁止剪切
     handleCut(e) {
@@ -2292,8 +2292,8 @@ export default {
         return
       }
       e.preventDefault()
-      this.$message.warning('考试模式下禁止剪切')
-      this.logViolation('cut_attempt', '尝试剪切内容')
+      this.$message.warning(this.$t('m.SHD_Exam_No_Cut'))
+      this.logViolation('cut_attempt', this.$t('m.Cut_Attempt'))
     },
     // 进入全屏
     async enterFullscreen() {
@@ -2322,7 +2322,7 @@ export default {
       if (!isFullscreen && this.examConfig.requireFullscreen) {
         this.fullscreenWarned = true
         this.$message.warning({
-          message: '请进入全屏模式参加考试（按F11或点击页面）',
+          message: this.$t('m.SHD_Enter_Fullscreen'),
           duration: 5000,
           showClose: true,
           onClose: () => {
@@ -2355,13 +2355,13 @@ export default {
 
       if (!currentFullscreenState && this.examConfig.requireFullscreen) {
         // 从全屏变为非全屏：记录违规
-        this.logViolation('fullscreen_exit', '退出全屏')
+        this.logViolation('fullscreen_exit', this.$t('m.Fullscreen_Exit_Desc'))
 
         // 只警告一次，不强制弹窗或自动进入全屏
         if (!this.fullscreenWarned) {
           this.fullscreenWarned = true
           this.$message.warning({
-            message: '检测到退出全屏，请立即返回全屏！按 F11 或在页面右键选择"进入全屏"',
+            message: this.$t('m.SHD_Fullscreen_Exit_Detected'),
             duration: 5000,
             showClose: true
           })
@@ -2392,12 +2392,12 @@ export default {
       // 如果当前在全屏状态，但页面隐藏了（可能是用户切换到了其他标签页）
       if (document.hidden) {
         if (isFullscreen && this.examConfig.disallowTabSwitch) {
-          this.$message.warning('检测到切换标签页，请专注于考试！')
-          this.logViolation('tab_switch', '切换标签页')
+          this.$message.warning(this.$t('m.SHD_Tab_Switch_Detected'))
+          this.logViolation('tab_switch', this.$t('m.Tab_Switch_Desc'))
         } else if (!isFullscreen && this.examConfig.requireFullscreen) {
           // 如果不在全屏状态且页面隐藏了，说明用户可能退出了全屏并切换到了其他应用
-          this.$message.warning('检测到退出全屏，请立即返回考试界面！')
-          this.logViolation('fullscreen_exit', '退出全屏')
+          this.$message.warning(this.$t('m.SHD_Fullscreen_Exit_Return'))
+          this.logViolation('fullscreen_exit', this.$t('m.Fullscreen_Exit_Desc'))
         }
       }
     },
@@ -2418,12 +2418,12 @@ export default {
       // 如果页面还是可见的，但窗口失焦了，说明是点击了其他软件
       if (!document.hidden && isFullscreen) {
         this.$notify({
-          title: '警告',
-          message: '检测到切换到其他窗口，请专注于考试！',
+          title: this.$t('m.Warning'),
+          message: this.$t('m.SHD_Window_Blur_Detected'),
           type: 'warning',
           duration: 3000
         })
-        this.logViolation('window_blur', '切换到其他软件')
+        this.logViolation('window_blur', this.$t('m.Window_Blur'))
       }
     },
     // 窗口获得焦点
@@ -2456,14 +2456,14 @@ export default {
       // 禁用 F12
       if (e.key === 'F12') {
         e.preventDefault()
-        this.logViolation('devtools_attempt', '尝试打开开发者工具')
+        this.logViolation('devtools_attempt', this.$t('m.Devtools_Attempt'))
         return
       }
 
       // 禁用 Ctrl+Shift+I
       if (e.ctrlKey && e.shiftKey && e.key === 'I') {
         e.preventDefault()
-        this.logViolation('devtools_attempt', '尝试打开开发者工具')
+        this.logViolation('devtools_attempt', this.$t('m.Devtools_Attempt'))
         return
       }
 
@@ -2482,7 +2482,7 @@ export default {
       // 禁用 Esc（如果要求全屏）
       if (e.key === 'Escape' && this.examConfig.requireFullscreen) {
         e.preventDefault()
-        this.$message.warning('考试期间禁止退出全屏')
+        this.$message.warning(this.$t('m.SHD_No_Exit_Fullscreen'))
         return
       }
     },
@@ -2544,7 +2544,7 @@ export default {
     handleBeforeUnload(e) {
       if (this.isExamMode && this.examStarted && !this.isSubmitted) {
         e.preventDefault()
-        e.returnValue = '考试正在进行中，离开会导致答案丢失！确定要离开吗？'
+        e.returnValue = this.$t('m.SHD_Before_Unload_Msg')
         return e.returnValue
       }
     },
@@ -2606,7 +2606,7 @@ export default {
   beforeRouteLeave(to, from, next) {
     // 考试模式下且未提交时，给出警告但允许离开
     if (this.isExamMode && this.examStarted && !this.isSubmitted) {
-      const answer = confirm('⚠️ 警告：考试正在进行中！\n\n离开后您可以再次进入继续考试，但请确保不会超时。确定要离开吗？')
+      const answer = confirm('⚠️ ' + this.$t('m.SHD_Leave_Exam_Confirm'))
       if (answer) {
         // 用户确认离开，不清理资源（组件销毁时会自动清理）
         next()

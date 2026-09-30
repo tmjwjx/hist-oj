@@ -1,16 +1,16 @@
 <template>
   <el-card class="registration-info-card" shadow="never">
     <div slot="header" class="registration-info-header">
-      <span><i class="el-icon-document-checked"></i> 我的报名信息</span>
-      <el-button type="text" :loading="loading" @click="$emit('refresh')">刷新</el-button>
+      <span><i class="el-icon-document-checked"></i> {{ $t('m.My_Registration_Info') }}</span>
+      <el-button type="text" :loading="loading" @click="$emit('refresh')">{{ $t('m.Refresh') }}</el-button>
     </div>
     <div class="registration-info-grid">
       <div class="registration-info-item">
-        <span class="registration-info-label">OJ名称</span>
+        <span class="registration-info-label">{{ $t('m.Reg_OJ_Username') }}</span>
         <span>{{ registration.username || registration.uid }}</span>
       </div>
       <div class="registration-info-item">
-        <span class="registration-info-label">报名时间</span>
+        <span class="registration-info-label">{{ $t('m.Reg_Time') }}</span>
         <span>{{ registration.gmtCreate | localtime }}</span>
       </div>
       <div
@@ -18,25 +18,26 @@
         :key="field.value"
         class="registration-info-item"
       >
-        <span class="registration-info-label">{{ field.label }}</span>
+        <span class="registration-info-label">{{ $t('m.' + field.labelKey) }}</span>
         <span>{{ registration[field.value] || '—' }}</span>
       </div>
     </div>
     <div v-if="enabledFields.length === 0" class="registration-info-empty">
-      本比赛未要求填写额外报名信息。
+      {{ $t('m.Reg_No_Extra_Fields') }}
     </div>
   </el-card>
 </template>
 
 <script>
+// 模块级映射表只存 i18n 键名，渲染时通过 $t('m.' + labelKey) 翻译
 const FIELDS = [
-  { value: "name", label: "姓名" },
-  { value: "class", label: "班级" },
-  { value: "college", label: "学院" },
-  { value: "studentId", label: "学号" },
-  { value: "gender", label: "性别" },
-  { value: "qq", label: "QQ" },
-  { value: "phone", label: "电话号码" },
+  { value: "name", labelKey: "Reg_Field_Name" },
+  { value: "class", labelKey: "Reg_Field_Class" },
+  { value: "college", labelKey: "Reg_Field_College" },
+  { value: "studentId", labelKey: "Reg_Field_Student_ID" },
+  { value: "gender", labelKey: "Reg_Field_Gender" },
+  { value: "qq", labelKey: "Reg_Field_QQ" },
+  { value: "phone", labelKey: "Reg_Field_Phone" },
 ];
 
 export default {

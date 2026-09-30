@@ -2,7 +2,7 @@
   <div>
     <!-- 编程题详情对话框 - 移到最外层 -->
     <el-dialog
-      title="编程题详情"
+      :title="$t('m.CH_Programming_Detail')"
       :visible.sync="showProblemDetailDialog"
       width="900px"
       :close-on-click-modal="false"
@@ -16,52 +16,52 @@
 
           <div class="problem-meta-info" style="margin: 15px 0;">
             <el-tag size="small" type="info">
-              <span v-html="renderMarkdown('**时间限制:** ' + currentViewProblem.problem.timeLimit + 'ms')"></span>
+              <span v-html="renderMarkdown($t('m.EP_Time_Limit_Bold') + currentViewProblem.problem.timeLimit + 'ms')"></span>
             </el-tag>
             <el-tag size="small" type="warning">
-              <span v-html="renderMarkdown('**内存限制:** ' + currentViewProblem.problem.memoryLimit + 'MB')"></span>
+              <span v-html="renderMarkdown($t('m.EP_Memory_Limit_Bold') + currentViewProblem.problem.memoryLimit + 'MB')"></span>
             </el-tag>
             <el-tag size="small" type="primary">
-              <span v-html="renderMarkdown('**判题模式:** ' + getJudgeModeText(currentViewProblem.problem.judgeMode))"></span>
+              <span v-html="renderMarkdown($t('m.EP_Judge_Mode_Bold') + getJudgeModeText(currentViewProblem.problem.judgeMode))"></span>
             </el-tag>
             <el-tag size="small" type="success">
-              <span v-html="renderMarkdown('**难度:** ' + getDifficultyName(currentViewProblem.problem.difficulty))"></span>
+              <span v-html="renderMarkdown($t('m.EP_Difficulty_Bold') + getDifficultyName(currentViewProblem.problem.difficulty))"></span>
             </el-tag>
           </div>
 
           <el-divider></el-divider>
 
           <div class="problem-section">
-            <h4>题目描述</h4>
+            <h4>{{ $t('m.Problem_Description') }}</h4>
             <div class="problem-description" v-html="renderMarkdown(currentViewProblem.problem.description)"></div>
           </div>
 
           <div class="problem-section" v-if="currentViewProblem.problem.input">
-            <h4>输入格式</h4>
+            <h4>{{ $t('m.CH_Input_Format') }}</h4>
             <div class="problem-io" v-html="renderMarkdown(currentViewProblem.problem.input)"></div>
           </div>
 
           <div class="problem-section" v-if="currentViewProblem.problem.output">
-            <h4>输出格式</h4>
+            <h4>{{ $t('m.CH_Output_Format') }}</h4>
             <div class="problem-io" v-html="renderMarkdown(currentViewProblem.problem.output)"></div>
           </div>
 
           <div class="problem-section" v-if="currentViewProblem.problem.hint">
-            <h4>提示</h4>
+            <h4>{{ $t('m.CH_Hint') }}</h4>
             <div class="problem-hint" v-html="renderMarkdown(currentViewProblem.problem.hint)"></div>
           </div>
 
           <div class="problem-section" v-if="parseExamples(currentViewProblem.problem.examples).length > 0">
-            <h4>样例</h4>
+            <h4>{{ $t('m.CH_Examples') }}</h4>
             <div v-for="(example, index) in parseExamples(currentViewProblem.problem.examples)" :key="index" class="problem-example">
               <div class="example-item">
-                <strong v-html="renderMarkdown('样例 ' + (index + 1))"></strong>
+                <strong v-html="renderMarkdown($t('m.CH_Example_N', { index: index + 1 }))"></strong>
                 <div class="example-block">
-                  <div class="example-label" v-html="renderMarkdown('**输入：**')"></div>
+                  <div class="example-label" v-html="renderMarkdown($t('m.EP_Input_Bold'))"></div>
                   <div class="example-content" v-html="renderMarkdown(example.input)"></div>
                 </div>
                 <div class="example-block">
-                  <div class="example-label" v-html="renderMarkdown('**输出：**')"></div>
+                  <div class="example-label" v-html="renderMarkdown($t('m.EP_Output_Bold'))"></div>
                   <div class="example-content" v-html="renderMarkdown(example.output)"></div>
                 </div>
               </div>
@@ -71,17 +71,17 @@
       </div>
       <div v-else class="problem-empty">
         <i class="el-icon-info"></i>
-        <span>暂无题目信息</span>
+        <span>{{ $t('m.EP_No_Problem_Info') }}</span>
       </div>
 
       <span slot="footer">
-        <el-button @click="showProblemDetailDialog = false">关闭</el-button>
+        <el-button @click="showProblemDetailDialog = false">{{ $t('m.Close') }}</el-button>
       </span>
     </el-dialog>
 
     <!-- 标签题目详情对话框 -->
     <el-dialog
-      title="题目详情"
+      :title="$t('m.Question_Detail')"
       :visible.sync="showTagProblemDetailDialog"
       width="900px"
       :close-on-click-modal="false"
@@ -94,52 +94,52 @@
 
           <div class="problem-meta-info" style="margin: 15px 0;">
             <el-tag size="small" type="info">
-              <span v-html="renderMarkdown('**时间限制:** ' + tagProblemDetail.problem.timeLimit + 'ms')"></span>
+              <span v-html="renderMarkdown($t('m.EP_Time_Limit_Bold') + tagProblemDetail.problem.timeLimit + 'ms')"></span>
             </el-tag>
             <el-tag size="small" type="warning">
-              <span v-html="renderMarkdown('**内存限制:** ' + tagProblemDetail.problem.memoryLimit + 'MB')"></span>
+              <span v-html="renderMarkdown($t('m.EP_Memory_Limit_Bold') + tagProblemDetail.problem.memoryLimit + 'MB')"></span>
             </el-tag>
             <el-tag size="small" type="primary">
-              <span v-html="renderMarkdown('**判题模式:** ' + getJudgeModeText(tagProblemDetail.problem.judgeMode))"></span>
+              <span v-html="renderMarkdown($t('m.EP_Judge_Mode_Bold') + getJudgeModeText(tagProblemDetail.problem.judgeMode))"></span>
             </el-tag>
             <el-tag size="small" type="success">
-              <span v-html="renderMarkdown('**难度:** ' + getDifficultyName(tagProblemDetail.problem.difficulty))"></span>
+              <span v-html="renderMarkdown($t('m.EP_Difficulty_Bold') + getDifficultyName(tagProblemDetail.problem.difficulty))"></span>
             </el-tag>
           </div>
 
           <el-divider></el-divider>
 
           <div class="problem-section">
-            <h4>题目描述</h4>
+            <h4>{{ $t('m.Problem_Description') }}</h4>
             <div class="problem-description" v-html="renderMarkdown(tagProblemDetail.problem.description)"></div>
           </div>
 
           <div class="problem-section" v-if="tagProblemDetail.problem.input">
-            <h4>输入格式</h4>
+            <h4>{{ $t('m.CH_Input_Format') }}</h4>
             <div class="problem-io" v-html="renderMarkdown(tagProblemDetail.problem.input)"></div>
           </div>
 
           <div class="problem-section" v-if="tagProblemDetail.problem.output">
-            <h4>输出格式</h4>
+            <h4>{{ $t('m.CH_Output_Format') }}</h4>
             <div class="problem-io" v-html="renderMarkdown(tagProblemDetail.problem.output)"></div>
           </div>
 
           <div class="problem-section" v-if="tagProblemDetail.problem.hint">
-            <h4>提示</h4>
+            <h4>{{ $t('m.CH_Hint') }}</h4>
             <div class="problem-hint" v-html="renderMarkdown(tagProblemDetail.problem.hint)"></div>
           </div>
 
           <div class="problem-section" v-if="parseExamples(tagProblemDetail.problem.examples).length > 0">
-            <h4>样例</h4>
+            <h4>{{ $t('m.CH_Examples') }}</h4>
             <div v-for="(example, index) in parseExamples(tagProblemDetail.problem.examples)" :key="index" class="problem-example">
               <div class="example-item">
-                <strong v-html="renderMarkdown('样例 ' + (index + 1))"></strong>
+                <strong v-html="renderMarkdown($t('m.CH_Example_N', { index: index + 1 }))"></strong>
                 <div class="example-block">
-                  <div class="example-label" v-html="renderMarkdown('**输入：**')"></div>
+                  <div class="example-label" v-html="renderMarkdown($t('m.EP_Input_Bold'))"></div>
                   <div class="example-content" v-html="renderMarkdown(example.input)"></div>
                 </div>
                 <div class="example-block">
-                  <div class="example-label" v-html="renderMarkdown('**输出：**')"></div>
+                  <div class="example-label" v-html="renderMarkdown($t('m.EP_Output_Bold'))"></div>
                   <div class="example-content" v-html="renderMarkdown(example.output)"></div>
                 </div>
               </div>
@@ -149,7 +149,7 @@
       </div>
 
       <span slot="footer">
-        <el-button type="primary" @click="showTagProblemDetailDialog = false">关闭</el-button>
+        <el-button type="primary" @click="showTagProblemDetailDialog = false">{{ $t('m.Close') }}</el-button>
       </span>
     </el-dialog>
 
@@ -158,11 +158,11 @@
       <div class="card-header">
         <div class="header-left">
           <i class="el-icon-document-copy"></i>
-          <span>试卷库管理</span>
+          <span>{{ $t('m.EP_Paper_Management') }}</span>
         </div>
         <div class="header-right">
           <el-button type="primary" icon="el-icon-plus" @click="openCreateDialog" size="small">
-            创建试卷
+            {{ $t('m.EP_Create_Paper') }}
           </el-button>
         </div>
       </div>
@@ -173,7 +173,7 @@
           <el-col :span="6">
             <el-input
               v-model="filters.keyword"
-              placeholder="搜索试卷标题"
+              :placeholder="$t('m.EP_Search_Paper_Title')"
               clearable
               @clear="loadPapers"
               @keyup.enter.native="loadPapers"
@@ -182,10 +182,10 @@
             </el-input>
           </el-col>
           <el-col :span="6">
-            <el-select v-model="filters.isShared" placeholder="共享状态" clearable @change="loadPapers">
-              <el-option label="全部" value=""></el-option>
-              <el-option label="私有试卷" value="0"></el-option>
-              <el-option label="共享试卷" value="1"></el-option>
+            <el-select v-model="filters.isShared" :placeholder="$t('m.EP_Share_Status')" clearable @change="loadPapers">
+              <el-option :label="$t('m.All')" value=""></el-option>
+              <el-option :label="$t('m.EP_Private_Paper')" value="0"></el-option>
+              <el-option :label="$t('m.EP_Shared_Paper')" value="1"></el-option>
             </el-select>
           </el-col>
         </el-row>
@@ -200,52 +200,52 @@
         class="paper-table"
         style="width: 100%; margin-top: 16px"
       >
-        <el-table-column prop="id" label="试卷ID" width="100" align="center"></el-table-column>
-        <el-table-column prop="title" label="试卷标题" min-width="200">
+        <el-table-column prop="id" :label="$t('m.EP_Paper_Id')" width="100" align="center"></el-table-column>
+        <el-table-column prop="title" :label="$t('m.EP_Paper_Title')" min-width="200">
           <template slot-scope="{ row }">
             <div>
               <div class="paper-title">
                 {{ row.title }}
-                <el-tag v-if="row.isShared === 1" size="mini" type="success" style="margin-left: 8px;">共享</el-tag>
-                <el-tag v-else size="mini" type="info" style="margin-left: 8px;">私有</el-tag>
+                <el-tag v-if="row.isShared === 1" size="mini" type="success" style="margin-left: 8px;">{{ $t('m.CH_Shared') }}</el-tag>
+                <el-tag v-else size="mini" type="info" style="margin-left: 8px;">{{ $t('m.CH_Private') }}</el-tag>
               </div>
               <div class="paper-desc" v-if="row.description">{{ row.description }}</div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="questionCount" label="题目数量" width="100" align="center"></el-table-column>
-        <el-table-column prop="totalScore" label="总分" width="80" align="center"></el-table-column>
-        <el-table-column prop="creator.username" label="创建者" width="150">
+        <el-table-column prop="questionCount" :label="$t('m.EP_Question_Count')" width="100" align="center"></el-table-column>
+        <el-table-column prop="totalScore" :label="$t('m.Total_Score')" width="80" align="center"></el-table-column>
+        <el-table-column prop="creator.username" :label="$t('m.EP_Creator')" width="150">
           <template slot-scope="{ row }">
             <div>
               {{ row.creator && row.creator.username ? row.creator.username : (row.creatorId || '-') }}
-              <el-tag v-if="canEditPaper(row)" size="mini" type="info" style="margin-left: 8px;">我</el-tag>
+              <el-tag v-if="canEditPaper(row)" size="mini" type="info" style="margin-left: 8px;">{{ $t('m.EP_Me') }}</el-tag>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180">
+        <el-table-column prop="createdAt" :label="$t('m.Create_Time')" width="180">
           <template slot-scope="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column :label="$t('m.Operation')" width="240" fixed="right">
           <template slot-scope="{ row }">
             <el-button-group>
-              <el-button size="mini" icon="el-icon-view" @click.stop="viewPaper(row)">查看</el-button>
+              <el-button size="mini" icon="el-icon-view" @click.stop="viewPaper(row)">{{ $t('m.View') }}</el-button>
               <el-button
                 v-if="canEditPaper(row)"
                 size="mini"
                 icon="el-icon-edit"
                 type="primary"
                 @click.stop="editPaper(row)"
-              >编辑</el-button>
+              >{{ $t('m.Edit') }}</el-button>
               <el-button
                 v-if="canEditPaper(row)"
                 size="mini"
                 icon="el-icon-delete"
                 type="danger"
                 @click.stop="deletePaper(row)"
-              >删除</el-button>
+              >{{ $t('m.Delete') }}</el-button>
             </el-button-group>
           </template>
         </el-table-column>
@@ -271,40 +271,40 @@
   <div v-if="showCreateDialog" class="exam-paper-editor-page">
     <div class="editor-toolbar">
       <div class="editor-title-wrap">
-        <el-button icon="el-icon-arrow-left" @click="showCreateDialog = false">返回试卷列表</el-button>
-        <h3 class="editor-page-title">{{ isEditMode ? '编辑试卷' : '创建试卷' }}</h3>
+        <el-button icon="el-icon-arrow-left" @click="showCreateDialog = false">{{ $t('m.EP_Back_To_Paper_List') }}</el-button>
+        <h3 class="editor-page-title">{{ isEditMode ? $t('m.EP_Edit_Paper') : $t('m.EP_Create_Paper') }}</h3>
       </div>
       <div class="editor-toolbar-actions">
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="savePaper" :loading="saving">保存</el-button>
+        <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="savePaper" :loading="saving">{{ $t('m.Save') }}</el-button>
       </div>
     </div>
 
     <el-card class="exam-paper-editor-card" shadow="never">
       <el-form :model="paperForm" :rules="paperRules" ref="paperForm" label-width="100px">
-      <el-form-item label="试卷标题" prop="title">
-        <el-input v-model="paperForm.title" placeholder="请输入试卷标题"></el-input>
+      <el-form-item :label="$t('m.EP_Paper_Title')" prop="title">
+        <el-input v-model="paperForm.title" :placeholder="$t('m.EP_Enter_Paper_Title')"></el-input>
       </el-form-item>
-      <el-form-item label="试卷描述">
+      <el-form-item :label="$t('m.EP_Paper_Description')">
         <el-input
           v-model="paperForm.description"
           type="textarea"
           :rows="2"
-          placeholder="请输入试卷描述（可选）"
+          :placeholder="$t('m.EP_Enter_Paper_Desc_Optional')"
         ></el-input>
       </el-form-item>
-      <el-form-item label="共享设置">
-        <el-switch v-model="paperForm.isShared" active-text="共享" inactive-text="私有"></el-switch>
+      <el-form-item :label="$t('m.EP_Share_Settings')">
+        <el-switch v-model="paperForm.isShared" :active-text="$t('m.CH_Shared')" :inactive-text="$t('m.CH_Private')"></el-switch>
         <div style="color: #909399; font-size: 12px; margin-top: 8px;">
-          共享试卷可以被其他教师查看和使用
+          {{ $t('m.EP_Share_Tip') }}
         </div>
       </el-form-item>
 
-      <el-divider>题目列表</el-divider>
+      <el-divider>{{ $t('m.EP_Question_List') }}</el-divider>
 
       <div class="selected-questions-toolbar">
         <el-button type="primary" size="small" icon="el-icon-plus" @click="openQuestionSelectorDialog">
-          添加客观题
+          {{ $t('m.EP_Add_Objective') }}
         </el-button>
         <el-button
           type="success"
@@ -312,18 +312,18 @@
           icon="el-icon-plus"
           @click="showAddProgrammingDialog = true"
         >
-          添加编程题
+          {{ $t('m.EP_Add_Programming') }}
         </el-button>
-        <el-tag size="small" type="info">已选 {{ selectedPaperQuestions.length }} 题</el-tag>
-        <el-tag size="small" type="success">总分: {{ getSelectedScore() }} 分</el-tag>
+        <el-tag size="small" type="info">{{ $t('m.CH_Selected_Count', { count: selectedPaperQuestions.length }) }}</el-tag>
+        <el-tag size="small" type="success">{{ $t('m.CH_Total_Score_Point', { score: getSelectedScore() }) }}</el-tag>
       </div>
 
       <div class="selected-questions-panel selected-questions-panel--full">
         <div class="panel-header">
-          <span class="panel-title">已选题目</span>
-          <el-tag size="small" type="info">{{ selectedPaperQuestions.length }} 题</el-tag>
+          <span class="panel-title">{{ $t('m.CH_Selected_Questions') }}</span>
+          <el-tag size="small" type="info">{{ $t('m.CH_Count_Questions', { count: selectedPaperQuestions.length }) }}</el-tag>
           <el-tag size="small" type="success" style="margin-left: 8px;">
-            总分: {{ getSelectedScore() }} 分
+            {{ $t('m.CH_Total_Score_Point', { score: getSelectedScore() }) }}
           </el-tag>
         </div>
 
@@ -347,7 +347,7 @@
                     size="mini"
                     style="margin-left: 10px;"
                   ></el-input-number>
-                  <span style="margin-left: 5px;">分</span>
+                  <span style="margin-left: 5px;">{{ $t('m.CH_Score_Unit') }}</span>
                   <el-button-group style="margin-left: auto;">
                     <el-button
                       size="mini"
@@ -390,8 +390,8 @@
                       class="composite-sub-question"
                     >
                       <div class="composite-sub-header">
-                        <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
-                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                        <span class="composite-sub-title">{{ $t('m.CH_Sub_Question', { index: subIndex + 1 }) }}</span>
+                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} {{ $t('m.CH_Score_Unit') }}</el-tag>
                       </div>
                       <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
                       <div class="item-options" v-if="subQuestion.options && subQuestion.options.length">
@@ -405,7 +405,7 @@
                         </div>
                       </div>
                       <div class="item-answer answer-info compact-answer-info">
-                        <span class="meta-label">答案：</span>
+                        <span class="meta-label">{{ $t('m.EP_Answer_Colon') }}</span>
                         <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
                       </div>
                     </div>
@@ -425,7 +425,7 @@
                     </el-tag>
                   </div>
                   <div v-if="q.question.type !== 'composite'" class="item-answer answer-info compact-answer-info">
-                    <span class="meta-label">答案：</span>
+                    <span class="meta-label">{{ $t('m.EP_Answer_Colon') }}</span>
                     <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                   </div>
                 </div>
@@ -441,19 +441,19 @@
                         @click.stop="viewProblemDetail(q.problem)"
                         style="margin-left: 10px;"
                       >
-                        查看详情
+                        {{ $t('m.View_Detail') }}
                       </el-button>
                     </div>
                     <div class="item-description" v-html="renderMarkdown(q.problem.description)"></div>
                     <div class="problem-meta">
-                      <el-tag size="small">时间: {{ q.problem.timeLimit }}ms</el-tag>
-                      <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
-                      <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
-                      <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
+                      <el-tag size="small">{{ $t('m.EP_Time_Label', { limit: q.problem.timeLimit }) }}</el-tag>
+                      <el-tag size="small" type="warning">{{ $t('m.EP_Memory_Label', { limit: q.problem.memoryLimit }) }}</el-tag>
+                      <el-tag size="small" type="primary">{{ $t('m.CH_Judge_Mode_Label', { mode: getJudgeModeText(q.problem.judgeMode) }) }}</el-tag>
+                      <el-tag size="small" type="success">{{ $t('m.CH_Difficulty_Label', { name: getDifficultyName(q.problem.difficulty) }) }}</el-tag>
                     </div>
                   </div>
                   <div v-else class="item-description">
-                    BingOJ 编程题 - {{ q.problemId }}
+                    {{ $t('m.CH_BingOJ_Problem_Title', { id: q.problemId }) }}
                     <el-button
                       size="mini"
                       type="text"
@@ -461,7 +461,7 @@
                       @click.stop="fetchAndviewProblemDetail(q.problemId)"
                       style="margin-left: 10px;"
                     >
-                      查看详情
+                      {{ $t('m.View_Detail') }}
                     </el-button>
                   </div>
                 </div>
@@ -472,21 +472,21 @@
 
         <div v-else class="empty-selected">
           <i class="el-icon-document"></i>
-          <p>暂未选择题目</p>
-          <p class="hint">点击上方“添加题目”按钮</p>
+          <p>{{ $t('m.CH_No_Questions_Selected') }}</p>
+          <p class="hint">{{ $t('m.EP_Click_Add_Question') }}</p>
         </div>
       </div>
       </el-form>
 
       <div class="editor-footer-actions">
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="savePaper" :loading="saving">保存</el-button>
+        <el-button @click="showCreateDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="primary" @click="savePaper" :loading="saving">{{ $t('m.Save') }}</el-button>
       </div>
     </el-card>
   </div>
 
   <el-dialog
-    title="添加客观题"
+    :title="$t('m.EP_Add_Objective')"
     :visible.sync="showQuestionSelectorDialog"
     width="1200px"
     append-to-body
@@ -498,7 +498,7 @@
           <el-col :xs="24" :sm="12" :md="8">
             <el-input
               v-model="questionFilters.keyword"
-              placeholder="按题目标题搜索"
+              :placeholder="$t('m.CH_Search_By_Title')"
               prefix-icon="el-icon-search"
               clearable
               @clear="loadQuestionBank"
@@ -510,7 +510,7 @@
           <el-col :xs="24" :sm="12" :md="6">
             <el-input
               v-model="questionFilters.questionId"
-              placeholder="按题目ID搜索"
+              :placeholder="$t('m.CH_Search_By_Id')"
               prefix-icon="el-icon-ticket"
               clearable
               @clear="loadQuestionBank"
@@ -520,29 +520,29 @@
           <el-col :xs="24" :sm="12" :md="5">
             <el-select
               v-model="questionFilters.type"
-              placeholder="题型筛选"
+              :placeholder="$t('m.CH_Filter_By_Type')"
               clearable
               @change="loadQuestionBank"
               style="width: 100%;"
             >
-              <el-option label="全部题型" value=""></el-option>
-              <el-option label="单选题" value="single_choice"></el-option>
-              <el-option label="多选题" value="multiple_choice"></el-option>
-              <el-option label="判断题" value="judge"></el-option>
-              <el-option label="填空题" value="fill_blank"></el-option>
-              <el-option label="主观题" value="subjective"></el-option>
-              <el-option label="组合题" value="composite"></el-option>
+              <el-option :label="$t('m.CH_All_Types')" value=""></el-option>
+              <el-option :label="$t('m.Single_Choice')" value="single_choice"></el-option>
+              <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice"></el-option>
+              <el-option :label="$t('m.Judge')" value="judge"></el-option>
+              <el-option :label="$t('m.CH_Fill_Blank')" value="fill_blank"></el-option>
+              <el-option :label="$t('m.Subjective')" value="subjective"></el-option>
+              <el-option :label="$t('m.CH_Composite')" value="composite"></el-option>
             </el-select>
           </el-col>
           <el-col :xs="24" :sm="12" :md="5">
             <el-select
               v-model="questionFilters.course"
-              placeholder="课程筛选"
+              :placeholder="$t('m.CH_Filter_By_Course')"
               clearable
               @change="loadQuestionBank"
               style="width: 100%;"
             >
-              <el-option label="全部课程" value=""></el-option>
+              <el-option :label="$t('m.CH_All_Courses')" value=""></el-option>
               <el-option
                 v-for="course in commonCourses"
                 :key="course"
@@ -556,7 +556,7 @@
           <el-col :xs="24" :sm="10">
             <el-input
               v-model="questionFilters.tag"
-              placeholder="按标签筛选"
+              :placeholder="$t('m.CH_Filter_By_Tag')"
               prefix-icon="el-icon-price-tag"
               clearable
               @clear="loadQuestionBank"
@@ -566,54 +566,54 @@
           <el-col :xs="24" :sm="8">
             <el-select
               v-model="questionFilters.sortKey"
-              placeholder="排序方式"
+              :placeholder="$t('m.CH_Sort_By')"
               @change="handleQuestionSortChange"
               style="width: 100%;"
             >
-              <el-option label="最新创建" value="create_desc"></el-option>
-              <el-option label="最早创建" value="create_asc"></el-option>
-              <el-option label="ID升序" value="id_asc"></el-option>
-              <el-option label="ID降序" value="id_desc"></el-option>
+              <el-option :label="$t('m.CH_Sort_Newest')" value="create_desc"></el-option>
+              <el-option :label="$t('m.CH_Sort_Oldest')" value="create_asc"></el-option>
+              <el-option :label="$t('m.CH_Sort_Id_Asc')" value="id_asc"></el-option>
+              <el-option :label="$t('m.CH_Sort_Id_Desc')" value="id_desc"></el-option>
             </el-select>
           </el-col>
           <el-col :xs="24" :sm="6" class="selector-tools">
-            <el-checkbox v-model="questionFilters.onlyUnselected">仅看未添加</el-checkbox>
+            <el-checkbox v-model="questionFilters.onlyUnselected">{{ $t('m.CH_Only_Unselected') }}</el-checkbox>
             <el-button
               type="text"
               icon="el-icon-refresh"
               @click="loadQuestionBank"
               :loading="questionsLoading"
             >
-              刷新题库
+              {{ $t('m.CH_Refresh_Bank') }}
             </el-button>
-            <el-button type="text" @click="resetQuestionSelectorFilters(); loadQuestionBank()">重置筛选</el-button>
+            <el-button type="text" @click="resetQuestionSelectorFilters(); loadQuestionBank()">{{ $t('m.CH_Reset_Filters') }}</el-button>
           </el-col>
         </el-row>
       </div>
 
       <div class="selector-summary">
-        <el-tag size="small" type="info">当前显示 {{ filteredQuestionBank.length }} / 本页 {{ questionBank.length }} / 总计 {{ questionBankTotal }} 题</el-tag>
-        <el-tag size="small" type="success">已选 {{ selectedPaperQuestions.length }} 题</el-tag>
+        <el-tag size="small" type="info">{{ $t('m.CH_Selector_Summary', { showing: filteredQuestionBank.length, page: questionBank.length, total: questionBankTotal }) }}</el-tag>
+        <el-tag size="small" type="success">{{ $t('m.CH_Selected_Count', { count: selectedPaperQuestions.length }) }}</el-tag>
       </div>
 
       <div class="question-selector-list" v-loading="questionsLoading">
         <el-alert
           v-if="questionBank.length === 0 && !questionsLoading"
-          title="题库为空"
+          :title="$t('m.CH_Bank_Empty')"
           type="info"
           :closable="false"
           style="margin-bottom: 10px;"
         >
           <template slot="default">
-            <div>当前题库没有可用的题目。</div>
+            <div>{{ $t('m.CH_Bank_Empty_Desc') }}</div>
             <div style="font-size: 12px; margin-top: 5px; color: #909399;">
-              提示：教师端只能看到自己创建的题目和共享题目。
+              {{ $t('m.EP_Teacher_Bank_Tip') }}
             </div>
           </template>
         </el-alert>
         <el-empty
           v-else-if="filteredQuestionBank.length === 0 && !questionsLoading"
-          description="当前页题目均已添加或被筛选条件过滤"
+          :description="$t('m.CH_All_Filtered_Desc')"
         ></el-empty>
 
         <div
@@ -628,8 +628,8 @@
               </el-tag>
               <el-tag size="mini" type="info" style="margin-left: 6px;">ID: {{ row.id }}</el-tag>
               <span class="selector-question-title">{{ row.title }}</span>
-              <el-tag v-if="row.isShared === 1" size="mini" type="success">共享</el-tag>
-              <el-tag v-else-if="row.creatorId === currentUserId" size="mini" type="info">私有</el-tag>
+              <el-tag v-if="row.isShared === 1" size="mini" type="success">{{ $t('m.CH_Shared') }}</el-tag>
+              <el-tag v-else-if="row.creatorId === currentUserId" size="mini" type="info">{{ $t('m.CH_Private') }}</el-tag>
             </div>
             <el-button
               size="mini"
@@ -637,7 +637,7 @@
               plain
               @click="toggleObjectiveQuestion(row)"
             >
-              {{ isQuestionSelected(row) ? '移除' : '添加' }}
+              {{ isQuestionSelected(row) ? $t('m.Remove') : $t('m.CH_Add') }}
             </el-button>
           </div>
 
@@ -662,7 +662,7 @@
             </el-tag>
           </div>
           <div class="question-answer-meta answer-info compact-answer-info" v-if="row && row.type">
-            <span class="meta-label">正确答案：</span>
+            <span class="meta-label">{{ $t('m.CH_Correct_Answer') }}</span>
             <span class="meta-value">{{ formatAnswer(row) }}</span>
           </div>
         </div>
@@ -681,24 +681,24 @@
       </div>
     </div>
     <span slot="footer">
-      <el-button @click="showQuestionSelectorDialog = false">关闭</el-button>
+      <el-button @click="showQuestionSelectorDialog = false">{{ $t('m.Close') }}</el-button>
     </span>
   </el-dialog>
 
   <!-- 添加编程题对话框 -->
-  <el-dialog title="添加编程题" :visible.sync="showAddProgrammingDialog" width="1100px">
+  <el-dialog :title="$t('m.EP_Add_Programming')" :visible.sync="showAddProgrammingDialog" width="1100px">
       <el-form :model="programmingForm" label-width="120px">
-        <el-form-item label="方式选择">
+        <el-form-item :label="$t('m.CH_Input_Mode')">
           <el-radio-group v-model="programmingInputMode" @change="handleProgrammingInputModeChange">
-            <el-radio label="manual">手动输入题目ID</el-radio>
-            <el-radio label="tag">按标签选择题目</el-radio>
+            <el-radio label="manual">{{ $t('m.CH_Manual_Input_Id') }}</el-radio>
+            <el-radio label="tag">{{ $t('m.CH_Select_By_Tag') }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
         <!-- 手动输入模式 -->
         <template v-if="programmingInputMode === 'manual'">
-          <el-form-item label="题目ID" required>
-            <el-input v-model="programmingForm.problemId" placeholder="请输入 BingOJ 题目 ID（如 0001）" style="width: 300px;" />
+          <el-form-item :label="$t('m.EP_Problem_Id')" required>
+            <el-input v-model="programmingForm.problemId" :placeholder="$t('m.CH_Enter_BingOJ_Id')" style="width: 300px;" />
             <el-button
               type="primary"
               icon="el-icon-search"
@@ -706,19 +706,19 @@
               @click="fetchProgrammingProblemInfo"
               :loading="fetchingProblem"
             >
-              获取题目信息
+              {{ $t('m.CH_Fetch_Problem_Info') }}
             </el-button>
           </el-form-item>
         </template>
 
         <!-- 标签选择模式 -->
         <template v-if="programmingInputMode === 'tag'">
-          <el-form-item label="选择标签">
+          <el-form-item :label="$t('m.CH_Select_Tags')">
             <div v-if="problemTagsLoading" v-loading="true" style="min-height: 100px;"></div>
             <div v-else>
               <div v-for="(tagsAndClassification, index) in problemTagsAndClassificationList" :key="index" style="margin-bottom: 15px;">
                 <div style="margin-bottom: 8px; font-weight: bold; color: #606266;">
-                  {{ tagsAndClassification.classification ? tagsAndClassification.classification.name : '未分类' }}
+                  {{ tagsAndClassification.classification ? tagsAndClassification.classification.name : $t('m.CH_Uncategorized') }}
                 </div>
                 <el-tag
                   v-for="tag in tagsAndClassification.tagList"
@@ -737,7 +737,7 @@
           </el-form-item>
 
           <!-- 已选标签显示 -->
-          <el-form-item v-if="selectedProblemTagIds.length > 0" label="已选标签">
+          <el-form-item v-if="selectedProblemTagIds.length > 0" :label="$t('m.CH_Selected_Tags')">
             <el-tag
               v-for="tagId in selectedProblemTagIds"
               :key="tagId"
@@ -748,18 +748,18 @@
             >
               {{ getTagName(tagId) }}
             </el-tag>
-            <el-button type="text" size="small" @click="clearAllTags" style="margin-left: 10px;">清空</el-button>
+            <el-button type="text" size="small" @click="clearAllTags" style="margin-left: 10px;">{{ $t('m.CH_Clear') }}</el-button>
           </el-form-item>
 
           <!-- 标签筛选结果 -->
-          <el-form-item v-if="filteredProblemsByTag.length > 0" label="题目列表">
+          <el-form-item v-if="filteredProblemsByTag.length > 0" :label="$t('m.CH_Problem_List')">
             <el-alert
               type="info"
               :closable="false"
               style="margin-bottom: 10px;"
             >
               <span slot="title">
-                已选标签下共有 {{ filteredProblemsTotal }} 道题目（当前显示前 {{ filteredProblemsByTag.length }} 道），点击题号查看详情
+                {{ $t('m.EP_Tag_Problems_Tip', { total: filteredProblemsTotal, shown: filteredProblemsByTag.length }) }}
               </span>
             </el-alert>
             <el-table
@@ -769,23 +769,23 @@
               max-height="300"
               style="width: 100%"
             >
-              <el-table-column prop="problemId" label="题号" width="120">
+              <el-table-column prop="problemId" :label="$t('m.CH_Problem_Number')" width="120">
                 <template slot-scope="{ row }">
                   <el-link type="primary" @click="viewTagProblemDetail(row)">{{ row.problemId }}</el-link>
                 </template>
               </el-table-column>
-              <el-table-column prop="title" label="题名" min-width="200" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="difficulty" label="难度" width="80" align="center">
+              <el-table-column prop="title" :label="$t('m.CH_Problem_Title')" min-width="200" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="difficulty" :label="$t('m.Difficulty')" width="80" align="center">
                 <template slot-scope="{ row }">
                   <el-tag :type="getDifficultyTagType(row.difficulty)" size="mini">
                     {{ getDifficultyName(row.difficulty) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="120" align="center">
+              <el-table-column :label="$t('m.Operation')" width="120" align="center">
                 <template slot-scope="{ row }">
                   <el-button type="primary" size="mini" @click="selectProblemByTag(row)">
-                    添加此题
+                    {{ $t('m.CH_Add_This_Problem') }}
                   </el-button>
                 </template>
               </el-table-column>
@@ -808,59 +808,59 @@
 
         <!-- 题目预览区域 -->
         <div v-if="programmingProblemPreview" class="problem-preview">
-          <el-divider content-position="left">题目预览</el-divider>
+          <el-divider content-position="left">{{ $t('m.CH_Problem_Preview') }}</el-divider>
           <el-card>
             <h3>{{ programmingProblemPreview.problem.title }}</h3>
             <div class="problem-description" v-html="renderMarkdown(programmingProblemPreview.problem.description)"></div>
             <div class="problem-meta">
-              <el-tag size="small">题目ID: {{ programmingProblemPreview.problem.problemId }}</el-tag>
-              <el-tag size="small" type="info">时间限制: {{ programmingProblemPreview.problem.timeLimit }}ms</el-tag>
-              <el-tag size="small" type="warning">内存限制: {{ programmingProblemPreview.problem.memoryLimit }}MB</el-tag>
-              <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(programmingProblemPreview.problem.judgeMode) }}</el-tag>
+              <el-tag size="small">{{ $t('m.CH_Problem_Id_Label', { id: programmingProblemPreview.problem.problemId }) }}</el-tag>
+              <el-tag size="small" type="info">{{ $t('m.CH_Time_Limit_Label', { limit: programmingProblemPreview.problem.timeLimit }) }}</el-tag>
+              <el-tag size="small" type="warning">{{ $t('m.CH_Memory_Limit_Label', { limit: programmingProblemPreview.problem.memoryLimit }) }}</el-tag>
+              <el-tag size="small" type="primary">{{ $t('m.CH_Judge_Mode_Label', { mode: getJudgeModeText(programmingProblemPreview.problem.judgeMode) }) }}</el-tag>
             </div>
             <div v-if="programmingProblemPreview.problem.input" class="problem-section">
-              <h4>输入格式</h4>
+              <h4>{{ $t('m.CH_Input_Format') }}</h4>
               <div v-html="renderMarkdown(programmingProblemPreview.problem.input)"></div>
             </div>
             <div v-if="programmingProblemPreview.problem.output" class="problem-section">
-              <h4>输出格式</h4>
+              <h4>{{ $t('m.CH_Output_Format') }}</h4>
               <div v-html="renderMarkdown(programmingProblemPreview.problem.output)"></div>
             </div>
             <div v-if="programmingProblemPreview.problem.hint" class="problem-section">
-              <h4>提示</h4>
+              <h4>{{ $t('m.CH_Hint') }}</h4>
               <div v-html="renderMarkdown(programmingProblemPreview.problem.hint)"></div>
             </div>
           </el-card>
         </div>
 
-        <el-form-item label="分值" required>
+        <el-form-item :label="$t('m.Score')" required>
           <el-input-number v-model="programmingForm.score" :min="1" :max="100" />
         </el-form-item>
       </el-form>
 
       <span slot="footer">
-        <el-button @click="showAddProgrammingDialog = false">取消</el-button>
+        <el-button @click="showAddProgrammingDialog = false">{{ $t('m.Cancel') }}</el-button>
         <el-button
           v-if="programmingInputMode === 'manual'"
           type="primary"
           @click="confirmAddProgrammingQuestion"
           :disabled="!programmingProblemPreview"
         >
-          确定添加
+          {{ $t('m.CH_Confirm_Add') }}
         </el-button>
       </span>
     </el-dialog>
 
     <!-- 查看试卷对话框 -->
-    <el-dialog title="试卷详情" :visible.sync="showViewDialog" width="80%">
+    <el-dialog :title="$t('m.EP_Paper_Detail')" :visible.sync="showViewDialog" width="80%">
       <div v-if="currentPaper && validQuestions.length > 0" class="paper-detail">
         <div class="paper-info">
           <h2>{{ currentPaper.title }}</h2>
           <div class="meta-info">
-            <el-tag v-if="currentPaper.isShared === 1" type="success">共享试卷</el-tag>
-            <el-tag v-else type="info">私有试卷</el-tag>
-            <span style="margin-left: 20px;">题目数量：{{ currentPaper.questionCount }}</span>
-            <span style="margin-left: 20px;">总分：{{ currentPaper.totalScore }} 分</span>
+            <el-tag v-if="currentPaper.isShared === 1" type="success">{{ $t('m.EP_Shared_Paper') }}</el-tag>
+            <el-tag v-else type="info">{{ $t('m.EP_Private_Paper') }}</el-tag>
+            <span style="margin-left: 20px;">{{ $t('m.EP_Question_Count_Colon', { count: currentPaper.questionCount }) }}</span>
+            <span style="margin-left: 20px;">{{ $t('m.EP_Total_Score_Colon', { score: currentPaper.totalScore }) }}</span>
           </div>
           <p v-if="currentPaper.description" class="description">{{ currentPaper.description }}</p>
         </div>
@@ -869,7 +869,7 @@
 
         <div class="questions-layout">
           <div class="question-index-panel" v-if="validQuestions.length > 1">
-            <div class="question-index-title">题号导航</div>
+            <div class="question-index-title">{{ $t('m.EP_Question_Nav') }}</div>
             <el-button
               v-for="(q, index) in validQuestions"
               :key="'index-nav-' + index"
@@ -888,7 +888,7 @@
                 <el-tag size="small" :type="getQuestionTypeTag(q?.questionType)">
                   {{ getQuestionTypeLabel(q?.questionType) }}
                 </el-tag>
-                <el-tag size="small" type="warning" style="margin-left: 8px;">{{ q?.score || 0 }} 分</el-tag>
+                <el-tag size="small" type="warning" style="margin-left: 8px;">{{ q?.score || 0 }} {{ $t('m.CH_Score_Unit') }}</el-tag>
               </div>
               <div class="question-content">
                 <!-- 客观题 -->
@@ -909,8 +909,8 @@
                       class="composite-sub-question"
                     >
                       <div class="composite-sub-header">
-                        <span class="composite-sub-title">子题 {{ subIndex + 1 }}</span>
-                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} 分</el-tag>
+                        <span class="composite-sub-title">{{ $t('m.CH_Sub_Question', { index: subIndex + 1 }) }}</span>
+                        <el-tag size="mini" type="warning">{{ Number(subQuestion.score || 0) }} {{ $t('m.CH_Score_Unit') }}</el-tag>
                       </div>
                       <div class="markdown-body composite-sub-content" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
                       <div class="question-options" v-if="subQuestion.options && subQuestion.options.length">
@@ -924,7 +924,7 @@
                         </div>
                       </div>
                       <div class="question-meta answer-info compact-answer-info">
-                        <span class="meta-label">正确答案：</span>
+                        <span class="meta-label">{{ $t('m.CH_Correct_Answer') }}</span>
                         <span class="meta-value">{{ getCompositeCorrectAnswer(q.question.answer, subQuestion.id, subIndex) }}</span>
                       </div>
                     </div>
@@ -946,7 +946,7 @@
                     </el-tag>
                   </div>
                   <div v-if="q.question.type !== 'composite'" class="question-meta answer-info compact-answer-info">
-                    <span class="meta-label">正确答案：</span>
+                    <span class="meta-label">{{ $t('m.CH_Correct_Answer') }}</span>
                     <span class="meta-value">{{ formatAnswer(q.question) }}</span>
                   </div>
                 </div>
@@ -962,20 +962,20 @@
                         @click.stop="viewProblemDetail(q.problem)"
                         style="margin-left: 10px;"
                       >
-                        查看详情
+                        {{ $t('m.View_Detail') }}
                       </el-button>
                     </div>
                     <div class="problem-description" v-html="renderMarkdown(q.problem.description)"></div>
                     <div class="problem-meta">
-                      <el-tag size="small" type="info">时间: {{ q.problem.timeLimit }}ms</el-tag>
-                      <el-tag size="small" type="warning">内存: {{ q.problem.memoryLimit }}MB</el-tag>
-                      <el-tag size="small" type="primary">判题模式: {{ getJudgeModeText(q.problem.judgeMode) }}</el-tag>
-                      <el-tag size="small" type="success">难度: {{ getDifficultyName(q.problem.difficulty) }}</el-tag>
+                      <el-tag size="small" type="info">{{ $t('m.EP_Time_Label', { limit: q.problem.timeLimit }) }}</el-tag>
+                      <el-tag size="small" type="warning">{{ $t('m.EP_Memory_Label', { limit: q.problem.memoryLimit }) }}</el-tag>
+                      <el-tag size="small" type="primary">{{ $t('m.CH_Judge_Mode_Label', { mode: getJudgeModeText(q.problem.judgeMode) }) }}</el-tag>
+                      <el-tag size="small" type="success">{{ $t('m.CH_Difficulty_Label', { name: getDifficultyName(q.problem.difficulty) }) }}</el-tag>
                     </div>
                   </div>
                   <div v-else>
                     <div class="question-title">
-                      <strong>BingOJ 编程题 - {{ q.problemId }}</strong>
+                      <strong>{{ $t('m.CH_BingOJ_Problem_Title', { id: q.problemId }) }}</strong>
                       <el-button
                         size="mini"
                         type="text"
@@ -983,7 +983,7 @@
                         @click.stop="fetchAndviewProblemDetail(q.problemId)"
                         style="margin-left: 10px;"
                       >
-                        查看详情
+                        {{ $t('m.View_Detail') }}
                       </el-button>
                     </div>
                   </div>
@@ -995,11 +995,11 @@
       </div>
       <div v-else-if="currentPaper" class="empty-questions">
         <i class="el-icon-info"></i>
-        <p>该试卷暂无题目</p>
+        <p>{{ $t('m.EP_Paper_Empty') }}</p>
       </div>
       <div v-else class="paper-loading">
         <i class="el-icon-loading"></i>
-        <span>加载中...</span>
+        <span>{{ $t('m.EP_Loading') }}</span>
       </div>
     </el-dialog>
   </div>
@@ -1056,7 +1056,7 @@ export default {
         questions: []
       },
       paperRules: {
-        title: [{ required: true, message: '请输入试卷标题', trigger: 'blur' }]
+        title: [{ required: true, message: this.$t('m.EP_Enter_Paper_Title'), trigger: 'blur' }]
       },
       // 题库相关
       questionBank: [],
@@ -1184,12 +1184,12 @@ export default {
             // 如果编程题详情对话框没有出现，尝试手动创建
             const problemDetailDialogExists = Array.from(dialogWrappers).some(wrapper => {
               const title = wrapper.querySelector('.el-dialog__title')
-              return title && title.textContent.trim() === '编程题详情'
+              return title && title.textContent.trim() === this.$t('m.CH_Programming_Detail')
             })
 
             if (!problemDetailDialogExists) {
               // 尝试使用 Element UI 的 API
-              this.$message.warning('编程题详情对话框无法打开，请刷新页面后重试')
+              this.$message.warning(this.$t('m.EP_Detail_Dialog_Fail'))
             }
           }, 100)
         })
@@ -1262,7 +1262,7 @@ export default {
           this.pagination.total = res.data.data.total || 0
         }
       } catch (error) {
-        this.$message.error('加载失败')
+        this.$message.error(this.$t('m.Load_Failed'))
       } finally {
         this.loading = false
       }
@@ -1339,7 +1339,7 @@ export default {
           this.questionBankTotal = res.data.total || 0
         }
       } catch (error) {
-        this.$message.error('加载题库失败')
+        this.$message.error(this.$t('m.EP_Load_Bank_Failed'))
       } finally {
         this.questionsLoading = false
       }
@@ -1354,7 +1354,7 @@ export default {
       }
       if (this.isQuestionSelected(question)) {
         this.removeObjectiveQuestion(question.id)
-        this.$message.success('已移除题目')
+        this.$message.success(this.$t('m.CH_Removed_Question'))
       } else {
         this.addQuestion(question)
       }
@@ -1388,15 +1388,15 @@ export default {
     async quickAddObjectiveQuestion() {
       const questionId = String(this.quickAddQuestionId || '').trim()
       if (!questionId) {
-        this.$message.warning('请输入题目ID')
+        this.$message.warning(this.$t('m.EP_Enter_Problem_Id'))
         return
       }
       if (!/^\d+$/.test(questionId)) {
-        this.$message.warning('题目ID必须是数字')
+        this.$message.warning(this.$t('m.EP_Problem_Id_Number'))
         return
       }
       if (this.selectedPaperQuestions.some(q => q && String(q.questionId) === questionId)) {
-        this.$message.warning('该题目已添加')
+        this.$message.warning(this.$t('m.CH_Question_Already_Added'))
         return
       }
 
@@ -1404,18 +1404,18 @@ export default {
       try {
         const res = await classroomApi.getQuestionDetail(questionId)
         if (!res || !res.data || res.data.code !== 200 || !res.data.data) {
-          this.$message.error('未找到该题目')
+          this.$message.error(this.$t('m.EP_Problem_Not_Found'))
           return
         }
         const question = res.data.data
         if (!this.isObjectiveQuestionType(question.type)) {
-          this.$message.warning('该题不是客观题，仅支持单选/多选/判断/填空/组合题')
+          this.$message.warning(this.$t('m.EP_Not_Objective'))
           return
         }
         this.addQuestion(question)
         this.quickAddQuestionId = ''
       } catch (error) {
-        this.$message.error('根据ID获取题目失败')
+        this.$message.error(this.$t('m.EP_Get_By_Id_Failed'))
       } finally {
         this.quickAddQuestionLoading = false
       }
@@ -1424,13 +1424,13 @@ export default {
     addQuestion(question) {
       // 检查参数是否有效
       if (!question || !question.id) {
-        this.$message.warning('题目数据无效')
+        this.$message.warning(this.$t('m.EP_Invalid_Problem_Data'))
         return
       }
 
       // 检查是否已添加
       if (this.isQuestionSelected(question)) {
-        this.$message.warning('该题目已添加')
+        this.$message.warning(this.$t('m.CH_Question_Already_Added'))
         return
       }
 
@@ -1444,7 +1444,7 @@ export default {
         question: question
       })
 
-      this.$message.success('添加成功')
+      this.$message.success(this.$t('m.CH_Add_Success'))
     },
     isQuestionSelected(question) {
       if (!question || !question.id) return false
@@ -1484,7 +1484,7 @@ export default {
     getQuestionTitle(q) {
       // 检查 q 是否为 null 或 undefined
       if (!q) {
-        return '未知题目'
+        return this.$t('m.EP_Unknown_Problem')
       }
 
       try {
@@ -1502,13 +1502,13 @@ export default {
         }
         // 回退到显示ID
         if (q.questionId) {
-          return `题目ID: ${q.questionId}`
+          return this.$t('m.CH_Problem_Id_Label', { id: q.questionId })
         } else if (q.problemId) {
-          return `BingOJ 编程题 - ${q.problemId}`
+          return this.$t('m.CH_BingOJ_Problem_Title', { id: q.problemId })
         }
-        return '未知题目'
+        return this.$t('m.EP_Unknown_Problem')
       } catch (error) {
-        return '未知题目'
+        return this.$t('m.EP_Unknown_Problem')
       }
     },
     getRequestErrorMessage(error, fallback) {
@@ -1521,7 +1521,7 @@ export default {
     // 编程题相关
     async fetchProgrammingProblemInfo() {
       if (!this.programmingForm.problemId) {
-        this.$message.warning('请输入题目ID')
+        this.$message.warning(this.$t('m.EP_Enter_Problem_Id'))
         return
       }
 
@@ -1532,29 +1532,29 @@ export default {
         if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
           this.programmingProblemPreview = res.data.data
         } else {
-          this.$message.error('获取题目信息失败')
+          this.$message.error(this.$t('m.CH_Get_Problem_Info_Failed'))
         }
       } catch (error) {
         this.programmingProblemPreview = null
-        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
+        this.$message.error(this.getRequestErrorMessage(error, this.$t('m.CH_Get_Problem_Info_Failed')))
       } finally {
         this.fetchingProblem = false
       }
     },
     confirmAddProgrammingQuestion() {
       if (!this.programmingForm.problemId) {
-        this.$message.warning('请输入题目ID')
+        this.$message.warning(this.$t('m.EP_Enter_Problem_Id'))
         return
       }
 
       if (!this.programmingProblemPreview) {
-        this.$message.warning('请先点击"获取题目信息"按钮')
+        this.$message.warning(this.$t('m.EP_Preview_First'))
         return
       }
 
       // 检查是否已添加
       if (this.selectedPaperQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
-        this.$message.warning('该编程题已添加')
+        this.$message.warning(this.$t('m.CH_Programming_Already_Added'))
         return
       }
 
@@ -1568,7 +1568,7 @@ export default {
         problem: this.programmingProblemPreview.problem
       })
 
-      this.$message.success('添加成功')
+      this.$message.success(this.$t('m.CH_Add_Success'))
       this.showAddProgrammingDialog = false
       this.resetProgrammingForm()
     },
@@ -1671,7 +1671,7 @@ export default {
         }
       } catch (error) {
         console.error('获取题目列表失败:', error)
-        this.$message.error('获取题目列表失败')
+        this.$message.error(this.$t('m.CH_Load_Problem_List_Failed'))
         this.filteredProblemsByTag = []
         this.filteredProblemsTotal = 0
       }
@@ -1705,7 +1705,7 @@ export default {
         console.error('获取题目详情失败:', error)
         this.tagProblemDetail = null
         this.showTagProblemDetailDialog = false
-        this.$message.error(this.getRequestErrorMessage(error, '获取题目详情失败'))
+        this.$message.error(this.getRequestErrorMessage(error, this.$t('m.CH_Load_Problem_Detail_Failed')))
       } finally {
         this.loadingTagProblemDetail = false
       }
@@ -1733,7 +1733,7 @@ export default {
 
           // 检查是否已添加
           if (this.selectedPaperQuestions.some(q => q.problemId === this.programmingForm.problemId)) {
-            this.$message.warning('该编程题已添加')
+            this.$message.warning(this.$t('m.CH_Programming_Already_Added'))
             return
           }
 
@@ -1747,17 +1747,17 @@ export default {
             problem: problemData.problem
           })
 
-          this.$message.success(`已添加题目：${problem.problemId} - ${problem.title}`)
+          this.$message.success(this.$t('m.CH_Added_Problem', { id: problem.problemId, title: problem.title }))
           // 清空表单以便继续添加，但保持对话框打开
           this.programmingForm.problemId = ''
           this.programmingProblemPreview = null
         } else {
-          this.$message.error('获取题目信息失败')
+          this.$message.error(this.$t('m.CH_Get_Problem_Info_Failed'))
         }
       } catch (error) {
         console.error('获取题目信息失败:', error)
         this.programmingProblemPreview = null
-        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
+        this.$message.error(this.getRequestErrorMessage(error, this.$t('m.CH_Get_Problem_Info_Failed')))
       } finally {
         this.fetchingProblem = false
       }
@@ -1777,14 +1777,14 @@ export default {
     // 获取难度名称（6个梯度）
     getDifficultyName(difficulty) {
       const nameMap = {
-        0: '入门',
-        1: '简单',
-        2: '中等',
-        3: '困难',
-        4: '大师',
-        5: '专家'
+        0: this.$t('m.CH_Diff_Beginner'),
+        1: this.$t('m.CH_Diff_Easy'),
+        2: this.$t('m.CH_Diff_Medium'),
+        3: this.$t('m.CH_Diff_Hard'),
+        4: this.$t('m.CH_Diff_Master'),
+        5: this.$t('m.CH_Diff_Expert')
       }
-      return nameMap[difficulty] || '未知'
+      return nameMap[difficulty] || this.$t('m.Unknown')
     },
     getSelectedScore() {
       return this.selectedPaperQuestions.reduce((sum, q) => sum + (q.score || 0), 0)
@@ -1810,13 +1810,13 @@ export default {
           this.hydrateProgrammingProblemDetails(this.currentPaper.questions)
         }
       } catch (error) {
-        this.$message.error('加载试卷详情失败')
+        this.$message.error(this.$t('m.EP_Load_Paper_Detail_Failed'))
       }
     },
     async editPaper(row) {
       // 权限检查：只能编辑自己创建的试卷
       if (!this.canEditPaper(row)) {
-        this.$message.warning('只能编辑自己创建的试卷')
+        this.$message.warning(this.$t('m.EP_Only_Edit_Own'))
         return
       }
 
@@ -1857,7 +1857,7 @@ export default {
             isShared: paper.isShared === 1,
             questions: validQuestions.map(q => {
               // 安全地生成标题
-              let title = '未知题目'
+              let title = this.$t('m.EP_Unknown_Problem')
               if (q.title) {
                 title = q.title
               } else if (q.question && q.question.title) {
@@ -1865,9 +1865,9 @@ export default {
               } else if (q.problem && q.problem.title) {
                 title = q.problem.title
               } else if (q.questionId) {
-                title = `题目ID: ${q.questionId}`
+                title = this.$t('m.CH_Problem_Id_Label', { id: q.questionId })
               } else if (q.problemId) {
-                title = `BingOJ 编程题 - ${q.problemId}`
+                title = this.$t('m.CH_BingOJ_Problem_Title', { id: q.problemId })
               }
 
               return {
@@ -1898,7 +1898,7 @@ export default {
           this.loadQuestionBank()
         }
       } catch (error) {
-        this.$message.error('加载试卷详情失败')
+        this.$message.error(this.$t('m.EP_Load_Paper_Detail_Failed'))
       } finally {
         // 清除编辑标志
         this.isEditing = false
@@ -1907,7 +1907,7 @@ export default {
     async savePaper() {
       const questions = this.selectedPaperQuestions
       if (questions.length === 0) {
-        this.$message.warning('请至少添加一道题目')
+        this.$message.warning(this.$t('m.EP_Add_At_Least_One'))
         return
       }
 
@@ -1933,7 +1933,7 @@ export default {
         }
 
         if (res.data.code === 200) {
-          this.$message.success(this.isEditMode ? '更新成功' : '创建成功')
+          this.$message.success(this.isEditMode ? this.$t('m.Update_Success') : this.$t('m.Create_Success'))
           this.showCreateDialog = false
           this.loadPapers()
           // 重置表单
@@ -1944,30 +1944,30 @@ export default {
             questions: []
           }
         } else {
-          this.$message.error(res.data.message || '操作失败')
+          this.$message.error(res.data.message || this.$t('m.EP_Operation_Failed'))
         }
       } catch (error) {
-        this.$message.error('操作失败')
+        this.$message.error(this.$t('m.EP_Operation_Failed'))
       } finally {
         this.saving = false
       }
     },
     deletePaper(row) {
-      this.$confirm('确定要删除这份试卷吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.EP_Confirm_Delete_Paper'), this.$t('m.EP_Tip'), {
+        confirmButtonText: this.$t('m.OK'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           const res = await classroomApi.deleteExamPaper(row.id)
           if (res.data.code === 200) {
-            this.$message.success('删除成功')
+            this.$message.success(this.$t('m.Delete_Success'))
             this.loadPapers()
           } else {
-            this.$message.error(res.data.message || '删除失败')
+            this.$message.error(res.data.message || this.$t('m.Delete_Failed'))
           }
         } catch (error) {
-          this.$message.error('删除失败')
+          this.$message.error(this.$t('m.Delete_Failed'))
         }
       })
     },
@@ -1990,15 +1990,15 @@ export default {
       return tagMap[type] || 'info'
     },
     getQuestionTypeLabel(type) {
-      if (!type) return '未知类型'
-      const labelMap = {
-        single_choice: '单选题',
-        multiple_choice: '多选题',
-        judge: '判断题',
-        fill_blank: '填空题',
-        subjective: '主观题',
-        composite: '组合题',
-        programming: '编程题'
+      if (!type) return this.$t('m.EP_Unknown_Type')
+      const typeMap = {
+        single_choice: this.$t('m.Single_Choice'),
+        multiple_choice: this.$t('m.Multiple_Choice'),
+        judge: this.$t('m.Judge'),
+        fill_blank: this.$t('m.CH_Fill_Blank'),
+        subjective: this.$t('m.Subjective'),
+        composite: this.$t('m.CH_Composite'),
+        programming: this.$t('m.Programming')
       }
       return labelMap[type] || type
     },
@@ -2053,9 +2053,9 @@ export default {
 
             const normalizedAnswer = String(answer).toLowerCase().trim()
             if (normalizedAnswer === 'true') {
-              return '正确'
+              return this.$t('m.True')
             } else if (normalizedAnswer === 'false') {
-              return '错误'
+              return this.$t('m.False')
             }
             return '-'
 
@@ -2073,10 +2073,10 @@ export default {
             }
 
           case 'subjective':
-            return question.answer || '需人工评分'
+            return question.answer || this.$t('m.EP_Needs_Manual_Grading')
 
           case 'composite':
-            return '组合题（按子题判分）'
+            return this.$t('m.EP_Composite_Grading')
 
           default:
             return '-'
@@ -2200,7 +2200,7 @@ export default {
     // 查看编程题详情
     viewProblemDetail(problem) {
       if (!problem) {
-        this.$message.error('题目数据不存在')
+        this.$message.error(this.$t('m.EP_Problem_Data_Missing'))
         return
       }
       this.currentViewProblem = {
@@ -2211,7 +2211,7 @@ export default {
     // 获取并查看编程题详情
     async fetchAndviewProblemDetail(problemId) {
       if (!problemId) {
-        this.$message.error('题目ID不存在')
+        this.$message.error(this.$t('m.EP_Problem_Id_Missing'))
         return
       }
 
@@ -2240,7 +2240,7 @@ export default {
               const title = header ? header.querySelector('.el-dialog__title') : null
               const titleText = title ? title.textContent.trim() : ''
 
-              if (titleText === '编程题详情') {
+              if (titleText === this.$t('m.CH_Programming_Detail')) {
                 problemDetailWrapper = wrapper
                 problemDetailDialog = dialog
               }
@@ -2275,12 +2275,12 @@ export default {
         if (res && res.status === 200 && res.data && res.data.data && res.data.data.problem) {
           this.currentViewProblem = res.data.data
         } else {
-          this.$message.error('获取题目信息失败')
+          this.$message.error(this.$t('m.CH_Get_Problem_Info_Failed'))
           this.showProblemDetailDialog = false
         }
       } catch (error) {
         console.error('Error fetching problem:', error)
-        this.$message.error(this.getRequestErrorMessage(error, '获取题目信息失败'))
+        this.$message.error(this.getRequestErrorMessage(error, this.$t('m.CH_Get_Problem_Info_Failed')))
         this.showProblemDetailDialog = false
       } finally {
         this.fetchingViewProblem = false
@@ -2331,12 +2331,12 @@ export default {
     // 获取判题模式文本
     getJudgeModeText(mode) {
       const modeMap = {
-        'default': '默认模式',
-        'spj': '特殊判题 (SPJ)',
-        'interactive': '交互式',
-        'subtask': '子任务'
+        'default': this.$t('m.CH_Judge_Mode_Default'),
+        'spj': this.$t('m.CH_Judge_Mode_SPJ'),
+        'interactive': this.$t('m.CH_Judge_Mode_Interactive'),
+        'subtask': this.$t('m.CH_Judge_Mode_Subtask')
       }
-      return modeMap[mode] || mode || '默认模式'
+      return modeMap[mode] || mode || this.$t('m.CH_Judge_Mode_Default')
     }
   }
 }

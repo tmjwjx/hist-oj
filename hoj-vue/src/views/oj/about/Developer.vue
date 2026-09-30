@@ -15,7 +15,7 @@
           </a>
         </p>
         <p>
-          {{ $t('m.Group_Function_Development_Contributor') }} / 冷蕴
+          {{ $t('m.Group_Function_Development_Contributor') }} / Lengyun
           <a href="https://github.com/IUaenaSong" class="icon" target="_blank"
             ><i class="fa fa-github"></i>
           </a>

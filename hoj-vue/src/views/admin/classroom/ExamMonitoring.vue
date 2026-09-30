@@ -2,7 +2,7 @@
   <div class="admin-exam-monitoring">
     <div class="page-header">
       <el-button icon="el-icon-back" @click="goBack">{{ $t('m.Back') }}</el-button>
-      <h2>作业考试监控</h2>
+      <h2>{{ $t('m.Exam_Monitoring') }}</h2>
     </div>
 
     <!-- 复用教师端的监控组件，通过 props 传递参数 -->

@@ -2,8 +2,8 @@
   <div class="checkin-records-panel classroom-theme">
     <div class="header">
       <div class="header-left">
-        <h3>{{ checkinInfo.checkinName || '签到记录' }}</h3>
-        <p class="subtitle">签到时间：{{ formatTime(checkinInfo.startTime) }}</p>
+        <h3>{{ checkinInfo.checkinName || $t('m.Checkin_Records') }}</h3>
+        <p class="subtitle">{{ $t('m.Checkin_Time') }}: {{ formatTime(checkinInfo.startTime) }}</p>
       </div>
       <button class="classroom-btn classroom-btn-secondary" @click="goBack">
         <i class="el-icon-back"></i>
@@ -15,19 +15,19 @@
     <div class="stats-row">
       <div class="classroom-stat-card">
         <div class="classroom-stat-value">{{ filteredRecords.length }}</div>
-        <div class="classroom-stat-label">总人数</div>
+        <div class="classroom-stat-label">{{ $t('m.Total_Students') }}</div>
       </div>
       <div class="classroom-stat-card">
         <div class="classroom-stat-value">{{ statusCount.present }}</div>
-        <div class="classroom-stat-label">已签到</div>
+        <div class="classroom-stat-label">{{ $t('m.Checkin_Status_Present') }}</div>
       </div>
       <div class="classroom-stat-card">
         <div class="classroom-stat-value">{{ statusCount.absent }}</div>
-        <div class="classroom-stat-label">缺勤</div>
+        <div class="classroom-stat-label">{{ $t('m.Checkin_Status_Absent') }}</div>
       </div>
       <div class="classroom-stat-card">
         <div class="classroom-stat-value">{{ statusCount.leave }}</div>
-        <div class="classroom-stat-label">请假</div>
+        <div class="classroom-stat-label">{{ $t('m.Leave') }}</div>
       </div>
     </div>
 
@@ -36,27 +36,27 @@
       <div class="search-bar">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索学生姓名或学号"
+          :placeholder="$t('m.Search_Student_Name_Or_Number')"
           prefix-icon="el-icon-search"
           class="search-input"
           clearable
           @clear="handleSearch"
           @keyup.enter.native="handleSearch"
         />
-        <el-select v-model="statusFilter" placeholder="筛选状态" clearable class="filter-select" @change="handleSearch">
-          <el-option label="全部" value="" />
-          <el-option label="签到" value="present" />
-          <el-option label="缺勤" value="absent" />
-          <el-option label="病假" value="sick_leave" />
-          <el-option label="事假" value="personal_leave" />
+        <el-select v-model="statusFilter" :placeholder="$t('m.Filter_Status')" clearable class="filter-select" @change="handleSearch">
+          <el-option :label="$t('m.All')" value="" />
+          <el-option :label="$t('m.Checkin_Status_Present')" value="present" />
+          <el-option :label="$t('m.Checkin_Status_Absent')" value="absent" />
+          <el-option :label="$t('m.Checkin_Status_Sick_Leave')" value="sick_leave" />
+          <el-option :label="$t('m.Checkin_Status_Personal_Leave')" value="personal_leave" />
         </el-select>
         <button class="classroom-btn classroom-btn-primary" @click="handleSearch">
           <i class="el-icon-search"></i>
-          <span>搜索</span>
+          <span>{{ $t('m.Search') }}</span>
         </button>
         <button class="classroom-btn classroom-btn-success export-btn" @click="exportCheckinRecords">
           <i class="el-icon-download"></i>
-          <span>导出签到记录</span>
+          <span>{{ $t('m.Export_Checkin_Records') }}</span>
         </button>
       </div>
     </el-card>
@@ -69,7 +69,7 @@
             <UserName :username="row.student?.username" />
           </template>
         </el-table-column>
-        <el-table-column label="学号" width="150">
+        <el-table-column :label="$t('m.Student_Number')" width="150">
           <template slot-scope="{ row }">
             {{ row.classStudent?.studentNumber || '-' }}
           </template>
@@ -82,17 +82,17 @@
         <el-table-column :label="$t('m.Status')" width="180">
           <template slot-scope="{ row }">
             <el-select v-model="row.status" size="small" @change="updateRecord(row)" class="status-select">
-              <el-option label="签到" value="present">
-                <span class="classroom-tag classroom-tag-success">签到</span>
+              <el-option :label="$t('m.Checkin_Status_Present')" value="present">
+                <span class="classroom-tag classroom-tag-success">{{ $t('m.Checkin_Status_Present') }}</span>
               </el-option>
-              <el-option label="缺勤" value="absent">
-                <span class="classroom-tag classroom-tag-warning">缺勤</span>
+              <el-option :label="$t('m.Checkin_Status_Absent')" value="absent">
+                <span class="classroom-tag classroom-tag-warning">{{ $t('m.Checkin_Status_Absent') }}</span>
               </el-option>
-              <el-option label="病假" value="sick_leave">
-                <span class="classroom-tag classroom-tag-info">病假</span>
+              <el-option :label="$t('m.Checkin_Status_Sick_Leave')" value="sick_leave">
+                <span class="classroom-tag classroom-tag-info">{{ $t('m.Checkin_Status_Sick_Leave') }}</span>
               </el-option>
-              <el-option label="事假" value="personal_leave">
-                <span class="classroom-tag classroom-tag-primary">事假</span>
+              <el-option :label="$t('m.Checkin_Status_Personal_Leave')" value="personal_leave">
+                <span class="classroom-tag classroom-tag-primary">{{ $t('m.Checkin_Status_Personal_Leave') }}</span>
               </el-option>
             </el-select>
           </template>
@@ -233,10 +233,10 @@ export default {
         if (!record.id) {
           // 创建新记录
           const statusText = {
-            'present': '签到',
-            'absent': '缺勤',
-            'sick_leave': '病假',
-            'personal_leave': '事假'
+            'present': this.$t('m.Checkin_Status_Present'),
+            'absent': this.$t('m.Checkin_Status_Absent'),
+            'sick_leave': this.$t('m.Checkin_Status_Sick_Leave'),
+            'personal_leave': this.$t('m.Checkin_Status_Personal_Leave')
           }
 
           const createRes = await this.$http.post(`/api/classroom/checkin/${record.checkinId}/record`, {
@@ -246,9 +246,9 @@ export default {
 
           if (createRes.data.code === 200) {
             record.id = createRes.data.data.id
-            this.$message.success(`已为未签到学生创建记录，状态设为：${statusText[record.status]}`)
+            this.$message.success(this.$t('m.Checkin_Record_Created').replace('{status}', statusText[record.status]))
           } else {
-            this.$message.error(createRes.data.message || '创建记录失败')
+            this.$message.error(createRes.data.message || this.$t('m.Create_Record_Failed'))
             // 恢复原状态
             this.$nextTick(() => {
               record.status = 'absent'
@@ -287,15 +287,15 @@ export default {
 
     exportCheckinRecords() {
       const statusMap = {
-        present: '签到',
-        absent: '缺勤',
-        sick_leave: '病假',
-        personal_leave: '事假'
+        present: this.$t('m.Checkin_Status_Present'),
+        absent: this.$t('m.Checkin_Status_Absent'),
+        sick_leave: this.$t('m.Checkin_Status_Sick_Leave'),
+        personal_leave: this.$t('m.Checkin_Status_Personal_Leave')
       }
 
       let csvContent = '\uFEFF'
-      csvContent += `签到记录_${this.checkinInfo.checkinName || '签到'}_${this.formatTime(this.checkinInfo.startTime)}\n\n`
-      csvContent += '用户名,学号,真实姓名,状态,签到时间\n'
+      csvContent += `${this.$t('m.Checkin_Records')}_${this.checkinInfo.checkinName || this.$t('m.Checkin')}_${this.formatTime(this.checkinInfo.startTime)}\n\n`
+      csvContent += [this.$t('m.Username'), this.$t('m.Student_Number'), this.$t('m.Real_Name'), this.$t('m.Status'), this.$t('m.Checkin_Time')].join(',') + '\n'
 
       this.filteredRecords.forEach(record => {
         const username = record.student?.username || ''
@@ -318,7 +318,7 @@ export default {
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', `签到记录_${this.checkinInfo.checkinName || '签到'}_${new Date().getTime()}.csv`)
+      link.setAttribute('download', `checkin_${new Date().getTime()}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()

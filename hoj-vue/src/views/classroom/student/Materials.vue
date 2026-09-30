@@ -11,7 +11,7 @@
         <!-- 树形导航 -->
         <div class="tree-sidebar">
           <div class="tree-header">
-            <span class="tree-title">文件夹</span>
+            <span class="tree-title">{{ $t('m.Materials_Folder') }}</span>
           </div>
           <el-tree
             ref="folderTree"
@@ -59,7 +59,7 @@
                     icon="el-icon-view"
                     @click.stop="selectMaterial(material)"
                   >
-                    预览
+                    {{ $t('m.Materials_Preview') }}
                   </el-button>
                   <el-button
                     v-if="hasDownloadPermission(material)"
@@ -70,7 +70,7 @@
                     :disabled="isDownloadDisabled(material)"
                     @click.stop="downloadMaterial(material)"
                   >
-                    {{ isDownloadBusy(material) ? '下载中' : '下载' }}
+                    {{ isDownloadBusy(material) ? $t('m.Materials_Downloading') : $t('m.Download') }}
                   </el-button>
                   <el-button
                     v-if="!canPreview(getFileType(material.fileName)) && !hasDownloadPermission(material)"
@@ -79,7 +79,7 @@
                     disabled
                     icon="el-icon-lock"
                   >
-                    无权限
+                    {{ $t('m.SMat_No_Permission') }}
                   </el-button>
                 </div>
               </div>
@@ -117,21 +117,21 @@
               :disabled="isDownloadDisabled(selectedMaterial)"
               @click="downloadCurrentFile"
             >
-              {{ isDownloadBusy(selectedMaterial) ? '下载中' : '下载' }}
+              {{ isDownloadBusy(selectedMaterial) ? $t('m.Materials_Downloading') : $t('m.Download') }}
             </el-button>
           </div>
         </div>
 
-        <div class="preview-content" v-loading="previewLoading" element-loading-text="加载中...">
+        <div class="preview-content" v-loading="previewLoading" :element-loading-text="$t('m.Materials_Loading')">
           <div v-if="selectedMaterial && canPreview(getFileType(selectedMaterial.fileName))" class="preview-pending">
             <i class="el-icon-time"></i>
-            <p>使用功能未开放，敬请期待</p>
+            <p>{{ $t('m.Materials_Feature_Pending') }}</p>
           </div>
 
           <!-- 不支持预览的文件 -->
           <div v-if="selectedMaterial && !canPreview(getFileType(selectedMaterial.fileName))" class="preview-unsupported">
             <i :class="getFileIcon(getFileType(selectedMaterial.fileName))"></i>
-            <p>该文件类型不支持在线预览</p>
+            <p>{{ $t('m.File_Type_Not_Supported') }}</p>
             <el-button
               v-if="hasDownloadPermission(selectedMaterial)"
               type="primary"
@@ -140,7 +140,7 @@
               :disabled="isDownloadDisabled(selectedMaterial)"
               @click="downloadCurrentFile"
             >
-              {{ isDownloadBusy(selectedMaterial) ? '下载中' : '下载文件' }}
+              {{ isDownloadBusy(selectedMaterial) ? $t('m.Materials_Downloading') : $t('m.SMat_Download_File') }}
             </el-button>
           </div>
         </div>
@@ -150,8 +150,8 @@
       <div class="preview-panel empty" v-else>
         <div class="empty-hint">
           <i class="el-icon-document"></i>
-          <p>点击左侧文件进行预览</p>
-          <p class="hint-text">预览功能未开放，敬请期待</p>
+          <p>{{ $t('m.Materials_Click_To_Preview') }}</p>
+          <p class="hint-text">{{ $t('m.Materials_Preview_Pending') }}</p>
         </div>
       </div>
     </div>
@@ -460,11 +460,11 @@ export default {
     downloadMaterial(material) {
       if (!material) return
       if (this.isDownloadBusy(material)) {
-        this.$message.info('正在准备下载，请勿重复点击')
+        this.$message.info(this.$t('m.Preparing_Download_No_Repeat'))
         return
       }
       if (this.isDownloadInCooldown(material)) {
-        this.$message.info('下载已触发，请稍候在浏览器下载列表查看')
+        this.$message.info(this.$t('m.Download_Triggered_Check_List'))
         return
       }
 
@@ -477,7 +477,7 @@ export default {
     downloadFile(url, filename, material = null) {
       const downloadKey = this.getDownloadKey(material, filename || '')
       this.$set(this.downloadingMap, downloadKey, true)
-      this.$message.info('正在准备下载，请稍候...')
+      this.$message.info(this.$t('m.Preparing_Download'))
 
       this.$axios({
         method: 'get',
@@ -497,7 +497,7 @@ export default {
         link.click()
 
         this.$set(this.downloadCooldownUntil, downloadKey, Date.now() + this.downloadCooldownMs)
-        this.$message.success('已触发下载，请在浏览器下载列表查看进度')
+        this.$message.success(this.$t('m.Download_Triggered_Check_List'))
 
         // 延迟清理，确保下载开始
         setTimeout(() => {
@@ -507,11 +507,11 @@ export default {
       }).catch(error => {
         console.error('下载失败:', error)
         if (error.response && error.response.status === 401) {
-          this.$message.error('请先登录')
+          this.$message.error(this.$t('m.Please_Login_First'))
         } else if (error.response && error.response.status === 403) {
-          this.$message.error('您没有下载该资料的权限')
+          this.$message.error(this.$t('m.No_Download_Permission'))
         } else {
-          this.$message.error('下载失败：' + (error.response?.data?.message || error.message))
+          this.$message.error(this.$t('m.Download_Failed') + ': ' + (error.response?.data?.message || error.message))
         }
       }).finally(() => {
         this.$set(this.downloadingMap, downloadKey, false)

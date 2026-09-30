@@ -4,7 +4,7 @@
       <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
       <h2>{{ classroomInfo.className || $t('m.Classroom_Detail') }}</h2>
       <el-button type="primary" icon="el-icon-user" @click="goToMyInfo" style="margin-left: auto;">
-        我的信息
+        {{ $t('m.My_Info') }}
       </el-button>
     </div>
     <el-tabs v-model="activeTab" @tab-click="handleTabClick">

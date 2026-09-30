@@ -2,35 +2,35 @@
   <div class="my-info-container">
     <div class="page-header">
       <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
-      <h3>我的班级信息</h3>
+      <h3>{{ $t('m.SMy_Title') }}</h3>
     </div>
 
     <el-card v-loading="loading" class="info-card">
       <el-form :model="form" :rules="rules" ref="infoForm" label-width="120px">
-        <el-form-item label="真实姓名" prop="realName">
-          <el-input v-model="form.realName" placeholder="请输入真实姓名" maxlength="50"></el-input>
+        <el-form-item :label="$t('m.SMy_Real_Name')" prop="realName">
+          <el-input v-model="form.realName" :placeholder="$t('m.SMy_Real_Name_Placeholder')" maxlength="50"></el-input>
         </el-form-item>
 
-        <el-form-item label="性别" prop="gender">
+        <el-form-item :label="$t('m.SMy_Gender')" prop="gender">
           <el-radio-group v-model="form.gender">
-            <el-radio label="男">男</el-radio>
-            <el-radio label="女">女</el-radio>
+            <el-radio label="男">{{ $t('m.Male') }}</el-radio>
+            <el-radio label="女">{{ $t('m.Female') }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="班级" prop="studentClass">
-          <el-input v-model="form.studentClass" placeholder="例如：高一1班" maxlength="100"></el-input>
+        <el-form-item :label="$t('m.SMy_Class')" prop="studentClass">
+          <el-input v-model="form.studentClass" :placeholder="$t('m.SMy_Class_Placeholder')" maxlength="100"></el-input>
         </el-form-item>
 
-        <el-form-item label="学号" prop="studentNo">
-          <el-input v-model="form.studentNo" placeholder="请输入学号" maxlength="50"></el-input>
+        <el-form-item :label="$t('m.SMy_Student_No')" prop="studentNo">
+          <el-input v-model="form.studentNo" :placeholder="$t('m.SMy_Student_No_Placeholder')" maxlength="50"></el-input>
         </el-form-item>
 
         <el-form-item>
           <el-button type="primary" @click="submitForm" :loading="submitting">
-            {{ submitting ? '保存中...' : '保存修改' }}
+            {{ submitting ? $t('m.SMy_Saving') : $t('m.SMy_Save_Changes') }}
           </el-button>
-          <el-button @click="resetForm">重置</el-button>
+          <el-button @click="resetForm">{{ $t('m.Reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -38,12 +38,12 @@
     <!-- 说明卡片 -->
     <el-card class="tip-card">
       <div slot="header">
-        <span><i class="el-icon-info"></i> 说明</span>
+        <span><i class="el-icon-info"></i> {{ $t('m.SMy_Notes') }}</span>
       </div>
       <ul class="tip-list">
-        <li>以上信息仅在当前班级中可见，不会影响您在其他班级的信息</li>
-        <li>真实姓名和学号等信息将用于作业提交和成绩记录</li>
-        <li>请确保信息真实准确，便于教师识别和管理</li>
+        <li>{{ $t('m.SMy_Note_Visible_In_Class') }}</li>
+        <li>{{ $t('m.SMy_Note_Used_For') }}</li>
+        <li>{{ $t('m.SMy_Note_Accurate') }}</li>
       </ul>
     </el-card>
   </div>
@@ -69,8 +69,8 @@ export default {
       },
       rules: {
         realName: [
-          { required: true, message: '请输入真实姓名', trigger: 'blur' },
-          { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+          { required: true, message: this.$t('m.SMy_Real_Name_Placeholder'), trigger: 'blur' },
+          { min: 2, max: 50, message: this.$t('m.SMy_Length_Range'), trigger: 'blur' }
         ]
       }
     }
@@ -82,7 +82,7 @@ export default {
   methods: {
     async loadMyInfo() {
       if (!this.classroomId) {
-        this.$message.error('班级ID不能为空')
+        this.$message.error(this.$t('m.SMy_Class_Id_Required'))
         return
       }
 
@@ -98,11 +98,11 @@ export default {
             studentNo: info.studentNo || ''
           }
         } else {
-          this.$message.error(res.data?.msg || '加载失败')
+          this.$message.error(res.data?.msg || this.$t('m.Load_Failed'))
         }
       } catch (error) {
         console.error('加载班级信息失败:', error)
-        this.$message.error('加载失败: ' + (error.message || '未知错误'))
+        this.$message.error(this.$t('m.SMy_Load_Failed_Reason', { reason: error.message || this.$t('m.Unknown') }))
       } finally {
         this.loading = false
       }
@@ -110,7 +110,7 @@ export default {
     submitForm() {
       this.$refs.infoForm.validate(async (valid) => {
         if (!valid) {
-          this.$message.warning('请填写所有必填项')
+          this.$message.warning(this.$t('m.SMy_Fill_All_Required'))
           return
         }
 
@@ -118,22 +118,22 @@ export default {
         try {
           const res = await api.updateClassroomStudentInfo(this.classroomId, this.form)
           if (res.data && res.data.code === 200) {
-            this.$message.success('保存成功')
+            this.$message.success(this.$t('m.Save_Success'))
           } else {
-            this.$message.error(res.data?.msg || '保存失败')
+            this.$message.error(res.data?.msg || this.$t('m.Save_Failed'))
           }
         } catch (error) {
           console.error('保存班级信息失败:', error)
-          this.$message.error('保存失败: ' + (error.message || '未知错误'))
+          this.$message.error(this.$t('m.SMy_Save_Failed_Reason', { reason: error.message || this.$t('m.Unknown') }))
         } finally {
           this.submitting = false
         }
       })
     },
     resetForm() {
-      this.$confirm('确定要重置表单吗？所有未保存的修改将丢失。', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.SMy_Reset_Confirm'), this.$t('m.SMy_Tip'), {
+        confirmButtonText: this.$t('m.OK'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(() => {
         this.loadMyInfo()

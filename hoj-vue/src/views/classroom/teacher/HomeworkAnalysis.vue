@@ -1,7 +1,7 @@
 <template>
   <div class="homework-analysis">
     <div class="header">
-      <h3>学情分析</h3>
+      <h3>{{ $t('m.Homework_Analysis_Title') }}</h3>
       <div>
         <el-button v-if="!hideBackButton" @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -11,38 +11,38 @@
       <!-- 总体统计 -->
       <div class="overview-section">
         <h4>
-          总体情况
+          {{ $t('m.Overview') }}
           <span class="overview-summary">
             <span v-if="analysisData.submissionCount !== undefined && analysisData.submissionCount !== null">
-              作答记录：{{ analysisData.submissionCount }} 条
+              {{ $t('m.Submission_Records') }}: {{ analysisData.submissionCount }}
             </span>
             <span v-if="analysisData.averageScore !== undefined && analysisData.averageScore !== null">
-              平均得分：{{ formatScore(analysisData.averageScore) }}
+              {{ $t('m.Average_Score') }}: {{ formatScore(analysisData.averageScore) }}
             </span>
           </span>
         </h4>
         <el-row :gutter="20">
           <el-col :span="6">
             <div class="stat-card clickable" @click="showAllStudents">
-              <div class="stat-label">班级总人数</div>
+              <div class="stat-label">{{ $t('m.Class_Total_Students') }}</div>
               <div class="stat-value">{{ analysisData.totalStudentCount || 0 }}</div>
             </div>
           </el-col>
           <el-col :span="6">
             <div class="stat-card success clickable" @click="showSubmittedStudents">
-              <div class="stat-label">已提交人数</div>
+              <div class="stat-label">{{ $t('m.Submitted_Count') }}</div>
               <div class="stat-value">{{ analysisData.submittedCount || 0 }}</div>
             </div>
           </el-col>
           <el-col :span="6">
             <div class="stat-card warning clickable" @click="showUnsubmittedStudents">
-              <div class="stat-label">未提交人数</div>
+              <div class="stat-label">{{ $t('m.Unsubmitted_Count') }}</div>
               <div class="stat-value">{{ analysisData.unsubmittedCount || 0 }}</div>
             </div>
           </el-col>
           <el-col :span="6">
             <div class="stat-card info">
-              <div class="stat-label">提交率</div>
+              <div class="stat-label">{{ $t('m.Submission_Rate') }}</div>
               <div class="stat-value">{{ submissionRate }}%</div>
             </div>
           </el-col>
@@ -53,27 +53,27 @@
 
       <!-- 题目分析 -->
       <div class="questions-section">
-        <h4>题目分析</h4>
+        <h4>{{ $t('m.Question_Analysis') }}</h4>
         <el-empty
           v-if="!analysisData.questionAnalysis || analysisData.questionAnalysis.length === 0"
-          description="暂无题目维度分析数据"
+          :description="$t('m.No_Question_Analysis_Data')"
           :image-size="80"
         />
         <el-collapse v-else v-model="activeQuestions" accordion>
           <el-collapse-item
             v-for="(question, index) in analysisData.questionAnalysis || []"
             :key="question.homeworkQuestionId || question.id || index"
-            :title="`题目 ${question.questionOrder || index + 1}: ${question.title || '未命名题目'}`"
+            :title="`${$t('m.Question')} ${question.questionOrder || index + 1}: ${question.title || $t('m.Untitled_Question')}`"
             :name="index"
           >
             <template slot="title">
               <div class="question-title">
-                <span class="question-order">题目 {{ question.questionOrder || index + 1 }}</span>
+                <span class="question-order">{{ $t('m.Question') }} {{ question.questionOrder || index + 1 }}</span>
                 <el-tag :type="getQuestionTypeTag(question.type)" size="small" style="margin: 0 10px;">
                   {{ getQuestionTypeText(question.type) }}
                 </el-tag>
-                <span class="question-title-text">{{ question.title || '未命名题目' }}</span>
-                <span class="question-score">({{ formatScore(question.score) }}分)</span>
+                <span class="question-title-text">{{ question.title || $t('m.Untitled_Question') }}</span>
+                <span class="question-score">({{ formatScore(question.score) }}{{ $t('m.Score_Unit') }})</span>
               </div>
             </template>
 
@@ -82,25 +82,25 @@
               <el-row :gutter="20" class="question-stats">
                 <el-col :span="4">
                   <div class="mini-stat">
-                    <span class="mini-stat-label">提交人数：</span>
+                    <span class="mini-stat-label">{{ $t('m.Submitted_Count') }}:</span>
                     <span class="mini-stat-value">{{ question.submittedCount }}</span>
                   </div>
                 </el-col>
                 <el-col :span="4">
                   <div class="mini-stat">
-                    <span class="mini-stat-label">未提交人数：</span>
+                    <span class="mini-stat-label">{{ $t('m.Unsubmitted_Count') }}:</span>
                     <span class="mini-stat-value">{{ question.unsubmittedCount || 0 }}</span>
                   </div>
                 </el-col>
                 <el-col :span="4">
                   <div class="mini-stat">
-                    <span class="mini-stat-label">平均得分：</span>
+                    <span class="mini-stat-label">{{ $t('m.Average_Score') }}:</span>
                     <span class="mini-stat-value">{{ formatScore(question.avgScore) }}</span>
                   </div>
                 </el-col>
                 <el-col :span="4">
                   <div class="mini-stat">
-                    <span class="mini-stat-label">得分率：</span>
+                    <span class="mini-stat-label">{{ $t('m.Score_Rate') }}:</span>
                     <span class="mini-stat-value">{{ getQuestionScoreRate(question) }}%</span>
                   </div>
                 </el-col>
@@ -113,7 +113,7 @@
                       @click="showQuestionSubmittedStudents(question)"
                       :disabled="!question.submittedBy || question.submittedBy.length === 0"
                     >
-                      已提交 ({{ (question.submittedBy || []).length }}人)
+                      {{ $t('m.Submitted') }} ({{ (question.submittedBy || []).length }}{{ $t('m.People_Unit') }})
                     </el-button>
                     <el-button
                       type="warning"
@@ -122,7 +122,7 @@
                       @click="showQuestionUnsubmittedStudents(question)"
                       :disabled="!question.unsubmittedBy || question.unsubmittedBy.length === 0"
                     >
-                      未提交 ({{ (question.unsubmittedBy || []).length }}人)
+                      {{ $t('m.Unsubmitted') }} ({{ (question.unsubmittedBy || []).length }}{{ $t('m.People_Unit') }})
                     </el-button>
                   </el-button-group>
                 </el-col>
@@ -130,7 +130,7 @@
 
               <!-- 题目分布扇形图（所有题目类型） -->
               <div v-if="question.options && question.options.length > 0" class="options-analysis">
-                <h5>{{ getDistributionTitle(question.type) }}（点击查看学生）</h5>
+                <h5>{{ getDistributionTitle(question.type) }}{{ $t('m.Click_To_View_Students') }}</h5>
                 <el-row :gutter="20">
                   <el-col :span="12">
                     <!-- 饼图 -->
@@ -197,7 +197,7 @@
                     </div>
                     <!-- 正确答案显示（仅选择题和判断题） -->
                     <div v-if="['single_choice', 'multiple_choice', 'judge', 'fill_blank'].includes(question.type)" class="correct-answer-display answer-info compact-answer-info">
-                      <strong>正确答案：{{ getCorrectAnswerText(question) }}</strong>
+                      <strong>{{ $t('m.Correct_Answer') }}: {{ getCorrectAnswerText(question) }}</strong>
                     </div>
                   </el-col>
                   <el-col :span="12">
@@ -214,7 +214,7 @@
                         <span class="legend-label">
                           {{ getLegendLabel(option, question.type) }}
                         </span>
-                        <span class="legend-count">{{ option.selectedCount }}人</span>
+                        <span class="legend-count">{{ option.selectedCount }}{{ $t('m.People_Unit') }}</span>
                         <span class="legend-percentage">({{ option.percentage.toFixed(1) }}%)</span>
                       </div>
                     </div>
@@ -224,7 +224,7 @@
 
               <!-- 无提交数据时显示 -->
               <div v-else class="submitted-students">
-                <h5>暂无提交数据</h5>
+                <h5>{{ $t('m.No_Submission_Data') }}</h5>
               </div>
             </div>
           </el-collapse-item>
@@ -234,18 +234,18 @@
 
     <!-- 选项学生列表对话框 -->
     <el-dialog
-      :title="`选择该选项的学生 (${optionDialogStudents.length}人)`"
+      :title="`${$t('m.Students_Choose_This_Option')} (${optionDialogStudents.length}${$t('m.People_Unit')})`"
       :visible.sync="optionDialogVisible"
       width="600px"
     >
       <el-table :data="optionDialogStudents" stripe max-height="400">
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="得分" width="100">
+        <el-table-column prop="score" :label="$t('m.Score')" width="100">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ row.score }}</el-tag>
           </template>
@@ -255,23 +255,23 @@
 
     <!-- 全部学生对话框 -->
     <el-dialog
-      title="班级全部学生"
+      :title="$t('m.All_Class_Students')"
       :visible.sync="allStudentsDialogVisible"
       width="600px"
     >
       <el-table :data="allStudentsList" stripe max-height="400">
-        <el-table-column prop="rank" label="排名" width="80" align="center">
+        <el-table-column prop="rank" :label="$t('m.Rank')" width="80" align="center">
           <template slot-scope="{ row }">
             <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="总分" width="100" align="center">
+        <el-table-column prop="score" :label="$t('m.Total_Score')" width="100" align="center">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
@@ -281,23 +281,23 @@
 
     <!-- 已提交学生对话框 -->
     <el-dialog
-      :title="`已提交学生 (${submittedStudentsList.length}人)`"
+      :title="`${$t('m.Submitted_Students')} (${submittedStudentsList.length}${$t('m.People_Unit')})`"
       :visible.sync="submittedStudentsDialogVisible"
       width="600px"
     >
       <el-table :data="submittedStudentsList" stripe max-height="400">
-        <el-table-column prop="rank" label="排名" width="80" align="center">
+        <el-table-column prop="rank" :label="$t('m.Rank')" width="80" align="center">
           <template slot-scope="{ row }">
             <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="总分" width="100" align="center">
+        <el-table-column prop="score" :label="$t('m.Total_Score')" width="100" align="center">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
@@ -307,23 +307,23 @@
 
     <!-- 未提交学生对话框 -->
     <el-dialog
-      :title="`未提交学生 (${unsubmittedStudentsList.length}人)`"
+      :title="`${$t('m.Unsubmitted_Students')} (${unsubmittedStudentsList.length}${$t('m.People_Unit')})`"
       :visible.sync="unsubmittedStudentsDialogVisible"
       width="600px"
     >
       <el-table :data="unsubmittedStudentsList" stripe max-height="400">
-        <el-table-column prop="rank" label="排名" width="80" align="center">
+        <el-table-column prop="rank" :label="$t('m.Rank')" width="80" align="center">
           <template slot-scope="{ row }">
             <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="总分" width="100" align="center">
+        <el-table-column prop="score" :label="$t('m.Total_Score')" width="100" align="center">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ formatScore(row.score) }}</el-tag>
           </template>
@@ -333,23 +333,23 @@
 
     <!-- 题目作答学生对话框 -->
     <el-dialog
-      :title="`题目作答学生 (${questionSubmittedStudents.length}人)`"
+      :title="`${$t('m.Question_Submitted_Students')} (${questionSubmittedStudents.length}${$t('m.People_Unit')})`"
       :visible.sync="questionSubmittedDialogVisible"
       width="700px"
     >
       <el-table :data="questionSubmittedStudents" stripe max-height="400">
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名" width="150">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')" width="150">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
         </el-table-column>
-        <el-table-column prop="score" label="得分" width="100">
+        <el-table-column prop="score" :label="$t('m.Score')" width="100">
           <template slot-scope="{ row }">
             <el-tag type="info" size="small">{{ row.score }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="answer" label="作答情况">
+        <el-table-column prop="answer" :label="$t('m.Answer_Situation')">
           <template slot-scope="{ row }">
             <span v-if="row.answer && row.answer.length > 0">
               {{ row.answer.join(', ') }}
@@ -362,13 +362,13 @@
 
     <!-- 题目未提交学生对话框 -->
     <el-dialog
-      :title="`题目未提交学生 (${questionUnsubmittedStudents.length}人)`"
+      :title="`${$t('m.Question_Unsubmitted_Students')} (${questionUnsubmittedStudents.length}${$t('m.People_Unit')})`"
       :visible.sync="questionUnsubmittedDialogVisible"
       width="600px"
     >
       <el-table :data="questionUnsubmittedStudents" stripe max-height="400">
-        <el-table-column prop="realName" label="姓名" width="120" />
-        <el-table-column label="系统用户名">
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.System_Username')">
           <template slot-scope="{ row }">
             <UserName :username="row.username" />
           </template>
@@ -489,7 +489,7 @@ export default {
         }
       } catch (error) {
         if (isFirstLoad) {
-          this.$message.error('加载学情分析失败')
+          this.$message.error(this.$t('m.Load_Analysis_Failed'))
           console.error('加载学情分析失败:', error)
         }
       } finally {
@@ -539,13 +539,13 @@ export default {
     },
     getQuestionTypeText(type) {
       const map = {
-        single_choice: '单选题',
-        multiple_choice: '多选题',
-        judge: '判断题',
-        fill_blank: '填空题',
-        composite: '组合题',
-        subjective: '主观题',
-        programming: '编程题'
+        single_choice: this.$t('m.Single_Choice'),
+        multiple_choice: this.$t('m.Multiple_Choice'),
+        judge: this.$t('m.Judge_Question'),
+        fill_blank: this.$t('m.Fill_Blank'),
+        composite: this.$t('m.Composite_Question'),
+        subjective: this.$t('m.Subjective_Question'),
+        programming: this.$t('m.Programming_Question')
       }
       return map[type] || type
     },
@@ -570,10 +570,10 @@ export default {
       // 根据题目类型返回不同的标题
       const choiceTypes = ['single_choice', 'multiple_choice', 'judge', 'fill_blank']
       if (choiceTypes.includes(type)) {
-        return '选项分布'
+        return this.$t('m.Option_Distribution')
       }
       // 主观题和编程题显示分数段分布
-      return '分数段分布'
+      return this.$t('m.Score_Distribution')
     },
     getScoreTag(score, fullScore) {
       const rate = score / fullScore
@@ -731,8 +731,8 @@ export default {
 
       // 判断题显示简短标签
       if (type === 'judge') {
-        if (actualContent === '正确') return '对'
-        if (actualContent === '错误') return '错'
+        if (actualContent === this.$t('m.True')) return this.$t('m.True_Short')
+        if (actualContent === this.$t('m.False')) return this.$t('m.False_Short')
       }
 
       // 单选和多选题，如果内容是"选项A"这样的格式，提取第一个字符
@@ -754,8 +754,8 @@ export default {
         const content = option
         // 判断题显示完整标签：选项：正确/错误
         if (type === 'judge') {
-          if (content === '正确') return '选项：正确'
-          if (content === '错误') return '选项：错误'
+          if (content === this.$t('m.True')) return `${this.$t('m.Option_Prefix')}${this.$t('m.True')}`
+          if (content === this.$t('m.False')) return `${this.$t('m.Option_Prefix')}${this.$t('m.False')}`
         }
         // 其他题型使用简短标签
         return this.getOptionShortLabel(content, type)
@@ -765,8 +765,8 @@ export default {
       const content = option.content || option.label || ''
       // 判断题显示完整标签：选项：正确/错误
       if (type === 'judge') {
-        if (content === '正确') return '选项：正确'
-        if (content === '错误') return '选项：错误'
+        if (content === this.$t('m.True')) return `${this.$t('m.Option_Prefix')}${this.$t('m.True')}`
+        if (content === this.$t('m.False')) return `${this.$t('m.Option_Prefix')}${this.$t('m.False')}`
       }
       // 其他题型使用简短标签
       return this.getOptionShortLabel(content, type)
@@ -779,7 +779,7 @@ export default {
 
       // 判断题：显示"选项：正确/错误"
       if (type === 'judge') {
-        return `选项：${option.content || option.label || ''}`
+        return `${this.$t('m.Option_Prefix')}${option.content || option.label || ''}`
       }
 
       // 其他题型：显示 content
@@ -788,18 +788,18 @@ export default {
     getCorrectAnswerText(question) {
       // 如果没有答案，显示提示
       if (!question.answer || question.answer === '' || question.answer === '[]') {
-        return '教师未设置参考答案'
+        return this.$t('m.No_Reference_Answer')
       }
 
       // 判断题
       if (question.type === 'judge') {
         const normalizedAnswer = String(question.answer || '').toLowerCase().trim()
         if (normalizedAnswer === 'true') {
-          return '正确'
+          return this.$t('m.True')
         } else if (normalizedAnswer === 'false') {
-          return '错误'
+          return this.$t('m.False')
         }
-        return '教师未设置参考答案'
+        return this.$t('m.No_Reference_Answer')
       }
 
       // 单选题和多选题
@@ -822,7 +822,7 @@ export default {
           const parsed = typeof question.answer === 'string' ? JSON.parse(question.answer) : question.answer
           if (Array.isArray(parsed)) {
             const values = parsed.map(item => String(item || '').trim()).filter(Boolean)
-            return values.length > 0 ? values.join(' / ') : '教师未设置参考答案'
+            return values.length > 0 ? values.join(' / ') : this.$t('m.No_Reference_Answer')
           }
         } catch (e) {
           // fall through
@@ -830,7 +830,7 @@ export default {
       }
 
       // 其他题型
-      return question.answer || '教师未设置参考答案'
+      return question.answer || this.$t('m.No_Reference_Answer')
     }
   }
 }

@@ -1,16 +1,16 @@
 <template>
-  <div class="pptx-viewer" v-loading="loading" element-loading-text="正在解析PPT...">
+  <div class="pptx-viewer" v-loading="loading" :element-loading-text="$t('m.Parsing_PPT')">
     <!-- 错误提示 -->
     <div v-if="error" class="error-container">
       <i class="el-icon-warning-outline"></i>
       <p class="error-message">{{ error }}</p>
-      <el-button v-if="error.includes('网络')" type="text" @click="retry">重试</el-button>
+      <el-button v-if="error.includes($t('m.Network_Error_Short'))" type="text" @click="retry">{{ $t('m.Retry') }}</el-button>
     </div>
 
     <!-- 加载进度 -->
     <div v-if="loading && loadProgress > 0" class="loading-progress">
       <el-progress :percentage="loadProgress" :stroke-width="8"></el-progress>
-      <p class="progress-text">正在解析文件...</p>
+      <p class="progress-text">{{ $t('m.Parsing_File') }}</p>
     </div>
 
     <!-- 幻灯片容器 -->
@@ -73,7 +73,7 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <i class="el-icon-document"></i>
-      <p>正在解析PPT文件...</p>
+      <p>{{ $t('m.Parsing_PPT_File') }}</p>
     </div>
   </div>
 </template>
@@ -174,34 +174,34 @@ export default {
       const errorMsg = err.message || ''
 
       // HTTP状态码错误
-      if (errorMsg.includes('文件下载失败: 403')) {
-        return '没有权限访问此文件，请联系教师'
+      if (errorMsg.includes(`${this.$t('m.File_Download_Failed')}: 403`)) {
+        return this.$t('m.No_Permission_Contact_Teacher')
       }
-      if (errorMsg.includes('文件下载失败: 401')) {
-        return '登录已过期，请重新登录'
+      if (errorMsg.includes(`${this.$t('m.File_Download_Failed')}: 401`)) {
+        return this.$t('m.Unauthorized')
       }
-      if (errorMsg.includes('文件下载失败: 404')) {
-        return '文件不存在'
+      if (errorMsg.includes(`${this.$t('m.File_Download_Failed')}: 404`)) {
+        return this.$t('m.File_Not_Exist')
       }
-      if (errorMsg.includes('文件下载失败:')) {
+      if (errorMsg.includes(this.$t('m.File_Download_Failed') + ':')) {
         // 提取状态码
-        const statusMatch = errorMsg.match(/文件下载失败: (\d+)/)
-        const status = statusMatch ? statusMatch[1] : '未知'
-        return `服务器错误 (${status})，请稍后重试`
+        const statusMatch = errorMsg.match(/: (\d+)/)
+        const status = statusMatch ? statusMatch[1] : this.$t('m.Unknown')
+        return this.$t('m.Server_Error_Status').replace('{status}', status)
       }
 
       // Mixed Content 错误（特殊处理）
       if (errorMsg === 'Failed to fetch' && this.fileUrl && this.fileUrl.startsWith('http://')) {
-        return '文件地址使用了不安全的HTTP协议，无法在HTTPS页面中加载'
+        return this.$t('m.Insecure_Http_File')
       }
 
       // 网络错误
       const errorMap = {
-        'Failed to fetch': '文件加载失败，请检查网络连接',
-        'NetworkError': '网络错误，请检查网络连接',
-        'timeout': '加载超时，请稍后重试',
-        'not a pptx': '不支持的文件格式',
-        'corrupted': '文件已损坏，无法预览'
+        'Failed to fetch': this.$t('m.File_Load_Failed_Check_Network'),
+        'NetworkError': this.$t('m.Network_Error_Short'),
+        'timeout': this.$t('m.Load_Timeout'),
+        'not a pptx': this.$t('m.Unsupported_File_Format'),
+        'corrupted': this.$t('m.File_Corrupted')
       }
 
       for (const [key, message] of Object.entries(errorMap)) {
@@ -212,7 +212,7 @@ export default {
 
       // 未知错误
       console.warn('[PPTXViewer] 未知错误类型:', errorMsg)
-      return '加载失败，请下载后查看'
+      return this.$t('m.Load_Failed_Download_Instead')
     },
 
     retry() {
@@ -235,10 +235,10 @@ export default {
             this.JSZip = window.JSZip
             resolve()
           } else {
-            reject(new Error('JSZip加载失败'))
+            reject(new Error(this.$t('m.Jszip_Load_Failed')))
           }
         }
-        script.onerror = () => reject(new Error('JSZip加载失败'))
+        script.onerror = () => reject(new Error(this.$t('m.Jszip_Load_Failed')))
         document.head.appendChild(script)
       })
     },
@@ -283,7 +283,7 @@ export default {
             statusText: response.statusText,
             url: fetchUrl.substring(0, 100) + '...'
           })
-          throw new Error(`文件下载失败: ${response.status}`)
+          throw new Error(`${this.$t('m.File_Download_Failed')}: ${response.status}`)
         }
 
         const contentLength = response.headers.get('content-length')
@@ -310,7 +310,7 @@ export default {
         this.loadProgress = 100
 
         if (this.aborted) {
-          throw new Error('加载已取消')
+          throw new Error(this.$t('m.Load_Cancelled'))
         }
 
         this.loading = false
@@ -347,7 +347,7 @@ export default {
         }).sort((a, b) => a - b)
 
         if (slideNumbers.length === 0) {
-          throw new Error('PPT文件中没有找到幻灯片')
+          throw new Error(this.$t('m.No_Slides_Found'))
         }
 
         // 提取所有图片
@@ -356,7 +356,7 @@ export default {
         const slides = []
         for (const slideNum of slideNumbers) {
           if (this.aborted) {
-            throw new Error('加载已取消')
+            throw new Error(this.$t('m.Load_Cancelled'))
           }
 
           const slidePath = `ppt/slides/slide${slideNum}.xml`
@@ -383,7 +383,7 @@ export default {
         }
 
         if (slides.length === 0) {
-          throw new Error('无法解析PPT幻灯片')
+          throw new Error(this.$t('m.Cannot_Parse_Slides'))
         }
 
         this.slides = slides
@@ -458,11 +458,11 @@ export default {
         const title = titleMatch[1].trim()
         return title.substring(0, 30) + (title.length > 30 ? '...' : '')
       }
-      return '幻灯片'
+      return this.$t('m.Slide')
     },
 
     getSlideTitle(slide, index) {
-      return slide.title || `幻灯片 ${index + 1}`
+      return slide.title || `${this.$t('m.Slide')} ${index + 1}`
     },
 
     convertSlideToHTML(slideXml, slideRels, imageMap) {
@@ -534,7 +534,7 @@ export default {
         html += '</div>'
       } catch (err) {
         console.error('转换幻灯片失败:', err)
-        html += '<div class="slide-text-container"><p class="slide-paragraph-error">解析失败</p></div></div>'
+        html += '<div class="slide-text-container"><p class="slide-paragraph-error">' + this.$t('m.Parse_Failed') + '</p></div></div>'
       }
 
       return html

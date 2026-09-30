@@ -18,7 +18,7 @@
     </div>
 
     <!-- 统计信息 -->
-    <div class="stats-row" aria-label="学生统计">
+    <div class="stats-row" :aria-label="$t('m.Students_Stats')">
       <div class="classroom-stat-card">
         <div class="classroom-stat-value">{{ students.length }}</div>
         <div class="classroom-stat-label">{{ $t('m.Total_Students') }}</div>
@@ -235,7 +235,7 @@ export default {
         realName: [{ required: true, message: this.$t('m.Required'), trigger: 'blur' }]
       },
       addRules: {
-        realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }]
+        realName: [{ required: true, message: this.$t('m.Enter_Real_Name'), trigger: 'blur' }]
       }
     }
   },
@@ -394,7 +394,7 @@ export default {
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', `学生信息_${new Date().getTime()}.csv`)
+      link.setAttribute('download', `students_${new Date().getTime()}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()

@@ -1,7 +1,7 @@
 <template>
   <div class="student-homework-ranking">
     <div class="header">
-      <h3>{{ homework.title || '作业排行榜' }}</h3>
+      <h3>{{ homework.title || $t('m.Homework_Ranking') }}</h3>
       <div class="header-actions">
         <el-button @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -30,17 +30,17 @@
         stripe
         border
         max-height="640"
-        empty-text="暂无排行榜数据"
+        :empty-text="$t('m.No_Ranking_Data')"
       >
-        <el-table-column prop="rank" label="总分排名" width="110" align="center">
+        <el-table-column prop="rank" :label="$t('m.Total_Score_Rank')" width="110" align="center">
           <template slot-scope="{ row }">
             <el-tag type="warning" size="small">#{{ row.rank || '-' }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="realName" label="姓名" min-width="130" />
+        <el-table-column prop="realName" :label="$t('m.Real_Name')" min-width="130" />
 
-        <el-table-column label="用户名" min-width="160">
+        <el-table-column :label="$t('m.Username')" min-width="160">
           <template slot-scope="{ row }">
             <UserName
               v-if="row.username"
@@ -52,10 +52,10 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="总分" width="120" align="center">
+        <el-table-column :label="$t('m.Total_Score')" width="120" align="center">
           <template slot-scope="{ row }">
             <span v-if="row.hasScore">{{ formatScore(row.totalScore) }}</span>
-            <span class="unanswered" v-else>未作答</span>
+            <span class="unanswered" v-else>{{ $t('m.Not_Answered') }}</span>
           </template>
         </el-table-column>
 
@@ -68,7 +68,7 @@
         >
           <template slot-scope="{ row }">
             <span v-if="hasQuestionScore(row, column.key)">{{ formatScore(row.questionScores[column.key]) }}</span>
-            <span class="unanswered" v-else>未作答</span>
+            <span class="unanswered" v-else>{{ $t('m.Not_Answered') }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -121,12 +121,12 @@ export default {
         } else {
           this.questionColumns = []
           this.rankings = []
-          this.message = rankingRes.message || '教师未开放排行榜'
+          this.message = rankingRes.message || this.$t('m.Ranking_Not_Open')
         }
       } catch (error) {
         this.questionColumns = []
         this.rankings = []
-        this.message = '排行榜加载失败'
+        this.message = this.$t('m.Load_Ranking_Failed')
       } finally {
         this.loading = false
       }

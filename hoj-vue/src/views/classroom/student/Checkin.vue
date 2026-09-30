@@ -124,7 +124,7 @@
           <i class="el-icon-warning" style="font-size: 48px; color: #F56C6C;"></i>
           <p style="margin-top: 10px;">{{ qrcodeForm.cameraError }}</p>
           <p style="font-size: 12px; color: #909399; margin-top: 5px;">
-            请确保：1. 允许浏览器访问摄像头 2. 使用HTTPS或localhost 3. 没有其他应用占用摄像头
+            {{ $t('m.Camera_Check_Tips') }}
           </p>
         </div>
 
@@ -146,7 +146,7 @@
               <div class="scan-corner top-right"></div>
               <div class="scan-corner bottom-left"></div>
               <div class="scan-corner bottom-right"></div>
-              <p class="scan-hint">将二维码放入框内即可自动扫描</p>
+              <p class="scan-hint">{{ $t('m.Scan_Hint') }}</p>
             </div>
           </div>
 
@@ -395,7 +395,7 @@ export default {
     // 新增：确认二维码签到
     async confirmQrcodeCheckin() {
       if (!this.qrcodeForm.inputToken || this.qrcodeForm.inputToken.trim() === '') {
-        this.$message.warning('请输入Token')
+        this.$message.warning(this.$t('m.Enter_Token'))
         return
       }
 
@@ -445,7 +445,7 @@ export default {
       try {
         // 检查浏览器支持
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('当前浏览器不支持摄像头访问')
+          throw new Error(this.$t('m.Camera_Not_Supported'))
         }
 
         // 获取摄像头流（优先使用后置摄像头）
@@ -459,30 +459,30 @@ export default {
 
         const video = this.$refs.video
         if (!video) {
-          throw new Error('视频组件未就绪')
+          throw new Error(this.$t('m.Video_Not_Ready'))
         }
 
         video.srcObject = stream
         await video.play()
 
         this.qrcodeForm.scanning = true
-        this.$message.success('相机已启动，请将二维码对准扫描框')
+        this.$message.success(this.$t('m.Camera_Started'))
 
         // 开始扫描循环
         this.scanLoop()
 
       } catch (error) {
         console.error('启动相机失败:', error)
-        let errorMsg = '相机启动失败'
+        let errorMsg = this.$t('m.Camera_Start_Failed')
 
         if (error.name === 'NotAllowedError') {
-          errorMsg = '请允许浏览器访问摄像头'
+          errorMsg = this.$t('m.Allow_Camera_Access')
         } else if (error.name === 'NotFoundError') {
-          errorMsg = '未检测到摄像头设备'
+          errorMsg = this.$t('m.No_Camera_Device')
         } else if (error.name === 'NotSupportedError') {
-          errorMsg = '当前浏览器不支持摄像头访问，请使用 Chrome 或 Edge'
+          errorMsg = this.$t('m.Camera_Not_Supported_Chrome')
         } else if (error.name === 'NotReadableError') {
-          errorMsg = '摄像头被其他应用占用或权限不足'
+          errorMsg = this.$t('m.Camera_Occupied')
         } else if (error.message) {
           errorMsg = error.message
         }
@@ -551,7 +551,7 @@ export default {
 
             return
           } else {
-            this.$message.warning('二维码格式不正确，请扫描正确的签到二维码')
+            this.$message.warning(this.$t('m.Qrcode_Invalid_Scan_Again'))
           }
         }
 
@@ -581,7 +581,7 @@ export default {
     extractTokenFromUrl(url) {
       // 如果内容为空
       if (!url || url.trim() === '') {
-        this.$message.error('二维码内容为空，请扫描正确的签到二维码')
+        this.$message.error(this.$t('m.Qrcode_Invalid_Scan_Again'))
         return null
       }
 
@@ -611,7 +611,7 @@ export default {
           return token
         }
 
-        this.$message.warning('二维码格式不正确，未找到token参数')
+        this.$message.warning(this.$t('m.Qrcode_No_Token'))
       } catch (e) {
         // 方法3：如果是直接扫描的token字符串（包含下划线）
         // Token通常包含下划线，例如：16_1768705780133_3e83f2c8
@@ -632,7 +632,7 @@ export default {
 
           return url
         } else {
-          this.$message.error('二维码格式不正确，请扫描正确的签到二维码')
+          this.$message.error(this.$t('m.Qrcode_Invalid_Scan_Again'))
         }
       }
 

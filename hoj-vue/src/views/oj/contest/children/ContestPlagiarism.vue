@@ -13,15 +13,15 @@
     <!-- 加载中 -->
     <div v-if="loading" class="loading-container">
       <i class="el-icon-loading"></i>
-      <span>加载中...</span>
+      <span>{{ $t('m.Plag_Loading') }}</span>
     </div>
 
     <!-- 比赛未结束提示 -->
     <el-alert
       v-else-if="!isContestEnded"
-      title="比赛未结束"
+      :title="$t('m.Plag_Contest_Not_Ended_Title')"
       type="warning"
-      description="比赛未结束，不允许进行查重。请等待比赛结束后再操作。"
+      :description="$t('m.Plag_Contest_Not_Ended_Desc')"
       show-icon
       :closable="false"
       style="margin-bottom: 20px"
@@ -32,25 +32,25 @@
       <!-- 步骤1: 设置查重率 -->
       <el-card class="config-card" v-if="currentStep === 'config'">
         <div slot="header" class="card-header">
-          <span>步骤1: 设置查重率阈值</span>
+          <span>{{ $t('m.Plag_Step1_Title') }}</span>
           <el-button type="primary" size="small" @click="saveConfig" :loading="saving" :disabled="isCheckRunning">
-            保存配置
+            {{ $t('m.Plag_Save_Config') }}
           </el-button>
         </div>
 
         <el-alert
-          title="查重说明"
+          :title="$t('m.Plag_Desc_Title')"
           type="info"
-          description="查重仅对比比赛期间通过评测（AC）的代码，非AC提交不会被比较。"
+          :description="$t('m.Plag_Desc')"
           show-icon
           :closable="false"
           style="margin-bottom: 20px"
         />
 
         <el-table :data="problems" style="width: 100%">
-          <el-table-column prop="displayId" label="题号" width="100" />
-          <el-table-column prop="displayTitle" label="题目名称" />
-          <el-table-column label="查重率阈值 (%)" width="250">
+          <el-table-column prop="displayId" :label="$t('m.Plag_Problem_Number')" width="100" />
+          <el-table-column prop="displayTitle" :label="$t('m.Plag_Problem_Name')" />
+          <el-table-column :label="$t('m.Plag_Threshold_Label')" width="250">
             <template slot-scope="scope">
               <el-input-number
                 v-model="scope.row.threshold"
@@ -60,7 +60,7 @@
                 size="small"
               />
               <span style="margin-left: 10px; color: #909399">
-                两个方向都达到此值才记录
+                {{ $t('m.Plag_Threshold_Tip') }}
               </span>
             </template>
           </el-table-column>
@@ -70,7 +70,7 @@
       <!-- 步骤2: 开始查重 -->
       <el-card class="check-card" v-if="currentStep === 'check' || currentStep === 'result'">
         <div slot="header" class="card-header">
-          <span>步骤2: 执行查重</span>
+          <span>{{ $t('m.Plag_Step2_Title') }}</span>
           <div>
             <!-- check 步骤的按钮 -->
             <template v-if="currentStep === 'check'">
@@ -83,7 +83,7 @@
                 :loading="starting"
                 :disabled="checkStatus && checkStatus.status === 'running' && starting"
               >
-                {{ checkStatus && (checkStatus.status === 'completed' || checkStatus.status === 'failed') ? '重新查重' : '开始查重' }}
+                {{ checkStatus && (checkStatus.status === 'completed' || checkStatus.status === 'failed') ? $t('m.Plag_Recheck') : $t('m.Plag_Start_Check') }}
               </el-button>
               <!-- 查重进行中时，禁用按钮并显示状态 -->
               <el-button
@@ -93,7 +93,7 @@
                 :loading="true"
                 disabled
               >
-                查重中 {{ checkStatus.progress }}%
+                {{ $t('m.Plag_Checking', { progress: checkStatus.progress }) }}
               </el-button>
             </template>
             <!-- result 步骤的按钮 -->
@@ -104,14 +104,14 @@
                 @click="restartCheck"
                 :loading="starting"
               >
-                重新查重
+                {{ $t('m.Plag_Recheck') }}
               </el-button>
               <el-button
                 type="success"
                 size="small"
                 @click="resetConfig"
               >
-                重新设置
+                {{ $t('m.Plag_Reset_Config') }}
               </el-button>
             </template>
           </div>
@@ -121,16 +121,16 @@
         <div v-if="checkStatus">
           <el-row :gutter="20" style="margin-bottom: 20px">
             <el-col :span="6">
-              <statistic-card title="状态" :value="getStatusText(checkStatus.status)" />
+              <statistic-card :title="$t('m.Status')" :value="getStatusText(checkStatus.status)" />
             </el-col>
             <el-col :span="6">
-              <statistic-card title="总提交数" :value="checkStatus.totalSubmissions" />
+              <statistic-card :title="$t('m.Plag_Total_Submissions')" :value="checkStatus.totalSubmissions" />
             </el-col>
             <el-col :span="6">
-              <statistic-card title="已对比" :value="`${checkStatus.checkedPairs}/${checkStatus.totalPairs}`" />
+              <statistic-card :title="$t('m.Plag_Checked_Pairs')" :value="`${checkStatus.checkedPairs}/${checkStatus.totalPairs}`" />
             </el-col>
             <el-col :span="6">
-              <statistic-card title="进度" :value="`${checkStatus.progress}%`" />
+              <statistic-card :title="$t('m.Progress')" :value="`${checkStatus.progress}%`" />
             </el-col>
           </el-row>
 
@@ -142,7 +142,7 @@
 
           <el-alert
             v-if="checkStatus.status === 'running'"
-            title="查重进行中，请稍候..."
+            :title="$t('m.Plag_Running_Tip')"
             type="info"
             :closable="false"
             style="margin-top: 20px"
@@ -153,11 +153,11 @@
       <!-- 步骤3: 查看结果 -->
       <el-card class="result-card" v-if="currentStep === 'result' && checkStatus && checkStatus.status === 'completed'">
         <div slot="header" class="card-header">
-          <span>步骤3: 查重结果</span>
+          <span>{{ $t('m.Plag_Step3_Title') }}</span>
           <div>
             <el-input
               v-model="displayIdFilter"
-              placeholder="输入题号筛选（如：A、B、C）"
+              :placeholder="$t('m.Plag_Filter_Placeholder')"
               style="width: 200px; margin-right: 10px"
               clearable
               @clear="handleFilterChange"
@@ -173,22 +173,22 @@
               :loading="exporting"
               :disabled="exporting"
             >
-              {{ exporting ? '正在导出...' : '导出Excel' }}
+              {{ exporting ? $t('m.Plag_Exporting') : $t('m.Export_Excel') }}
             </el-button>
           </div>
         </div>
 
         <!-- 提示：只显示超过阈值的结果 -->
         <el-alert
-          title="数据说明"
+          :title="$t('m.Plag_Data_Note_Title')"
           type="info"
           :closable="false"
           style="margin-bottom: 20px"
         >
           <template slot="default">
-            <div>当前页面仅显示<strong>两个方向都达到阈值</strong>的查重结果（共 {{ totalCount }} 条）。</div>
+            <div>{{ $t('m.Plag_Note1_Before') }}<strong>{{ $t('m.Plag_Note1_Highlight') }}</strong>{{ $t('m.Plag_Note1_After', { total: totalCount }) }}</div>
             <div style="margin-top: 8px">
-              如需查看<strong>所有查重结果</strong>（包括未满足双向阈值的），请点击右上角的「导出Excel」按钮下载完整数据。
+              {{ $t('m.Plag_Note2_Before') }}<strong>{{ $t('m.Plag_Note2_Highlight') }}</strong>{{ $t('m.Plag_Note2_After') }}
             </div>
           </template>
         </el-alert>
@@ -196,12 +196,12 @@
         <!-- 超过 500 条提示 -->
         <el-alert
           v-if="totalCount > 500"
-          title="数据量提示"
+          :title="$t('m.Plag_Too_Many_Title')"
           type="warning"
           :closable="false"
           style="margin-bottom: 20px"
         >
-          当前筛选结果有 {{ totalCount }} 条记录，超过 500 条。建议导出 Excel 查看完整数据。
+          {{ $t('m.Plag_Too_Many_Desc', { total: totalCount }) }}
         </el-alert>
 
         <!-- 结果统计 -->
@@ -210,15 +210,15 @@
             <el-card shadow="hover">
               <div class="stat-item">
                 <div class="stat-value">{{ totalCount }}</div>
-            <div class="stat-label">双向均达到阈值结果数</div>
+            <div class="stat-label">{{ $t('m.Plag_Bidirectional_Count') }}</div>
               </div>
             </el-card>
           </el-col>
           <el-col :span="8">
             <el-card shadow="hover" type="danger">
               <div class="stat-item">
-                <div class="stat-value danger">{{ suspiciousUsers }} 人</div>
-                <div class="stat-label">涉及可疑用户</div>
+                <div class="stat-value danger">{{ $t('m.Plag_People', { count: suspiciousUsers }) }}</div>
+                <div class="stat-label">{{ $t('m.Plag_Suspicious_User_Count') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -226,7 +226,7 @@
             <el-card shadow="hover">
               <div class="stat-item">
                 <div class="stat-value">{{ results.length }}</div>
-                <div class="stat-label">当前显示</div>
+                <div class="stat-label">{{ $t('m.Plag_Currently_Shown') }}</div>
               </div>
             </el-card>
           </el-col>
@@ -234,16 +234,16 @@
 
         <!-- 结果列表 -->
         <el-table :data="pagedResults" style="width: 100%" stripe v-loading="loading">
-          <el-table-column prop="displayId" label="题号" width="80" />
-          <el-table-column prop="problemTitle" label="题目名称" width="200" />
-          <el-table-column label="用户对比" width="250">
+          <el-table-column prop="displayId" :label="$t('m.Plag_Problem_Number')" width="80" />
+          <el-table-column prop="problemTitle" :label="$t('m.Plag_Problem_Name')" width="200" />
+          <el-table-column :label="$t('m.Plag_User_Compare')" width="250">
             <template slot-scope="scope">
               <el-tag type="info" size="small">{{ scope.row.username1 }}</el-tag>
               <span style="margin: 0 10px">vs</span>
               <el-tag type="info" size="small">{{ scope.row.username2 }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="提交ID" width="180">
+          <el-table-column :label="$t('m.Plag_Submission_ID')" width="180">
             <template slot-scope="scope">
               <div style="font-size: 12px">
                 <div>A: {{ scope.row.contestRecordId1 || scope.row.submitId1 }}</div>
@@ -251,7 +251,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="相似度" width="180">
+          <el-table-column :label="$t('m.Plag_Similarity')" width="180">
             <template slot-scope="scope">
               <el-tag
                 :type="getSimilarityType(scope.row.maxSimilarity)"
@@ -268,12 +268,12 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="编程语言" width="120">
+          <el-table-column :label="$t('m.Plag_Language')" width="120">
             <template slot-scope="scope">
               {{ scope.row.language }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" fixed="right" width="150">
+          <el-table-column :label="$t('m.Operation')" fixed="right" width="150">
             <template slot-scope="scope">
               <el-button
                 size="mini"
@@ -283,7 +283,7 @@
                 :disabled="loadingCode"
                 @click="viewCode(scope.row)"
               >
-                对比代码
+                {{ $t('m.Plag_Compare_Code') }}
               </el-button>
             </template>
           </el-table-column>
@@ -306,7 +306,7 @@
 
     <!-- 代码对比对话框 -->
     <el-dialog
-      title="代码对比"
+      :title="$t('m.Plag_Code_Compare_Title')"
       :visible.sync="codeDialogVisible"
       width="90%"
       :close-on-click-modal="false"
@@ -316,26 +316,26 @@
         <el-col :span="12">
           <el-card shadow="hover">
             <div slot="header">
-              <span style="font-weight: bold">用户A: {{ codeData.user1?.username }}</span>
+              <span style="font-weight: bold">{{ $t('m.Plag_User_A', { name: codeData.user1?.username }) }}</span>
             </div>
             <div class="submission-info">
-              <p><strong>题号：</strong>{{ codeData.displayId }}</p>
-              <p><strong>题目：</strong>{{ codeData.problemTitle }}</p>
-              <p><strong>提交时间：</strong>{{ codeData.submitTime1 }}</p>
-              <p><strong>语言：</strong>{{ codeData.language }}</p>
+              <p><strong>{{ $t('m.Plag_Problem_Number_Label') }}</strong>{{ codeData.displayId }}</p>
+              <p><strong>{{ $t('m.Plag_Problem_Label') }}</strong>{{ codeData.problemTitle }}</p>
+              <p><strong>{{ $t('m.Plag_Submit_Time_Label') }}</strong>{{ codeData.submitTime1 }}</p>
+              <p><strong>{{ $t('m.Plag_Language_Label') }}</strong>{{ codeData.language }}</p>
             </div>
           </el-card>
         </el-col>
         <el-col :span="12">
           <el-card shadow="hover">
             <div slot="header">
-              <span style="font-weight: bold">用户B: {{ codeData.user2?.username }}</span>
+              <span style="font-weight: bold">{{ $t('m.Plag_User_B', { name: codeData.user2?.username }) }}</span>
             </div>
             <div class="submission-info">
-              <p><strong>题号：</strong>{{ codeData.displayId }}</p>
-              <p><strong>题目：</strong>{{ codeData.problemTitle }}</p>
-              <p><strong>提交时间：</strong>{{ codeData.submitTime2 }}</p>
-              <p><strong>语言：</strong>{{ codeData.language }}</p>
+              <p><strong>{{ $t('m.Plag_Problem_Number_Label') }}</strong>{{ codeData.displayId }}</p>
+              <p><strong>{{ $t('m.Plag_Problem_Label') }}</strong>{{ codeData.problemTitle }}</p>
+              <p><strong>{{ $t('m.Plag_Submit_Time_Label') }}</strong>{{ codeData.submitTime2 }}</p>
+              <p><strong>{{ $t('m.Plag_Language_Label') }}</strong>{{ codeData.language }}</p>
             </div>
           </el-card>
         </el-col>
@@ -345,7 +345,7 @@
       <div class="code-compare-container">
         <div class="code-panel">
           <div class="code-panel-header">
-            <span>{{ codeData.user1?.username }} 的代码</span>
+            <span>{{ $t('m.Plag_Code_Of', { name: codeData.user1?.username }) }}</span>
           </div>
           <div class="code-viewer" v-if="codeData.code1">
             <pre><code :key="`code1-${codeDialogVisible}`" ref="codeBlock1" :class="`language-${mapLanguage(codeData.language1)}`">{{ codeData.code1 }}</code></pre>
@@ -353,7 +353,7 @@
         </div>
         <div class="code-panel">
           <div class="code-panel-header">
-            <span>{{ codeData.user2?.username }} 的代码</span>
+            <span>{{ $t('m.Plag_Code_Of', { name: codeData.user2?.username }) }}</span>
           </div>
           <div class="code-viewer" v-if="codeData.code2">
             <pre><code :key="`code2-${codeDialogVisible}`" ref="codeBlock2" :class="`language-${mapLanguage(codeData.language2)}`">{{ codeData.code2 }}</code></pre>
@@ -362,9 +362,9 @@
       </div>
 
       <div slot="footer" class="dialog-footer">
-        <el-button @click="codeDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="copyCode(1)">复制A代码</el-button>
-        <el-button type="primary" @click="copyCode(2)">复制B代码</el-button>
+        <el-button @click="codeDialogVisible = false">{{ $t('m.Close') }}</el-button>
+        <el-button type="primary" @click="copyCode(1)">{{ $t('m.Plag_Copy_Code_A') }}</el-button>
+        <el-button type="primary" @click="copyCode(2)">{{ $t('m.Plag_Copy_Code_B') }}</el-button>
       </div>
     </el-dialog>
   </div>
@@ -474,7 +474,7 @@ export default {
   },
   methods: {
     ...mapActions(['getContestProblems']),
-    getErrorMessage(error, fallback = '请求失败') {
+    getErrorMessage(error, fallback = this.$t('m.Plag_Request_Failed')) {
       return error?.message || error?.response?.data?.msg || error?.response?.data?.message || fallback
     },
     showError(prefix, error, fallback) {
@@ -571,7 +571,7 @@ export default {
         }
       } catch (error) {
         console.error('加载数据失败:', error)
-        this.showError('加载查重数据失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Load_Data_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         this.dataLoading = false
         this.loading = false
@@ -588,7 +588,7 @@ export default {
         }))
 
         await api.savePlagiarismConfig(this.contest.id, configs)
-        this.$message.success('配置保存成功')
+        this.$message.success(this.$t('m.Plag_Config_Saved'))
 
         // 保存配置后，检查是否有查重任务
         const checkRes = await api.getLatestPlagiarismCheck(this.contest.id)
@@ -609,7 +609,7 @@ export default {
           this.currentStep = 'check'
         }
       } catch (error) {
-        this.showError('配置保存失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Config_Save_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         this.saving = false
       }
@@ -621,7 +621,7 @@ export default {
 
       // 如果已经有正在运行的查重任务，提示用户
       if (this.checkStatus && this.checkStatus.status === 'running') {
-        this.$message.warning('查重任务正在运行中，请稍候...')
+        this.$message.warning(this.$t('m.Plag_Check_Running'))
         return
       }
 
@@ -629,7 +629,7 @@ export default {
       this.clearError()
       try {
         const res = await api.startPlagiarismCheck(this.contest.id)
-        this.$message.success('查重任务已启动')
+        this.$message.success(this.$t('m.Plag_Check_Started'))
 
         // 立即更新 checkStatus，并乐观地设置为 running 状态，确保UI能显示进度
         if (res.data.data) {
@@ -652,7 +652,7 @@ export default {
         // 启动定时轮询
         this.startPolling()
       } catch (error) {
-        this.showError('启动查重失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Start_Check_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         this.starting = false
       }
@@ -662,9 +662,9 @@ export default {
       // 防止重复点击
       if (this.starting) return
 
-      this.$confirm('重新查重将删除当前任务和结果，确定要继续吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.Plag_Recheck_Confirm'), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.OK'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         // 停止当前的轮询
@@ -677,7 +677,7 @@ export default {
         this.clearError()
         try {
           const res = await api.startPlagiarismCheck(this.contest.id)
-          this.$message.success('查重任务已重新启动')
+          this.$message.success(this.$t('m.Plag_Check_Restarted'))
 
           // 清空旧结果
           this.results = []
@@ -703,7 +703,7 @@ export default {
           // 启动定时轮询
           this.startPolling()
         } catch (error) {
-          this.showError('重新查重失败', error, '请稍后重试')
+          this.showError(this.$t('m.Plag_Recheck_Failed'), error, this.$t('m.Plag_Retry_Later'))
         } finally {
           this.starting = false
         }
@@ -754,21 +754,21 @@ export default {
           }
           this.currentStep = 'result'
           await this.loadResults()
-          this.$message.success('查重完成')
+          this.$message.success(this.$t('m.Plag_Check_Completed'))
         } else if (this.checkStatus.status === 'failed') {
           // 清除定时器
           if (this.progressTimer) {
             clearInterval(this.progressTimer)
             this.progressTimer = null
           }
-          this.errorMessage = '查重失败：' + (this.checkStatus.errorMessage || '未知错误')
+          this.errorMessage = this.$t('m.Plag_Check_Failed') + (this.checkStatus.errorMessage || this.$t('m.Plag_Unknown_Error'))
         }
         // 如果是 running 状态，继续轮询（由定时器处理）
       } catch (error) {
         console.error('获取进度失败:', error)
         this.progressErrorCount += 1
         if (this.progressErrorCount === 1) {
-          this.showError('获取查重进度失败', error, '系统将自动重试')
+          this.showError(this.$t('m.Plag_Progress_Failed'), error, this.$t('m.Plag_Auto_Retry'))
         }
         // 连续失败三次再停止，避免一次瞬时网络错误中断任务状态更新。
         if (this.progressErrorCount >= 3) {
@@ -796,7 +796,7 @@ export default {
         this.currentPage = 1
       } catch (error) {
         console.error('加载结果失败:', error)
-        this.showError('加载查重结果失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Load_Results_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         this.loadingResults = false
         this.loading = false
@@ -855,7 +855,7 @@ export default {
           }
         })
       } catch (error) {
-        this.showError('获取代码失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Get_Code_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         this.loadingCode = false
       }
@@ -866,7 +866,7 @@ export default {
       const user = userNum === 1 ? this.codeData.user1?.username : this.codeData.user2?.username
 
       navigator.clipboard.writeText(code).then(() => {
-        this.$message.success(`${user} 的代码已复制到剪贴板`)
+        this.$message.success(this.$t('m.Plag_Code_Copied', { name: user }))
       })
     },
 
@@ -876,7 +876,7 @@ export default {
 
       // 显示提示
       const loadingMessage = this.$message({
-        message: '正在生成Excel文件，数据量大时可能需要较长时间，请耐心等待...',
+        message: this.$t('m.Plag_Generating_Excel'),
         type: 'info',
         duration: 0,
         showClose: false
@@ -889,18 +889,18 @@ export default {
         })
         const link = document.createElement('a')
         link.href = window.URL.createObjectURL(blob)
-        link.download = `查重结果_${this.contest.title}_${Date.now()}.csv`
+        link.download = `${this.$t('m.Plag_Result_File')}_${this.contest.title}_${Date.now()}.csv`
         link.click()
 
         // 关闭加载提示
         loadingMessage.close()
 
-        this.$message.success('导出成功！')
+        this.$message.success(this.$t('m.Plag_Export_Success'))
       } catch (error) {
         // 关闭加载提示
         loadingMessage.close()
 
-        this.showError('导出失败', error, '请稍后重试')
+        this.showError(this.$t('m.Plag_Export_Failed'), error, this.$t('m.Plag_Retry_Later'))
       } finally {
         // 恢复按钮状态
         this.exporting = false
@@ -935,10 +935,10 @@ export default {
 
     getStatusText(status) {
       const statusMap = {
-        pending: '待开始',
-        running: '进行中',
-        completed: '已完成',
-        failed: '失败'
+        pending: this.$t('m.Plag_Status_Pending'),
+        running: this.$t('m.Plag_Status_Running'),
+        completed: this.$t('m.Plag_Status_Completed'),
+        failed: this.$t('m.Plag_Status_Failed')
       }
       return statusMap[status] || status
     },

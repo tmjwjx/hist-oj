@@ -2,22 +2,22 @@
   <div class="contest-question-list">
     <el-card shadow>
       <div slot="header">
-        <span>答疑列表</span>
+        <span>{{ $t('m.CQ_List_Title') }}</span>
         <el-select
           v-model="filterStatus"
           size="small"
           style="float: right; width: 120px"
           @change="loadQuestions"
         >
-          <el-option label="全部" value="all"></el-option>
-          <el-option label="待回复" value="pending"></el-option>
-          <el-option label="已回复" value="answered"></el-option>
-          <el-option label="已关闭" value="closed"></el-option>
+          <el-option :label="$t('m.All')" value="all"></el-option>
+          <el-option :label="$t('m.CQ_Status_Pending')" value="pending"></el-option>
+          <el-option :label="$t('m.CQ_Status_Answered')" value="answered"></el-option>
+          <el-option :label="$t('m.CQ_Status_Closed')" value="closed"></el-option>
         </el-select>
       </div>
 
       <div v-loading="loading">
-        <el-empty v-if="questions.length === 0 && !loading" description="暂无提问"></el-empty>
+        <el-empty v-if="questions.length === 0 && !loading" :description="$t('m.CQ_No_Questions')"></el-empty>
 
         <div v-else class="question-list">
           <div
@@ -103,7 +103,7 @@ export default {
           this.total = res.data.data.total || 0
         }
       } catch (error) {
-        this.$message.error('加载失败')
+        this.$message.error(this.$t('m.Load_Failed'))
       } finally {
         this.loading = false
       }
@@ -129,9 +129,9 @@ export default {
     },
     getStatusText(status) {
       const map = {
-        pending: '待回复',
-        answered: '已回复',
-        closed: '已关闭'
+        pending: this.$t('m.CQ_Status_Pending'),
+        answered: this.$t('m.CQ_Status_Answered'),
+        closed: this.$t('m.CQ_Status_Closed')
       }
       return map[status] || status
     },

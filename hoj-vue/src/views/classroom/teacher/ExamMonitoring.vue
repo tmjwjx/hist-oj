@@ -1,11 +1,11 @@
 <template>
   <div class="exam-monitoring">
     <div class="header">
-      <h3>考试监控</h3>
+      <h3>{{ $t('m.Exam_Monitoring') }}</h3>
       <div>
         <el-button type="danger" @click="forceSubmitAll" :loading="forcingAll" :disabled="!canForceSubmitAll">
           <i class="el-icon-download"></i>
-          <span>强制收卷</span>
+          <span>{{ $t('m.Force_Collect_All') }}</span>
         </el-button>
         <el-button v-if="!hideBackButton" @click="goBack">{{ $t('m.Back') }}</el-button>
       </div>
@@ -16,37 +16,37 @@
       <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-number">{{ stats.totalStudents || 0 }}</div>
-          <div class="stat-label">总学生数</div>
+          <div class="stat-label">{{ $t('m.Total_Students') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card stat-warning">
           <div class="stat-number">{{ stats.notStartedCount || 0 }}</div>
-          <div class="stat-label">未开始</div>
+          <div class="stat-label">{{ $t('m.Not_Started') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card stat-primary">
           <div class="stat-number">{{ stats.inProgressCount || 0 }}</div>
-          <div class="stat-label">答题中</div>
+          <div class="stat-label">{{ $t('m.In_Progress') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card stat-success">
           <div class="stat-number">{{ stats.submittedCount || 0 }}</div>
-          <div class="stat-label">已提交</div>
+          <div class="stat-label">{{ $t('m.Submitted') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card stat-danger">
           <div class="stat-number">{{ violationCount }}</div>
-          <div class="stat-label">有违规</div>
+          <div class="stat-label">{{ $t('m.Has_Violations') }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-number">{{ submissionRate }}%</div>
-          <div class="stat-label">提交率</div>
+          <div class="stat-label">{{ $t('m.Submission_Rate') }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -54,27 +54,27 @@
     <!-- 学生列表 -->
     <el-card class="student-list-card">
       <div slot="header" class="card-header">
-        <span>学生列表</span>
-        <el-tag type="info" size="small">每3秒自动刷新</el-tag>
+        <span>{{ $t('m.Student_List') }}</span>
+        <el-tag type="info" size="small">{{ $t('m.Auto_Refresh_3s') }}</el-tag>
       </div>
 
       <el-table :data="studentList" stripe v-loading="loading" row-key="uid">
-        <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column label="状态" width="120">
+        <el-table-column prop="name" :label="$t('m.Real_Name')" width="120" />
+        <el-table-column :label="$t('m.Status')" width="120">
           <template slot-scope="{ row }">
-            <el-tag v-if="row.status === 'not_started'" type="info" size="small">未开始</el-tag>
-            <el-tag v-else-if="row.status === 'in_progress'" type="primary" size="small">答题中</el-tag>
-            <el-tag v-else-if="row.status === 'submitted'" type="success" size="small">已提交</el-tag>
-            <el-tag v-else-if="row.status === 'forced_submit'" type="warning" size="small">强制收卷</el-tag>
+            <el-tag v-if="row.status === 'not_started'" type="info" size="small">{{ $t('m.Not_Started') }}</el-tag>
+            <el-tag v-else-if="row.status === 'in_progress'" type="primary" size="small">{{ $t('m.In_Progress') }}</el-tag>
+            <el-tag v-else-if="row.status === 'submitted'" type="success" size="small">{{ $t('m.Submitted') }}</el-tag>
+            <el-tag v-else-if="row.status === 'forced_submit'" type="warning" size="small">{{ $t('m.Forced_Submit') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="已用时间" width="100">
+        <el-table-column :label="$t('m.Elapsed_Time')" width="100">
           <template slot-scope="{ row }">
-            <span v-if="row.elapsedMinutes >= 0">{{ row.elapsedMinutes }}分钟</span>
+            <span v-if="row.elapsedMinutes >= 0">{{ row.elapsedMinutes }}{{ $t('m.Minutes_Unit') }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="剩余时间" width="100">
+        <el-table-column :label="$t('m.Remaining_Time')" width="100">
           <template slot-scope="{ row }">
             <span v-if="row.remainingSeconds >= 0" :class="getTimeClass(row.remainingSeconds)">
               {{ formatTime(row.remainingSeconds) }}
@@ -82,7 +82,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="违规记录" width="300">
+        <el-table-column :label="$t('m.Violation_Records')" width="300">
           <template slot-scope="{ row }">
             <div v-if="row.violations && row.violations.length > 0" class="violations">
               <el-tag
@@ -95,10 +95,10 @@
                 {{ getViolationTypeText(v.type) }} ×{{ v.count }}
               </el-tag>
             </div>
-            <span v-else class="no-violation">无违规</span>
+            <span v-else class="no-violation">{{ $t('m.No_Violations') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column :label="$t('m.Operation')" width="120">
           <template slot-scope="{ row }">
             <el-button
               v-if="row.status === 'in_progress'"
@@ -107,7 +107,7 @@
               @click="forceSubmit(row)"
               :loading="forcingUid === row.uid"
             >
-              强制交卷
+              {{ $t('m.Force_Submit') }}
             </el-button>
             <span v-else>-</span>
           </template>
@@ -117,39 +117,39 @@
 
     <!-- 强制交卷确认对话框 -->
     <el-dialog
-      title="强制交卷确认"
+      :title="$t('m.Force_Submit_Confirm')"
       :visible.sync="showForceSubmitDialog"
       width="450px"
     >
       <div v-if="currentStudent">
-        <p>确定要强制学生 <strong>{{ currentStudent.name }}</strong> 交卷吗？</p>
+        <p>{{ $t('m.Force_Submit_Student_Confirm').replace('{name}', currentStudent.name) }}</p>
         <el-input
           v-model="forceSubmitReason"
-          placeholder="请输入强制交卷原因（可选）"
+          :placeholder="$t('m.Force_Submit_Reason_Placeholder')"
           type="textarea"
           :rows="3"
         />
       </div>
       <span slot="footer">
-        <el-button @click="showForceSubmitDialog = false">取消</el-button>
-        <el-button type="danger" @click="confirmForceSubmit" :loading="forcing">确定</el-button>
+        <el-button @click="showForceSubmitDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="danger" @click="confirmForceSubmit" :loading="forcing">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
 
     <!-- 强制收卷确认对话框 -->
     <el-dialog
-      title="强制收卷确认"
+      :title="$t('m.Force_Collect_Confirm')"
       :visible.sync="showForceSubmitAllDialog"
       width="450px"
     >
       <div>
         <p><i class="el-icon-warning" style="color: #E6A23C; font-size: 24px;"></i></p>
-        <p>确定要强制所有未提交的学生交卷吗？</p>
-        <p class="hint">此操作将立即收卷，所有未提交的学生将以当前草稿状态作为最终答案。</p>
+        <p>{{ $t('m.Force_Collect_All_Confirm') }}</p>
+        <p class="hint">{{ $t('m.Force_Collect_All_Hint') }}</p>
       </div>
       <span slot="footer">
-        <el-button @click="showForceSubmitAllDialog = false">取消</el-button>
-        <el-button type="danger" @click="confirmForceSubmitAll" :loading="forcingAll">确定</el-button>
+        <el-button @click="showForceSubmitAllDialog = false">{{ $t('m.Cancel') }}</el-button>
+        <el-button type="danger" @click="confirmForceSubmitAll" :loading="forcingAll">{{ $t('m.Confirm') }}</el-button>
       </span>
     </el-dialog>
   </div>
@@ -242,7 +242,7 @@ export default {
       // 检查 homeworkId 是否有效
       if (!homeworkId) {
         console.error('homeworkId is undefined, route params:', this.$route.params)
-        this.$message.error('作业ID缺失')
+        this.$message.error(this.$t('m.Homework_Id_Missing'))
         return
       }
 
@@ -275,12 +275,12 @@ export default {
             this.studentList = newStudentList
           }
         } else {
-          this.$message.error('加载监控数据失败: ' + (res.msg || '未知错误'))
+          this.$message.error(this.$t('m.Load_Monitor_Failed') + ': ' + (res.msg || this.$t('m.Unknown_Error')))
         }
       } catch (error) {
         console.error('加载监控数据失败:', error)
         if (isFirstLoad) {
-          this.$message.error('加载监控数据失败')
+          this.$message.error(this.$t('m.Load_Monitor_Failed'))
         }
       } finally {
         if (isFirstLoad) {
@@ -321,14 +321,14 @@ export default {
     // 获取违规类型文本
     getViolationTypeText(type) {
       const typeMap = {
-        'tab_switch': '切换标签页',
-        'fullscreen_exit': '退出全屏',
-        'copy_attempt': '尝试复制',
-        'paste_attempt': '尝试粘贴',
-        'context_menu': '右键菜单',
-        'devtools_attempt': '开发者工具',
-        'forced_submit': '强制收卷',
-        'window_blur': '切换窗口'
+        'tab_switch': this.$t('m.Tab_Switch_Desc'),
+        'fullscreen_exit': this.$t('m.Fullscreen_Exit_Desc'),
+        'copy_attempt': this.$t('m.Copy_Attempt'),
+        'paste_attempt': this.$t('m.Paste_Attempt'),
+        'context_menu': this.$t('m.Context_Menu'),
+        'devtools_attempt': this.$t('m.Devtools_Attempt'),
+        'forced_submit': this.$t('m.Forced_Submit'),
+        'window_blur': this.$t('m.Window_Blur')
       }
       return typeMap[type] || type
     },
@@ -381,24 +381,24 @@ export default {
 
         // 检查响应code
         if (res && res.code === 200) {
-          this.$message.success('强制交卷成功')
+          this.$message.success(this.$t('m.Force_Submit_Success'))
           this.showForceSubmitDialog = false
           // 立即刷新监控数据
           await this.loadMonitoringData()
         } else {
           // 处理错误响应
-          const errorMsg = res && res.msg ? res.msg : '强制交卷失败'
+          const errorMsg = res && res.msg ? res.msg : this.$t('m.Force_Submit_Failed')
           this.$message.error(errorMsg)
           console.error('强制交卷失败:', res)
         }
       } catch (error) {
         console.error('强制交卷异常:', error)
         // 尝试从error中获取详细信息
-        let errorMsg = '强制交卷失败'
+        let errorMsg = this.$t('m.Force_Submit_Failed')
         if (error.response && error.response.data && error.response.data.msg) {
           errorMsg = error.response.data.msg
         } else if (error.message) {
-          errorMsg = '强制交卷失败: ' + error.message
+          errorMsg = this.$t('m.Force_Submit_Failed') + ': ' + error.message
         }
         this.$message.error(errorMsg)
       } finally {
@@ -410,7 +410,7 @@ export default {
     // 批量强制收卷
     forceSubmitAll() {
       if (!this.canForceSubmitAll) {
-        this.$message.warning('没有正在答题的学生')
+        this.$message.warning(this.$t('m.No_In_Progress_Students'))
         return
       }
       this.showForceSubmitAllDialog = true
@@ -425,24 +425,24 @@ export default {
         // 检查响应code
         if (res && res.code === 200) {
           const count = res.data && res.data.forcedCount ? res.data.forcedCount : 0
-          this.$message.success(`强制收卷成功，已收卷 ${count} 名学生`)
+          this.$message.success(this.$t('m.Force_Collect_Success').replace('{count}', count))
           this.showForceSubmitAllDialog = false
           // 立即刷新监控数据
           await this.loadMonitoringData()
         } else {
           // 处理错误响应
-          const errorMsg = res && res.msg ? res.msg : '强制收卷失败'
+          const errorMsg = res && res.msg ? res.msg : this.$t('m.Force_Collect_Failed')
           this.$message.error(errorMsg)
           console.error('强制收卷失败:', res)
         }
       } catch (error) {
         console.error('强制收卷异常:', error)
         // 尝试从error中获取详细信息
-        let errorMsg = '强制收卷失败'
+        let errorMsg = this.$t('m.Force_Collect_Failed')
         if (error.response && error.response.data && error.response.data.msg) {
           errorMsg = error.response.data.msg
         } else if (error.message) {
-          errorMsg = '强制收卷失败: ' + error.message
+          errorMsg = this.$t('m.Force_Collect_Failed') + ': ' + error.message
         }
         this.$message.error(errorMsg)
       } finally {

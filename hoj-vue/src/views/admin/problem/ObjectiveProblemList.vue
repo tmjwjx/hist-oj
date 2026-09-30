@@ -3,32 +3,32 @@
     <div slot="header" class="card-header">
       <div class="header-title">
         <i class="fa fa-list-alt"></i>
-        <span>客观题列表</span>
-        <el-tag size="mini" type="warning">客观题</el-tag>
+        <span>{{ $t('m.ProbObj_List_Title') }}</span>
+        <el-tag size="mini" type="warning">{{ $t('m.ProbObj_Objective') }}</el-tag>
       </div>
       <div class="header-actions">
         <el-button type="primary" icon="el-icon-plus" size="small" @click="goCreatePage">
-          创建客观题
+          {{ $t('m.ProbObj_Create') }}
         </el-button>
         <el-button icon="el-icon-refresh" size="small" @click="loadQuestions">
-          刷新
+          {{ $t('m.Refresh') }}
         </el-button>
       </div>
     </div>
 
     <el-row :gutter="12" class="filter-row">
       <el-col :xs="24" :sm="12" :lg="4">
-        <el-select v-model="filters.type" clearable placeholder="题型" @change="handleFilterChange">
+        <el-select v-model="filters.type" clearable :placeholder="$t('m.ProbObj_Question_Type')" @change="handleFilterChange">
           <el-option
             v-for="item in questionTypes"
             :key="item.value"
-            :label="item.label"
+            :label="$t('m.' + item.labelKey)"
             :value="item.value"
           />
         </el-select>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="4">
-        <el-select v-model="filters.course" clearable filterable placeholder="所属课程" @change="handleFilterChange">
+        <el-select v-model="filters.course" clearable filterable :placeholder="$t('m.ProbObj_Course_Placeholder')" @change="handleFilterChange">
           <el-option
             v-for="course in commonCourses"
             :key="course"
@@ -38,16 +38,16 @@
         </el-select>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="4">
-        <el-select v-model="filters.isShared" clearable placeholder="开放权限" @change="handleFilterChange">
-          <el-option label="个人题库" value="0" />
-          <el-option label="共享题库" value="1" />
+        <el-select v-model="filters.isShared" clearable :placeholder="$t('m.ProbObj_Open_Permission')" @change="handleFilterChange">
+          <el-option :label="$t('m.ProbObj_Personal_Bank')" value="0" />
+          <el-option :label="$t('m.ProbObj_Shared_Bank')" value="1" />
         </el-select>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="4">
-        <el-select v-model="filters.searchField" placeholder="搜索字段">
-          <el-option label="题目标题" value="title" />
-          <el-option label="题目 ID" value="id" />
-          <el-option label="创建者" value="creator" />
+        <el-select v-model="filters.searchField" :placeholder="$t('m.ProbObj_Search_Field')">
+          <el-option :label="$t('m.ProbObj_Field_Title')" value="title" />
+          <el-option :label="$t('m.ProbObj_Field_Id')" value="id" />
+          <el-option :label="$t('m.ProbObj_Creator')" value="creator" />
         </el-select>
       </el-col>
       <el-col :xs="24" :sm="24" :lg="8">
@@ -71,23 +71,23 @@
       class="question-table"
     >
       <el-table-column prop="id" label="ID" width="80" align="center" />
-      <el-table-column label="题目类型" width="150" align="center">
+      <el-table-column :label="$t('m.ProbObj_Problem_Type')" width="150" align="center">
         <template slot-scope="{ row }">
           <div class="type-tags">
-            <el-tag size="mini" type="warning">客观题</el-tag>
+            <el-tag size="mini" type="warning">{{ $t('m.ProbObj_Objective') }}</el-tag>
             <el-tag size="mini" :type="getQuestionTypeColor(row.type)">
               {{ getQuestionTypeName(row.type) }}
             </el-tag>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="题目信息" min-width="280">
+      <el-table-column :label="$t('m.ProbObj_Problem_Info')" min-width="280">
         <template slot-scope="{ row }">
           <div class="question-title">{{ row.title || '-' }}</div>
           <div v-if="row.content" class="question-summary">{{ summarize(row.content) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="课程与标签" min-width="180">
+      <el-table-column :label="$t('m.ProbObj_Course_And_Tags')" min-width="180">
         <template slot-scope="{ row }">
           <el-tag v-if="row.course" size="mini" type="warning">{{ row.course }}</el-tag>
           <span v-if="!row.course && parseTags(row.tags).length === 0">-</span>
@@ -102,31 +102,31 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="难度" width="90" align="center">
+      <el-table-column :label="$t('m.Level')" width="90" align="center">
         <template slot-scope="{ row }">{{ getDifficultyText(row.difficulty) }}</template>
       </el-table-column>
-      <el-table-column label="标准答案" min-width="130">
+      <el-table-column :label="$t('m.ProbObj_Standard_Answer')" min-width="130">
         <template slot-scope="{ row }">
           <span class="answer-text">{{ getAnswerText(row) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="分值" width="80" align="center">
+      <el-table-column :label="$t('m.ProbObj_Score')" width="80" align="center">
         <template slot-scope="{ row }">{{ Number(row.score || 0) }}</template>
       </el-table-column>
-      <el-table-column label="创建者" min-width="130">
+      <el-table-column :label="$t('m.ProbObj_Creator')" min-width="130">
         <template slot-scope="{ row }">{{ getCreatorName(row) }}</template>
       </el-table-column>
-      <el-table-column label="开放权限" width="100" align="center">
+      <el-table-column :label="$t('m.ProbObj_Open_Permission')" width="100" align="center">
         <template slot-scope="{ row }">
           <el-tag size="mini" :type="Number(row.isShared) === 1 ? 'success' : 'info'">
-            {{ Number(row.isShared) === 1 ? '共享' : '个人' }}
+            {{ Number(row.isShared) === 1 ? $t('m.ProbObj_Shared') : $t('m.ProbObj_Personal') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" min-width="150">
+      <el-table-column :label="$t('m.Create_Time')" min-width="150">
         <template slot-scope="{ row }">{{ row.createdAt | localtime }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right" align="center">
+      <el-table-column :label="$t('m.Operation')" width="150" fixed="right" align="center">
         <template slot-scope="{ row }">
           <el-button size="mini" type="primary" icon="el-icon-edit" @click="goEditPage(row)" />
           <el-button size="mini" type="danger" icon="el-icon-delete" @click="handleDelete(row)" />
@@ -150,14 +150,17 @@
 <script>
 import classroomApi from '@/api/classroom'
 
-const QUESTION_TYPES = [
-  { value: 'single_choice', label: '单选题' },
-  { value: 'multiple_choice', label: '多选题' },
-  { value: 'judge', label: '判断题' },
-  { value: 'fill_blank', label: '填空题' },
-  { value: 'subjective', label: '主观题' },
-  { value: 'composite', label: '组合题' }
-]
+// 模块级映射表：仅存 i18n 键名字符串，展示时通过 this.$t('m.' + key) 翻译
+const QUESTION_TYPE_KEYS = {
+  single_choice: 'Practice_Single_Choice',
+  multiple_choice: 'Practice_Multiple_Choice',
+  judge: 'Practice_Judge',
+  fill_blank: 'Practice_Fill_Blank',
+  subjective: 'Practice_Subjective',
+  composite: 'Practice_Composite'
+}
+
+const DIFFICULTY_LABEL_KEYS = ['-', 'Map_Level_Easy', 'Map_Level_Medium', 'Map_Level_Hard']
 
 export default {
   name: 'ObjectiveProblemList',
@@ -165,7 +168,7 @@ export default {
     return {
       loading: false,
       questions: [],
-      questionTypes: QUESTION_TYPES,
+      questionTypes: Object.keys(QUESTION_TYPE_KEYS).map(value => ({ value, labelKey: QUESTION_TYPE_KEYS[value] })),
       commonCourses: [
         'GESP 考级课',
         '数据结构',
@@ -195,11 +198,11 @@ export default {
   computed: {
     searchPlaceholder() {
       const placeholders = {
-        title: '搜索题目标题',
-        id: '输入题目 ID',
-        creator: '搜索创建者用户名'
+        title: this.$t('m.ProbObj_Search_Title'),
+        id: this.$t('m.ProbObj_Search_Id'),
+        creator: this.$t('m.ProbObj_Search_Creator')
       }
-      return placeholders[this.filters.searchField] || '请输入关键词'
+      return placeholders[this.filters.searchField] || this.$t('m.ProbObj_Enter_Keyword')
     }
   },
   mounted() {
@@ -239,7 +242,7 @@ export default {
       } catch (error) {
         this.questions = []
         this.pagination.total = 0
-        this.$message.error('加载客观题列表失败')
+        this.$message.error(this.$t('m.ProbObj_Load_Failed'))
       } finally {
         this.loading = false
       }
@@ -272,26 +275,26 @@ export default {
     },
     handleDelete(row) {
       if (!row || !row.id) return
-      this.$confirm(`确定删除客观题「${row.title || row.id}」吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(this.$t('m.ProbObj_Delete_Confirm', { title: row.title || row.id }), this.$t('m.Prompt'), {
+        confirmButtonText: this.$t('m.OK'),
+        cancelButtonText: this.$t('m.Cancel'),
         type: 'warning'
       }).then(async () => {
         try {
           await classroomApi.adminDeleteQuestion(row.id)
-          this.$message.success('删除成功')
+          this.$message.success(this.$t('m.Delete_Success'))
           if (this.questions.length === 1 && this.pagination.currentPage > 1) {
             this.pagination.currentPage -= 1
           }
           this.loadQuestions()
         } catch (error) {
-          this.$message.error('删除失败')
+          this.$message.error(this.$t('m.Delete_Failed'))
         }
       }).catch(() => {})
     },
     getQuestionTypeName(type) {
-      const current = this.questionTypes.find(item => item.value === type)
-      return current ? current.label : (type || '未知题型')
+      const key = QUESTION_TYPE_KEYS[type]
+      return key ? this.$t('m.' + key) : (type || this.$t('m.ProbObj_Unknown_Type'))
     },
     getQuestionTypeColor(type) {
       const colors = {
@@ -305,12 +308,12 @@ export default {
       return colors[type] || 'info'
     },
     getDifficultyText(difficulty) {
-      const labels = ['-', '简单', '中等', '困难']
-      return labels[Number(difficulty)] || '-'
+      const key = DIFFICULTY_LABEL_KEYS[Number(difficulty)]
+      return key && key !== '-' ? this.$t('m.' + key) : '-'
     },
     getAnswerText(row) {
-      if (!row || !row.answer) return row && row.type === 'subjective' ? '人工评分' : '-'
-      if (row.type === 'judge') return String(row.answer).toLowerCase() === 'true' ? '正确' : '错误'
+      if (!row || !row.answer) return row && row.type === 'subjective' ? this.$t('m.ProbObj_Manual_Grading') : '-'
+      if (row.type === 'judge') return String(row.answer).toLowerCase() === 'true' ? this.$t('m.True') : this.$t('m.False')
       try {
         const parsed = typeof row.answer === 'string' ? JSON.parse(row.answer) : row.answer
         if (Array.isArray(parsed)) return parsed.join(' / ')
@@ -338,8 +341,8 @@ export default {
     },
     summarize(content) {
       const plainText = String(content || '')
-        .replace(/```[\s\S]*?```/g, ' [代码] ')
-        .replace(/!\[[^\]]*]\([^)]*\)/g, ' [图片] ')
+        .replace(/```[\s\S]*?```/g, ' ' + this.$t('m.ProbObj_Snippet_Code') + ' ')
+        .replace(/!\[[^\]]*]\([^)]*\)/g, ' ' + this.$t('m.ProbObj_Snippet_Image') + ' ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/[#>*_`~\[\]()]/g, ' ')
         .replace(/\s+/g, ' ')

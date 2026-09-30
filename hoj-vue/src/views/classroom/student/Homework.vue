@@ -48,7 +48,7 @@
             plain
             @click="viewRanking(row)"
           >
-            查看排行榜
+            {{ $t('m.View_Ranking') }}
           </el-button>
         </template>
       </el-table-column>

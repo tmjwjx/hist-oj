@@ -4,10 +4,10 @@
     <div class="page-header">
       <div class="header-left">
         <el-button icon="el-icon-arrow-left" @click="goBack">{{ $t('m.Back') }}</el-button>
-        <h3>客观题题库</h3>
+        <h3>{{ $t('m.Objective_Question_Bank') }}</h3>
       </div>
       <div class="header-right">
-        <el-tag type="success" effect="dark">已添加 {{ selectedQuestions.length }} 题（自动同步）</el-tag>
+        <el-tag type="success" effect="dark">{{ $t('m.Added_Count_Auto_Sync').replace('{count}', selectedQuestions.length) }}</el-tag>
       </div>
     </div>
 
@@ -15,19 +15,19 @@
     <el-card class="filter-card" shadow="hover">
       <el-row :gutter="15">
         <el-col :span="4">
-          <el-select v-model="filters.type" placeholder="题型筛选" clearable size="small" @change="handleFilterChange">
-            <el-option label="全部题型" value=""></el-option>
-            <el-option label="单选题" value="single_choice"></el-option>
-            <el-option label="多选题" value="multiple_choice"></el-option>
-            <el-option label="判断题" value="judge"></el-option>
-            <el-option label="填空题" value="fill_blank"></el-option>
-            <el-option label="主观题" value="subjective"></el-option>
-            <el-option label="组合题" value="composite"></el-option>
+          <el-select v-model="filters.type" :placeholder="$t('m.Filter_By_Type')" clearable size="small" @change="handleFilterChange">
+            <el-option :label="$t('m.All_Types')" value=""></el-option>
+            <el-option :label="$t('m.Single_Choice')" value="single_choice"></el-option>
+            <el-option :label="$t('m.Multiple_Choice')" value="multiple_choice"></el-option>
+            <el-option :label="$t('m.Judge_Question')" value="judge"></el-option>
+            <el-option :label="$t('m.Fill_Blank')" value="fill_blank"></el-option>
+            <el-option :label="$t('m.Subjective_Question')" value="subjective"></el-option>
+            <el-option :label="$t('m.Composite_Question')" value="composite"></el-option>
           </el-select>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="filters.course" placeholder="课程筛选" clearable size="small" filterable @change="handleFilterChange">
-            <el-option label="全部课程" value=""></el-option>
+          <el-select v-model="filters.course" :placeholder="$t('m.Filter_By_Course')" clearable size="small" filterable @change="handleFilterChange">
+            <el-option :label="$t('m.All_Courses')" value=""></el-option>
             <el-option
               v-for="course in commonCourses"
               :key="course"
@@ -37,17 +37,17 @@
           </el-select>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable size="small" @change="handleFilterChange">
-            <el-option label="全部难度" value=""></el-option>
-            <el-option label="简单" value="1"></el-option>
-            <el-option label="中等" value="2"></el-option>
-            <el-option label="困难" value="3"></el-option>
+          <el-select v-model="filters.difficulty" :placeholder="$t('m.Filter_By_Difficulty')" clearable size="small" @change="handleFilterChange">
+            <el-option :label="$t('m.All_Difficulties')" value=""></el-option>
+            <el-option :label="$t('m.Easy')" value="1"></el-option>
+            <el-option :label="$t('m.Medium')" value="2"></el-option>
+            <el-option :label="$t('m.Hard')" value="3"></el-option>
           </el-select>
         </el-col>
         <el-col :span="4">
           <el-input
             v-model="filters.tag"
-            placeholder="标签筛选"
+            :placeholder="$t('m.Filter_By_Tag')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -58,7 +58,7 @@
         <el-col :span="4">
           <el-input
             v-model="filters.questionId"
-            placeholder="搜索题目ID"
+            :placeholder="$t('m.Search_Question_Id')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -69,7 +69,7 @@
         <el-col :span="4">
           <el-input
             v-model="filters.keyword"
-            placeholder="搜索标题"
+            :placeholder="$t('m.Search_Title')"
             clearable
             size="small"
             @keyup.enter.native="handleFilterChange"
@@ -88,27 +88,27 @@
         :row-class-name="getQuestionRowClass"
         stripe
       >
-        <el-table-column prop="title" label="题目标题" min-width="300">
+        <el-table-column prop="title" :label="$t('m.Question_Title')" min-width="300">
           <template slot-scope="{ row }">
             <div class="inline-question-cell">
               <div class="inline-meta-row">
                 <el-tag type="info" size="mini">ID:{{ row.id }}</el-tag>
                 <el-tag :type="getQuestionTypeColor(row.type)" size="mini">{{ getQuestionTypeName(row.type) }}</el-tag>
-                <el-tag type="danger" size="mini">难度：{{ getDifficultyText(row.difficulty) }}</el-tag>
-                <el-tag type="primary" size="mini">分值：{{ Number(row.score || 0) }}分</el-tag>
-                <el-tag type="info" size="mini">创建者：{{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
-                <el-tag type="info" size="mini">创建时间：{{ formatMetaTime(row.createTime || row.createdAt) }}</el-tag>
-                <el-tag v-if="row.course" type="warning" size="mini">所属课程：{{ row.course }}</el-tag>
+                <el-tag type="danger" size="mini">{{ $t('m.Difficulty') }}: {{ getDifficultyText(row.difficulty) }}</el-tag>
+                <el-tag type="primary" size="mini">{{ $t('m.Score_Value') }}: {{ Number(row.score || 0) }}{{ $t('m.Score_Unit') }}</el-tag>
+                <el-tag type="info" size="mini">{{ $t('m.Creator') }}: {{ row.creator ? row.creator.username : (row.creatorId || '-') }}</el-tag>
+                <el-tag type="info" size="mini">{{ $t('m.Created_At') }}: {{ formatMetaTime(row.createTime || row.createdAt) }}</el-tag>
+                <el-tag v-if="row.course" type="warning" size="mini">{{ $t('m.Belongs_To_Course') }}: {{ row.course }}</el-tag>
                 <el-tag
                   v-for="(tag, idx) in parseQuestionTags(row.tags)"
                   :key="`meta-tag-${row.id}-${idx}`"
                   size="mini"
                   type="info"
                 >
-                  标签：{{ tag }}
+                  {{ $t('m.Tags_Label') }}: {{ tag }}
                 </el-tag>
                 <el-tag :type="row.isShared ? 'success' : 'info'" size="mini">
-                  开放权限：{{ row.isShared ? '共享' : '个人' }}
+                  {{ $t('m.Share_Permission') }}: {{ row.isShared ? $t('m.Shared') : $t('m.Private') }}
                 </el-tag>
               </div>
               <div v-html="renderMarkdown(row.title)" class="inline-question-title markdown-body" v-highlight></div>
@@ -133,11 +133,11 @@
               <div v-else-if="row.type === 'judge'" class="inline-options-list">
                 <div class="inline-option-item">
                   <span class="inline-option-label">A.</span>
-                  <span class="inline-option-text">正确</span>
+                  <span class="inline-option-text">{{ $t('m.True') }}</span>
                 </div>
                 <div class="inline-option-item">
                   <span class="inline-option-label">B.</span>
-                  <span class="inline-option-text">错误</span>
+                  <span class="inline-option-text">{{ $t('m.False') }}</span>
                 </div>
               </div>
 
@@ -147,7 +147,7 @@
                   :key="subQuestion.id || subIndex"
                   class="inline-composite-item"
                 >
-                  <div class="inline-composite-head">子题 {{ subIndex + 1 }}（{{ Number(subQuestion.score || 0) }}分）</div>
+                  <div class="inline-composite-head">{{ $t('m.Sub_Question') }} {{ subIndex + 1 }} ({{ Number(subQuestion.score || 0) }}{{ $t('m.Score_Unit') }})</div>
                   <div
                     v-html="renderMarkdown(subQuestion.content || '')"
                     class="markdown-body inline-composite-content"
@@ -164,14 +164,14 @@
                     </div>
                   </div>
                   <div class="answer-info compact-answer-info">
-                    <strong>正确答案：</strong>
+                    <strong>{{ $t('m.Correct_Answer') }}:</strong>
                     <el-tag type="success">{{ getCompositeCorrectAnswer(row.answer, subQuestion.id, subIndex) }}</el-tag>
                   </div>
                 </div>
               </div>
 
               <div v-if="row.type !== 'composite'" class="inline-answer-row answer-info compact-answer-info">
-                <span class="inline-answer-label">{{ row.type === 'subjective' ? '参考答案：' : '正确答案：' }}</span>
+                <span class="inline-answer-label">{{ row.type === 'subjective' ? $t('m.Reference_Answer') + ':' : $t('m.Correct_Answer') + ':' }}</span>
                 <span v-if="row.type !== 'subjective'" class="inline-answer-text">{{ formatInlineAnswer(row) }}</span>
                 <span
                   v-else-if="row.answer"
@@ -179,11 +179,11 @@
                   v-html="renderMarkdown(row.answer)"
                   v-highlight
                 ></span>
-                <span v-else class="inline-answer-text">暂无答案</span>
+                <span v-else class="inline-answer-text">{{ $t('m.No_Answer_Text') }}</span>
               </div>
 
               <div v-if="row.analysis" class="inline-analysis">
-                <span class="inline-analysis-label">题目解析：</span>
+                <span class="inline-analysis-label">{{ $t('m.Question_Analysis_Text') }}:</span>
                 <div class="markdown-body" v-html="renderMarkdown(row.analysis)" v-highlight></div>
               </div>
               <div class="inline-actions-row">
@@ -194,7 +194,7 @@
                   icon="el-icon-minus"
                   @click="removeQuestion(row)"
                 >
-                  移除题目
+                  {{ $t('m.Remove_Question') }}
                 </el-button>
                 <el-button
                   v-else
@@ -203,7 +203,7 @@
                   icon="el-icon-plus"
                   @click="addQuestion(row)"
                 >
-                  添加题目
+                  {{ $t('m.Add_Question') }}
                 </el-button>
               </div>
             </div>
@@ -328,7 +328,7 @@ export default {
         }
       } catch (error) {
         console.error('加载题库失败:', error)
-        this.$message.error('加载题库失败')
+        this.$message.error(this.$t('m.Load_Bank_Failed'))
       } finally {
         this.loading = false
       }
@@ -349,7 +349,7 @@ export default {
     },
     addQuestion(question) {
       if (this.isQuestionAdded(question)) {
-        this.$message.warning('该题目已添加')
+        this.$message.warning(this.$t('m.Question_Already_Added'))
         return
       }
 
@@ -359,7 +359,7 @@ export default {
       }
       this.selectedQuestions.push(nextQuestion)
       this.syncSelectedQuestionsToStore()
-      this.$message.success('添加成功')
+      this.$message.success(this.$t('m.Add_Success'))
     },
     removeQuestion(question) {
       const identity = this.getQuestionIdentity(question)
@@ -368,7 +368,7 @@ export default {
       if (index === -1) return
       this.selectedQuestions.splice(index, 1)
       this.syncSelectedQuestionsToStore()
-      this.$message.success('已移除题目')
+      this.$message.success(this.$t('m.Question_Removed'))
     },
     goBack() {
       this.$router.back()
@@ -429,12 +429,12 @@ export default {
     },
     getQuestionTypeName(type) {
       const typeMap = {
-        'single_choice': '单选题',
-        'multiple_choice': '多选题',
-        'judge': '判断题',
-        'fill_blank': '填空题',
-        'subjective': '主观题',
-        'composite': '组合题'
+        'single_choice': this.$t('m.Single_Choice'),
+        'multiple_choice': this.$t('m.Multiple_Choice'),
+        'judge': this.$t('m.Judge_Question'),
+        'fill_blank': this.$t('m.Fill_Blank'),
+        'subjective': this.$t('m.Subjective_Question'),
+        'composite': this.$t('m.Composite_Question')
       }
       return typeMap[type] || type
     },
@@ -454,10 +454,10 @@ export default {
     },
     getDifficultyText(difficulty) {
       const level = Number(difficulty)
-      if (level === 1) return '简单'
-      if (level === 2) return '中等'
-      if (level === 3) return '困难'
-      return `等级${difficulty}`
+      if (level === 1) return this.$t('m.Easy')
+      if (level === 2) return this.$t('m.Medium')
+      if (level === 3) return this.$t('m.Hard')
+      return `${this.$t('m.Level')}${difficulty}`
     },
     formatMetaTime(value) {
       if (!value) return '--'
@@ -550,7 +550,7 @@ export default {
     },
     isJudgeTrue(answer) {
       const raw = String(this.parseMaybeSerializedJson(answer) || '').trim().toLowerCase()
-      return ['true', '1', 'yes', 'y', '正确'].includes(raw)
+      return ['true', '1', 'yes', 'y'].includes(raw) || raw === this.$t('m.True')
     },
     formatInlineAnswer(row) {
       if (row.type === 'single_choice') {
@@ -562,7 +562,7 @@ export default {
         return answers.length > 0 ? answers.join('、') : '-'
       }
       if (row.type === 'judge') {
-        return this.isJudgeTrue(row.answer) ? '正确' : '错误'
+        return this.isJudgeTrue(row.answer) ? this.$t('m.True') : this.$t('m.False')
       }
       if (row.type === 'fill_blank') {
         const values = this.parseAnswerArray(row.answer, { allowCommaSplit: false })

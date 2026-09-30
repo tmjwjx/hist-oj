@@ -162,7 +162,7 @@
       <div class="records-header">
         <button class="classroom-btn classroom-btn-success" @click="exportCheckinRecords">
           <i class="el-icon-download"></i>
-          <span>导出签到记录</span>
+          <span>{{ $t('m.Export_Checkin_Records') }}</span>
         </button>
       </div>
       <el-table :data="records" stripe class="classroom-table">
@@ -179,10 +179,10 @@
         <el-table-column :label="$t('m.Status')" width="120">
           <template slot-scope="{ row }">
             <el-select v-model="row.status" size="small" @change="updateRecord(row)">
-              <el-option label="签到" value="present" />
-              <el-option label="缺勤" value="absent" />
-              <el-option label="病假" value="sick_leave" />
-              <el-option label="事假" value="personal_leave" />
+              <el-option :label="$t('m.Checkin_Status_Present')" value="present" />
+              <el-option :label="$t('m.Checkin_Status_Absent')" value="absent" />
+              <el-option :label="$t('m.Checkin_Status_Sick_Leave')" value="sick_leave" />
+              <el-option :label="$t('m.Checkin_Status_Personal_Leave')" value="personal_leave" />
             </el-select>
           </template>
         </el-table-column>
@@ -402,10 +402,10 @@ export default {
         if (!record.id) {
           // 状态映射中文提示
           const statusText = {
-            'present': '出席',
-            'absent': '缺勤',
-            'sick_leave': '病假',
-            'personal_leave': '事假'
+            'present': this.$t('m.Checkin_Status_Present'),
+            'absent': this.$t('m.Checkin_Status_Absent'),
+            'sick_leave': this.$t('m.Checkin_Status_Sick_Leave'),
+            'personal_leave': this.$t('m.Checkin_Status_Personal_Leave')
           }
 
           const createRes = await this.$http.post(`/api/classroom/checkin/${record.checkinId}/record`, {
@@ -415,9 +415,9 @@ export default {
 
           if (createRes.data.code === 200) {
             record.id = createRes.data.data.id
-            this.$message.success(`已为未签到学生创建记录，状态设为：${statusText[record.status]}`)
+            this.$message.success(this.$t('m.Checkin_Record_Created').replace('{status}', statusText[record.status]))
           } else {
-            this.$message.error(createRes.data.message || '创建记录失败')
+            this.$message.error(createRes.data.message || this.$t('m.Create_Record_Failed'))
             return
           }
         } else {
@@ -566,15 +566,15 @@ export default {
       if (!this.currentCheckin) return
 
       const statusMap = {
-        present: '签到',
-        absent: '缺勤',
-        sick_leave: '病假',
-        personal_leave: '事假'
+        present: this.$t('m.Checkin_Status_Present'),
+        absent: this.$t('m.Checkin_Status_Absent'),
+        sick_leave: this.$t('m.Checkin_Status_Sick_Leave'),
+        personal_leave: this.$t('m.Checkin_Status_Personal_Leave')
       }
 
       let csvContent = '\uFEFF'
-      csvContent += `签到记录_${this.currentCheckin.checkinName || '签到'}_${this.formatTime(this.currentCheckin.startTime)}\n\n`
-      csvContent += '用户名,真实姓名,状态,签到时间\n'
+      csvContent += `${this.$t('m.Checkin_Records')}_${this.currentCheckin.checkinName || this.$t('m.Checkin')}_${this.formatTime(this.currentCheckin.startTime)}\n\n`
+      csvContent += [this.$t('m.Username'), this.$t('m.Real_Name'), this.$t('m.Status'), this.$t('m.Checkin_Time')].join(',') + '\n'
 
       this.records.forEach(record => {
         const realName = record.classStudent?.realName || record.student?.realName || '-'
@@ -594,7 +594,7 @@ export default {
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
       link.setAttribute('href', url)
-      link.setAttribute('download', `签到记录_${this.currentCheckin.checkinName || '签到'}_${new Date().getTime()}.csv`)
+      link.setAttribute('download', `checkin_${new Date().getTime()}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()

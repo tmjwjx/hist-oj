@@ -3,7 +3,7 @@
     <!-- 题目未显示时的提示 -->
     <el-alert v-if="!canViewHomework" type="info" :closable="false" show-icon>
       <template #title>
-        {{ $t('m.Homework_Not_Started_Or_Hidden') || '教师尚未显示作业内容，请等待' }}
+        {{ $t('m.Homework_Not_Started_Or_Hidden') }}
       </template>
     </el-alert>
 
@@ -13,46 +13,46 @@
         <span class="problem-title">{{ problemInfo.displayId }} - {{ problemInfo.problem.title }}</span>
         <div class="problem-info-bar">
           <el-tag size="small" type="primary">
-            判题模式: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
+            {{ $t('m.Judge_Mode') }}: {{ getJudgeModeText(problemInfo.problem.judgeMode) }}
           </el-tag>
           <el-tag size="small" type="primary" style="margin-left: 10px">
-            时间限制: {{ problemInfo.problem.timeLimit }}ms
+            {{ $t('m.Time_Limit') }}: {{ problemInfo.problem.timeLimit }}ms
           </el-tag>
           <el-tag size="small" type="primary" style="margin-left: 10px">
-            内存限制: {{ problemInfo.problem.memoryLimit }}MB
+            {{ $t('m.Memory_Limit') }}: {{ problemInfo.problem.memoryLimit }}MB
           </el-tag>
         </div>
       </div>
 
       <div class="problem-content">
         <div v-if="problemInfo.problem.description" class="problem-section">
-          <h4><i class="el-icon-tickets"></i> 描述</h4>
+          <h4><i class="el-icon-tickets"></i> {{ $t('m.Problem_Description') }}</h4>
           <div v-html="renderMarkdown(problemInfo.problem.description)"></div>
         </div>
         <div v-if="problemInfo.problem.input" class="problem-section">
-          <h4><i class="el-icon-download"></i> 输入</h4>
+          <h4><i class="el-icon-download"></i> {{ $t('m.Input') }}</h4>
           <div v-html="renderMarkdown(problemInfo.problem.input)"></div>
         </div>
         <div v-if="problemInfo.problem.output" class="problem-section">
-          <h4><i class="el-icon-upload2"></i> 输出</h4>
+          <h4><i class="el-icon-upload2"></i> {{ $t('m.Output') }}</h4>
           <div v-html="renderMarkdown(problemInfo.problem.output)"></div>
         </div>
         <div v-if="problemInfo.problem.hint" class="problem-section">
-          <h4><i class="el-icon-info"></i> 提示</h4>
+          <h4><i class="el-icon-info"></i> {{ $t('m.Hint') }}</h4>
           <div v-html="renderMarkdown(problemInfo.problem.hint)"></div>
         </div>
         <div v-if="examples.length > 0" class="problem-section">
-          <h4><i class="el-icon-document-copy"></i> 样例</h4>
+          <h4><i class="el-icon-document-copy"></i> {{ $t('m.Samples') }}</h4>
           <el-row :gutter="10" v-for="(example, index) in examples" :key="index" style="margin-bottom: 10px">
             <el-col :span="12">
               <div class="example-box">
-                <div class="example-title">样例 {{ index + 1 }} 输入:</div>
+                <div class="example-title">{{ $t('m.Sample') }} {{ index + 1 }} {{ $t('m.Input') }}:</div>
                 <pre>{{ example.input }}</pre>
               </div>
             </el-col>
             <el-col :span="12">
               <div class="example-box">
-                <div class="example-title">样例 {{ index + 1 }} 输出:</div>
+                <div class="example-title">{{ $t('m.Sample') }} {{ index + 1 }} {{ $t('m.Output') }}:</div>
                 <pre>{{ example.output }}</pre>
               </div>
             </el-col>
@@ -64,16 +64,16 @@
     <!-- 题解链接 - 仅在已提交且允许查看答案时显示 -->
     <el-card v-if="canViewAnswer && isSubmitted && canViewHomework && problemInfo" class="solution-card" shadow="hover">
       <div slot="header">
-        <span><i class="el-icon-document"></i> 参考题库题解</span>
+        <span><i class="el-icon-document"></i> {{ $t('m.Bank_Solution') }}</span>
       </div>
       <el-alert type="info" :closable="false">
         <template slot="title">
-          请在 BingOJ 题库中查看本题的题解和讨论
+          {{ $t('m.View_Solution_In_Bank_Hint') }}
         </template>
       </el-alert>
       <div style="margin-top: 15px; text-align: center;">
         <el-button type="primary" icon="el-icon-link" @click="goToProblem">
-          查看 BingOJ 题库题解
+          {{ $t('m.View_Bank_Solution') }}
         </el-button>
       </div>
     </el-card>
@@ -85,17 +85,17 @@
 
     <!-- 错误状态 - 仅在加载完成但无数据时显示 -->
     <el-alert v-else-if="canViewHomework && !loading && (!problemInfo || !problemInfo.problem)" type="error" :closable="false">
-      <p>无法加载题目信息，请检查 BingOJ 题目 ID 是否正确。</p>
+      <p>{{ $t('m.Load_Problem_Failed_Hint') }}</p>
     </el-alert>
 
     <!-- 代码编辑和提交区域 - 受 canViewHomework 控制 -->
     <el-card v-if="canViewHomework && problemInfo && problemInfo.problem" class="code-editor-card" shadow="hover">
       <div slot="header">
-        <span><i class="el-icon-edit"></i> 代码提交</span>
+        <span><i class="el-icon-edit"></i> {{ $t('m.Code_Submit') }}</span>
       </div>
 
       <el-form label-width="100px" size="small">
-        <el-form-item label="编程语言">
+        <el-form-item :label="$t('m.Language')">
           <el-select v-model="submitForm.language" style="width: 100%">
             <el-option label="C++ 17" value="C++ 17 With O2"></el-option>
             <el-option label="C" value="C With O2"></el-option>
@@ -104,12 +104,12 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="代码">
+        <el-form-item :label="$t('m.Code_Label')">
           <el-input
             type="textarea"
             v-model="submitForm.code"
             :rows="15"
-            placeholder="在此输入代码..."
+            :placeholder="$t('m.Enter_Code_Here')"
             style="font-family: 'Consolas', monospace; font-size: 13px"
           />
         </el-form-item>
@@ -121,10 +121,10 @@
             @click="submitCode"
             :disabled="!submitForm.code.trim()"
           >
-            <i class="el-icon-upload"></i> {{ submitting ? '提交中...' : '提交代码' }}
+            <i class="el-icon-upload"></i> {{ submitting ? $t('m.Submitting') : $t('m.Submit_Code') }}
           </el-button>
           <el-button v-if="isSubmitted && canViewHomework" @click="submitToHOJDirectly">
-            <i class="el-icon-link"></i> 在 BingOJ 平台打开
+            <i class="el-icon-link"></i> {{ $t('m.Open_In_Bingoj') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -132,24 +132,24 @@
       <!-- 提交历史 -->
       <el-divider v-if="submitHistory.length > 0"></el-divider>
       <div v-if="submitHistory.length > 0">
-        <h4 style="margin-bottom: 10px;">提交历史</h4>
+        <h4 style="margin-bottom: 10px;">{{ $t('m.Submission_History') }}</h4>
         <el-alert v-if="!canViewScore" type="info" :closable="false" style="margin-bottom: 10px;">
           <i class="el-icon-info"></i>
-          {{ $t('m.Score_Not_Available') || '教师尚未开放查看成绩，提交结果已隐藏' }}
+          {{ $t('m.Score_Not_Available') }}
         </el-alert>
         <el-table :data="submitHistory" size="small" stripe>
-          <el-table-column label="提交时间" width="150">
+          <el-table-column :label="$t('m.Submit_Time')" width="150">
             <template slot-scope="{ row }">
               {{ formatTime(row.submitTime) }}
             </template>
           </el-table-column>
-          <el-table-column prop="language" label="语言" width="100">
+          <el-table-column prop="language" :label="$t('m.Language')" width="100">
             <template slot-scope="{ row }">
               {{ simplifyLanguage(row.language) }}
             </template>
           </el-table-column>
           <!-- 判题结果列 - 根据 canViewScore 控制是否显示 -->
-          <el-table-column v-if="canViewScore" label="结果" width="120">
+          <el-table-column v-if="canViewScore" :label="$t('m.Result')" width="120">
             <template slot-scope="{ row }">
               <el-tag
                 :type="getResultType(row.result)"
@@ -162,16 +162,16 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-else label="结果" width="120">
+          <el-table-column v-else :label="$t('m.Result')" width="120">
             <template slot-scope="{ row }">
               <el-tag type="info" size="mini">
-                {{ $t('m.Hidden') || '已隐藏' }}
+                {{ $t('m.Hidden') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100">
+          <el-table-column :label="$t('m.Operation')" width="100">
             <template slot-scope="{ row }">
-              <el-button type="text" size="small" @click="viewCode(row)">查看代码</el-button>
+              <el-button type="text" size="small" @click="viewCode(row)">{{ $t('m.View_Code') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -179,7 +179,7 @@
     </el-card>
 
     <!-- 代码查看对话框 -->
-    <el-dialog title="提交代码" :visible.sync="showCodeDialog" width="60%">
+    <el-dialog :title="$t('m.Submit_Code')" :visible.sync="showCodeDialog" width="60%">
       <div class="code-display-wrapper">
         <ClassroomCodeViewer
           :code="currentCode"
@@ -311,7 +311,7 @@ export default {
           this.extractExamples()
         } else {
           console.error('学生端题目加载失败, 响应状态:', res?.status, '数据:', res?.data)
-          this.$message.error('获取题目失败')
+          this.$message.error(this.$t('m.Get_Problem_Failed'))
         }
       } catch (error) {
         // 只保留关键错误日志
@@ -320,13 +320,13 @@ export default {
         }
         // 检查是否是502错误（网关错误）
         if (error.response && error.response.status === 502) {
-          this.$message.error('加载题目失败：BingOJ服务繁忙，请稍后重试')
+          this.$message.error(this.$t('m.Load_Problem_Busy'))
         } else if (error.response && error.response.status === 404) {
-          this.$message.error(`加载题目失败：题目ID ${this.problemId} 不存在`)
+          this.$message.error(this.$t('m.Load_Problem_Not_Exist').replace('{id}', this.problemId))
         } else if (error.response && error.response.status === 403) {
-          this.$message.error('加载题目失败：您没有权限查看此题目')
+          this.$message.error(this.$t('m.Load_Problem_No_Permission'))
         } else {
-          this.$message.error('加载题目失败：' + (error.message || '请检查网络连接'))
+          this.$message.error(this.$t('m.Load_Problem_Failed') + ': ' + (error.message || this.$t('m.Check_Network')))
         }
       } finally {
         this.loading = false
@@ -353,14 +353,14 @@ export default {
     },
     async submitCode() {
       if (!this.submitForm.code.trim()) {
-        this.$message.warning('请输入代码')
+        this.$message.warning(this.$t('m.Enter_Code'))
         return
       }
 
       // 获取当前登录用户信息
       const userInfo = this.$store.getters.userInfo
       if (!userInfo || !userInfo.username) {
-        this.$message.error('请先登录')
+        this.$message.error(this.$t('m.Please_Login_First'))
         return
       }
 
@@ -396,8 +396,8 @@ export default {
           if (!saved) {
             const msg = saveError && saveError.message
               ? saveError.message
-              : '提交记录保存失败'
-            this.$message.error(`代码已提交到判题端，但作业记录保存失败：${msg}`)
+              : this.$t('m.Save_Submission_Failed_Text')
+            this.$message.error(this.$t('m.Submitted_But_Save_Failed').replace('{msg}', msg))
             return
           }
 
@@ -406,7 +406,7 @@ export default {
             homeworkQuestionId: this.homeworkQuestionId,
             submitId
           })
-          this.$message.success('提交成功')
+          this.$message.success(this.$t('m.Submit_Success'))
           const hasPending = await this.loadSubmitHistory(true)
           if (hasPending) {
             this.startResultPolling()
@@ -414,11 +414,11 @@ export default {
             this.stopResultPolling()
           }
         } else {
-          this.$message.error((response.data && response.data.message) || '提交失败')
+          this.$message.error((response.data && response.data.message) || this.$t('m.Submit_Failed'))
         }
       } catch (error) {
         console.error('提交失败:', error)
-        this.$message.error('提交失败')
+        this.$message.error(this.$t('m.Submit_Failed'))
       } finally {
         this.submitting = false
       }
@@ -433,7 +433,7 @@ export default {
       })
 
       if (!res || res.code !== 200) {
-        throw new Error((res && res.message) || '保存提交记录失败')
+        throw new Error((res && res.message) || this.$t('m.Save_Submission_Failed_Text'))
       }
     },
     async loadSubmitHistory(forceRefresh = false) {
@@ -482,12 +482,12 @@ export default {
     },
     getJudgeModeText(mode) {
       const modeMap = {
-        'default': '默认模式',
-        'spj': '特殊判题 (SPJ)',
-        'interactive': '交互式',
-        'subtask': '子任务'
+        'default': this.$t('m.Judge_Mode_Default'),
+        'spj': this.$t('m.Judge_Mode_Spj'),
+        'interactive': this.$t('m.Judge_Mode_Interactive'),
+        'subtask': this.$t('m.Judge_Mode_Subtask')
       }
-      return modeMap[mode] || mode || '默认模式'
+      return modeMap[mode] || mode || this.$t('m.Judge_Mode_Default')
     },
     formatTime(time) {
       if (!time) return '--'
@@ -533,12 +533,12 @@ export default {
     },
     formatJudgeResult(result) {
       const code = this.normalizeJudgeResultCode(result)
-      if (code === 'PENDING') return '评测中'
+      if (code === 'PENDING') return this.$t('m.Judging')
       if (['AC', 'WA', 'CE', 'RE', 'TLE', 'MLE', 'PE', 'PAC', 'SE', 'CA', 'SNR'].includes(code)) {
         return code
       }
       const raw = String(result || '').trim()
-      return raw || '评测中'
+      return raw || this.$t('m.Judging')
     },
     getResultType(result) {
       const code = this.normalizeJudgeResultCode(result)

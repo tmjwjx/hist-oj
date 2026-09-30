@@ -3,26 +3,26 @@
     <!-- 筛选和排序工具栏 -->
     <div class="filter-toolbar">
       <el-radio-group v-model="statusFilter" size="small" @change="applyFilter">
-        <el-radio-button label="all">全部</el-radio-button>
-        <el-radio-button label="completed">已完成</el-radio-button>
-        <el-radio-button label="incomplete">未完成</el-radio-button>
+        <el-radio-button label="all">{{ $t('m.All') }}</el-radio-button>
+        <el-radio-button label="completed">{{ $t('m.Completed') }}</el-radio-button>
+        <el-radio-button label="incomplete">{{ $t('m.Incomplete') }}</el-radio-button>
       </el-radio-group>
 
       <div class="sort-buttons">
-        <span class="sort-label">排序:</span>
+        <span class="sort-label">{{ $t('m.Sort_By') }}:</span>
         <el-button-group size="small">
           <el-button
             :type="sortBy === 'problemId' ? 'primary' : ''"
             @click="toggleSort('problemId')"
           >
-            题目ID
+            {{ $t('m.Question_Id') }}
             <i v-if="sortBy === 'problemId'" :class="getSortIcon()"></i>
           </el-button>
           <el-button
             :type="sortBy === 'difficulty' ? 'primary' : ''"
             @click="toggleSort('difficulty')"
           >
-            难度
+            {{ $t('m.Difficulty') }}
             <i v-if="sortBy === 'difficulty'" :class="getSortIcon()"></i>
           </el-button>
         </el-button-group>
@@ -153,7 +153,7 @@
 
     <!-- 浮动按钮组 -->
     <div class="float-buttons">
-      <el-tooltip content="回到顶部" placement="left">
+      <el-tooltip :content="$t('m.Back_To_Top')" placement="left">
         <el-button
           type="primary"
           circle
@@ -162,7 +162,7 @@
           @click="scrollToTop"
         ></el-button>
       </el-tooltip>
-      <el-tooltip content="上次作答题目" placement="left">
+      <el-tooltip :content="$t('m.Last_Answered_Problem')" placement="left">
         <el-button
           type="success"
           circle
@@ -433,11 +433,11 @@ export default {
 
         if (existsInOriginal) {
           // 题目存在但被筛选过滤了
-          const filterText = this.statusFilter === 'completed' ? '已完成' :
-                           this.statusFilter === 'incomplete' ? '未完成' : '当前筛选';
-          this.$message.warning(`上次作答的题目不在"${filterText}"列表中，请切换筛选条件查看`);
+          const filterText = this.statusFilter === 'completed' ? this.$t('m.Completed') :
+                           this.statusFilter === 'incomplete' ? this.$t('m.Incomplete') : this.$t('m.Current_Filter');
+          this.$message.warning(this.$t('m.Last_Problem_Not_In_Filter').replace('{filter}', filterText));
         } else {
-          this.$message.warning('未找到上次作答的题目');
+          this.$message.warning(this.$t('m.Last_Problem_Not_Found'));
         }
         return;
       }

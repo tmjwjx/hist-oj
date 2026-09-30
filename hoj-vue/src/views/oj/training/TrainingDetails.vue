@@ -7,7 +7,7 @@
       <div class="training-progress" v-if="isAuthenticated">
         <el-tooltip
           effect="dark"
-          :content="`已完成 ${training.acCount || 0} / ${training.problemCount || 0} 题目`"
+          :content="`${$t('m.Completed')} ${training.acCount || 0} / ${training.problemCount || 0} ${$t('m.Problems_Unit')}`"
           placement="top"
         >
           <el-progress
@@ -135,11 +135,11 @@
                   </div>
                   <div v-if="isAuthenticated">
                     <span>
-                      <span>训练状态</span>
+                      <span>{{ $t('m.Training_Status') }}</span>
                     </span>
                     <span>
                       <template v-if="trainingPasswordFormVisible">
-                        <el-tag type="warning">需要密码验证</el-tag>
+                        <el-tag type="warning">{{ $t('m.Need_Password_Verify') }}</el-tag>
                       </template>
                       <template v-else-if="!hasJoined">
                         <el-button
@@ -148,11 +148,11 @@
                           @click="handleJoinTraining"
                           :loading="joinLoading"
                         >
-                          参加训练
+                          {{ $t('m.Join_Training') }}
                         </el-button>
                       </template>
                       <template v-else>
-                        <el-tag type="success">已参加</el-tag>
+                        <el-tag type="success">{{ $t('m.Joined') }}</el-tag>
                       </template>
                     </span>
                   </div>
@@ -283,7 +283,7 @@ export default {
     handleJoinTraining() {
       // 如果需要密码验证，提示用户
       if (this.trainingPasswordFormVisible) {
-        myMessage.warning('请先输入训练密码');
+        myMessage.warning(this.$t('m.Enter_Training_Password_First'));
         // 滚动到密码输入框
         this.$nextTick(() => {
           const passwordCard = document.querySelector('.password-form-card');
@@ -300,17 +300,17 @@ export default {
         (res) => {
           this.joinLoading = false;
           if (res.data.code === 200) {
-            myMessage.success('参加训练成功！');
+            myMessage.success(this.$t('m.Join_Training_Success'));
             this.hasJoined = true;
             // 刷新训练信息以更新进度
             this.$store.dispatch('getTraining');
           } else {
-            myMessage.error(res.data.message || '参加训练失败');
+            myMessage.error(res.data.message || this.$t('m.Join_Training_Failed'));
           }
         },
         (err) => {
           this.joinLoading = false;
-          myMessage.error(err.response?.data?.message || '参加训练失败');
+          myMessage.error(err.response?.data?.message || this.$t('m.Join_Training_Failed'));
         }
       );
     },
@@ -332,7 +332,7 @@ export default {
       api.registerTraining(this.training.id + '', this.trainingPassword).then(
         (res) => {
           // 密码验证成功，直接完成报名
-          myMessage.success('密码验证成功，正在加入训练...');
+          myMessage.success(this.$t('m.Password_Verified_Joining'));
           this.$store.commit('trainingIntoAccess', { intoAccess: true });
           
           // 自动调用 joinTraining 完成报名
@@ -340,18 +340,18 @@ export default {
             (joinRes) => {
               this.btnLoading = false;
               if (joinRes.data.code === 200) {
-                myMessage.success('加入训练成功！');
+                myMessage.success(this.$t('m.Join_Training_Success'));
                 this.hasJoined = true;
                 this.trainingPassword = ''; // 清空密码
                 // 刷新训练信息以更新进度
                 this.$store.dispatch('getTraining');
               } else {
-                myMessage.error(joinRes.data.message || '加入训练失败');
+                myMessage.error(joinRes.data.message || this.$t('m.Join_Training_Failed'));
               }
             },
             (joinErr) => {
               this.btnLoading = false;
-              myMessage.error(joinErr.response?.data?.message || '加入训练失败');
+              myMessage.error(joinErr.response?.data?.message || this.$t('m.Join_Training_Failed'));
             }
           );
         },
@@ -361,7 +361,7 @@ export default {
           if (err.response?.data?.message) {
             myMessage.error(err.response.data.message);
           } else {
-            myMessage.error('密码验证失败');
+            myMessage.error(this.$t('m.Password_Verify_Failed'));
           }
         }
       );

@@ -30,11 +30,11 @@
                   {{ $t('m.Programming') }}
                 </el-tag>
                 <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
-                  <i class="el-icon-warning-outline"></i> 未提交
+                  <i class="el-icon-warning-outline"></i> {{ $t('m.Unsubmitted') }}
                 </el-tag>
-                <span class="question-score">{{ submit.maxScore || 0 }}分</span>
+                <span class="question-score">{{ submit.maxScore || 0 }}{{ $t('m.Score_Unit') }}</span>
               </div>
-              <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
+              <div class="question-title">{{ $t('m.Programming_Question') }} - {{ submit.problemId }}</div>
 
               <!-- 未提交提示 -->
               <div class="programming-unsubmitted">
@@ -43,7 +43,7 @@
                   :closable="false"
                   show-icon>
                   <template slot="title">
-                    <span style="font-size: 14px;">该学生在作业发布后未提交此题目</span>
+                    <span style="font-size: 14px;">{{ $t('m.Student_Not_Submitted_Hint') }}</span>
                   </template>
                 </el-alert>
               </div>
@@ -57,7 +57,7 @@
                   {{ $t('m.Current_Score') }}: 0
                 </span>
                 <span style="margin-left: 10px; color: #909399; font-size: 12px;">
-                  <i class="el-icon-warning-outline"></i> 学生未提交，无法评分
+                  <i class="el-icon-warning-outline"></i> {{ $t('m.Cannot_Grade_Unsubmitted') }}
                 </span>
               </div>
             </div>
@@ -70,9 +70,9 @@
                   {{ getQuestionTypeText(submit.question.type) }}
                 </el-tag>
                 <el-tag type="danger" size="small" effect="plain" style="margin-left: 8px;">
-                  <i class="el-icon-warning-outline"></i> 未提交
+                  <i class="el-icon-warning-outline"></i> {{ $t('m.Unsubmitted') }}
                 </el-tag>
-                <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}分</span>
+                <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}{{ $t('m.Score_Unit') }}</span>
               </div>
 
               <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
@@ -105,8 +105,8 @@
                   class="composite-sub-question-card"
                 >
                   <div class="composite-sub-header">
-                    <span>子题 {{ subIndex + 1 }}</span>
-                    <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                    <span>{{ $t('m.Sub_Question') }} {{ subIndex + 1 }}</span>
+                    <span class="question-score">{{ Number(subQuestion.score || 0) }}{{ $t('m.Score_Unit') }}</span>
                   </div>
                   <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
 
@@ -152,7 +152,7 @@
                   :closable="false"
                   show-icon>
                   <template slot="title">
-                    <span style="font-size: 14px;">该学生在作业发布后未提交此题目</span>
+                    <span style="font-size: 14px;">{{ $t('m.Student_Not_Submitted_Hint') }}</span>
                   </template>
                 </el-alert>
               </div>
@@ -166,7 +166,7 @@
                   {{ $t('m.Current_Score') }}: 0
                 </span>
                 <span style="margin-left: 10px; color: #909399; font-size: 12px;">
-                  <i class="el-icon-warning-outline"></i> 学生未提交，无法评分
+                  <i class="el-icon-warning-outline"></i> {{ $t('m.Cannot_Grade_Unsubmitted') }}
                 </span>
               </div>
             </div>
@@ -179,16 +179,16 @@
               <el-tag type="warning" size="small">
                 {{ $t('m.Programming') }}
               </el-tag>
-              <span class="question-score">{{ submit.maxScore || 0 }}分</span>
+              <span class="question-score">{{ submit.maxScore || 0 }}{{ $t('m.Score_Unit') }}</span>
             </div>
-            <div class="question-title">BingOJ 编程题 - {{ submit.problemId }}</div>
+            <div class="question-title">{{ $t('m.Programming_Question') }} - {{ submit.problemId }}</div>
 
             <!-- 解析学生答案（JSON格式，包含code和language） -->
             <div v-if="submit.answer" class="programming-answer">
               <div v-if="parseProgrammingAnswer(submit.answer)" class="code-info">
-                <p><strong>编程语言:</strong> {{ parseProgrammingAnswer(submit.answer).language }}</p>
+                <p><strong>{{ $t('m.Language') }}:</strong> {{ parseProgrammingAnswer(submit.answer).language }}</p>
                 <el-divider></el-divider>
-                <p><strong>学生代码:</strong></p>
+                <p><strong>{{ $t('m.Student_Code') }}:</strong></p>
                 <Highlight
                   :code="parseProgrammingAnswer(submit.answer).code"
                   :language="mapLanguage(parseProgrammingAnswer(submit.answer).language)"
@@ -198,7 +198,7 @@
 
             <!-- 评测结果 -->
             <div v-if="submit.judgeResult" class="judge-result">
-              <p><strong>评测结果:</strong></p>
+              <p><strong>{{ $t('m.Judge_Result') }}:</strong></p>
               <el-tag :type="getJudgeResultType(submit.judgeResult)" size="small">
                 {{ submit.judgeResult }}
               </el-tag>
@@ -213,7 +213,7 @@
                 {{ $t('m.Current_Score') }}: {{ submit.score }}
               </span>
               <span style="margin-left: 10px; color: #909399; font-size: 12px;">
-                <i class="el-icon-info"></i> 编程题由系统自动评分
+                <i class="el-icon-info"></i> {{ $t('m.Auto_Graded') }}
               </span>
             </div>
           </div>
@@ -225,7 +225,7 @@
               <el-tag :type="getQuestionTypeTag(submit.question.type)" size="small">
                 {{ getQuestionTypeText(submit.question.type) }}
               </el-tag>
-              <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}分</span>
+              <span class="question-score">{{ submit.maxScore || submit.question.score || 0 }}{{ $t('m.Score_Unit') }}</span>
             </div>
 
             <div class="question-title markdown-body" v-html="renderMarkdown(submit.question.title)" v-highlight></div>
@@ -319,8 +319,8 @@
                 class="composite-sub-question-card"
               >
                 <div class="composite-sub-header">
-                  <span>子题 {{ subIndex + 1 }}</span>
-                  <span class="question-score">{{ Number(subQuestion.score || 0) }}分</span>
+                  <span>{{ $t('m.Sub_Question') }} {{ subIndex + 1 }}</span>
+                  <span class="question-score">{{ Number(subQuestion.score || 0) }}{{ $t('m.Score_Unit') }}</span>
                 </div>
                 <div class="markdown-body" v-html="renderMarkdown(subQuestion.content || '')" v-highlight></div>
 
@@ -374,7 +374,7 @@
               <!-- 显示学生上传的图片 -->
               <div v-if="getAttachmentImages(submit.attachment).length > 0" class="attachment-images">
                 <div class="attachment-title">
-                  <i class="el-icon-picture"></i> 学生上传的图片：
+                  <i class="el-icon-picture"></i> {{ $t('m.Student_Uploaded_Images') }}
                 </div>
                 <div class="attachment-list">
                   <el-image
@@ -659,7 +659,7 @@ export default {
       const studentSubmits = this.submissions.filter(s => s.uid === studentUid)
 
       if (!this.homework || !this.homework.questions || this.homework.questions.length === 0) {
-        this.$message.warning('作业信息不完整')
+        this.$message.warning(this.$t('m.Homework_Info_Incomplete'))
         return
       }
 
@@ -703,7 +703,7 @@ export default {
             uid: studentUid,
             answer: null,
             score: 0,
-            judgeResult: '未提交',
+            judgeResult: null,
             isScored: 0,
             createdAt: null,
             updatedAt: null,
@@ -833,7 +833,7 @@ export default {
       subQuestions.forEach((subQuestion, index) => {
         const value = this.getCompositeAnswerBySubQuestion(answerInput, subQuestion.id, index)
         if (value) {
-          segments.push(`子题${index + 1}: ${value}`)
+          segments.push(`${this.$t('m.Sub_Question')}${index + 1}: ${value}`)
         }
       })
       return segments.length > 0 ? segments.join('； ') : emptyText
@@ -987,7 +987,7 @@ export default {
       // Java 合并后的评分接口以具体提交记录为准，避免同一题多次提交时评错记录。
       const submissionId = this.currentQuestion.id
       if (!submissionId) {
-        this.$message.error('无法获取提交记录ID')
+        this.$message.error(this.$t('m.Cannot_Get_Submission_Id'))
         return
       }
 
@@ -1066,8 +1066,8 @@ export default {
         single_choice: this.$t('m.Single_Choice'),
         multiple_choice: this.$t('m.Multiple_Choice'),
         judge: this.$t('m.Judge'),
-        fill_blank: '填空题',
-        composite: '组合题',
+        fill_blank: this.$t('m.Fill_Blank'),
+        composite: this.$t('m.Composite_Question'),
         subjective: this.$t('m.Subjective'),
         programming: this.$t('m.Programming')
       }

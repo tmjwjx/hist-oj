@@ -44,7 +44,7 @@
               <el-tooltip
                 class="item"
                 effect="dark"
-                content="向左旋转90°"
+                :content="$t('m.Rotate_Left_90')"
                 trigger="hover"
                 placement="bottom"
               >
@@ -57,7 +57,7 @@
               <el-tooltip
                 class="item"
                 effect="dark"
-                content="向右旋转90°"
+                :content="$t('m.Rotate_Right_90')"
                 trigger="hover"
                 placement="bottom"
               >
@@ -70,7 +70,7 @@
               <el-tooltip
                 class="item"
                 effect="dark"
-                content="关闭图像截取"
+                :content="$t('m.Close_Crop')"
                 trigger="hover"
                 placement="bottom"
               >
@@ -84,7 +84,7 @@
                 class="item"
                 effect="dark"
                 trigger="hover"
-                content="确定图像截取"
+                :content="$t('m.Confirm_Crop')"
                 placement="bottom"
               >
                 <el-button

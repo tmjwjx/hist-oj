@@ -3,11 +3,11 @@
     <div class="editor-toolbar">
       <span class="markdown-hint">
         <i class="el-icon-info"></i>
-        支持 Markdown、代码块、表格与公式
+        {{ $t('m.Markdown_Supported_Hint') }}
       </span>
       <el-radio-group v-model="mode" size="mini">
-        <el-radio-button label="edit">编辑</el-radio-button>
-        <el-radio-button label="preview">预览</el-radio-button>
+        <el-radio-button label="edit">{{ $t('m.Edit') }}</el-radio-button>
+        <el-radio-button label="preview">{{ $t('m.Preview') }}</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -16,7 +16,7 @@
       v-model="content"
       type="textarea"
       :autosize="{ minRows: 4, maxRows: 12 }"
-      placeholder="说明样例输入如何得到样例输出，可使用 Markdown，可留空"
+      :placeholder="$t('m.Sample_Explanation_Placeholder')"
     />
     <div v-else class="markdown-preview">
       <Markdown
@@ -24,7 +24,7 @@
         :content="content"
         :isAvoidXss="true"
       />
-      <span v-else class="empty-preview">暂无样例解释</span>
+      <span v-else class="empty-preview">{{ $t('m.No_Sample_Explanation') }}</span>
     </div>
   </div>
 </template>
