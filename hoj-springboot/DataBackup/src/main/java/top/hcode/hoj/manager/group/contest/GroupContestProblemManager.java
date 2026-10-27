@@ -15,6 +15,7 @@ import top.hcode.hoj.dao.contest.ContestProblemEntityService;
 import top.hcode.hoj.dao.group.GroupEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.manager.admin.contest.AdminContestProblemManager;
 import top.hcode.hoj.pojo.dto.ContestProblemDTO;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
@@ -52,6 +53,9 @@ public class GroupContestProblemManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private ContestProblemEntityService contestProblemEntityService;
@@ -223,6 +227,7 @@ public class GroupContestProblemManager {
             throw new StatusForbiddenException("对不起，您无权限操作！");
         }
 
+        pendingSaveGuard.requireFormal(contestProblem.getPid());
         boolean isOk = contestProblemEntityService.saveOrUpdate(contestProblem);
         if (isOk) {
             contestProblemEntityService.syncContestRecord(contestProblem.getPid(), contestProblem.getCid(), contestProblem.getDisplayId());
@@ -276,6 +281,7 @@ public class GroupContestProblemManager {
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
         Long pid = contestProblemDto.getPid();
+        pendingSaveGuard.requireFormal(pid);
 
         Problem problem = problemEntityService.getById(pid);
 
@@ -361,6 +367,7 @@ public class GroupContestProblemManager {
         problemQueryWrapper.eq("problem_id", problemId).eq("gid", gid);
 
         Problem problem = problemEntityService.getOne(problemQueryWrapper);
+        if (problem != null) pendingSaveGuard.requireFormal(problem.getId());
 
         if (problem == null) {
             throw new StatusNotFoundException("该题目不存在或不是团队题目！");

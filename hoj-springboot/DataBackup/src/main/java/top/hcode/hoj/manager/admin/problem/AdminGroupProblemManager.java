@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.pojo.dto.ChangeGroupProblemProgressDTO;
 import top.hcode.hoj.pojo.entity.problem.Problem;
 
@@ -21,6 +22,9 @@ public class AdminGroupProblemManager {
 
     @Resource
     private ProblemEntityService problemEntityService;
+
+    @Resource
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     public IPage<Problem> list(Integer currentPage, Integer limit, String keyword, Long gid) {
         if (currentPage == null || currentPage < 1) currentPage = 1;
@@ -45,6 +49,7 @@ public class AdminGroupProblemManager {
     public void changeProgress(ChangeGroupProblemProgressDTO changeGroupProblemProgressDto) throws StatusFailException {
         Long pid = changeGroupProblemProgressDto.getPid();
         Integer progress = changeGroupProblemProgressDto.getProgress();
+        pendingSaveGuard.requireFormal(pid);
         if (pid == null || progress == null) {
             throw new StatusFailException("请求参数pid或者progress不能为空！");
         }

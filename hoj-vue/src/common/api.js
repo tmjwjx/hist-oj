@@ -60,7 +60,7 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   response => {
     // NProgress.done();
-    if (response.headers['refresh-token']) { // token续约！
+    if (response.headers['refresh-token'] && response.config.headers.Authorization === localStorage.getItem('token')) { // 仅续约当前请求所属的会话
       store.commit('changeUserToken', response.headers['authorization'])
     }
     // Java 后端使用 status/msg，兼容仍按旧 Go 格式读取 code/message 的页面。
@@ -97,7 +97,7 @@ axios.interceptors.response.use(
   error => {
     // NProgress.done();
     if (error.response) {
-      if (error.response.headers['refresh-token']) { // token续约！！
+      if (error.response.status !== 401 && error.response.headers['refresh-token'] && error.config && error.config.headers && error.config.headers.Authorization === localStorage.getItem('token')) { // 仅续约当前会话
         store.commit('changeUserToken', error.response.headers['authorization'])
       }
       const silentError = error.config && error.config.silentError
@@ -109,6 +109,8 @@ axios.interceptors.response.use(
         // 未登录则跳转登录页面，并携带当前页面的路径
         // 在登录成功后返回当前页面，这一步需要在登录页操作。
         case 401:
+          // A late response from an old login must not clear a newer login or repeat its expiry notice.
+          if ((error.config && error.config.headers && error.config.headers.Authorization || '') !== (localStorage.getItem('token') || '')) break;
           if (error.response.data.msg) {
             if (!silentError) {
               mMessage.error(error.response.data.msg);
@@ -122,12 +124,14 @@ axios.interceptors.response.use(
               });
             }
           }
-          if (error.response.config.headers['Url-Type'] === 'admin') {
+          if ((error.config && error.config.headers && error.config.headers['Url-Type'] === 'admin') || router.currentRoute.path.startsWith('/admin')) {
             router.push("/admin/login")
           } else {
             store.commit('changeModalStatus', { mode: 'Login', visible: true });
           }
           store.commit('clearUserInfoAndToken');
+          store.commit('classroom/SET_USER_ROLES', []);
+          store.commit('classroom/CLEAR_CACHE');
           break;
         // 403
         // 无权限访问或操作的请求
@@ -152,7 +156,7 @@ axios.interceptors.response.use(
               if(isAdminApi){
                 router.push("/admin")
               }
-            })
+            }).catch(() => {})
           }
           break;
         // 404请求不存在
@@ -1620,6 +1624,12 @@ const adminApi = {
     return ajax('/api/admin/problem', 'put', {
       data
     })
+  },
+  admin_prepareProblemSave(data) {
+    return ajax('/api/admin/problem/pending-save', 'post', { data })
+  },
+  admin_commitProblemSave(data) {
+    return ajax('/api/admin/problem/pending-save/commit', 'post', { data })
   },
   admin_getProblemVerification(pid) {
     return ajax('/api/admin/problem/verification', 'get', {

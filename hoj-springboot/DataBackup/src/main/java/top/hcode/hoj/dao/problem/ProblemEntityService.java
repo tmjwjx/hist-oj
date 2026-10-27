@@ -1,6 +1,7 @@
 package top.hcode.hoj.dao.problem;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
 import top.hcode.hoj.pojo.vo.ImportProblemVO;
 import top.hcode.hoj.pojo.vo.ProblemVO;
@@ -24,7 +25,7 @@ public interface ProblemEntityService extends IService<Problem> {
     Page<ProblemVO> getProblemList(int limit, int currentPage, Long pid, String title,
                                    Integer difficulty, List<Long> tid, String oj);
 
-    boolean adminUpdateProblem(ProblemDTO problemDto);
+    boolean adminUpdateProblem(ProblemDTO problemDto) throws StatusFailException;
 
     boolean adminAddProblem(ProblemDTO problemDto);
 

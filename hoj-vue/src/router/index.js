@@ -22,7 +22,12 @@ VueRouter.prototype.push = function push(location) {
    return originalPush.call(this, location).catch(err => err)
 }
 
-let routes = [...ojRoutes, ...adminRoutes, classroomRoutes];
+let routes = [{
+  path: '/external-verification/:token',
+  name: 'ExternalVerification',
+  component: () => import('@/views/oj/problem/ExternalVerification.vue'),
+  meta: { title: '外部验题', anonymous: true },
+}, ...ojRoutes, ...adminRoutes, classroomRoutes];
 const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,

@@ -100,6 +100,7 @@
         </div>
       </div>
       <vxe-table
+        :key="isContest ? 'contest-problems' : 'problem-library'"
         stripe
         auto-resize
         :data="problemList"
@@ -107,14 +108,14 @@
         :loading="loading"
         align="center"
       >
-        <vxe-table-column min-width="96" :title="$t('m.ProbObj_Problem_Type')" v-if="!isContest">
-          <template>
+        <vxe-table-column key="problem-type" min-width="96" :title="$t('m.ProbObj_Problem_Type')" v-if="!isContest">
+          <template v-slot:default>
             <el-tag type="primary" size="mini">{{ $t('m.ProbCreate_Programming') }}</el-tag>
           </template>
         </vxe-table-column>
-        <vxe-table-column min-width="64" field="id" title="ID">
+        <vxe-table-column key="id" min-width="64" field="id" title="ID">
         </vxe-table-column>
-        <vxe-table-column
+        <vxe-table-column key="problem-id"
           min-width="100"
           field="problemId"
           :title="$t('m.Display_ID')"
@@ -122,7 +123,7 @@
         >
         </vxe-table-column>
 
-        <vxe-table-column
+        <vxe-table-column key="original-display"
           min-width="150"
           :title="$t('m.Original_Display')"
           v-else
@@ -137,7 +138,7 @@
           </template>
         </vxe-table-column>
 
-        <vxe-table-column
+        <vxe-table-column key="title"
           field="title"
           min-width="150"
           :title="$t('m.Title')"
@@ -146,7 +147,7 @@
         >
         </vxe-table-column>
 
-        <vxe-table-column
+        <vxe-table-column key="contest-display"
           min-width="150"
           :title="$t('m.Contest_Display')"
           v-else
@@ -183,26 +184,26 @@
           </template>
         </vxe-table-column>
 
-        <vxe-table-column
+        <vxe-table-column key="author"
           field="author"
           min-width="130"
           :title="$t('m.Author')"
           show-overflow
         >
         </vxe-table-column>
-        <vxe-table-column min-width="120" :title="$t('m.Created_Time')">
+        <vxe-table-column key="created-at" min-width="120" :title="$t('m.Created_Time')">
           <template v-slot="{ row }">
             {{ row.gmtCreate | localtime }}
           </template>
         </vxe-table-column>
-        <vxe-table-column
+        <vxe-table-column key="modified-user"
           min-width="96"
           field="modifiedUser"
           :title="$t('m.Modified_User')"
           show-overflow
         >
         </vxe-table-column>
-        <vxe-table-column min-width="120" :title="$t('m.Auth')">
+        <vxe-table-column key="auth" min-width="120" :title="$t('m.Auth')">
           <template v-slot="{ row }">
             <el-select
               v-model="row.auth"
@@ -227,7 +228,16 @@
             </el-select>
           </template>
         </vxe-table-column>
-        <vxe-table-column title="Option" min-width="200">
+        <vxe-table-column key="external-verification" title="外部验题" min-width="180" v-if="!isContest">
+          <template v-slot="{ row }">
+            <template v-if="!row.isRemote && (isSuperAdmin || isProblemAdmin || row.author === userInfo.username)">
+              <el-button type="text" size="mini" icon="el-icon-link" @click="openExternalVerification(row, 'link')">验题链接</el-button>
+              <el-button type="text" size="mini" @click="openExternalVerification(row, 'submissions')">外部提交</el-button>
+            </template>
+            <span v-else>—</span>
+          </template>
+        </vxe-table-column>
+        <vxe-table-column key="options" title="Option" min-width="200">
           <template v-slot="{ row }">
             <el-tooltip
               effect="dark"
@@ -311,6 +321,8 @@
       </div>
     </el-card>
 
+    <ProblemExternalVerificationDialog v-if="externalProblem" :pid="externalProblem.id"
+      :title="externalProblem.title" :initial-tab="externalTab" @close="externalProblem = null" />
     <el-dialog
       :title="$t('m.Add_Contest_Problem')"
       v-if="query.contestId"
@@ -375,14 +387,18 @@ import myMessage from '@/common/message';
 import { REMOTE_OJ } from '@/common/constants';
 import { mapGetters } from 'vuex';
 import ObjectiveProblemList from '@/views/admin/problem/ObjectiveProblemList.vue';
+import ProblemExternalVerificationDialog from '@/components/admin/ProblemExternalVerificationDialog.vue';
 export default {
   name: 'ProblemList',
   components: {
     AddPublicProblem,
     ObjectiveProblemList,
+    ProblemExternalVerificationDialog,
   },
   data() {
     return {
+      externalProblem: null,
+      externalTab: 'link',
       total: 0,
       query: {
         problemListAuth: 0,
@@ -434,6 +450,7 @@ export default {
     },
   },
   methods: {
+    openExternalVerification(problem, tab) { this.externalProblem = problem; this.externalTab = tab; },
     init() {
       this.routeName = this.$route.name;
       let query = this.$route.query;

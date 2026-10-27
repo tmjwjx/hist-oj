@@ -162,7 +162,7 @@ const adminRoutes = [
         meta: { title: '编辑题目' }
       },
       {
-        path: 'problem/edit/:problemId/ai-history',
+        path: 'problem/edit/:problemId/ai-history/:section?',
         name: 'admin-problem-ai-history',
         component: ProblemAIHistory,
         meta: { title: '历史 AI 验题' }

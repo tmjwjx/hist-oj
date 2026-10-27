@@ -16,6 +16,9 @@ import top.hcode.hoj.pojo.entity.problem.ProblemAiConfig;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -68,7 +71,7 @@ public class ProblemAiGateway {
                     continue;
                 }
                 throw new IllegalStateException(
-                        "AI 服务连接或读取超时，请稍后重试；若持续失败，请检查管理员配置的 AI 直连地址", e);
+                        "AI 服务连接或读取超时，请稍后重试；若持续失败，请检查管理员配置的 AI 直连地址");
             } catch (IllegalStateException e) {
                 // A successful HTTP response can still contain an empty or
                 // provider-specific stream. Try one non-stream request before
@@ -97,7 +100,7 @@ public class ProblemAiGateway {
         } catch (RestClientResponseException e) {
             throw upstreamFailure(e.getRawStatusCode());
         } catch (ResourceAccessException e) {
-            throw new IllegalStateException("AI 复检请求超时（超过 " + bounded + " 秒），请稍后重试", e);
+            throw new IllegalStateException("AI 复检请求超时（超过 " + bounded + " 秒），请稍后重试");
         }
     }
 
@@ -113,19 +116,30 @@ public class ProblemAiGateway {
 
     private String execute(ProblemAiConfig config, List<Map<String, String>> messages, boolean stream,
                            int timeoutSeconds, String reasoningEffort) {
+        String protocol = protocol(config);
+        String apiKey = config.getApiKey();
+        if (apiKey == null || apiKey.trim().isEmpty()
+                || apiKey.chars().anyMatch(value -> value < 32 || value == 127)) {
+            throw new IllegalStateException("AI API Key 格式无效，请检查管理员配置");
+        }
+        URI url = endpoint(config, protocol, stream);
         byte[] payload = JSONUtil.toJsonStr(requestBody(config, messages, stream, reasoningEffort))
                 .getBytes(StandardCharsets.UTF_8);
         RestTemplate client = new RestTemplate(requestFactory(timeoutSeconds));
-        return client.execute(chatCompletionsUrl(config.getApiUrl()), HttpMethod.POST, request -> {
+        return client.execute(url, HttpMethod.POST, request -> {
             HttpHeaders headers = request.getHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setAccept(Arrays.asList(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON));
-            headers.setBearerAuth(config.getApiKey());
+            if ("gemini".equals(protocol)) headers.set("x-goog-api-key", config.getApiKey());
+            else if ("anthropic".equals(protocol)) {
+                headers.set("x-api-key", config.getApiKey());
+                headers.set("anthropic-version", "2023-06-01");
+            } else headers.setBearerAuth(config.getApiKey());
             headers.setCacheControl(CacheControl.noCache());
             headers.set(HttpHeaders.ACCEPT_ENCODING, "identity");
             headers.set(HttpHeaders.USER_AGENT, "Mozilla/5.0 (compatible; HistOJ-AIValidator/1.0)");
             request.getBody().write(payload);
-        }, this::readCompletion);
+        }, response -> readCompletion(response, protocol));
     }
 
     private Map<String, Object> requestBody(ProblemAiConfig config, List<Map<String, String>> messages,
@@ -135,13 +149,64 @@ public class ProblemAiGateway {
 
     private Map<String, Object> requestBody(ProblemAiConfig config, List<Map<String, String>> messages,
                                             boolean stream, String reasoningEffort) {
+        String protocol = protocol(config);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", config.getModel());
-        body.put("messages", messages);
-        if (!isReasoningModel(config.getModel())) body.put("temperature", 0.1);
-        body.put("reasoning_effort", reasoningEffort);
-        body.put(completionTokenField(config.getModel()), MAX_OUTPUT_TOKENS);
-        body.put("stream", stream);
+        if ("openai_chat".equals(protocol)) {
+            body.put("model", config.getModel());
+            body.put("messages", messages);
+            if (isReasoningModel(config.getModel())) body.put("reasoning_effort", reasoningEffort);
+            else body.put("temperature", 0.1);
+            body.put(completionTokenField(config.getModel()), MAX_OUTPUT_TOKENS);
+            body.put("stream", stream);
+            return body;
+        }
+        StringBuilder system = new StringBuilder();
+        List<Map<String, Object>> conversation = new ArrayList<>();
+        for (Map<String, String> message : messages) {
+            String role = message.getOrDefault("role", "user");
+            String content = message.getOrDefault("content", "");
+            if ("system".equals(role) || "developer".equals(role)) {
+                if (system.length() > 0) system.append("\n\n");
+                system.append(content);
+                continue;
+            }
+            if (!"user".equals(role) && !"assistant".equals(role)) {
+                throw new IllegalStateException("AI 验题仅支持文本对话消息");
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("role", "gemini".equals(protocol) && "assistant".equals(role) ? "model" : role);
+            if ("gemini".equals(protocol)) {
+                item.put("parts", Collections.singletonList(Collections.singletonMap("text", content)));
+            } else item.put("content", content);
+            conversation.add(item);
+        }
+        if ("gemini".equals(protocol)) {
+            body.put("contents", conversation);
+            if (system.length() > 0) body.put("systemInstruction", Collections.singletonMap("parts",
+                    Collections.singletonList(Collections.singletonMap("text", system.toString()))));
+            Map<String, Object> generation = new LinkedHashMap<>();
+            generation.put("maxOutputTokens", MAX_OUTPUT_TOKENS);
+            generation.put("temperature", 0.1);
+            body.put("generationConfig", generation);
+        } else {
+            body.put("model", config.getModel());
+            body.put("stream", stream);
+            if ("openai_responses".equals(protocol)) {
+                body.put("input", conversation);
+                if (system.length() > 0) body.put("instructions", system.toString());
+                body.put("store", false);
+                body.put("max_output_tokens", MAX_OUTPUT_TOKENS);
+                if (isReasoningModel(config.getModel())) {
+                    body.put("reasoning", Collections.singletonMap("effort", reasoningEffort));
+                } else body.put("temperature", 0.1);
+            } else {
+                body.put("messages", conversation);
+                if (system.length() > 0) body.put("system", system.toString());
+                body.put("max_tokens", MAX_OUTPUT_TOKENS);
+                // Native Claude models have differing temperature restrictions;
+                // their documented default works without a model-name guess.
+            }
+        }
         return body;
     }
 
@@ -158,117 +223,286 @@ public class ProblemAiGateway {
 
     private SimpleClientHttpRequestFactory requestFactory(int timeoutSeconds) {
         int readSeconds = Math.max(30, Math.min(timeoutSeconds, MAX_READ_TIMEOUT_SECONDS));
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String method)
+                    throws java.io.IOException {
+                super.prepareConnection(connection, method);
+                connection.setInstanceFollowRedirects(false);
+            }
+        };
         factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
         factory.setReadTimeout(readSeconds * 1000);
         return factory;
     }
 
-    private String readCompletion(org.springframework.http.client.ClientHttpResponse response)
+    private static class AiResponseException extends IllegalStateException {
+        AiResponseException(String message) { super(message); }
+    }
+
+    private String readCompletion(org.springframework.http.client.ClientHttpResponse response, String protocol)
+            throws java.io.IOException {
+        if (response.getRawStatusCode() >= 300) throw upstreamFailure(response.getRawStatusCode());
+        try {
+            return readCompletionBody(response, protocol);
+        } catch (AiResponseException error) {
+            throw error;
+        } catch (RuntimeException error) {
+            // Parsing libraries may embed the raw response in their exceptions.
+            throw new AiResponseException("AI 接口返回格式不兼容，请检查管理员配置的接口地址和模型");
+        }
+    }
+
+    private String readCompletionBody(org.springframework.http.client.ClientHttpResponse response, String protocol)
             throws java.io.IOException {
         StringBuilder raw = new StringBuilder();
-        StringBuilder streamed = new StringBuilder();
-        boolean sse = false;
+        StringBuilder eventData = new StringBuilder();
+        StreamResult result = new StreamResult();
+        String eventName = "";
+        boolean sse = response.getHeaders().getContentType() != null
+                && MediaType.TEXT_EVENT_STREAM.isCompatibleWith(response.getHeaders().getContentType());
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                // Strip an optional UTF-8 BOM and tolerate the whitespace used
-                // by a few SSE proxies before the field name.
-                String eventLine = line;
-                if (!eventLine.isEmpty() && eventLine.charAt(0) == '\uFEFF') {
-                    eventLine = eventLine.substring(1);
-                }
-                eventLine = eventLine.trim();
-                if (eventLine.startsWith("data:")) {
-                    sse = true;
-                    appendStreamEvent(streamed, eventLine.substring(5).trim());
-                } else if (!sse) {
+                if (!line.isEmpty() && line.charAt(0) == '\uFEFF') line = line.substring(1);
+                String eventLine = line.trim();
+                if (eventLine.startsWith("data:") || eventLine.startsWith("event:")
+                        || eventLine.startsWith(":")) sse = true;
+                if (!sse) {
                     raw.append(line).append('\n');
+                    continue;
+                }
+                if (eventLine.isEmpty()) {
+                    consumeEvent(result, eventName, eventData.toString(), protocol);
+                    eventData.setLength(0);
+                    eventName = "";
+                } else if (eventLine.startsWith("event:")) {
+                    eventName = eventLine.substring(6).trim();
+                } else if (eventLine.startsWith("data:")) {
+                    // Some compatible proxies omit the blank line between JSON events.
+                    if (eventData.length() > 0 && (JSONUtil.isJsonObj(eventData.toString())
+                            || "[DONE]".contentEquals(eventData))) {
+                        consumeEvent(result, eventName, eventData.toString(), protocol);
+                        eventData.setLength(0);
+                    }
+                    if (eventData.length() > 0) eventData.append('\n');
+                    eventData.append(eventLine.substring(5).trim());
                 }
             }
         }
-        String content = sse ? streamed.toString() : extractMessageContent(raw.toString());
+        if (sse) {
+            consumeEvent(result, eventName, eventData.toString(), protocol);
+            if (!result.completed) throw new AiResponseException("AI 流式响应中断，未收到完整结束标记，请重试");
+        }
+        String content = sse ? result.text.toString() : extractMessageContent(raw.toString(), protocol);
         if (StringUtils.isEmpty(content)) {
-            log.warn("AI response contained no text: status={}, contentType={}, sse={}, rawChars={}, streamChars={}",
-                    response.getRawStatusCode(), response.getHeaders().getContentType(), sse,
-                    raw.length(), streamed.length());
-            throw new IllegalStateException("AI 接口未返回有效内容，请检查模型和接口兼容性");
+            log.warn("AI response contained no text: status={}, protocol={}, sse={}, rawChars={}, streamChars={}",
+                    response.getRawStatusCode(), protocol, sse, raw.length(), result.text.length());
+            throw new AiResponseException("AI 接口未返回有效内容，请检查模型和接口兼容性");
         }
         return content;
     }
 
-    private void appendStreamEvent(StringBuilder content, String data) {
-        if (StringUtils.isEmpty(data) || "[DONE]".equals(data)) return;
-        try {
-            JSONObject event = JSONUtil.parseObj(data);
-            appendText(content, firstText(event,
-                    "choices[0].delta.content",
-                    "choices[0].message.content",
-                    "choices[0].text",
-                    "output_text",
-                    "output[0].content[0].text"));
-        } catch (Exception ignored) {
-            // 心跳或非标准扩展事件不应中断后续 SSE 内容读取。
+    private static class StreamResult {
+        private final StringBuilder text = new StringBuilder();
+        private boolean completed;
+        private boolean stopReasonReceived;
+    }
+
+    private void consumeEvent(StreamResult result, String eventName, String data, String protocol) {
+        if ("error".equals(eventName)) throw responseFailure();
+        if (StringUtils.isEmpty(data)) return;
+        if ("[DONE]".equals(data)) {
+            if ("openai_chat".equals(protocol)) result.completed = true;
+            return;
+        }
+        JSONObject event = parseResponse(data);
+        rejectError(event);
+        String type = event.getStr("type", eventName);
+        if ("error".equals(type) || "response.failed".equals(type)
+                || "response.incomplete".equals(type) || "response.refusal.delta".equals(type)
+                || "response.refusal.done".equals(type)) throw responseFailure();
+        switch (protocol) {
+            case "openai_chat":
+                JSONObject choice = firstObject(event.getJSONArray("choices"));
+                if (choice != null) {
+                    String finish = choice.getStr("finish_reason");
+                    validateStop(finish, "stop", false);
+                    rejectRefusal(choice.getJSONObject("delta"));
+                    rejectRefusal(choice.getJSONObject("message"));
+                    appendText(result.text, firstText(choice, "delta.content", "message.content", "text"));
+                    if (finish != null) result.completed = true;
+                } else if ("response.output_text.delta".equals(type)) {
+                    appendText(result.text, event.getStr("delta"));
+                } else if ("response.completed".equals(type)) {
+                    String text = responsesText(event.getJSONObject("response"));
+                    if (!StringUtils.isEmpty(text)) {
+                        result.text.setLength(0);
+                        result.text.append(text);
+                    }
+                    result.completed = true;
+                } else {
+                    appendText(result.text, firstText(event, "output_text", "output[0].content"));
+                }
+                break;
+            case "openai_responses":
+                if ("response.output_text.delta".equals(type)) appendText(result.text, event.getStr("delta"));
+                else if ("response.completed".equals(type)) {
+                    String text = responsesText(event.getJSONObject("response"));
+                    if (!StringUtils.isEmpty(text)) {
+                        result.text.setLength(0);
+                        result.text.append(text);
+                    }
+                    result.completed = true;
+                }
+                break;
+            case "gemini":
+                JSONObject candidate = geminiCandidate(event);
+                if (candidate != null) {
+                    String finish = candidate.getStr("finishReason");
+                    validateStop(finish, "STOP", false);
+                    appendText(result.text, firstText(candidate, "content.parts"));
+                    if (finish != null) result.completed = true;
+                }
+                break;
+            case "anthropic":
+                if ("content_block_start".equals(type)) {
+                    appendText(result.text, textValue(event.get("content_block")));
+                } else if ("content_block_delta".equals(type)) {
+                    JSONObject delta = event.getJSONObject("delta");
+                    if (delta != null && "text_delta".equals(delta.getStr("type"))) {
+                        appendText(result.text, delta.getStr("text"));
+                    }
+                } else if ("message_delta".equals(type)) {
+                    JSONObject delta = event.getJSONObject("delta");
+                    String stop = delta == null ? null : delta.getStr("stop_reason");
+                    validateAnthropicStop(stop, false);
+                    if (stop != null) result.stopReasonReceived = true;
+                } else if ("message_stop".equals(type)) {
+                    if (!result.stopReasonReceived) throw responseFailure();
+                    result.completed = true;
+                }
+                break;
+            default:
+                throw new AiResponseException("不支持的 AI 接口协议");
         }
     }
 
-    private String extractMessageContent(String responseBody) {
-        try {
-            JSONObject response = JSONUtil.parseObj(responseBody);
-            return firstText(response,
-                    "choices[0].message.content",
-                    "choices[0].text",
-                    "output_text",
-                    "output[0].content[0].text");
-        } catch (Exception e) {
-            throw new IllegalStateException("AI 接口返回格式不兼容，请检查管理员配置的接口地址和模型");
+    private String extractMessageContent(String responseBody, String protocol) {
+        JSONObject response = parseResponse(responseBody);
+        rejectError(response);
+        switch (protocol) {
+            case "openai_responses":
+                return responsesText(response);
+            case "gemini":
+                JSONObject candidate = geminiCandidate(response);
+                if (candidate == null) return "";
+                validateStop(candidate.getStr("finishReason"), "STOP", true);
+                return firstText(candidate, "content.parts");
+            case "anthropic":
+                validateAnthropicStop(response.getStr("stop_reason"), true);
+                return textValue(response.get("content"));
+            default:
+                JSONObject choice = firstObject(response.getJSONArray("choices"));
+                if (choice != null) {
+                    validateStop(choice.getStr("finish_reason"), "stop", false);
+                    rejectRefusal(choice.getJSONObject("message"));
+                    return firstText(choice, "message.content", "text");
+                }
+                if (response.containsKey("status")) return responsesText(response);
+                return firstText(response, "output_text", "output[0].content");
         }
+    }
+
+    private JSONObject parseResponse(String data) {
+        try {
+            if (!JSONUtil.isJsonObj(data)) throw new IllegalArgumentException();
+            return JSONUtil.parseObj(data);
+        } catch (Exception e) {
+            throw new AiResponseException("AI 接口返回格式不兼容，请检查管理员配置的接口地址和模型");
+        }
+    }
+
+    private JSONObject firstObject(JSONArray array) {
+        return array == null || array.isEmpty() ? null : array.getJSONObject(0);
+    }
+
+    private void rejectError(JSONObject object) {
+        if (object == null || !JSONUtil.isNull(object.get("error")) || "error".equals(object.getStr("type"))) {
+            throw responseFailure();
+        }
+    }
+
+    private void rejectRefusal(JSONObject object) {
+        if (object != null && !StringUtils.isEmpty(object.getStr("refusal"))) throw responseFailure();
+    }
+
+    private IllegalStateException responseFailure() {
+        // Provider errors can echo credentials or prompts. Never expose their body.
+        return new AiResponseException("AI 服务返回错误、拒绝作答或内容未完整生成，请检查模型后重试");
+    }
+
+    private void validateStop(String actual, String expected, boolean required) {
+        if ((required && actual == null) || (actual != null && !expected.equals(actual))) throw responseFailure();
+    }
+
+    private void validateAnthropicStop(String stop, boolean required) {
+        if ("stop_sequence".equals(stop)) return;
+        validateStop(stop, "end_turn", required);
+    }
+
+    private String responsesText(JSONObject response) {
+        rejectError(response);
+        validateStop(response.getStr("status"), "completed", true);
+        JSONArray output = response.getJSONArray("output");
+        StringBuilder content = new StringBuilder();
+        if (output != null) {
+            for (int i = 0; i < output.size(); i++) {
+                JSONObject item = output.getJSONObject(i);
+                if ("message".equals(item.getStr("type"))) {
+                    validateStop(item.getStr("status"), "completed", false);
+                    appendText(content, textValue(item.get("content")));
+                }
+            }
+        }
+        return content.length() > 0 ? content.toString() : textValue(response.get("output_text"));
+    }
+
+    private JSONObject geminiCandidate(JSONObject response) {
+        rejectError(response);
+        JSONObject feedback = response.getJSONObject("promptFeedback");
+        String blockReason = feedback == null ? null : feedback.getStr("blockReason");
+        if (blockReason != null && !"BLOCK_REASON_UNSPECIFIED".equals(blockReason)) throw responseFailure();
+        return firstObject(response.getJSONArray("candidates"));
     }
 
     private String firstText(JSONObject value, String... paths) {
         for (String path : paths) {
-            try {
-                String text = textValue(value.getByPath(path));
-                if (!StringUtils.isEmpty(text)) return text;
-            } catch (Exception ignored) {
-                // Continue with the next compatible response shape.
-            }
+            String text = textValue(value.getByPath(path));
+            if (!StringUtils.isEmpty(text)) return text;
         }
         return "";
     }
 
-    /**
-     * OpenAI-compatible providers normally return a String, but some return
-     * content parts ({@code [{"type":"text","text":"..."}]}). Extract
-     * only text parts so their JSON envelope is not appended to generated code.
-     */
     private String textValue(Object value) {
         if (value == null) return "";
         if (value instanceof CharSequence) return value.toString();
-        if (value instanceof JSONObject) {
-            JSONObject object = (JSONObject) value;
-            String text = textValue(object.get("text"));
-            if (!StringUtils.isEmpty(text)) return text;
-            return textValue(object.get("content"));
-        }
         if (value instanceof Map) {
             Map<?, ?> object = (Map<?, ?>) value;
-            String text = textValue(object.get("text"));
-            if (!StringUtils.isEmpty(text)) return text;
-            return textValue(object.get("content"));
-        }
-        if (value instanceof JSONArray) {
-            StringBuilder result = new StringBuilder();
-            for (Object item : (JSONArray) value) result.append(textValue(item));
-            return result.toString();
+            String type = object.get("type") == null ? "" : object.get("type").toString();
+            if ("refusal".equals(type)) throw responseFailure();
+            if (Boolean.TRUE.equals(object.get("thought"))) return "";
+            if (!type.isEmpty() && !"text".equals(type) && !"output_text".equals(type)) return "";
+            Object text = object.get("text");
+            return textValue(text == null && type.isEmpty() ? object.get("content") : text);
         }
         if (value instanceof Iterable) {
             StringBuilder result = new StringBuilder();
             for (Object item : (Iterable<?>) value) result.append(textValue(item));
             return result.toString();
         }
-        return String.valueOf(value);
+        return "";
     }
 
     private void appendText(StringBuilder target, String text) {
@@ -315,11 +549,67 @@ public class ProblemAiGateway {
     private boolean isReasoningModel(String model) {
         String value = model == null ? "" : model.toLowerCase(Locale.ROOT);
         return value.startsWith("o1") || value.startsWith("o3") || value.startsWith("o4")
-                || value.startsWith("gpt-5");
+                || value.startsWith("gpt-5") || value.startsWith("gpt-6");
     }
 
-    private String chatCompletionsUrl(String apiUrl) {
-        String value = apiUrl == null ? "" : apiUrl.trim().replaceAll("/+$", "");
-        return value.endsWith("/v1") ? value + "/chat/completions" : value;
+    private String protocol(ProblemAiConfig config) {
+        String value = config.getProtocol();
+        if (value == null || value.trim().isEmpty()) return "openai_chat";
+        value = value.trim().toLowerCase(Locale.ROOT);
+        if (!Arrays.asList("openai_chat", "openai_responses", "gemini", "anthropic").contains(value)) {
+            throw new IllegalStateException("不支持的 AI 接口协议");
+        }
+        return value;
+    }
+
+    private URI endpoint(ProblemAiConfig config, String protocol, boolean stream) {
+        try {
+            URI base = URI.create(config.getApiUrl().trim());
+            if ((!"http".equalsIgnoreCase(base.getScheme()) && !"https".equalsIgnoreCase(base.getScheme()))
+                    || base.getHost() == null || base.getUserInfo() != null || base.getFragment() != null) {
+                throw new IllegalArgumentException();
+            }
+            String path = base.getRawPath() == null ? "" : base.getRawPath().replaceAll("/+$", "");
+            List<String> query = new ArrayList<>();
+            if (base.getRawQuery() != null) {
+                for (String part : base.getRawQuery().split("&")) {
+                    String key = URLDecoder.decode(part.split("=", 2)[0], "UTF-8").toLowerCase(Locale.ROOT);
+                    if (Arrays.asList("key", "api_key", "apikey", "access_token", "token").contains(key)) {
+                        throw new IllegalArgumentException();
+                    }
+                    if (!"gemini".equals(protocol) || !"alt".equals(key)) query.add(part);
+                }
+            }
+            switch (protocol) {
+                case "openai_chat":
+                    if (path.isEmpty()) path = "/v1/chat/completions";
+                    else if (path.endsWith("/v1")) path += "/chat/completions";
+                    break;
+                case "openai_responses":
+                case "anthropic":
+                    String suffix = "anthropic".equals(protocol) ? "/messages" : "/responses";
+                    if (!path.endsWith(suffix)) path += path.endsWith("/v1") ? suffix : "/v1" + suffix;
+                    break;
+                case "gemini":
+                    if (path.endsWith(":generateContent") || path.endsWith(":streamGenerateContent")) {
+                        path = path.substring(0, path.lastIndexOf(':'));
+                    } else {
+                        String model = config.getModel();
+                        if (model != null && model.startsWith("models/")) model = model.substring(7);
+                        if (model == null || !model.matches("[A-Za-z0-9._-]+")) throw new IllegalArgumentException();
+                        if (!path.matches(".*/v1(?:beta|alpha)?")) path += "/v1beta";
+                        path += "/models/" + model;
+                    }
+                    path += stream ? ":streamGenerateContent" : ":generateContent";
+                    if (stream) query.add("alt=sse");
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
+            return URI.create(base.getScheme() + "://" + base.getRawAuthority() + path
+                    + (query.isEmpty() ? "" : "?" + String.join("&", query)));
+        } catch (Exception e) {
+            throw new IllegalStateException("AI 接口地址或模型格式无效；请使用 HTTP(S) 地址，密钥仅填写在 API Key 中");
+        }
     }
 }

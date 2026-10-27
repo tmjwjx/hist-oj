@@ -685,14 +685,7 @@ export default {
       this.switchMode();
       this.setHiddenHeaderHeight();
     });
-    if (this.isAuthenticated) {
-      this.getUnreadMsgCount();
-      this.msgTimer = setInterval(() => {
-        this.getUnreadMsgCount();
-      }, 120 * 1000);
-      // 加载用户 Rating 颜色
-      this.loadUserRatingColor();
-    }
+    this.loadUserSession();
   },
   beforeDestroy() {
     clearInterval(this.msgTimer);
@@ -752,8 +745,34 @@ export default {
         window.open('/admin/');
       }
     },
+    async loadUserSession() {
+      clearInterval(this.msgTimer);
+      if (!this.isAuthenticated) return;
+      const uid = this.userInfo.uid;
+      const request = {};
+      this.userSessionRequest = request;
+      try {
+        const session = await this.$store.dispatch('refreshUserAuthInfo');
+        if (this.userSessionRequest !== request || !session || !this.isAuthenticated || this.userInfo.uid !== uid ||
+            this._isDestroyed || this._isBeingDestroyed) return;
+        clearInterval(this.msgTimer);
+        this.getUnreadMsgCount();
+        this.msgTimer = setInterval(() => this.getUnreadMsgCount(), 120 * 1000);
+        this.loadUserRatingColor();
+      } catch (error) {
+        if (!error.response || error.response.status !== 401) {
+          console.error('加载用户会话失败:', error);
+        }
+      }
+    },
     getUnreadMsgCount() {
-      api.getUnreadMsgCount().then((res) => {
+      if (!this.isAuthenticated || this._isDestroyed || this._isBeingDestroyed) return;
+      const token = this.token;
+      const uid = this.userInfo.uid;
+      return api.getUnreadMsgCount().then((res) => {
+        const refreshedToken = res.headers && res.headers['refresh-token'] && res.headers.authorization;
+        if (!this.isAuthenticated || this.userInfo.uid !== uid || this._isDestroyed || this._isBeingDestroyed ||
+            (this.token !== token && this.token !== refreshedToken)) return;
         let data = res.data.data;
         this.$store.dispatch('updateUnreadMessageCount', data);
         let sumMsg =
@@ -770,8 +789,13 @@ export default {
             duration: 5000,
           });
         }
-        // 更新上次的未读消息数
         this.lastUnreadCount = sumMsg;
+      }).catch((error) => {
+        if (error.response && error.response.status === 401) {
+          if (!this.isAuthenticated) clearInterval(this.msgTimer);
+        } else {
+          console.error('加载未读消息失败:', error);
+        }
       });
     },
     changeWebLanguage() {
@@ -812,14 +836,16 @@ export default {
     },
     // 加载用户 Rating 颜色
     loadUserRatingColor() {
-      if (!this.userInfo || !this.userInfo.uid) {
+      if (!this.isAuthenticated || !this.userInfo || !this.userInfo.uid) {
         this.ratingLoaded = true;
         // 如果没有用户信息，保持蓝色（不设置 userRatingColor）
         this.userRatingColor = null;
         return;
       }
-      ratingApi.getUserRating(this.userInfo.uid).then(
+      const uid = this.userInfo.uid;
+      ratingApi.getUserRating(uid).then(
         (data) => {
+          if (!this.isAuthenticated || this.userInfo.uid !== uid) return;
           // 优先使用 API 返回的 color
           if (data && typeof data.color === 'string' && data.color.trim() !== '') {
             this.userRatingColor = data.color;
@@ -835,6 +861,7 @@ export default {
           this.ratingLoaded = true;
         },
         (err) => {
+          if (!this.isAuthenticated || this.userInfo.uid !== uid) return;
           console.error('加载用户 Rating 颜色失败:', err);
           // API 调用失败时，保持蓝色（不设置 userRatingColor）
           this.userRatingColor = null;
@@ -910,17 +937,10 @@ export default {
   watch: {
     isAuthenticated() {
       if (this.isAuthenticated) {
-        if (this.msgTimer) {
-          clearInterval(this.msgTimer);
-        }
-        this.getUnreadMsgCount();
-        this.msgTimer = setInterval(() => {
-          this.getUnreadMsgCount();
-        }, 120 * 1000);
-        // 加载用户 Rating 颜色
-        this.loadUserRatingColor();
+        this.loadUserSession();
       } else {
         clearInterval(this.msgTimer);
+        this.lastUnreadCount = 0;
         // 用户登出时重置 Rating 颜色
         this.userRatingColor = null;
         this.ratingLoaded = false;
@@ -932,8 +952,8 @@ export default {
         // 重置状态
         this.ratingLoaded = false;
         this.userRatingColor = null;
-        // 重新加载颜色
-        this.loadUserRatingColor();
+        this.lastUnreadCount = 0;
+        this.loadUserSession();
       }
     },
     $route(){

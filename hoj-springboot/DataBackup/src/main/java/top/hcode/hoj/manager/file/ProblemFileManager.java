@@ -21,6 +21,7 @@ import top.hcode.hoj.common.result.ResultStatus;
 import top.hcode.hoj.dao.problem.LanguageEntityService;
 import top.hcode.hoj.dao.problem.ProblemCaseEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.problem.TagEntityService;
 import top.hcode.hoj.exception.ProblemIDRepeatException;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
@@ -48,6 +49,9 @@ public class ProblemFileManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private ProblemCaseEntityService problemCaseEntityService;
@@ -273,6 +277,10 @@ public class ProblemFileManager {
      * @Since 2021/5/28
      */
     public void exportProblem(List<Long> pidList, HttpServletResponse response) {
+        if (pidList.stream().anyMatch(pendingSaveGuard::isCandidate)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
 
         QueryWrapper<Language> languageQueryWrapper = new QueryWrapper<>();
         languageQueryWrapper.eq("oj", "ME");

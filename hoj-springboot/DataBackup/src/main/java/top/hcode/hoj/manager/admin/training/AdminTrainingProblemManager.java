@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.crawler.problem.ProblemStrategy;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.training.TrainingEntityService;
 import top.hcode.hoj.dao.training.TrainingProblemEntityService;
 import top.hcode.hoj.manager.admin.problem.RemoteProblemManager;
@@ -45,6 +46,9 @@ public class AdminTrainingProblemManager {
 
     @Resource
     private ProblemEntityService problemEntityService;
+
+    @Resource
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Resource
     private AdminTrainingRecordManager adminTrainingRecordManager;
@@ -94,6 +98,7 @@ public class AdminTrainingProblemManager {
             problemQueryWrapper.eq("id", null);
         }
 
+        problemQueryWrapper.notExists("SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = problem.id AND (ps.published_pid IS NULL OR ps.published_pid <> ps.candidate_pid)");
         IPage<Problem> problemListPage = problemEntityService.page(iPage, problemQueryWrapper);
 
         if (queryExisted && pidList.size() > 0) {
@@ -112,6 +117,7 @@ public class AdminTrainingProblemManager {
     }
 
     public void updateProblem(TrainingProblem trainingProblem) throws StatusFailException {
+        pendingSaveGuard.requireFormal(trainingProblem.getPid());
         boolean isOk = trainingProblemEntityService.saveOrUpdate(trainingProblem);
 
         if (!isOk) {
@@ -162,6 +168,7 @@ public class AdminTrainingProblemManager {
     public void addProblemFromPublic(TrainingProblemDTO trainingProblemDto) throws StatusFailException {
 
         Long pid = trainingProblemDto.getPid();
+        pendingSaveGuard.requireFormal(pid);
         Long tid = trainingProblemDto.getTid();
         String displayId = trainingProblemDto.getDisplayId();
 

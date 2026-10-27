@@ -58,6 +58,7 @@ public class TrainingProblemEntityServiceImpl extends ServiceImpl<TrainingProble
         judgeQueryWrapper.select("DISTINCT pid")
                 .in("pid", pidList)
                 .eq("cid", 0)
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .eq("uid", uid)
                 .eq("status", 0);
 

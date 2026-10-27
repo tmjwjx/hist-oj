@@ -7,6 +7,10 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class ProblemAiGeneratedProgramVO {
     private Long recordId;
+    private String modelId;
+    private String modelName;
+    private String model;
+    private cn.hutool.json.JSONObject difficulty;
     /** 后台全流程 AI 验题记录 ID，前端可据此查询任务状态。 */
     private Long validationRecordId;
     private String language;

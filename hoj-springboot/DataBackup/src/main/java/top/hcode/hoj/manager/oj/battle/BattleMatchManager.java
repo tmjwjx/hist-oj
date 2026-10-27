@@ -104,6 +104,7 @@ public class BattleMatchManager {
         }
         long accepted = judgeService.count(new QueryWrapper<Judge>()
                 .eq("uid", uid)
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .eq("display_pid", room.getProblemId())
                 .eq("status", 0)
                 .ge("submit_time", room.getStartTime()));

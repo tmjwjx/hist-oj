@@ -11,7 +11,7 @@
       <!-- 总体统计 -->
       <div class="overview-section">
         <h4>
-          {{ $t('m.Overview') }}
+          {{ $t('m.Homework_Overview') }}
           <span class="overview-summary">
             <span v-if="analysisData.submissionCount !== undefined && analysisData.submissionCount !== null">
               {{ $t('m.Submission_Records') }}: {{ analysisData.submissionCount }}

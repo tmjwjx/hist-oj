@@ -2000,7 +2000,7 @@ export default {
         composite: this.$t('m.CH_Composite'),
         programming: this.$t('m.Programming')
       }
-      return labelMap[type] || type
+      return typeMap[type] || type
     },
     normalizeQuestionImagePath(rawText) {
       let content = String(rawText || '')

@@ -7,6 +7,7 @@
         FROM training_record tr,user_info u,judge j
         WHERE tr.uid = u.uuid
         AND tr.submit_id = j.submit_id
+        AND j.homework_id IS NULL
         AND tr.tid = #{tid}
         AND j.status IN (-3,-2,-1,0,1,2,3,8)
         ORDER BY j.gmt_create ASC

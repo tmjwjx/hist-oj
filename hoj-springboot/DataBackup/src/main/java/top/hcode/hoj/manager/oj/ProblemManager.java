@@ -16,6 +16,7 @@ import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.dao.contest.ContestEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.*;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.exception.AccessException;
 import top.hcode.hoj.pojo.dto.LastAcceptedCodeVO;
 import top.hcode.hoj.pojo.dto.PidListDTO;
@@ -41,6 +42,9 @@ import java.util.stream.Collectors;
 public class ProblemManager {
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private ProblemTagEntityService problemTagEntityService;
@@ -109,6 +113,7 @@ public class ProblemManager {
     public RandomProblemVO getRandomProblem() throws StatusFailException {
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         // 必须是公开题目
+        queryWrapper.notExists("SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = problem.id AND (ps.published_pid IS NULL OR ps.published_pid <> ps.candidate_pid)");
         queryWrapper.select("problem_id").eq("auth", 1)
                 .eq("is_group", false);
         List<Problem> list = problemEntityService.list(queryWrapper);
@@ -137,6 +142,7 @@ public class ProblemManager {
         queryWrapper.select("distinct pid,status,submit_time,score")
                 .in("pid", pidListDto.getPidList())
                 .eq("uid", userRolesVo.getUid())
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .orderByDesc("submit_time");
 
         if (pidListDto.getIsContestProblemList()) {
@@ -253,7 +259,7 @@ public class ProblemManager {
         QueryWrapper<Problem> wrapper = new QueryWrapper<Problem>().eq("problem_id", problemId);
         //查询题目详情，题目标签，题目语言，题目做题情况
         Problem problem = problemEntityService.getOne(wrapper, false);
-        if (problem == null) {
+        if (problem == null || pendingSaveGuard.isCandidate(problem.getId())) {
             throw new StatusNotFoundException("该题号对应的题目不存在");
         }
         if (problem.getAuth() != 1) {
@@ -332,6 +338,7 @@ public class ProblemManager {
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
         judgeQueryWrapper.select("submit_id", "cid", "code", "username", "submit_time", "language")
                 .eq("uid", userRolesVo.getUid())
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .eq("pid", pid)
                 .eq("cid", cid)
                 .eq("status", 0)

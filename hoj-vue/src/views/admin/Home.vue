@@ -668,7 +668,7 @@ export default {
     // 获取用户权限信息
     const token = localStorage.getItem('token');
     if (token) {
-      this.$store.dispatch('refreshUserAuthInfo');
+      this.$store.dispatch('refreshUserAuthInfo').catch(() => {});
     }
   },
   mounted() {
@@ -738,7 +738,7 @@ export default {
       // 如果是从登录页跳转到管理员页面，重新获取权限信息
       const token = localStorage.getItem('token');
       if (token && (from.path === '/admin/login' || from.path === '/login')) {
-        this.$store.dispatch('refreshUserAuthInfo');
+        this.$store.dispatch('refreshUserAuthInfo').catch(() => {});
       }
     }
   }

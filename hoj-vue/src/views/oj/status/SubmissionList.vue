@@ -589,6 +589,7 @@ export default {
         ai_validation: this.$t('m.AI_Validation'),
         creator_validation: this.$t('m.Creator_Validation'),
         user_submission: this.$t('m.User_Submission'),
+        external_verification: '外部提交',
       }[type] || type;
     },
     init() {

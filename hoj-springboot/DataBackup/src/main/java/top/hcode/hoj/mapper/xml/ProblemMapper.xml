@@ -33,6 +33,7 @@
         </if>
         <where>
             p.auth = 1 and p.is_group = false
+            AND NOT EXISTS (SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = p.id AND (ps.published_pid IS NULL OR ps.published_pid &lt;&gt; ps.candidate_pid))
             <if test="keyword != null and keyword != ''">
                 and (
                 p.title like concat('%',#{keyword},'%') or p.problem_id like concat('%',#{keyword},'%')

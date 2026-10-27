@@ -15,6 +15,7 @@ import top.hcode.hoj.dao.contest.*;
 import top.hcode.hoj.dao.group.GroupMemberEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.*;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.pojo.bo.Pair_;
 import top.hcode.hoj.pojo.dto.ContestPrintDTO;
@@ -62,6 +63,9 @@ public class ContestManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private ProblemTagEntityService problemTagEntityService;
@@ -363,7 +367,7 @@ public class ContestManager {
         //查询题目详情，题目标签，题目语言，题目做题情况
         Problem problem = problemEntityService.getById(contestProblem.getPid());
 
-        if (problem.getAuth() == 2) {
+        if (problem == null || pendingSaveGuard.isCandidate(problem.getId()) || problem.getAuth() == 2) {
             throw new StatusForbiddenException("该比赛题目当前不可访问！");
         }
 

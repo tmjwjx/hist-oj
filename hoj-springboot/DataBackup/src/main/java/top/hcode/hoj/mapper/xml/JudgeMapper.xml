@@ -7,6 +7,8 @@
             from judge j
             <where>
                 j.cid = 0 AND j.cpid = 0 AND COALESCE(j.is_problem_verification, 0) = 0
+                AND j.homework_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM homework_submit hs WHERE hs.submit_id = j.submit_id)
                 <if test="username!='' and username!=null">
                     AND j.username like concat('%',#{username},'%')
                 </if>

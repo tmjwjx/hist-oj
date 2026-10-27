@@ -2,13 +2,13 @@ package top.hcode.hoj.manager.admin.problem;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
 import org.apache.shiro.SecurityUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.common.exception.StatusForbiddenException;
-import top.hcode.hoj.dao.problem.ProblemAiConfigEntityService;
 import top.hcode.hoj.dao.problem.ProblemAiRecordEntityService;
 import top.hcode.hoj.dao.problem.ProblemCaseEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
@@ -23,19 +23,17 @@ import top.hcode.hoj.pojo.vo.ProblemAiConfigVO;
 import top.hcode.hoj.pojo.vo.ProblemAiGeneratedProgramVO;
 import top.hcode.hoj.pojo.vo.ProblemAiLanguageProgramVO;
 import top.hcode.hoj.shiro.AccountProfile;
+import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import javax.annotation.Resource;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 @Component
 public class ProblemAiManager {
-    private static final long CONFIG_ID = 1L;
     private static final int DEFAULT_AI_TIMEOUT_SECONDS = 120;
-    private static final int MAX_AI_TIMEOUT_SECONDS = 3600;
     /** AI 验题的权威标准程序固定使用判题机支持的 C++17。 */
     private static final String CANONICAL_STANDARD_LANGUAGE = "C++ 17";
     private static final long JUDGE_WAIT_TIMEOUT_MS = 20 * 60 * 1000L;
@@ -44,7 +42,17 @@ public class ProblemAiManager {
         thread.setDaemon(false);
         return thread;
     });
-    @Resource private ProblemAiConfigEntityService configService;
+    private static final ExecutorService PROGRAM_POOL = Executors.newFixedThreadPool(3, runnable -> {
+        Thread thread = new Thread(runnable, "problem-ai-program");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final ExecutorService COMPARISON_POOL = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "problem-ai-comparison");
+        thread.setDaemon(true);
+        return thread;
+    });
+    @Resource private ProblemAiConfigManager problemAiConfigManager;
     @Resource private ProblemAiRecordEntityService recordService;
     @Resource private ProblemEntityService problemService;
     @Resource private ProblemCaseEntityService caseService;
@@ -70,26 +78,12 @@ public class ProblemAiManager {
         recordService.updateBatchById(running);
     }
 
-    public ProblemAiConfigVO getConfig() throws StatusForbiddenException {
-        checkAdmin();
-        ProblemAiConfig config = configService.getById(CONFIG_ID);
-        if (config == null) config = defaults();
-        applyPromptDefaults(config);
-        return toVO(config);
+    public ProblemAiConfigVO getConfig() throws StatusForbiddenException, StatusFailException {
+        return problemAiConfigManager.getConfig();
     }
 
     public void saveConfig(ProblemAiConfig input) throws StatusFailException, StatusForbiddenException {
-        checkAdmin();
-        if (input == null || (Boolean.TRUE.equals(input.getEnabled()) && StringUtils.isEmpty(input.getApiUrl()))) throw new StatusFailException("启用 AI 时接口地址不能为空");
-        ProblemAiConfig old = configService.getById(CONFIG_ID);
-        if (old != null && (input.getApiKey() == null || input.getApiKey().startsWith("***"))) input.setApiKey(old.getApiKey());
-        if (input.getApiUrl() == null) input.setApiUrl("");
-        if (StringUtils.isEmpty(input.getModel())) input.setModel("gpt-4o-mini");
-        applyPromptDefaults(input);
-        input.setId(CONFIG_ID).setEnabled(!Boolean.FALSE.equals(input.getEnabled()))
-                .setTimeoutSeconds(input.getTimeoutSeconds() == null ? DEFAULT_AI_TIMEOUT_SECONDS
-                        : Math.max(1, Math.min(input.getTimeoutSeconds(), MAX_AI_TIMEOUT_SECONDS)));
-        configService.saveOrUpdate(input);
+        problemAiConfigManager.saveConfig(input);
     }
 
     public List<ProblemAiRecord> records(Long pid) throws StatusFailException, StatusForbiddenException {
@@ -226,25 +220,13 @@ public class ProblemAiManager {
         Problem problem = requireProblem(dto.getPid());
         ProblemAiConfig config = requireConfig();
         String session = UUID.randomUUID().toString();
-        if (StringUtils.isEmpty(dto.getValidatorCode())) {
-            ProblemAiGeneratedProgramVO generated = new ProblemAiGeneratedProgramVO()
-                    .setLanguage(dto.getLanguage()).setCode(dto.getStandardProgram());
-            String validatorContent = request(config, problem,
-                    promptFactory.validatorPrompt(config, problem, dto.getLanguage(), dto.getStandardProgram()),
-                    session, null, false, true);
-            applyValidator(generated, validatorContent);
-            dto.setValidatorLanguage(generated.getValidatorLanguage());
-            dto.setValidatorCode(generated.getValidatorCode());
-        } else {
-            // Also repair validators supplied by an older generation record.
-            dto.setValidatorCode(normalizeValidatorCode(dto.getValidatorCode()));
-        }
+        if (!"interactive".equals(problem.getJudgeMode())) requireIntegratedProgram(dto.getStandardProgram());
         ProblemAiRecord record = new ProblemAiRecord().setPid(dto.getPid()).setSessionId(session)
                 .setUid(currentUid()).setQuestion("AI 一键验题").setStatus("running").setGmtCreate(new Date());
         recordService.save(record);
         long started = System.currentTimeMillis();
         try {
-            String content = validationRunner.run(config, problem, problemCases(problem.getId()), dto);
+            String content = validationRunner.run(config, problem, problemCases(problem.getId()), dto, currentUid(), currentUsername());
             record.setResponse(content).setStatus("success")
                     .setDurationMs((int) (System.currentTimeMillis() - started));
         } catch (Exception e) {
@@ -259,43 +241,33 @@ public class ProblemAiManager {
 
     public ProblemAiGeneratedProgramVO generateProgram(ProblemAiGenerateProgramDTO dto) throws Exception {
         checkAdmin();
-        if (dto == null || dto.getPid() == null || StringUtils.isEmpty(dto.getLanguage())) {
-            throw new StatusFailException("题目和标准程序语言不能为空");
-        }
+        if (dto == null || dto.getPid() == null) throw new StatusFailException("题目不能为空");
         Problem problem = requireProblem(dto.getPid());
         ProblemAiConfig config = requireConfig();
+        List<ProblemAiModelConfig> selected = problemAiConfigManager.selectModels(config, dto.getModelIds());
+        ProblemAiModelConfig primary = selected.stream().filter(model -> Boolean.TRUE.equals(model.getPrimary()))
+                .findFirst().orElseThrow(() -> new StatusFailException("验题必须包含主模型"));
         String session = UUID.randomUUID().toString();
         ProblemAiRecord record = new ProblemAiRecord().setPid(dto.getPid()).setSessionId(session)
                 .setUid(currentUid()).setQuestion("AI 生成标准程序").setStatus("running").setGmtCreate(new Date());
         recordService.save(record);
         long started = System.currentTimeMillis();
         try {
-            String prompt = promptFactory.standardProgramPrompt(config, problem, CANONICAL_STANDARD_LANGUAGE, 0);
-            String content = request(config, problem, prompt, session, record.getId(), false, true);
-            ProblemAiGeneratedProgramVO program = parseProgram(content, CANONICAL_STANDARD_LANGUAGE).setRecordId(record.getId());
-            if (StringUtils.isEmpty(program.getValidatorCode())) {
-                String validatorContent = request(config, problem,
-                        // The validator is compiled by the C++ testlib toolchain
-                        // regardless of the UI's language selector.  Keeping it
-                        // on the canonical C++17 path prevents a Java/PyPy3
-                        // selection from producing a validator that the
-                        // strict testlib runner cannot compile.
-                        promptFactory.validatorPrompt(config, problem, CANONICAL_STANDARD_LANGUAGE, program.getCode()),
-                        session, record.getId(), false, true);
-                applyValidator(program, validatorContent);
-            }
-            record.setResponse(JSONUtil.toJsonStr(program)).setStatus("success")
-                    .setDurationMs((int) (System.currentTimeMillis() - started));
-            recordService.updateById(record);
-
-            // 生成成功后立即创建后台全流程任务。后续正式判题、等待结果和 AI
-            // 综合分析均由服务端完成，不再依赖前端弹窗或页面轮询是否存在。
+            ProblemAiConfig primaryConfig = problemAiConfigManager.forModel(config, primary);
+            String content = request(primaryConfig, problem,
+                    promptFactory.standardProgramPrompt(primaryConfig, problem, CANONICAL_STANDARD_LANGUAGE, 0),
+                    session, record.getId(), false, true);
+            ProblemAiGeneratedProgramVO program = parseProgram(content, !"interactive".equals(problem.getJudgeMode())).setRecordId(record.getId())
+                    .setModelId(primary.getId()).setModelName(primary.getName()).setModel(primary.getModel());
             ProblemAiRecord validationRecord = new ProblemAiRecord().setPid(problem.getId())
                     .setSessionId(UUID.randomUUID().toString()).setUid(currentUid())
                     .setQuestion("AI 一键验题").setStatus("running").setGmtCreate(new Date());
             recordService.save(validationRecord);
             program.setValidationRecordId(validationRecord.getId());
-            submitFullValidationTask(config, problem, program, validationRecord,
+            record.setResponse(JSONUtil.toJsonStr(program)).setStatus("success")
+                    .setDurationMs((int) (System.currentTimeMillis() - started));
+            recordService.updateById(record);
+            submitFullValidationTask(config, selected, problem, program, validationRecord,
                     currentUid(), currentUsername());
             return program;
         } catch (Exception e) {
@@ -306,97 +278,217 @@ public class ProblemAiManager {
         }
     }
 
-    private void submitFullValidationTask(ProblemAiConfig config, Problem problem,
-                                           ProblemAiGeneratedProgramVO program,
-                                           ProblemAiRecord validationRecord,
-                                           String uid, String username) {
+    private void submitFullValidationTask(ProblemAiConfig config, List<ProblemAiModelConfig> models,
+                                          Problem problem, ProblemAiGeneratedProgramVO program,
+                                          ProblemAiRecord record, String uid, String username) {
         try {
-            FULL_VALIDATION_POOL.submit(() -> runFullValidation(
-                    config, problem, program, validationRecord, uid, username));
-        } catch (RuntimeException e) {
-            validationRecord.setStatus("failed").setErrorMessage(trim(e.getMessage()));
-            recordService.updateById(validationRecord);
-        }
-    }
-
-    private void runFullValidation(ProblemAiConfig config, Problem problem,
-                                   ProblemAiGeneratedProgramVO program,
-                                   ProblemAiRecord validationRecord,
-                                   String uid, String username) {
-        long started = System.currentTimeMillis();
-        try {
-            // C++17 is the canonical submission. Generate the two portability
-            // implementations in the background so closing the browser cannot
-            // interrupt their generation or the subsequent test runs.
-            // Keep the submitted C++17 source in the same result set as the
-            // translated Java/PyPy3 ports.  This makes the UI's language
-            // summary an actual three-language all-test-point report rather
-            // than a report that omits the canonical submission.
-            List<ProblemAiLanguageProgramVO> multiLanguagePrograms = new ArrayList<>();
-            multiLanguagePrograms.add(new ProblemAiLanguageProgramVO()
-                    .setLanguage(CANONICAL_STANDARD_LANGUAGE)
-                    .setCode(program.getCode())
-                    .setAlgorithm(program.getAlgorithm())
-                    .setWarnings(program.getWarnings()));
-            multiLanguagePrograms.addAll(generateMultiLanguagePrograms(
-                    config, problem, program, validationRecord.getId()));
-            program.setMultiLanguagePrograms(multiLanguagePrograms);
-            recordService.updateById(new ProblemAiRecord().setId(program.getRecordId())
-                    .setResponse(JSONUtil.toJsonStr(program)));
-            // 如果该题刚刚有其它标准程序在判题，先等它结束，避免覆盖正在执行的验题提交。
-            verificationManager.waitForAiJudge(problem.getId(), JUDGE_WAIT_TIMEOUT_MS);
-            ProblemVerificationSubmitDTO submit = new ProblemVerificationSubmitDTO();
-            submit.setPid(problem.getId());
-            submit.setLanguage(program.getLanguage());
-            submit.setCode(program.getCode());
-            submit.setVerificationType("ai_validation");
-            Long submitId = verificationManager.submitForAi(submit, uid, username);
-            verificationManager.waitForAiJudge(submit.getPid(), submitId, JUDGE_WAIT_TIMEOUT_MS);
-
-            ProblemAiValidateDTO input = new ProblemAiValidateDTO();
-            input.setPid(problem.getId());
-            input.setLanguage(program.getLanguage());
-            input.setStandardProgram(program.getCode());
-            input.setAiGenerated(true);
-            input.setAlgorithmSummary(program.getAlgorithm());
-            input.setValidatorLanguage(program.getValidatorLanguage());
-            input.setValidatorCode(program.getValidatorCode());
-            input.setMultiLanguagePrograms(multiLanguagePrograms);
-            String content = validationRunner.run(config, problem, problemCases(problem.getId()), input);
-            validationRecord.setResponse(content).setStatus("success")
-                    .setDurationMs((int) (System.currentTimeMillis() - started));
-        } catch (Exception e) {
-            validationRecord.setStatus("failed").setErrorMessage(trim(e.getMessage()))
-                    .setDurationMs((int) (System.currentTimeMillis() - started));
-        }
-        recordService.updateById(validationRecord);
-    }
-
-    private List<ProblemAiLanguageProgramVO> generateMultiLanguagePrograms(ProblemAiConfig config,
-                                                                            Problem problem,
-                                                                            ProblemAiGeneratedProgramVO canonical,
-                                                                            Long recordId) {
-        List<ProblemAiLanguageProgramVO> result = new ArrayList<>();
-        for (String language : Arrays.asList("Java", "PyPy3")) {
-            ProblemAiLanguageProgramVO translated = new ProblemAiLanguageProgramVO().setLanguage(language);
-            try {
-                String content = request(config, problem,
-                        promptFactory.multiLanguageProgramPrompt(config, problem, language, canonical.getCode()),
-                        UUID.randomUUID().toString(), recordId, false, true);
-                JSONObject json = parseJson(content);
-                String code = json.getStr("code", "").trim();
-                if (code.isEmpty() || code.length() > 65535) {
-                    translated.setWarnings("AI 未生成有效的" + language + "源码");
-                } else {
-                    translated.setCode(code).setAlgorithm(json.getStr("algorithm", ""))
-                            .setWarnings(sanitizeWarnings(json.getStr("warnings", "")));
+            FULL_VALIDATION_POOL.submit(() -> {
+                try {
+                    runFullValidation(config, models, problem, program, record, uid, username);
+                } catch (Exception e) {
+                    record.setStatus("failed").setErrorMessage("后台验题任务异常终止，请查看已保存的阶段结果后重试");
+                    recordService.updateById(record);
                 }
-            } catch (Exception e) {
-                translated.setWarnings("生成" + language + "源码失败：" + trim(e.getMessage()));
-            }
-            result.add(translated);
+            });
+        } catch (RuntimeException e) {
+            record.setStatus("failed").setErrorMessage("后台验题任务无法启动，请重试");
+            recordService.updateById(record);
         }
-        return result;
+    }
+
+    private void runFullValidation(ProblemAiConfig config, List<ProblemAiModelConfig> models,
+                                   Problem problem, ProblemAiGeneratedProgramVO program,
+                                   ProblemAiRecord record, String uid, String username) throws Exception {
+        long started = System.currentTimeMillis();
+        JSONArray results = new JSONArray();
+        for (ProblemAiModelConfig model : models) results.add(modelResult(model));
+        JSONObject report = new JSONObject().set("overall", "WARN").set("summary", "正在并行执行主模型全流程与辅助模型验题")
+                .set("standardProgram", JSONUtil.parseObj(program)).set("modelResults", results)
+                .set("difficulty", program.getDifficulty()).set("caseVersion", problem.getCaseVersion());
+        persistProgress(record, report, started);
+        Map<Integer, Future<JSONObject>> comparisons = new LinkedHashMap<>();
+        List<Future<ProblemAiLanguageProgramVO>> translations = new ArrayList<>();
+        CountDownLatch primaryJudged = new CountDownLatch(1);
+        try {
+            try {
+                ensureCaseVersion(problem);
+            } catch (StatusFailException e) {
+                for (Object value : results) ((JSONObject) value).set("status", "ERROR").set("errorMessage", e.getMessage());
+                report.set("overall", "FAIL").set("summary", e.getMessage());
+                record.setStatus("success");
+                persistProgress(record, report, started);
+                return;
+            }
+            // Independent generations use separate bounded pools: no task waits for its own pool.
+            for (int index = 0; index < models.size(); index++) {
+                ProblemAiModelConfig model = models.get(index);
+                if (!Boolean.TRUE.equals(model.getPrimary())) comparisons.put(index,
+                        COMPARISON_POOL.submit(() -> runComparison(config, model, problem, record.getId(), uid, username, primaryJudged)));
+            }
+            for (String language : Arrays.asList("Java", "PyPy3")) translations.add(PROGRAM_POOL.submit(() ->
+                    generateLanguageProgram(config, problem, program, record.getId(), language)));
+
+            for (Object value : results) {
+                JSONObject primaryResult = (JSONObject) value;
+                if (!primaryResult.getBool("primary", false)) continue;
+                long primaryStarted = System.currentTimeMillis();
+                addProgram(primaryResult, program);
+                try {
+                    ensureCaseVersion(problem);
+                    verificationManager.waitForAiJudge(problem.getId(), JUDGE_WAIT_TIMEOUT_MS);
+                    ensureCaseVersion(problem);
+                    Long submitId = verificationManager.submitForAi(submission(problem, program), uid, username);
+                    primaryResult.set("submitId", submitId);
+                    collectComparisons(comparisons, results, false);
+                    persistProgress(record, report, started);
+                    verificationManager.waitForAiJudge(problem.getId(), submitId, JUDGE_WAIT_TIMEOUT_MS);
+                    ensureCaseVersion(problem);
+                    primaryResult.putAll(verificationManager.comparisonResult(problem.getId(), submitId));
+                    primaryJudged.countDown();
+                    collectComparisons(comparisons, results, false);
+                    persistProgress(record, report, started);
+                    List<ProblemAiLanguageProgramVO> programs = new ArrayList<>();
+                    for (Future<ProblemAiLanguageProgramVO> translation : translations) programs.add(translation.get());
+                    ensureCaseVersion(problem);
+                    program.setMultiLanguagePrograms(programs);
+                    ProblemAiValidateDTO input = new ProblemAiValidateDTO();
+                    input.setPid(problem.getId()); input.setSubmitId(submitId);
+                    input.setLanguage(program.getLanguage()); input.setStandardProgram(program.getCode());
+                    input.setAiGenerated(true); input.setAlgorithmSummary(program.getAlgorithm());
+                    input.setMultiLanguagePrograms(programs);
+                    collectComparisons(comparisons, results, false);
+                    persistProgress(record, report, started);
+                    JSONObject fullReport = parseJson(validationRunner.run(config, problem,
+                            problemCases(problem.getId()), input, uid, username));
+                    report.putAll(fullReport);
+                    report.set("modelResults", results).set("difficulty", program.getDifficulty());
+                    primaryResult.set("fullValidationStatus", report.getStr("overall", "WARN"));
+                    ensureCaseVersion(problem);
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+                    if (Thread.currentThread().isInterrupted()) throw e;
+                    primaryResult.set("status", "ERROR").set("errorMessage", trim(e.getMessage()));
+                    report.set("overall", "FAIL").set("summary", "主模型全流程验题未完成：" + trim(e.getMessage()));
+                    report.set("issues", new JSONArray().put(new JSONObject().set("severity", "ERROR")
+                            .set("location", "主模型验题").set("detail", trim(e.getMessage()))));
+                }
+                primaryJudged.countDown();
+                primaryResult.set("durationMs", System.currentTimeMillis() - primaryStarted);
+                collectComparisons(comparisons, results, false);
+                persistProgress(record, report, started);
+            }
+            // Only the orchestration thread merges JSON and persists progress. No late worker writes.
+            collectComparisons(comparisons, results, true);
+            try { ensureCaseVersion(problem); }
+            catch (StatusFailException e) {
+                report.set("overall", "FAIL").set("summary", e.getMessage());
+            }
+            record.setStatus("success");
+            persistProgress(record, report, started);
+        } finally {
+            for (Future<?> future : translations) if (!future.isDone()) future.cancel(true);
+            for (Future<?> future : comparisons.values()) if (!future.isDone()) future.cancel(true);
+        }
+    }
+
+    private JSONObject runComparison(ProblemAiConfig config, ProblemAiModelConfig model, Problem problem,
+                                     Long recordId, String uid, String username, CountDownLatch primaryJudged) throws Exception {
+        long started = System.currentTimeMillis();
+        JSONObject item = modelResult(model);
+        try {
+            ensureCaseVersion(problem);
+            ProblemAiConfig modelConfig = problemAiConfigManager.forModel(config, model);
+            String content = request(modelConfig, problem, promptFactory.auxiliaryProgramPrompt(modelConfig, problem),
+                    UUID.randomUUID().toString(), recordId, false, true);
+            ProblemAiGeneratedProgramVO auxiliary = parseProgram(content, false);
+            addProgram(item, auxiliary);
+            // Warm SPJ/interactive compiler caches with the primary before comparisons enter the judge.
+            primaryJudged.await();
+            ensureCaseVersion(problem);
+            Long submitId = verificationManager.submitComparisonForAi(submission(problem, auxiliary), uid, username);
+            item.set("submitId", submitId);
+            verificationManager.waitForAiJudge(problem.getId(), submitId, JUDGE_WAIT_TIMEOUT_MS);
+            ensureCaseVersion(problem);
+            item.putAll(verificationManager.comparisonResult(problem.getId(), submitId));
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            if (Thread.currentThread().isInterrupted()) throw e;
+            item.set("status", "ERROR").set("errorMessage", trim(e.getMessage()));
+        }
+        return item.set("durationMs", System.currentTimeMillis() - started);
+    }
+
+    private void collectComparisons(Map<Integer, Future<JSONObject>> futures, JSONArray results, boolean wait)
+            throws InterruptedException, ExecutionException {
+        Iterator<Map.Entry<Integer, Future<JSONObject>>> iterator = futures.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Integer, Future<JSONObject>> entry = iterator.next();
+            if (wait || entry.getValue().isDone()) {
+                results.set(entry.getKey(), entry.getValue().get());
+                iterator.remove();
+            }
+        }
+    }
+
+    private JSONObject modelResult(ProblemAiModelConfig model) {
+        return new JSONObject().set("modelId", model.getId()).set("name", model.getName())
+                .set("model", model.getModel()).set("primary", model.getPrimary()).set("status", "RUNNING");
+    }
+
+    private void addProgram(JSONObject result, ProblemAiGeneratedProgramVO program) {
+        result.set("language", program.getLanguage()).set("code", program.getCode())
+                .set("algorithm", program.getAlgorithm()).set("warnings", program.getWarnings())
+                .set("difficulty", program.getDifficulty());
+    }
+
+    private ProblemVerificationSubmitDTO submission(Problem problem, ProblemAiGeneratedProgramVO program) {
+        ProblemVerificationSubmitDTO input = new ProblemVerificationSubmitDTO();
+        input.setPid(problem.getId()); input.setLanguage(program.getLanguage()); input.setCode(program.getCode());
+        input.setVerificationType("ai_validation");
+        return input;
+    }
+
+    private void persistProgress(ProblemAiRecord record, JSONObject report, long started) {
+        record.setResponse(report.toString()).setDurationMs((int) Math.min(Integer.MAX_VALUE, System.currentTimeMillis() - started));
+        recordService.updateById(record);
+    }
+
+    private void ensureCaseVersion(Problem snapshot) throws StatusFailException {
+        if (Thread.currentThread().isInterrupted()) throw new StatusFailException("后台 AI 验题任务被中断");
+        Problem current = requireProblem(snapshot.getId());
+        if (ProblemVerificationChangeDetector.changed(snapshot, current)
+                || !Objects.equals(snapshot.getTitle(), current.getTitle())
+                || !Objects.equals(snapshot.getDescription(), current.getDescription())
+                || !Objects.equals(snapshot.getInput(), current.getInput())
+                || !Objects.equals(snapshot.getOutput(), current.getOutput())) {
+            throw new StatusFailException("验题期间题目或测试数据已变化，本次结果不能作为新版本的验题结论，请重新验题");
+        }
+    }
+
+    private ProblemAiLanguageProgramVO generateLanguageProgram(ProblemAiConfig config, Problem problem,
+                                                               ProblemAiGeneratedProgramVO canonical,
+                                                               Long recordId, String language) throws Exception {
+        ProblemAiLanguageProgramVO translated = new ProblemAiLanguageProgramVO().setLanguage(language);
+        try {
+            ensureCaseVersion(problem);
+            String content = request(config, problem,
+                    promptFactory.multiLanguageProgramPrompt(config, problem, language, canonical.getCode()),
+                    UUID.randomUUID().toString(), recordId, false, true);
+            ensureCaseVersion(problem);
+            JSONObject json = parseJson(content);
+            String code = json.getStr("code", "").trim();
+            if (code.isEmpty() || code.length() > 65535) {
+                translated.setWarnings("AI 未生成有效的" + language + "源码");
+            } else {
+                translated.setCode(code).setAlgorithm(json.getStr("algorithm", ""))
+                        .setWarnings(sanitizeWarnings(json.getStr("warnings", "")));
+            }
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            if (Thread.currentThread().isInterrupted()) throw e;
+            translated.setWarnings("生成" + language + "源码失败：" + trim(e.getMessage()));
+        }
+        return translated;
     }
 
     private JSONObject parseJson(String content) throws StatusFailException {
@@ -413,7 +505,9 @@ public class ProblemAiManager {
 
     @PreDestroy
     public void shutdownFullValidationPool() {
-        FULL_VALIDATION_POOL.shutdown();
+        FULL_VALIDATION_POOL.shutdownNow();
+        PROGRAM_POOL.shutdownNow();
+        COMPARISON_POOL.shutdownNow();
     }
 
     private String request(ProblemAiConfig config, Problem problem, String prompt,
@@ -432,8 +526,8 @@ public class ProblemAiManager {
                            boolean generation, Integer timeoutSeconds) throws Exception {
         List<Map<String, String>> messages = new ArrayList<>();
         messages.add(message("system", generation
-                ? promptFactory.programSystemPrompt(config.getSystemPrompt())
-                : promptFactory.systemPrompt(config.getSystemPrompt())));
+                ? promptFactory.programSystemPrompt(config.getSystemPrompt(), problem)
+                : promptFactory.systemPrompt(config.getSystemPrompt(), problem)));
         if (includeHistory) {
             List<ProblemAiRecord> history = recordService.list(new QueryWrapper<ProblemAiRecord>()
                     .eq("pid", problem.getId()).eq("session_id", sessionId).eq("status", "success")
@@ -456,72 +550,41 @@ public class ProblemAiManager {
         Problem p = problemService.getById(pid); if (p == null) throw new StatusFailException("题目不存在"); return p;
     }
     private ProblemAiConfig requireConfig() throws StatusFailException {
-        ProblemAiConfig config = configService.getById(CONFIG_ID);
-        if (config == null || !Boolean.TRUE.equals(config.getEnabled()) || StringUtils.isEmpty(config.getApiKey()))
-            throw new StatusFailException("尚未配置可用的 AI 验题服务");
-        applyPromptDefaults(config);
-        return config;
+        return problemAiConfigManager.requireConfig();
     }
-    private ProblemAiGeneratedProgramVO parseProgram(String content, String requestedLanguage) throws StatusFailException {
-        String value = content == null ? "" : content.trim();
-        if (value.startsWith("```")) value = value.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "");
-        int start = value.indexOf('{'), end = value.lastIndexOf('}');
-        if (start >= 0 && end > start) value = value.substring(start, end + 1);
-        try {
-            JSONObject json = JSONUtil.parseObj(value);
-            String code = json.getStr("code", "").trim();
-            if (code.isEmpty() || code.length() > 65535) throw new StatusFailException("AI 未生成有效标准程序或源码过长");
-            ProblemAiGeneratedProgramVO program = new ProblemAiGeneratedProgramVO().setLanguage(requestedLanguage).setCode(code)
-                    .setAlgorithm(json.getStr("algorithm", "")).setWarnings(sanitizeWarnings(json.getStr("warnings", "")));
-            JSONObject validator = json.getJSONObject("validator");
-            if (validator != null) {
-                String validatorCode = normalizeValidatorCode(validator.getStr("code", "").trim());
-                if (!StringUtils.isEmpty(validatorCode)
-                        && (validatorCode.length() > 65535 || !validatorCode.contains("registerValidation"))) {
-                    throw new StatusFailException("AI 生成的 testlib 输入校验器源码无效或过长");
-                }
-                program.setValidatorLanguage(validator.getStr("language", "C++"))
-                        .setValidatorCode(validatorCode)
-                        .setValidatorAlgorithm(validator.getStr("algorithm", ""))
-                        .setValidatorWarnings(sanitizeWarnings(validator.getStr("warnings", "")));
-            }
-            if (StringUtils.isEmpty(program.getValidatorCode())) {
-                String validatorCode = normalizeValidatorCode(json.getStr("validatorCode", "").trim());
-                if (!StringUtils.isEmpty(validatorCode)) {
-                    program.setValidatorLanguage(json.getStr("validatorLanguage", "C++"))
-                            .setValidatorCode(validatorCode)
-                            .setValidatorAlgorithm(json.getStr("validatorAlgorithm", ""))
-                            .setValidatorWarnings(sanitizeWarnings(json.getStr("validatorWarnings", "")));
-                }
-            }
-            return program;
-        } catch (StatusFailException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new StatusFailException("AI 标准程序返回格式错误，请重试");
+
+    private ProblemAiGeneratedProgramVO parseProgram(String content, boolean integrated) throws StatusFailException {
+        JSONObject json = parseJson(content);
+        String code = json.getStr("code", "").trim();
+        if (code.isEmpty() || code.length() > 65535) throw new StatusFailException("AI 未生成有效标准程序或源码过长");
+        if (integrated) requireIntegratedProgram(code);
+        JSONObject difficulty = validatedDifficulty(json.getJSONObject("difficulty"));
+        String warnings = sanitizeWarnings(json.getStr("warnings", ""));
+        if (difficulty == null) warnings = (warnings + "\n模型未返回有效的 Codeforces 难度估计").trim();
+        return new ProblemAiGeneratedProgramVO().setLanguage(CANONICAL_STANDARD_LANGUAGE).setCode(code)
+                .setAlgorithm(json.getStr("algorithm", "")).setWarnings(warnings).setDifficulty(difficulty);
+    }
+
+    private void requireIntegratedProgram(String code) throws StatusFailException {
+        if (code == null || !code.matches("(?s).*#\\s*include\\s*[\"<]testlib\\.h[\">].*")
+                || !code.matches("(?s).*\\bregisterValidation\\s*\\(.*")
+                || !code.matches("(?s).*\\binf\\s*\\.\\s*readEof\\s*\\(.*")) {
+            throw new StatusFailException("主模型 std 必须内置 testlib/registerValidation 输入校验并调用 inf.readEof()，不能使用分离校验器");
         }
     }
 
-    private void applyValidator(ProblemAiGeneratedProgramVO program, String content) throws StatusFailException {
-        String value = content == null ? "" : content.trim();
-        if (value.startsWith("```")) value = value.replaceFirst("^```(?:json)?\\s*", "").replaceFirst("\\s*```$", "");
-        int start = value.indexOf('{'), end = value.lastIndexOf('}');
-        if (start >= 0 && end > start) value = value.substring(start, end + 1);
+    private JSONObject validatedDifficulty(JSONObject value) {
+        if (value == null) return null;
         try {
-            JSONObject json = JSONUtil.parseObj(value);
-            String code = normalizeValidatorCode(json.getStr("code", "").trim());
-            if (code.length() > 65535 || !code.contains("registerValidation")) {
-                throw new StatusFailException("AI 未生成有效的 testlib 输入校验器");
-            }
-            program.setValidatorLanguage(json.getStr("language", "C++"))
-                    .setValidatorCode(code)
-                    .setValidatorAlgorithm(json.getStr("algorithm", ""))
-                    .setValidatorWarnings(sanitizeWarnings(json.getStr("warnings", "")));
-        } catch (StatusFailException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new StatusFailException("AI testlib 输入校验器返回格式错误，请重试");
-        }
+            Integer rating = value.getInt("rating"), low = value.getInt("rangeLow"), high = value.getInt("rangeHigh");
+            String confidence = value.getStr("confidence", "").toLowerCase(Locale.ROOT);
+            String reason = value.getStr("reason", "").trim();
+            if (rating == null || low == null || high == null || low < 800 || high > 4000
+                    || low > rating || high < rating || rating % 100 != 0
+                    || !Arrays.asList("high", "medium", "low").contains(confidence) || reason.isEmpty()) return null;
+            return new JSONObject().set("rating", rating).set("rangeLow", low).set("rangeHigh", high)
+                    .set("confidence", confidence).set("reason", trim(reason));
+        } catch (RuntimeException e) { return null; }
     }
 
     private String sanitizeWarnings(String value) {
@@ -532,35 +595,6 @@ public class ProblemAiManager {
         return text;
     }
 
-    /**
-     * Normalize common model mistakes in validators before they reach the
-     * judge. In particular, readToken(pattern, name) treats its first
-     * argument as a regular expression, and validators must return normally
-     * on success instead of calling quitf(_ok, ...).
-     */
-    private String normalizeValidatorCode(String code) {
-        if (StringUtils.isEmpty(code)) return code;
-        String normalized = code;
-        for (String name : new String[]{"row", "line", "token", "field", "value", "str", "s"}) {
-            normalized = normalized.replace("inf.readToken(\"" + name + "\")", "inf.readToken()")
-                    .replace("inf.readToken( '" + name + "' )", "inf.readToken()");
-        }
-        // Common generated form for a first-line `n m`: readInt skips
-        // whitespace by itself, so make the required separator explicit.
-        normalized = normalized.replaceAll(
-                "(inf\\.readInt\\([^;\\n]*\\\"n\\\"\\)\\s*;\\s*)(int\\s+m\\s*=\\s*inf\\.readInt\\([^;\\n]*\\\"m\\\"\\)\\s*;)",
-                "$1inf.readSpace();\\n    $2");
-        // In validation mode testlib only accepts quitf(_fail, ...). A
-        // successful validator must finish normally after readEof(); using
-        // quitf(_ok, ...) is converted by testlib to FAIL (exit code 3).
-        normalized = normalized.replaceAll(
-                "(?m)^([\\t ]*)quitf\\s*\\(\\s*_ok\\s*,[^\\r\\n]*\\);\\s*$",
-                "$1return 0;");
-        normalized = normalized.replaceAll(
-                "quitf\\s*\\(\\s*_ok\\s*,\\s*\\\"(?:\\\\.|[^\\\"\\\\])*\\\"\\s*\\)\\s*;",
-                "return 0;");
-        return normalized;
-    }
     private List<ProblemCase> problemCases(Long pid) {
         return caseService.list(new QueryWrapper<ProblemCase>().eq("pid", pid).eq("status", 0).orderByAsc("id"));
     }
@@ -573,13 +607,5 @@ public class ProblemAiManager {
             throw new StatusForbiddenException("请先登录并确认拥有题目管理员权限");
         }
     }
-    private ProblemAiConfig defaults() { return new ProblemAiConfig().setEnabled(false).setModel("gpt-4o-mini").setTimeoutSeconds(120).setSystemPrompt(promptFactory.defaultSystemPrompt()).setValidationPrompt(promptFactory.defaultValidationPrompt()); }
-    private void applyPromptDefaults(ProblemAiConfig config) {
-        if (StringUtils.isEmpty(config.getSystemPrompt()) || config.getSystemPrompt().trim().length() < 100)
-            config.setSystemPrompt(promptFactory.defaultSystemPrompt());
-        if (StringUtils.isEmpty(config.getValidationPrompt()) || config.getValidationPrompt().trim().length() < 100)
-            config.setValidationPrompt(promptFactory.defaultValidationPrompt());
-    }
-    private ProblemAiConfigVO toVO(ProblemAiConfig c) { return new ProblemAiConfigVO().setEnabled(c.getEnabled()).setApiUrl(c.getApiUrl()).setApiKey(c.getApiKey() == null ? "" : "***已配置***").setApiKeyConfigured(!StringUtils.isEmpty(c.getApiKey())).setModel(c.getModel()).setTimeoutSeconds(c.getTimeoutSeconds()).setSystemPrompt(c.getSystemPrompt()).setValidationPrompt(c.getValidationPrompt()); }
     private String trim(String value) { if (value == null) return ""; value = value.trim(); return value.length() > 12000 ? value.substring(0, 12000) : value; }
 }

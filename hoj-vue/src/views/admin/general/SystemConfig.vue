@@ -107,18 +107,45 @@
         :description="$t('m.Sys_AI_Builtin_Desc')"
         type="info" :closable="false" show-icon style="margin-bottom:16px"
       />
-      <el-form label-width="120px" :model="aiConfig">
+      <el-alert v-if="aiConfigError" :title="aiConfigError" type="error" :closable="false" show-icon />
+      <el-button v-if="aiConfigError && !aiConfigLoaded" type="text" @click="fetchAIConfig">{{ $t('m.ProbAI_Reload_Models') }}</el-button>
+      <el-form v-loading="aiConfigLoading" label-width="120px" :model="aiConfig" :disabled="!aiConfigLoaded || aiConfigSaving">
         <el-row :gutter="20">
           <el-col :md="12" :xs="24"><el-form-item :label="$t('m.Sys_Enable_AI')"><el-switch v-model="aiConfig.enabled" /></el-form-item></el-col>
-          <el-col :md="12" :xs="24"><el-form-item :label="$t('m.Sys_Model')"><el-input v-model="aiConfig.model" /></el-form-item></el-col>
-          <el-col :md="12" :xs="24"><el-form-item :label="$t('m.Sys_Api_Url')"><el-input v-model="aiConfig.apiUrl" :placeholder="$t('m.Sys_Api_Url_Placeholder')" /></el-form-item></el-col>
-          <el-col :md="12" :xs="24"><el-form-item label="API Key"><el-input v-model="aiConfig.apiKey" type="password" show-password /></el-form-item></el-col>
           <el-col :md="8" :xs="24"><el-form-item :label="$t('m.Sys_Timeout')"><el-input v-model.number="aiConfig.timeoutSeconds" type="number" :min="1" :max="3600" :step="30"><template slot="append">{{ $t('m.Sys_Seconds_Unit') }}</template></el-input><div style="color:#909399;font-size:12px;line-height:20px">{{ $t('m.Sys_Timeout_Hint') }}</div></el-form-item></el-col>
+          <el-col :span="24">
+            <div class="ai-model-hint">{{ $t('m.Sys_AI_Models_Hint') }}</div>
+            <el-card v-for="item in aiConfig.models" :key="item.id" shadow="never" class="ai-model-card">
+              <div slot="header" class="ai-model-heading">
+                <el-radio :value="primaryModelId" :label="item.id" @input="setPrimaryModel">{{ $t('m.ProbAI_Primary_Model') }}</el-radio>
+                <el-button type="text" :disabled="aiConfig.models.length === 1" @click="removeAIModel(item.id)">{{ $t('m.Delete') }}</el-button>
+              </div>
+              <el-row :gutter="20">
+                <el-col :md="12" :xs="24"><el-form-item :label="$t('m.Sys_AI_Model_Name')" required><el-input v-model="item.name" maxlength="100" /></el-form-item></el-col>
+                <el-col :md="12" :xs="24"><el-form-item :label="$t('m.Sys_Model')" required><el-input v-model="item.model" maxlength="100" /></el-form-item></el-col>
+                <el-col :md="12" :xs="24">
+                  <el-form-item :label="$t('m.Sys_AI_Protocol')" required>
+                    <el-select v-model="item.protocol" style="width:100%">
+                      <el-option v-for="option in aiProtocols" :key="option.value" :label="$t('m.' + option.labelKey)" :value="option.value" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :md="12" :xs="24"><el-form-item label="API Key" :required="aiConfig.enabled && !item.apiKeyConfigured"><el-input v-model="item.apiKey" maxlength="500" type="password" show-password autocomplete="new-password" :placeholder="item.apiKeyConfigured ? $t('m.Sys_AI_Key_Keep') : $t('m.Sys_AI_Key_Required')" /></el-form-item></el-col>
+                <el-col :span="24">
+                  <el-form-item :label="$t('m.Sys_Api_Url')" :required="aiConfig.enabled">
+                    <el-input v-model="item.apiUrl" maxlength="500" :placeholder="aiProtocolOption(item.protocol).url" />
+                    <div class="ai-protocol-hint">{{ $t('m.' + aiProtocolOption(item.protocol).hintKey) }}</div>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-card>
+            <el-button size="small" plain icon="el-icon-plus" class="ai-add-model" @click="addAIModel">{{ $t('m.Sys_AI_Add_Model') }}</el-button>
+          </el-col>
           <el-col :md="24" :xs="24"><el-form-item :label="$t('m.Sys_System_Prompt')"><el-input v-model="aiConfig.systemPrompt" type="textarea" :rows="8" /></el-form-item></el-col>
           <el-col :md="24" :xs="24"><el-form-item :label="$t('m.Sys_Validation_Prompt')"><el-input v-model="aiConfig.validationPrompt" type="textarea" :rows="10" /></el-form-item></el-col>
         </el-row>
       </el-form>
-      <el-button type="primary" size="small" @click="saveAIConfig">{{ $t('m.Save') }}</el-button>
+      <el-button type="primary" size="small" :loading="aiConfigSaving" :disabled="!aiConfigLoaded || aiConfigLoading" @click="saveAIConfig">{{ $t('m.Save') }}</el-button>
     </el-card>
 
     <el-card style="margin-top:15px">
@@ -386,11 +413,24 @@ export default {
       dialogVisible: false,
       disabled: false,
       carouselImgList: [],
+      aiConfigLoading: true, aiConfigLoaded: false, aiConfigSaving: false, aiConfigError: '',
+      aiProtocols: [
+        { value: 'openai_chat', labelKey: 'Sys_AI_Protocol_OpenAI_Chat', url: 'https://api.openai.com/v1/chat/completions', hintKey: 'Sys_AI_Protocol_OpenAI_Chat_Hint' },
+        { value: 'openai_responses', labelKey: 'Sys_AI_Protocol_OpenAI_Responses', url: 'https://api.openai.com/v1/responses', hintKey: 'Sys_AI_Protocol_OpenAI_Responses_Hint' },
+        { value: 'gemini', labelKey: 'Sys_AI_Protocol_Gemini', url: 'https://generativelanguage.googleapis.com/v1beta', hintKey: 'Sys_AI_Protocol_Gemini_Hint' },
+        { value: 'anthropic', labelKey: 'Sys_AI_Protocol_Anthropic', url: 'https://api.anthropic.com/v1/messages', hintKey: 'Sys_AI_Protocol_Anthropic_Hint' }
+      ],
       aiConfig: {
-        enabled: false, apiUrl: '', apiKey: '', model: 'gpt-4o-mini', timeoutSeconds: 120,
+        enabled: false, models: [], timeoutSeconds: 120,
         systemPrompt: '', validationPrompt: ''
       },
     };
+  },
+  computed: {
+    primaryModelId() {
+      const primary = this.aiConfig.models.find(item => item.primary);
+      return primary ? primary.id : '';
+    },
   },
   mounted() {
     api.admin_getSMTPConfig().then((res) => {
@@ -412,7 +452,7 @@ export default {
         this.websiteConfig = res.data.data;
       })
         .catch(() => {}),
-      api.admin_getProblemAIConfig().then((res) => { this.aiConfig = Object.assign(this.aiConfig, res.data.data || {}) }).catch(() => {}),
+      this.fetchAIConfig(),
       api
         .admin_getDataBaseConfig()
         .then((res) => {
@@ -495,20 +535,99 @@ export default {
         })
         .catch(() => {});
     },
-    saveAIConfig() {
+    async fetchAIConfig() {
+      this.aiConfigLoading = true;
+      this.aiConfigError = '';
+      try {
+        const res = await api.admin_getProblemAIConfig();
+        this.loadAIConfig(res.data.data);
+        this.aiConfigLoaded = true;
+      } catch (e) {
+        this.aiConfigLoaded = false;
+        this.aiConfigError = this.$t('m.Sys_AI_Load_Failed');
+      } finally {
+        this.aiConfigLoading = false;
+      }
+    },
+    loadAIConfig(config) {
+      const data = config || {};
+      this.aiConfig = {
+        enabled: Boolean(data.enabled), timeoutSeconds: data.timeoutSeconds || 120,
+        systemPrompt: data.systemPrompt || '', validationPrompt: data.validationPrompt || '',
+        models: (data.models || []).map(item => Object.assign({}, item, { apiKey: '', protocol: item.protocol == null ? 'openai_chat' : item.protocol }))
+      };
+      if (!this.aiConfig.models.length) this.addAIModel();
+    },
+    aiProtocolOption(protocol) {
+      return this.aiProtocols.find(option => option.value === protocol) || this.aiProtocols[0];
+    },
+    addAIModel() {
+      const id = '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+        (Number(c) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(c) / 4).toString(16));
+      this.aiConfig.models.push({ id, name: '', apiUrl: '', apiKey: '', apiKeyConfigured: false,
+        model: '', protocol: 'openai_chat', primary: this.aiConfig.models.length === 0 });
+    },
+    setPrimaryModel(id) {
+      this.aiConfig.models.forEach(item => { item.primary = item.id === id; });
+    },
+    removeAIModel(id) {
+      this.aiConfig.models = this.aiConfig.models.filter(item => item.id !== id);
+      if (!this.aiConfig.models.some(item => item.primary) && this.aiConfig.models.length) {
+        this.setPrimaryModel(this.aiConfig.models[0].id);
+      }
+    },
+    async saveAIConfig() {
+      if (!this.aiConfigLoaded || this.aiConfigLoading || this.aiConfigSaving) return;
       const timeoutSeconds = Number(this.aiConfig.timeoutSeconds);
       if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
-        myMessage.warning(this.$t('m.Sys_Timeout_Range_Warn'));
-        return;
+        return myMessage.warning(this.$t('m.Sys_Timeout_Range_Warn'));
+      }
+      const models = this.aiConfig.models;
+      if (!models.length || models.filter(item => item.primary).length !== 1) {
+        return myMessage.warning(this.$t('m.Sys_AI_Primary_Required'));
+      }
+      for (const item of models) {
+        item.name = String(item.name || '').trim();
+        item.model = String(item.model || '').trim();
+        item.apiUrl = String(item.apiUrl || '').trim();
+        item.apiKey = String(item.apiKey || '').trim();
+        if (!item.name || !item.model) return myMessage.warning(this.$t('m.Sys_AI_Model_Required'));
+        if (!this.aiProtocols.some(option => option.value === item.protocol)) return myMessage.warning(this.$t('m.Sys_AI_Protocol_Invalid'));
+        if (item.apiUrl) {
+          try {
+            const url = new URL(item.apiUrl);
+            if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) throw new Error('Invalid URL');
+          } catch (e) { return myMessage.warning(this.$t('m.Sys_AI_Url_Invalid')); }
+        }
+        if (this.aiConfig.enabled && (!item.apiUrl || (!item.apiKey && !item.apiKeyConfigured))) {
+          return myMessage.warning(this.$t('m.Sys_AI_Connection_Required'));
+        }
       }
       this.aiConfig.timeoutSeconds = Math.round(timeoutSeconds);
-      api.admin_saveProblemAIConfig(this.aiConfig)
-        .then(() => api.admin_getProblemAIConfig())
-        .then((res) => {
-          this.aiConfig = Object.assign(this.aiConfig, res.data.data || {});
-          myMessage.success(this.$i18n.t('m.Update_Successfully'));
+      this.aiConfigSaving = true;
+      this.aiConfigError = '';
+      try {
+        await api.admin_saveProblemAIConfig(this.aiConfig);
+        this.aiConfig.models.forEach(item => {
+          item.apiKeyConfigured = Boolean(item.apiKey || item.apiKeyConfigured);
+          item.apiKey = '';
         });
+        myMessage.success(this.$i18n.t('m.Update_Successfully'));
+        await this.fetchAIConfig();
+      } catch (e) {
+        this.aiConfigError = this.$t('m.Sys_AI_Save_Failed');
+      } finally {
+        this.aiConfigSaving = false;
+      }
     },
   },
 };
 </script>
+
+<style scoped>
+.ai-model-hint { margin-bottom: 12px; color: #606266; line-height: 1.6; }
+.ai-model-card { margin-bottom: 12px; }
+.ai-protocol-hint { color: #909399; font-size: 12px; line-height: 20px; margin-top: 6px; }
+.ai-model-heading { display: flex; align-items: center; justify-content: space-between; }
+.ai-add-model { margin-bottom: 20px; }
+</style>

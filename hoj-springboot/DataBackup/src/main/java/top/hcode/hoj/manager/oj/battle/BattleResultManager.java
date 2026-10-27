@@ -99,6 +99,7 @@ public class BattleResultManager {
     private int countSubmits(String uid, BattleRoom room) {
         return (int) judgeService.count(new QueryWrapper<Judge>()
                 .eq("uid", uid)
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .eq("display_pid", room.getProblemId())
                 .ge("submit_time", room.getStartTime()));
     }

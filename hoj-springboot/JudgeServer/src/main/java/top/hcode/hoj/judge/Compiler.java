@@ -1,5 +1,6 @@
 package top.hcode.hoj.judge;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
@@ -21,6 +22,18 @@ import java.util.List;
  * @Description: 判题流程解耦重构2.0，该类只负责编译
  */
 public class Compiler {
+
+    private static final Object[] EXTRA_PROGRAM_LOCKS = new Object[64];
+
+    static {
+        for (int i = 0; i < EXTRA_PROGRAM_LOCKS.length; i++) {
+            EXTRA_PROGRAM_LOCKS[i] = new Object();
+        }
+    }
+
+    static Object extraProgramLock(Long pid) {
+        return pid == null ? new Object() : EXTRA_PROGRAM_LOCKS[Math.floorMod(pid.hashCode(), EXTRA_PROGRAM_LOCKS.length)];
+    }
 
     public static String compile(LanguageConfig languageConfig, String code,
                                  String language, HashMap<String, String> extraFiles) throws SystemError, CompileError, SubmitError {
@@ -59,78 +72,49 @@ public class Compiler {
     }
 
     public static Boolean compileSpj(String code, Long pid, String language, HashMap<String, String> extraFiles) throws SystemError {
-
-        LanguageConfigLoader languageConfigLoader = SpringUtil.getBean(LanguageConfigLoader.class);
-        LanguageConfig languageConfig = languageConfigLoader.getLanguageConfigByName("SPJ-" + language);
-
-        if (languageConfig == null) {
-            throw new RuntimeException("Unsupported SPJ language:" + language);
-        }
-
-        boolean copyOutExe = true;
-        if (pid == null) { // 题目id为空，则不进行本地存储，可能为新建题目时测试特判程序是否正常的判断而已
-            copyOutExe = false;
-        }
-
-        // 调用安全沙箱对特别判题程序进行编译
-        JSONArray res = SandboxRun.compile(languageConfig.getMaxCpuTime(),
-                languageConfig.getMaxRealTime(),
-                languageConfig.getMaxMemory(),
-                256 * 1024 * 1024L,
-                languageConfig.getSrcName(),
-                languageConfig.getExeName(),
-                parseCompileCommand(languageConfig.getCompileCommand()),
-                languageConfig.getCompileEnvs(),
-                code,
-                extraFiles,
-                false,
-                copyOutExe,
-                Constants.JudgeDir.SPJ_WORKPLACE_DIR.getContent() + File.separator + pid
-        );
-        JSONObject compileResult = (JSONObject) res.get(0);
-        if (compileResult.getInt("status").intValue() != Constants.Judge.STATUS_ACCEPTED.getStatus()) {
-            throw new SystemError("Special Judge Code Compile Error.", ((JSONObject) compileResult.get("files")).getStr("stdout"),
-                    ((JSONObject) compileResult.get("files")).getStr("stderr"));
-        }
-        return true;
+        return compileExtraProgram(code, pid, language, extraFiles, false);
     }
 
-
     public static Boolean compileInteractive(String code, Long pid, String language, HashMap<String, String> extraFiles) throws SystemError {
+        return compileExtraProgram(code, pid, language, extraFiles, true);
+    }
 
+    private static Boolean compileExtraProgram(String code, Long pid, String language,
+                                                HashMap<String, String> extraFiles, boolean interactive) throws SystemError {
         LanguageConfigLoader languageConfigLoader = SpringUtil.getBean(LanguageConfigLoader.class);
-        LanguageConfig languageConfig = languageConfigLoader.getLanguageConfigByName("INTERACTIVE-" + language);
-
+        String prefix = interactive ? "INTERACTIVE-" : "SPJ-";
+        LanguageConfig languageConfig = languageConfigLoader.getLanguageConfigByName(prefix + language);
         if (languageConfig == null) {
-            throw new RuntimeException("Unsupported interactive language:" + language);
+            throw new SystemError("Unsupported " + prefix + "language: " + language, null, null);
         }
-
-        boolean copyOutExe = true;
-        if (pid == null) { // 题目id为空，则不进行本地存储，可能为新建题目时测试特判程序是否正常的判断而已
-            copyOutExe = false;
+        String programDir = (interactive ? Constants.JudgeDir.INTERACTIVE_WORKPLACE_DIR
+                : Constants.JudgeDir.SPJ_WORKPLACE_DIR).getContent() + File.separator + pid;
+        synchronized (extraProgramLock(pid)) {
+            // 后台的独立编译入口也会覆盖可执行文件，必须使旧缓存失效。
+            if (pid != null) {
+                FileUtil.del(programDir + File.separator + "version");
+            }
+            JSONArray result = SandboxRun.compile(languageConfig.getMaxCpuTime(),
+                    languageConfig.getMaxRealTime(),
+                    languageConfig.getMaxMemory(),
+                    256 * 1024 * 1024L,
+                    languageConfig.getSrcName(),
+                    languageConfig.getExeName(),
+                    parseCompileCommand(languageConfig.getCompileCommand()),
+                    languageConfig.getCompileEnvs(),
+                    code,
+                    extraFiles,
+                    false,
+                    pid != null,
+                    programDir);
+            JSONObject compileResult = (JSONObject) result.get(0);
+            if (compileResult.getInt("status").intValue() != Constants.Judge.STATUS_ACCEPTED.getStatus()) {
+                throw new SystemError(interactive ? "Interactive Judge Code Compile Error." : "Special Judge Code Compile Error.",
+                        ((JSONObject) compileResult.get("files")).getStr("stdout"),
+                        ((JSONObject) compileResult.get("files")).getStr("stderr"));
+            }
+            return true;
         }
-
-        // 调用安全沙箱对特别判题程序进行编译
-        JSONArray res = SandboxRun.compile(languageConfig.getMaxCpuTime(),
-                languageConfig.getMaxRealTime(),
-                languageConfig.getMaxMemory(),
-                256 * 1024 * 1024L,
-                languageConfig.getSrcName(),
-                languageConfig.getExeName(),
-                parseCompileCommand(languageConfig.getCompileCommand()),
-                languageConfig.getCompileEnvs(),
-                code,
-                extraFiles,
-                false,
-                copyOutExe,
-                Constants.JudgeDir.INTERACTIVE_WORKPLACE_DIR.getContent() + File.separator + pid
-        );
-        JSONObject compileResult = (JSONObject) res.get(0);
-        if (compileResult.getInt("status").intValue() != Constants.Judge.STATUS_ACCEPTED.getStatus()) {
-            throw new SystemError("Interactive Judge Code Compile Error.", ((JSONObject) compileResult.get("files")).getStr("stdout"),
-                    ((JSONObject) compileResult.get("files")).getStr("stderr"));
-        }
-        return true;
     }
 
     private static List<String> parseCompileCommand(String command) {

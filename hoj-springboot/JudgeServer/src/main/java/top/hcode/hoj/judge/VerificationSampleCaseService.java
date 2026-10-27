@@ -15,6 +15,7 @@ import top.hcode.hoj.util.Constants;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +29,10 @@ public class VerificationSampleCaseService {
 
     public List<String> append(Problem problem, Long submitId, String testCasesDir,
                                JSONObject testCasesInfo) throws SystemError {
+        // 交互题展示样例是对话记录，不是交互器读取的隐藏数据。
+        if (Constants.JudgeMode.INTERACTIVE.getMode().equals(problem.getJudgeMode())) {
+            return Collections.emptyList();
+        }
         List<Sample> samples = parse(problem.getExamples());
         if (samples.isEmpty()) {
             throw error("题面没有可验证的样例，请先添加样例输入输出");
@@ -90,7 +95,12 @@ public class VerificationSampleCaseService {
             if (!examples.substring(cursor, matcher.start()).trim().isEmpty()) {
                 throw error("题面样例格式不完整，请检查每组 input/output");
             }
-            result.add(new Sample(normalize(matcher.group(1)), normalize(matcher.group(2))));
+            String input = normalize(matcher.group(1));
+            // Display samples commonly omit the final line ending; preserve all other whitespace.
+            if (!input.endsWith("\n")) input += "\n";
+            String output = normalize(matcher.group(2));
+            if (!output.isEmpty() && !output.endsWith("\n")) output += "\n";
+            result.add(new Sample(input, output));
             cursor = matcher.end();
         }
         if (result.isEmpty() || !examples.substring(cursor).trim().isEmpty()) {

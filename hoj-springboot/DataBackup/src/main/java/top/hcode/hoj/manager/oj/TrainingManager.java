@@ -433,6 +433,7 @@ public class TrainingManager {
         queryWrapper.select("distinct pid,status,score,submit_time")
                 .in("pid", pidList)
                 .eq("uid", userRolesVo.getUid())
+                .apply("COALESCE(is_problem_verification, 0) = 0")
                 .orderByDesc("submit_time");
 
         queryWrapper.eq("cid", 0);

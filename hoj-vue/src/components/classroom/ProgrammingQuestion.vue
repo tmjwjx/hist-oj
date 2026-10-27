@@ -370,6 +370,7 @@ export default {
         const response = await api.submitCode({
           pid: this.problemId,
           cid: 0,
+          homeworkId: this.homeworkId,
           language: this.submitForm.language,
           code: this.submitForm.code,
           isRemote: false
@@ -377,30 +378,6 @@ export default {
 
         if (response.data && response.data.status === 200) {
           const submitId = response.data.data.submitId
-          // 保存提交记录到作业提交表（失败时自动重试一次）
-          let saved = false
-          let saveError = null
-          for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-              await this.saveSubmissionRecord(submitId)
-              saved = true
-              break
-            } catch (err) {
-              saveError = err
-              if (attempt === 0) {
-                await new Promise(resolve => setTimeout(resolve, 800))
-              }
-            }
-          }
-
-          if (!saved) {
-            const msg = saveError && saveError.message
-              ? saveError.message
-              : this.$t('m.Save_Submission_Failed_Text')
-            this.$message.error(this.$t('m.Submitted_But_Save_Failed').replace('{msg}', msg))
-            return
-          }
-
           this.$emit('programming-submitted', {
             problemId: this.problemId,
             homeworkQuestionId: this.homeworkQuestionId,
@@ -421,19 +398,6 @@ export default {
         this.$message.error(this.$t('m.Submit_Failed'))
       } finally {
         this.submitting = false
-      }
-    },
-    async saveSubmissionRecord(submitId) {
-      const res = await this.$store.dispatch('classroom/saveProgrammingSubmission', {
-        homeworkId: this.homeworkId,
-        problemId: this.problemId,
-        submitId: submitId,
-        code: this.submitForm.code,
-        language: this.submitForm.language
-      })
-
-      if (!res || res.code !== 200) {
-        throw new Error((res && res.message) || this.$t('m.Save_Submission_Failed_Text'))
       }
     },
     async loadSubmitHistory(forceRefresh = false) {

@@ -29,6 +29,7 @@ public class HomeworkAnalysisManager {
     @Resource private QuestionBankMapper bankMapper;
     @Resource private UserInfoEntityService userService;
     @Resource private ClassroomAccessManager access;
+    @Resource private HomeworkManager homeworkManager;
 
     public Map<String, Object> analysis(Long homeworkId) throws Exception {
         ClassroomHomework homework = require(homeworkId);
@@ -43,6 +44,7 @@ public class HomeworkAnalysisManager {
         List<HomeworkSubmit> officialRows = submitMapper.selectList(new QueryWrapper<HomeworkSubmit>()
                 .eq("homework_id", homeworkId).eq("is_officially_submitted", 1).orderByAsc("id"));
         officialRows = officialRows.stream().filter(row -> studentRows.containsKey(row.getUid())).collect(Collectors.toList());
+        homeworkManager.syncProgrammingResults(homeworkId, officialRows);
         Set<String> submittedUids = officialRows.stream().map(HomeworkSubmit::getUid).collect(Collectors.toSet());
         List<HomeworkSubmit> finalRows = finalQuestionRows(officialRows);
 

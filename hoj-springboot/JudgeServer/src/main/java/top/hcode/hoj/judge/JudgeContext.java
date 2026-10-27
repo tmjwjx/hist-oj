@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import top.hcode.hoj.common.exception.SystemError;
 import top.hcode.hoj.dao.ContestRecordEntityService;
+import top.hcode.hoj.dao.JudgeEntityService;
 import top.hcode.hoj.dao.UserAcproblemEntityService;
 import top.hcode.hoj.judge.entity.LanguageConfig;
 import top.hcode.hoj.pojo.dto.TestJudgeReq;
@@ -26,6 +27,9 @@ public class JudgeContext {
 
     @Autowired
     private JudgeStrategy judgeStrategy;
+
+    @Autowired
+    private JudgeEntityService judgeEntityService;
 
     @Autowired
     private UserAcproblemEntityService userAcproblemEntityService;
@@ -108,6 +112,11 @@ public class JudgeContext {
         if (cid == 0) { // 非比赛提交
             // 如果是AC,就更新user_acproblem表,
             if (status.intValue() == Constants.Judge.STATUS_ACCEPTED.getStatus() && gid == null) {
+                Judge submission = judgeEntityService.getById(submitId);
+                if (submission == null || submission.getHomeworkId() != null
+                        || Boolean.TRUE.equals(submission.getIsProblemVerification())) {
+                    return;
+                }
                 userAcproblemEntityService.saveOrUpdate(new UserAcproblem()
                         .setPid(pid)
                         .setUid(uid)

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
+import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.*;
 import top.hcode.hoj.exception.ProblemIDRepeatException;
@@ -31,6 +32,7 @@ import top.hcode.hoj.pojo.vo.ImportProblemVO;
 import top.hcode.hoj.pojo.vo.ProblemCountVO;
 import top.hcode.hoj.pojo.vo.ProblemVO;
 import top.hcode.hoj.utils.Constants;
+import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
 import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
 
 import java.io.File;
@@ -108,9 +110,54 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean adminUpdateProblem(ProblemDTO problemDto) {
+    public boolean adminUpdateProblem(ProblemDTO problemDto) throws StatusFailException {
 
+        if (problemDto == null || problemDto.getProblem() == null
+                || problemDto.getProblem().getId() == null) {
+            throw new StatusFailException("题目的配置和ID不能为空！");
+        }
         Problem problem = problemDto.getProblem();
+        Problem savedProblem = problemMapper.selectById(problem.getId());
+        if (savedProblem == null) {
+            throw new StatusFailException("题目不存在，请重新打开题目后保存！");
+        }
+        // 数据版本由服务端维护；旧页面携带的版本不能覆盖当前已保存的数据版本。
+        problem.setCaseVersion(savedProblem.getCaseVersion());
+        problemDto.setJudgeMode(problem.getJudgeMode());
+        // 旧页面可能省略这些字段；更新必须沿用已保存的配置，不能猜测为本地题或普通题库题。
+        if (problem.getIsRemote() == null) {
+            problem.setIsRemote(savedProblem.getIsRemote());
+        }
+        if (problem.getIsGroup() == null) {
+            problem.setIsGroup(savedProblem.getIsGroup());
+        }
+        if (problem.getIsRemote() == null) {
+            throw new StatusFailException("题目的远程判题配置缺失，无法保存！");
+        }
+        // 缺失列表不是清空列表，必须在修改关联数据前拒绝不完整请求。
+        if (problemDto.getTags() == null || problemDto.getCodeTemplates() == null
+                || CollectionUtils.isEmpty(problemDto.getLanguages())) {
+            throw new StatusFailException("题目的标签、语言或代码模板配置不完整，请加载完成后重试！");
+        }
+        if (!problem.getIsRemote()) {
+            if (CollectionUtils.isEmpty(problemDto.getSamples())) {
+                throw new StatusFailException("题目的测试数据不能为空，请加载或上传完成后重试！");
+            }
+            Boolean uploadTestCase = problemDto.getIsUploadTestCase();
+            if (uploadTestCase != null && problem.getIsUploadCase() != null
+                    && !uploadTestCase.equals(problem.getIsUploadCase())) {
+                throw new StatusFailException("测试数据上传方式不一致，请重新选择后保存！");
+            }
+            if (uploadTestCase == null) {
+                uploadTestCase = problem.getIsUploadCase() != null
+                        ? problem.getIsUploadCase() : savedProblem.getIsUploadCase();
+            }
+            if (uploadTestCase == null) {
+                throw new StatusFailException("测试数据上传方式缺失，无法保存！");
+            }
+            problemDto.setIsUploadTestCase(uploadTestCase);
+            problem.setIsUploadCase(uploadTestCase);
+        }
         if (Constants.JudgeMode.DEFAULT.getMode().equals(problemDto.getJudgeMode())) {
             problem.setSpjLanguage(null).setSpjCode(null);
         }
@@ -130,9 +177,6 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
         Problem existedProblem = problemMapper.selectOne(problemQueryWrapper);
 
         problem.setProblemId(problem.getProblemId().toUpperCase());
-        if (problem.getIsGroup() == null) {
-            problem.setIsGroup(false);
-        }
         // 后面许多表的更新或删除需要用到题目id
         long pid = problemDto.getProblem().getId();
 
@@ -171,6 +215,18 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
             needDeleteProblemCases.add(problemCase.getId());
             oldProblemMap.put(problemCase.getId(), problemCase);
         });
+
+        if (!problem.getIsRemote()) {
+            Set<Long> caseIds = new HashSet<>();
+            for (ProblemCase problemCase : problemDto.getSamples()) {
+                if (problemCase == null || problemCase.getInput() == null || problemCase.getOutput() == null
+                        || (problemCase.getId() != null
+                            && (!oldProblemMap.containsKey(problemCase.getId()) || !caseIds.add(problemCase.getId())))) {
+                    throw new StatusFailException("测试数据不完整或不属于当前题目，请重新加载后保存！");
+                }
+                problemCase.setPid(pid);
+            }
+        }
 
 
         // 与前端上传的数据进行对比，添加或删除！
@@ -327,12 +383,12 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
             }
             checkProblemCase = addCasesToProblemResult && deleteCasesFromProblemResult && updateCasesToProblemResult;
 
-            // 只要有新添加，修改，删除，或者变更judgeCaseMode 都需要更新版本号 同时更新测试数据
-            String caseVersion = String.valueOf(System.currentTimeMillis());
+            // 只有实际数据或判题配置变化才更新版本，不能信任旧页面的 change* 标记。
+            String caseVersion = UUID.fastUUID().toString();
             String testcaseDir = problemDto.getUploadTestcaseDir();
             if (needDeleteProblemCases.size() > 0 || newProblemCaseList.size() > 0
                     || needUpdateProblemCaseList.size() > 0 || !StringUtils.isEmpty(testcaseDir)
-                    || (problemDto.getChangeJudgeCaseMode() != null && problemDto.getChangeJudgeCaseMode())) {
+                    || !Objects.equals(savedProblem.getIsUploadCase(), problem.getIsUploadCase())) {
                 problem.setCaseVersion(caseVersion);
                 // 如果是选择上传测试文件的，则需要遍历对应文件夹，读取数据，写入数据库,先前的题目数据一并清空。
                 if (problemDto.getIsUploadTestCase()) {
@@ -344,8 +400,8 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
                             pid, problemDto.getSamples());
                 }
             }
-            // 变化成spj或interactive或者取消 同时更新测试数据
-            else if (problemDto.getChangeModeCode() != null && problemDto.getChangeModeCode()) {
+            // 判题模式、checker 或子任务配置变化只刷新 info，不重复传输测试文件。
+            else if (ProblemVerificationChangeDetector.judgeConfigurationChanged(savedProblem, problem)) {
                 problem.setCaseVersion(caseVersion);
                 if (problemDto.getIsUploadTestCase()) {
                     // 获取代理bean对象执行异步方法===》根据测试文件初始info
@@ -527,7 +583,7 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
         initUploadTestCase(judgeMode, judgeCaseMode, version, problemId, tmpTestcaseDir, problemCaseList, true);
     }
 
-    private void initUploadTestCase(String judgeMode, String judgeCaseMode, String version,
+    void initUploadTestCase(String judgeMode, String judgeCaseMode, String version,
                                     Long problemId, String tmpTestcaseDir,
                                     List<ProblemCase> problemCaseList, boolean syncFiles) {
 
@@ -637,7 +693,7 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
         initHandTestCase(judgeMode, judgeCaseMode, version, problemId, problemCaseList, true);
     }
 
-    private void initHandTestCase(String judgeMode, String judgeCaseMode, String version,
+    void initHandTestCase(String judgeMode, String judgeCaseMode, String version,
                                   Long problemId, List<ProblemCase> problemCaseList, boolean syncFiles) {
 
         JSONObject result = new JSONObject();

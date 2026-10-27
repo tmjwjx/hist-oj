@@ -13,6 +13,14 @@ const ratingApi = axios.create({
 // 请求拦截器 - 添加认证token
 ratingApi.interceptors.request.use(
   config => {
+    const method = (config.method || 'get').toLowerCase()
+    const publicRead = (method === 'get' && /^\/rating\/(?:rank|(?:user|history|color)\/[^/]+|contest\/(?:info\/)?[0-9]+)$/.test(config.url)) ||
+      (method === 'post' && ['/rating/batch', '/rating/contest/batch'].includes(config.url))
+    if (publicRead) {
+      delete config.headers.Authorization
+      delete config.headers['X-Operator-UID']
+      return config
+    }
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = token

@@ -91,7 +91,6 @@
       :pid="pid"
       :language="form.language"
       :standard-program="form.code"
-      :auto-run="true"
       @program-generated="useAiGeneratedProgram"
       @close="aiVisible = false"
     />

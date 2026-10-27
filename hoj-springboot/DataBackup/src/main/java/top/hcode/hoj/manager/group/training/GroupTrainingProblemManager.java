@@ -11,6 +11,7 @@ import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.dao.group.GroupEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.training.TrainingEntityService;
 import top.hcode.hoj.dao.training.TrainingProblemEntityService;
 import top.hcode.hoj.manager.admin.training.AdminTrainingProblemManager;
@@ -42,6 +43,9 @@ public class GroupTrainingProblemManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private AdminTrainingProblemManager adminTrainingProblemManager;
@@ -111,6 +115,7 @@ public class GroupTrainingProblemManager {
             throw new StatusForbiddenException("对不起，您无权限操作！");
         }
 
+        pendingSaveGuard.requireFormal(trainingProblem.getPid());
         boolean isOk = trainingProblemEntityService.updateById(trainingProblem);
         if (!isOk) {
             throw new StatusFailException("修改失败！");
@@ -161,6 +166,7 @@ public class GroupTrainingProblemManager {
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
         Long pid = trainingProblemDto.getPid();
+        pendingSaveGuard.requireFormal(pid);
 
         Problem problem = problemEntityService.getById(pid);
 
@@ -256,6 +262,7 @@ public class GroupTrainingProblemManager {
         problemQueryWrapper.eq("problem_id", problemId).eq("gid", gid);
 
         Problem problem = problemEntityService.getOne(problemQueryWrapper);
+        if (problem != null) pendingSaveGuard.requireFormal(problem.getId());
 
         if (problem == null) {
             throw new StatusNotFoundException("添加失败，该题目不存在或不是团队题目！");

@@ -27,6 +27,7 @@ public class HomeworkRankingManager {
     @Resource private ClassroomStudentMapper studentMapper;
     @Resource private UserInfoEntityService userService;
     @Resource private ClassroomAccessManager access;
+    @Resource private HomeworkManager homeworkManager;
 
     public Map<String, Object> ranking(Long homeworkId) throws Exception {
         ClassroomHomework homework = require(homeworkId);
@@ -44,6 +45,7 @@ public class HomeworkRankingManager {
                 .eq("homework_id", homeworkId).eq("is_officially_submitted", 1)
                 .orderByDesc("update_time").orderByDesc("id"));
 
+        homeworkManager.syncProgrammingResults(homeworkId, submissions);
         Map<String, HomeworkSubmit> latest = new LinkedHashMap<>();
         for (HomeworkSubmit row : submissions) {
             String identity = identity(row);

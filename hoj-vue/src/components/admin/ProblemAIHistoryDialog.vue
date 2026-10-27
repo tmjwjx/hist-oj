@@ -53,6 +53,8 @@
       </section>
       <template v-if="report">
         <p class="report-summary">{{ report.summary || $t('m.ProbAI_No_Summary') }}</p>
+        <ProblemAIModelResults :report="report" @copy="copyCode" />
+        <ProblemAIJudgeProgramReview v-if="report.judgeProgramReview" :review="report.judgeProgramReview" @copy="copyCode" />
         <el-collapse>
           <el-collapse-item :title="$t('m.ProbAI_Validation_Process')" name="steps">
             <div v-for="(step, index) in report.steps || []" :key="index" class="report-row">
@@ -66,7 +68,7 @@
               <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="70" />
               <el-table-column prop="status" :label="$t('m.ProbAI_AI_Conclusion')" width="90" />
               <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Formal_Judge_Status')" min-width="140" />
-              <el-table-column :label="$t('m.ProbAI_Testlib_Check')" width="110"><template slot-scope="scope">
+              <el-table-column v-if="report.testPointResults.some(item => item.testlibValidator)" :label="$t('m.ProbAI_Testlib_Check')" width="110"><template slot-scope="scope">
                 <el-tag size="mini" :type="tagType(scope.row.testlibValidator && scope.row.testlibValidator.status === 'PASS' ? 'PASS' : 'FAIL')">
                   {{ scope.row.testlibValidator ? scope.row.testlibValidator.status : $t('m.ProbAI_Not_Executed') }}
                 </el-tag>
@@ -91,9 +93,12 @@
 <script>
 import api from '@/common/api'
 import time from '@/common/time'
+import ProblemAIModelResults from '@/components/admin/ProblemAIModelResults.vue'
+import ProblemAIJudgeProgramReview from '@/components/admin/ProblemAIJudgeProgramReview.vue'
 
 export default {
   name: 'ProblemAIHistoryDialog',
+  components: { ProblemAIModelResults, ProblemAIJudgeProgramReview },
   props: { visible: Boolean, pid: { type: [Number, String], required: true } },
   data() { return { loading: false, records: [], selectedRecord: null } },
   computed: {
@@ -108,7 +113,8 @@ export default {
       catch (e) { return { overall: 'WARN', summary: this.selectedRecord.response, steps: [], issues: [] } }
     },
     generatedProgram() {
-      if (!this.isGenerationRecord(this.selectedRecord) || !this.selectedRecord.response) return null
+      if (!this.isGenerationRecord(this.selectedRecord)) return this.report && this.report.standardProgram
+      if (!this.selectedRecord.response) return null
       try { return typeof this.selectedRecord.response === 'string' ? JSON.parse(this.selectedRecord.response) : this.selectedRecord.response }
       catch (e) { return null }
     },
@@ -162,7 +168,7 @@ export default {
       } catch (e) { this.$message.error(this.$t('m.ProbAI_Copy_Failed')) }
     },
     isValidationRecord(record) {
-      return record && (record.question === 'AI 一键验题' || record.question === 'AI 生成标准程序')
+      return record && (record.question === 'AI 一键验题' || record.question === 'AI 生成标准程序' || record.question === 'AI 验题复检')
     },
     isGenerationRecord(record) { return record && record.question === 'AI 生成标准程序' },
     recordStage(record) { return this.isGenerationRecord(record) ? this.$t('m.ProbAI_Stage_Generate') : this.$t('m.ProbAI_Stage_Comprehensive') },
@@ -180,6 +186,7 @@ export default {
     hasBlockingProblems(result) {
       if (!result) return true
       if (result.overall === 'FAIL') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status === 'FAIL') return true
       if ((result.issues || []).some(item => item.severity === 'ERROR')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'FAIL')
@@ -187,6 +194,7 @@ export default {
     hasWarnings(result) {
       if (!result) return false
       if (result.overall === 'WARN') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status !== 'PASS') return true
       if ((result.issues || []).some(item => item.severity === 'WARNING')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'WARN')

@@ -57,7 +57,7 @@ public class AdminTrainingRecordManager {
         if (!CollectionUtils.isEmpty(pidList)) {
             QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
             judgeQueryWrapper.in("pid", pidList)
-                    .eq("cid", 0)
+                    .eq("cid", 0).apply("COALESCE(is_problem_verification, 0) = 0")
                     .eq("status", Constants.Judge.STATUS_ACCEPTED.getStatus()) // 只同步ac的提交
                     .eq("uid", uid);
             List<Judge> judgeList = judgeEntityService.list(judgeQueryWrapper);
@@ -94,7 +94,7 @@ public class AdminTrainingRecordManager {
         if (!CollectionUtils.isEmpty(uidList)) {
             QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
             judgeQueryWrapper.eq("pid", pid)
-                    .eq("cid", 0)
+                    .eq("cid", 0).apply("COALESCE(is_problem_verification, 0) = 0")
                     .eq("status", Constants.Judge.STATUS_ACCEPTED.getStatus()) // 只同步ac的提交
                     .in("uid", uidList);
             List<Judge> judgeList = judgeEntityService.list(judgeQueryWrapper);
@@ -123,7 +123,7 @@ public class AdminTrainingRecordManager {
         }
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
         judgeQueryWrapper.in("pid", pidList)
-                .eq("cid", 0)
+                .eq("cid", 0).apply("COALESCE(is_problem_verification, 0) = 0")
                 .eq("status", Constants.Judge.STATUS_ACCEPTED.getStatus()) // 只同步ac的提交
                 .in("uid", uidList);
         List<Judge> judgeList = judgeEntityService.list(judgeQueryWrapper);

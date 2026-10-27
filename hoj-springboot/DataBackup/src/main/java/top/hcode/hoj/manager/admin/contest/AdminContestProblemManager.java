@@ -19,6 +19,7 @@ import top.hcode.hoj.dao.contest.ContestEntityService;
 import top.hcode.hoj.dao.contest.ContestProblemEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.manager.admin.problem.RemoteProblemManager;
 import top.hcode.hoj.pojo.dto.ContestProblemDTO;
 import top.hcode.hoj.pojo.dto.ProblemDTO;
@@ -49,6 +50,9 @@ public class AdminContestProblemManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private JudgeEntityService judgeEntityService;
@@ -122,6 +126,7 @@ public class AdminContestProblemManager {
             problemQueryWrapper.eq("id", null);
         }
 
+        problemQueryWrapper.notExists("SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = problem.id AND (ps.published_pid IS NULL OR ps.published_pid <> ps.candidate_pid)");
         IPage<Problem> problemListPage = problemEntityService.page(iPage, problemQueryWrapper);
 
         if (pidList.size() > 0 && problemType == null) {
@@ -202,6 +207,9 @@ public class AdminContestProblemManager {
     }
 
     public Map<Object, Object> addProblem(ProblemDTO problemDto) throws StatusFailException {
+        if (pendingSaveGuard.requiresVerification(problemDto, null)) {
+            throw new StatusFailException("新题必须先提交代码验证通过后保存，请刷新页面重试！");
+        }
 
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemDto.getProblem().getProblemId().toUpperCase());
@@ -220,18 +228,28 @@ public class AdminContestProblemManager {
         }
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void updateProblem(ProblemDTO problemDto) throws StatusForbiddenException, StatusFailException {
+        if (problemDto == null || problemDto.getProblem() == null || problemDto.getProblem().getId() == null) {
+            throw new StatusFailException("题目内容不能为空！");
+        }
+        Problem oldProblem = problemEntityService.getOne(new QueryWrapper<Problem>()
+                .eq("id", problemDto.getProblem().getId()).last("FOR UPDATE"), false);
+        if (oldProblem == null) throw new StatusFailException("题目不存在！");
         // 获取当前登录的用户
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
         boolean isProblemAdmin = SecurityUtils.getSubject().hasRole("problem_admin");
         // 只有超级管理员和题目管理员、题目创建者才能操作
-        if (!isRoot && !isProblemAdmin && !userRolesVo.getUsername().equals(problemDto.getProblem().getAuthor())) {
+        if (!isRoot && !isProblemAdmin && !userRolesVo.getUsername().equals(oldProblem.getAuthor())) {
             throw new StatusForbiddenException("对不起，你无权限修改题目！");
         }
 
-        Problem oldProblem = problemEntityService.getById(problemDto.getProblem().getId());
+        pendingSaveGuard.requireFormal(problemDto.getProblem().getId());
+        if (pendingSaveGuard.requiresVerification(problemDto, oldProblem)) {
+            throw new StatusFailException("此次修改需要提交代码验证通过后保存，请刷新页面重试！");
+        }
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemDto.getProblem().getProblemId().toUpperCase());
         Problem problem = problemEntityService.getOne(queryWrapper);
@@ -267,6 +285,7 @@ public class AdminContestProblemManager {
     }
 
     public ContestProblem setContestProblem(ContestProblem contestProblem) throws StatusFailException {
+        pendingSaveGuard.requireFormal(contestProblem.getPid());
         boolean isOk = contestProblemEntityService.saveOrUpdate(contestProblem);
         if (isOk) {
             contestProblemEntityService.syncContestRecord(contestProblem.getPid(), contestProblem.getCid(), contestProblem.getDisplayId());
@@ -284,6 +303,7 @@ public class AdminContestProblemManager {
     public void addProblemFromPublic(ContestProblemDTO contestProblemDto) throws StatusFailException {
 
         Long pid = contestProblemDto.getPid();
+        pendingSaveGuard.requireFormal(pid);
         Long cid = contestProblemDto.getCid();
         String displayId = contestProblemDto.getDisplayId();
 

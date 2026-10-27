@@ -1,5 +1,7 @@
 import api from '@/api/classroom'
 
+let userRolesRequest = null
+
 const state = {
   currentClassroom: null,
   classroomList: [],
@@ -16,6 +18,7 @@ const state = {
   messages: [],
   pickedStudent: null,
   userRoles: [], // 存储用户的班级角色
+  userRolesOwner: null,
   // 请求状态追踪，避免重复请求
   loadingStates: {
     teacherClassrooms: false,
@@ -103,6 +106,11 @@ const mutations = {
     if (key) {
       state.cacheTimestamps[key] = 0
     } else {
+      // 清除用户权限及缓存归属，退出后不保留上一账号的角色。
+      state.userRoles = []
+      state.userRolesOwner = null
+      state.teacherClassrooms = []
+      state.myClassrooms = []
       // 清除所有缓存
       state.cacheTimestamps.teacherClassrooms = 0
       state.cacheTimestamps.studentClassrooms = 0
@@ -137,50 +145,54 @@ const mutations = {
 
 const actions = {
   // 加载用户角色（带缓存和请求去重）
-  async loadUserRoles({ commit, state }, forceRefresh = false) {
-    // 检查是否正在加载
-    if (state.loadingStates.userRoles) {
-      return // 如果正在加载，直接返回等待结果
+  loadUserRoles({ commit, state, rootGetters }, forceRefresh = false) {
+    const token = rootGetters.token
+    const uid = rootGetters.userInfo.uid
+    if (!token) {
+      commit('CLEAR_CACHE')
+      return Promise.resolve([])
+    }
+    if (userRolesRequest && userRolesRequest.token === token && userRolesRequest.uid === uid) {
+      return userRolesRequest.promise
     }
 
-    // 检查缓存（5分钟有效期）
+    const owner = state.userRolesOwner
+    const sameUser = owner && owner.token === token && owner.uid === uid
     const cacheAge = Date.now() - state.cacheTimestamps.userRoles
-    if (!forceRefresh && state.userRoles.length > 0 && cacheAge < 5 * 60 * 1000) {
-      return // 使用缓存
+    if (!forceRefresh && sameUser && cacheAge < 5 * 60 * 1000) {
+      return Promise.resolve(state.userRoles)
     }
-
+    if (!sameUser) commit('CLEAR_CACHE')
     commit('SET_LOADING_STATE', { key: 'userRoles', value: true })
 
-    try {
-      const res = await api.getCurrentUserRoles()
-
-      let roleNames = []
-
-      // 处理 axios 响应格式: res.data 是 API 返回的数据
-      if (res && res.data) {
-        const apiData = res.data
-
-        // 标准格式: { code: 200, data: [...] }
-        if (apiData.code === 200 && apiData.data) {
-          const roles = apiData.data
-          roleNames = Array.isArray(roles)
-            ? roles.map(item => item.role || item)
-            : []
-        }
-        // 直接格式: { code: 200, data: [...] } 但 data 已经是角色数组
-        else if (Array.isArray(apiData.data)) {
-          roleNames = apiData.data.map(item => item.role || item)
-        }
-      }
-
+    const request = { token, uid }
+    request.promise = api.getCurrentUserRoles().then(res => {
+      const refreshedToken = res.headers && res.headers['refresh-token'] && res.headers.authorization
+      if (!rootGetters.token || (rootGetters.token !== token && rootGetters.token !== refreshedToken) ||
+          rootGetters.userInfo.uid !== uid) return []
+      const roles = res && res.data && res.data.data
+      const roleNames = Array.isArray(roles) ? roles.map(item => item.role || item) : []
       commit('SET_USER_ROLES', roleNames)
+      state.userRolesOwner = { token: rootGetters.token, uid }
       state.cacheTimestamps.userRoles = Date.now()
-    } catch (error) {
-      console.error('[classroom/loadUserRoles] 加载用户角色失败', error)
-      commit('SET_USER_ROLES', [])
-    } finally {
-      commit('SET_LOADING_STATE', { key: 'userRoles', value: false })
-    }
+      return roleNames
+    }).catch(error => {
+      if (!error.response || error.response.status !== 401) {
+        console.error('[classroom/loadUserRoles] 加载用户角色失败', error)
+      }
+      if (rootGetters.token === token && rootGetters.userInfo.uid === uid) {
+        commit('SET_USER_ROLES', [])
+        commit('CLEAR_CACHE', 'userRoles')
+      }
+      return []
+    }).finally(() => {
+      if (userRolesRequest === request) {
+        userRolesRequest = null
+        commit('SET_LOADING_STATE', { key: 'userRoles', value: false })
+      }
+    })
+    userRolesRequest = request
+    return request.promise
   },
 
   // 班级管理

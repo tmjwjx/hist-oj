@@ -1,7 +1,7 @@
 <template>
   <div class="validation-step">
     <el-alert :title="$t('m.Verif_Step_Title')"
-      :description="$t('m.Verif_Step_Desc')"
+      :description="$t($slots['save-action'] ? 'm.Verif_Save_Workflow_Desc' : 'm.Verif_Step_Desc')"
       type="info" :closable="false" show-icon />
     <div class="validation-mode">
       <el-tag type="warning">{{ $t('m.Verif_Tag_AI') }}</el-tag>
@@ -34,9 +34,9 @@
           :placeholder="$t('m.Verif_Code_Placeholder')" />
       </el-form-item>
       <div class="validation-actions">
-        <el-button v-if="showAi" type="primary" plain @click="openAi">{{ $t('m.Verif_One_Click_AI') }}</el-button>
+        <el-button v-if="showAi" type="primary" plain :disabled="saving || submitting" @click="openAi">{{ $t('m.Verif_One_Click_AI') }}</el-button>
         <el-button plain icon="el-icon-time" @click="openHistory">{{ $t('m.ProbAI_History_Dialog_Title') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitCreator">{{ $t('m.Verif_Submit_Code') }}</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="saving" @click="submitCreator">{{ $t('m.Verif_Submit_Code') }}</el-button>
       </div>
     </el-form>
 
@@ -49,19 +49,21 @@
       :description="status.judgeMessage || $t('m.Verif_Modify_And_Resubmit')"
       type="error" :closable="false" show-icon />
     <el-alert v-if="status && status.verificationStatus === 2" class="status-alert"
-      :title="status.judgeStatusText || 'Accepted'" :description="$t('m.Verif_Passed_Desc')"
+      :title="status.judgeStatusText || 'Accepted'" :description="$t(pendingSave ? 'm.Prob_Pending_Ready_To_Save' : 'm.Verif_Passed_Desc')"
       type="success" :closable="false" show-icon />
 
     <div class="step-actions">
-      <el-button @click="back">{{ $t('m.Verif_Back_To_Data') }}</el-button>
-      <el-button v-if="hasDraft" type="danger" plain @click="deleteDraft">{{ $t('m.Verif_Delete_Draft') }}</el-button>
-      <el-button type="success" :disabled="!verified" @click="finish">{{ $t('m.Verif_Finish_Create') }}</el-button>
+      <el-button :disabled="saving || submitting" @click="back">{{ $t('m.Verif_Back_To_Data') }}</el-button>
+      <el-button v-if="hasDraft && !$slots['save-action']" type="danger" plain :disabled="saving || submitting" @click="deleteDraft">{{ $t('m.Verif_Delete_Draft') }}</el-button>
+      <slot name="save-action">
+        <el-button type="success" :disabled="!verified" @click="finish">{{ $t('m.Verif_Finish_Create') }}</el-button>
+      </slot>
     </div>
 
     <ProblemAIValidationDialog v-if="aiVisible" :visible="aiVisible" :pid="pid"
-      :language="language" :standard-program="code" :auto-run="true"
+      :language="language" :standard-program="code"
       @verified="handleVerified" @program-generated="useAiGeneratedProgram" @close="aiVisible = false" />
-    <LastPassedCodeDialog v-if="lastPassedVisible" :visible="lastPassedVisible" :pid="pid"
+    <LastPassedCodeDialog v-if="lastPassedVisible" :visible="lastPassedVisible" :pid="lastPassedPid || pid"
       @use="useLastPassedCode" @close="lastPassedVisible = false" />
   </div>
 </template>
@@ -76,8 +78,11 @@ export default {
   components: { ProblemAIValidationDialog, LastPassedCodeDialog },
   props: {
     pid: { type: [Number, String], required: true },
+    lastPassedPid: { type: [Number, String], default: null },
+    pendingSave: { type: Boolean, default: false },
     languages: { type: Array, default: () => [] },
-    showAi: { type: Boolean, default: true }
+    showAi: { type: Boolean, default: true },
+    saving: { type: Boolean, default: false }
   },
   data() {
     return {
@@ -94,7 +99,16 @@ export default {
   },
   watch: {
     languages() { if (!this.language) this.language = this.languageOptions[0] },
-    pid() { this.initialize() }
+    pid(newPid, oldPid) {
+      this.stopTimers()
+      if (oldPid) this.persistDraft(false, oldPid)
+      this.status = null
+      this.verified = false
+      this.hasDraft = false
+      this.aiVisible = false
+      this.lastPassedVisible = false
+      this.initialize(true).catch(() => {})
+    }
   },
   async mounted() {
     window.addEventListener('beforeunload', this.handleBeforeUnload)
@@ -106,26 +120,38 @@ export default {
     if (!this.completed && !this.skipDraft) this.persistDraft(true)
   },
   methods: {
-    async initialize() {
+    async initialize(preserveCode = false) {
       if (!this.pid) return
       this.language = this.language || this.languageOptions[0]
-      await Promise.all([this.loadStatus(), this.loadDraft()])
+      await Promise.all([this.loadStatus(), this.loadDraft(preserveCode)])
     },
-    async loadDraft() {
+    async loadDraft(preserveCode = false) {
+      const pid = this.pid;
+      const previousCode = this.code;
+      const previousLanguage = this.language;
       try {
-        const draft = (await api.admin_getProblemVerificationDraft(this.pid)).data.data
+        let draft = (await api.admin_getProblemVerificationDraft(pid)).data.data
+        if (!draft && !preserveCode && this.lastPassedPid && this.lastPassedPid !== pid) {
+          draft = (await api.admin_getProblemVerificationDraft(this.lastPassedPid)).data.data
+        }
+        if (pid !== this.pid) return
         this.hasDraft = Boolean(draft)
-        if (draft) {
+        if (preserveCode) return
+        if (draft && this.code === previousCode && this.language === previousLanguage) {
           this.language = draft.language || this.language
           this.code = draft.code || ''
         }
       } catch (e) {}
     },
     async loadStatus() {
-      const res = await api.admin_getProblemVerification(this.pid)
-      this.status = res.data.data
+      const pid = this.pid
+      const res = await api.admin_getProblemVerification(pid)
+      if (pid === this.pid) this.applyStatus(res.data.data)
+    },
+    applyStatus(status) {
+      this.status = status
       this.verified = Boolean(this.status && this.status.verified)
-      if (this.status && this.status.verificationStatus === 1) this.startPolling()
+      if (this.status && (this.status.verificationStatus === 1 || this.status.syncStatus === 0)) this.startPolling()
       else this.stopPolling()
     },
     validateProgram() {
@@ -154,7 +180,7 @@ export default {
       this.$router.push({ name: 'admin-problem-ai-history', params: { problemId: this.pid } })
     },
     async submitCreator() {
-      if (!this.validateProgram()) return
+      if (this.saving || this.submitting || !this.validateProgram()) return
       this.submitting = true
       try {
         await api.admin_submitProblemVerification({ pid: this.pid, language: this.language, code: this.code,
@@ -165,7 +191,6 @@ export default {
       } finally { this.submitting = false }
     },
     handleVerified() {
-      this.verified = true
       this.loadStatus().catch(() => {})
     },
     async retrySync() {
@@ -198,7 +223,7 @@ export default {
       this.$emit('passed')
     },
     back() {
-      if (!this.code.trim()) return this.$emit('back')
+      if (this.$slots['save-action'] || !this.code.trim()) return this.$emit('back')
       this.$confirm(this.$t('m.Verif_Confirm_Save_Back'), this.$t('m.Prompt'), {
         confirmButtonText: this.$t('m.Verif_Save_Back'), cancelButtonText: this.$t('m.Verif_No_Save_Back'),
         distinguishCancelAndClose: true, type: 'warning'
@@ -214,11 +239,11 @@ export default {
       if (this.draftTimer) clearTimeout(this.draftTimer)
       this.draftTimer = setTimeout(() => this.persistDraft(false), 700)
     },
-    persistDraft(keepalive) {
+    persistDraft(keepalive, pid = this.pid) {
       if (!this.code.trim()) return Promise.resolve()
-      const payload = { pid: this.pid, language: this.language, code: this.code }
+      const payload = { pid, language: this.language, code: this.code }
       if (!keepalive) return api.admin_saveProblemVerificationDraft(payload)
-        .then(() => { this.hasDraft = true }).catch(() => {})
+        .then(() => { if (pid === this.pid) this.hasDraft = true }).catch(() => {})
       const token = localStorage.getItem('token')
       const headers = { 'Content-Type': 'application/json', 'Url-Type': 'admin' }
       if (token) headers.Authorization = token
@@ -231,6 +256,8 @@ export default {
         await this.$confirm(this.$t('m.Verif_Delete_Draft_Confirm_Step'),
           this.$t('m.Verif_Delete_Draft'), { confirmButtonText: this.$t('m.Confirm_Delete'), cancelButtonText: this.$t('m.Cancel'), type: 'error' })
       } catch (e) { return }
+      if (this.draftTimer) clearTimeout(this.draftTimer)
+      this.draftTimer = null
       await api.admin_deleteProblemVerificationDraft(this.pid)
       this.code = ''; this.hasDraft = false
       await this.loadStatus()

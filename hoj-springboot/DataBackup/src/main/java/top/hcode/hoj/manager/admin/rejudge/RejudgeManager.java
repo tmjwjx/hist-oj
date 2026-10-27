@@ -21,6 +21,7 @@ import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.user.UserAcproblem;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
+import top.hcode.hoj.utils.ProblemVerificationConstants;
 
 import javax.annotation.Resource;
 import java.util.*;
@@ -85,7 +86,9 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public void rejudgeContestProblem(Long cid, Long pid) throws StatusFailException {
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("cid", cid).eq("pid", pid);
+        queryWrapper.eq("cid", cid).eq("pid", pid)
+                .and(query -> query.isNull("submission_type")
+                        .or().ne("submission_type", ProblemVerificationConstants.EXTERNAL_VERIFICATION));
         List<Judge> rejudgeList = judgeEntityService.list(queryWrapper);
 
         if (rejudgeList.size() == 0) {
@@ -210,10 +213,10 @@ public class RejudgeManager {
     public Judge manualJudge(Long submitId, Integer status, Integer score) throws StatusFailException {
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
         judgeQueryWrapper
-                .select("submit_id", "status", "judger", "cid", "pid", "uid")
+                .select("submit_id", "status", "judger", "cid", "pid", "uid", "submission_type")
                 .eq("submit_id", submitId);
         Judge judge = judgeEntityService.getOne(judgeQueryWrapper);
-        if (judge == null) {
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
             throw new StatusFailException("错误：该提交数据已不存在！");
         }
         if (judge.getStatus().equals(Constants.Judge.STATUS_JUDGING.getStatus())
@@ -300,11 +303,11 @@ public class RejudgeManager {
     public Judge cancelJudge(Long submitId) throws StatusFailException {
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
         judgeQueryWrapper
-                .select("submit_id", "status", "judger", "cid")
+                .select("submit_id", "status", "judger", "cid", "submission_type")
                 .eq("submit_id", submitId)
                 .last("for update");
         Judge judge = judgeEntityService.getOne(judgeQueryWrapper);
-        if (judge == null) {
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
             throw new StatusFailException("错误：该提交数据已不存在！");
         }
         if (judge.getStatus().equals(Constants.Judge.STATUS_JUDGING.getStatus())

@@ -12,8 +12,10 @@ public final class ProblemVerificationConstants {
     public static final int FAILED = 3;
 
     public static final String AI_VALIDATION = "ai_validation";
+    public static final String AI_COMPARISON = "ai_comparison";
     public static final String CREATOR_VALIDATION = "creator_validation";
     public static final String USER_SUBMISSION = "user_submission";
+    public static final String EXTERNAL_VERIFICATION = "external_verification";
 
     private ProblemVerificationConstants() {
     }

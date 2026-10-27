@@ -3,14 +3,24 @@
     <el-card>
       <div slot="header">
         <span class="panel-title home-title">{{ title }}</span>
+        <span v-if="pid && !loading && !loadFailed && !problem.isRemote && (isSuperAdmin || isProblemAdmin || problem.author === userInfo.username)" class="external-actions">
+          <el-button size="small" icon="el-icon-link" @click="externalTab = 'link'; externalVisible = true">验题链接</el-button>
+          <el-button size="small" @click="externalTab = 'submissions'; externalVisible = true">外部提交</el-button>
+        </span>
       </div>
       <el-steps :active="editorStep" finish-status="success" align-center class="problem-steps">
         <el-step :title="$t('m.Prob_Step_Basic')" :description="$t('m.Prob_Step_Basic_Desc')" />
         <el-step :title="$t('m.Prob_Step_Data')" :description="$t('m.Prob_Step_Data_Desc')" />
-        <el-step :title="$t('m.Prob_Step_Validate')" :description="$t('m.Prob_Step_Validate_Desc')" />
+        <el-step :title="$t('m.Prob_Step_Validate')" :description="$t('m.Prob_Save_Verification_Desc')" />
       </el-steps>
+      <el-alert v-if="pendingSave" class="test-data-tip" :title="$t('m.Prob_Pending_Save')"
+        type="warning" :closable="false" show-icon />
+      <el-alert v-if="loadFailed" :title="$t('m.Prob_Load_Failed')" type="error" :closable="false" show-icon>
+        <el-button size="small" @click="loadEditor">{{ $t('m.Retry') }}</el-button>
+      </el-alert>
       <el-form
         v-show="editorStep < 2"
+        :disabled="saving || loading || loadFailed"
         ref="form"
         :model="problem"
         :rules="rules"
@@ -381,7 +391,7 @@
           <el-form-item
             required
           >
-            <el-select v-model="problem.judgeCaseMode" @change="switchJudgeCaseMode" class="mode-select">
+            <el-select v-model="problem.judgeCaseMode" class="mode-select">
               <el-option :label="problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode') : $t('m.ACM_Judge_Case_Default_Mode')" :value="JUDGE_CASE_MODE.DEFAULT" />
               <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Lowest_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_LOWEST" />
               <el-option v-if="problem.type == 1" :label="$t('m.Judge_Case_Subtask_Average_Mode')" :value="JUDGE_CASE_MODE.SUBTASK_AVERAGE" />
@@ -586,26 +596,38 @@
         </el-row>
 
         <div class="wizard-actions" :class="{ 'single-action': editorStep === 0 }">
-          <el-button v-if="editorStep === 0" type="primary" @click="nextToDataStep">{{ $t('m.Prob_Next_To_Data') }}</el-button>
-          <template v-else>
-            <el-button @click="editorStep = 0">{{ $t('m.Prob_Back_To_Basic') }}</el-button>
-            <el-button type="primary" :loading="saving" @click.native="submit()">{{ $t('m.Prob_Save_And_Validate') }}</el-button>
-          </template>
+          <el-button v-if="editorStep === 1" :disabled="saving || loading || loadFailed" @click="editorStep = 0">{{ $t('m.Prob_Back_To_Basic') }}</el-button>
+          <div>
+            <el-button v-if="editorStep === 0" :disabled="saving || loading || loadFailed" @click="nextToDataStep">{{ $t('m.Prob_Next_To_Data') }}</el-button>
+            <el-button v-else-if="!problem.isRemote" :disabled="saving || loading || loadFailed" @click="submit(true)">{{ $t('m.Prob_Next_To_Validate') }}</el-button>
+            <el-button type="primary" :loading="saving" :disabled="loading || loadFailed" @click="submit()">{{ $t('m.Save') }}</el-button>
+          </div>
         </div>
       </el-form>
       <ProblemValidationStep
-        v-if="editorStep === 2 && verificationPid"
+        v-if="verificationPid && !problem.isRemote"
+        v-show="editorStep === 2"
+        ref="verificationStep"
         :pid="verificationPid"
+        :last-passed-pid="pid || verificationPid"
+        :pending-save="Boolean(pendingSave)"
         :languages="problemLanguages"
+        :saving="saving || loading || loadFailed"
         @back="editorStep = 1"
-        @passed="finishVerification"
-      />
+      >
+        <template slot="save-action">
+          <el-button type="primary" :loading="saving" :disabled="loading || loadFailed" @click="submit()">{{ $t('m.Save') }}</el-button>
+        </template>
+      </ProblemValidationStep>
     </el-card>
+    <ProblemExternalVerificationDialog v-if="externalVisible && pid" :pid="pid"
+      :title="problem.title" :initial-tab="externalTab" @close="externalVisible = false" />
   </div>
 </template>
 
 <script>
 import utils from "@/common/utils";
+import ProblemExternalVerificationDialog from "@/components/admin/ProblemExternalVerificationDialog.vue";
 import { mapGetters } from "vuex";
 import api from "@/common/api";
 import myMessage from "@/common/message";
@@ -627,6 +649,7 @@ export default {
     Editor,
     SampleExplanationEditor,
     ProblemValidationStep,
+    ProblemExternalVerificationDialog,
   },
   data() {
     return {
@@ -733,95 +756,19 @@ export default {
       judgeCaseModeRecord: "default",
       sampleIndex: 1,
       verificationPid: null,
-      needsVerification: false,
+      externalVisible: false,
+      externalTab: 'link',
       editorStep: 0,
+      refreshRequired: null,
       saving: false,
+      loading: true,
+      loadFailed: false,
       savedPid: null,
+      pendingSave: null,
       advancedConfigOpen: ['judge'],
     };
   },
-  mounted() {
-    this.PROBLEM_LEVEL = Object.assign({}, PROBLEM_LEVEL);
-    this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
-    this.routeName = this.$route.name;
-    let contestID = this.$route.params.contestId;
-    this.uploadFileUrl = "/api/file/upload-testcase-zip";
-    if (
-      this.routeName === "admin-edit-problem" ||
-      this.routeName === "admin-edit-contest-problem"
-    ) {
-      this.mode = "edit";
-    } else {
-      this.mode = "add";
-    }
-    this.applyRequestedStep();
-    api
-      .admin_getAllProblemTagList("ALL")
-      .then((res) => {
-        this.allTags = res.data.data;
-        for (let tag of res.data.data) {
-          this.allTagsTmp.push({ value: tag.name, oj: tag.oj });
-        }
-      })
-      .catch(() => {});
-    api.getLanguages(this.$route.params.problemId, false).then((res) => {
-      let allLanguage = res.data.data;
-      this.allLanguage = allLanguage;
-      for (let i = 0; i < allLanguage.length; i++) {
-        if (allLanguage[i].isSpj == true) {
-          this.allSpjLanguage.push(allLanguage[i]);
-        }
-      }
-      this.problem = this.reProblem = {
-        id: null,
-        problemId: "",
-        title: "",
-        description: "",
-        input: "",
-        output: "",
-        timeLimit: 1000,
-        memoryLimit: 256,
-        stackLimit: 128,
-        difficulty: 0,
-        auth: 1,
-        codeShare: true,
-        examples: [],
-        spjLanguage: "",
-        spjCode: "",
-        spjCompileOk: false,
-        isUploadCase: true,
-        uploadTestcaseDir: "",
-        testCaseScore: [],
-        contestProblem: {},
-        type: 0,
-        hint: "",
-        source: "",
-        cid: null,
-        isRemoveEndBlank:false,
-        openCaseResult: true,
-        judgeMode: "default",
-        judgeCaseMode: "default",
-        userExtraFile: null,
-        judgeExtraFile: null,
-        isFileIO: false,
-        ioReadFileName: null,
-        ioWriteFileName: null
-      };
-
-      this.contestID = contestID;
-      if (contestID) {
-        this.problem.cid = this.reProblem.cid = contestID;
-        this.problem.auth = this.reProblem.auth = 3;
-        this.disableRuleType = true;
-        api.admin_getContest(contestID).then((res) => {
-          this.problem.type = this.reProblem.type = res.data.data.type;
-          this.contest = res.data.data;
-        });
-      }
-      this.problem.spjLanguage = "C";
-      this.init();
-    });
-  },
+  mounted() { this.loadEditor(); },
   watch: {
     $route() {
       this.routeName = this.$route.name;
@@ -843,7 +790,11 @@ export default {
       this.editorStep = 0;
       this.applyRequestedStep();
       this.savedPid = null;
-      this.init();
+      this.pendingSave = null;
+      this.pid = null;
+      this.verificationPid = this.editorStep === 2 ? this.$route.params.problemId : null;
+      this.refreshRequired = null;
+      this.loadEditor();
     },
 
     problemLanguages(newVal) {
@@ -893,13 +844,101 @@ export default {
     },
   },
   methods: {
+    async loadEditor() {
+      this.PROBLEM_LEVEL = Object.assign({}, PROBLEM_LEVEL);
+      this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
+      this.routeName = this.$route.name;
+      let contestID = this.$route.params.contestId;
+      this.uploadFileUrl = "/api/file/upload-testcase-zip";
+      if (
+        this.routeName === "admin-edit-problem" ||
+        this.routeName === "admin-edit-contest-problem"
+      ) {
+        this.mode = "edit";
+      } else {
+        this.mode = "add";
+      }
+      this.applyRequestedStep();
+      this.loading = true;
+      this.loadFailed = false;
+      try {
+        const [tagsRes, res] = await Promise.all([
+          api.admin_getAllProblemTagList("ALL"),
+          api.getLanguages(this.$route.params.problemId, false)
+        ]);
+        this.allTags = tagsRes.data.data;
+        this.allTagsTmp = this.allTags.map(tag => ({ value: tag.name, oj: tag.oj }));
+        this.allSpjLanguage = [];
+        this.problemLanguages = [];
+        this.codeTemplate = {};
+        let allLanguage = res.data.data;
+        this.allLanguage = allLanguage;
+        for (let i = 0; i < allLanguage.length; i++) {
+          if (allLanguage[i].isSpj == true) {
+            this.allSpjLanguage.push(allLanguage[i]);
+          }
+        }
+        this.problem = this.reProblem = {
+          id: null,
+          problemId: "",
+          title: "",
+          description: "",
+          input: "",
+          output: "",
+          timeLimit: 1000,
+          memoryLimit: 256,
+          stackLimit: 128,
+          difficulty: 0,
+          auth: 1,
+          codeShare: true,
+          examples: [],
+          spjLanguage: "",
+          spjCode: "",
+          spjCompileOk: false,
+          isRemote: false,
+          isUploadCase: true,
+          uploadTestcaseDir: "",
+          testCaseScore: [],
+          contestProblem: {},
+          type: 0,
+          hint: "",
+          source: "",
+          cid: null,
+          isRemoveEndBlank:false,
+          openCaseResult: true,
+          judgeMode: "default",
+          judgeCaseMode: "default",
+          userExtraFile: null,
+          judgeExtraFile: null,
+          isFileIO: false,
+          ioReadFileName: null,
+          ioWriteFileName: null
+        };
+
+        this.contestID = contestID;
+        if (contestID) {
+          this.problem.cid = this.reProblem.cid = contestID;
+          this.problem.auth = this.reProblem.auth = 3;
+          this.disableRuleType = true;
+          const res = await api.admin_getContest(contestID);
+          this.problem.type = this.reProblem.type = res.data.data.type;
+          this.contest = res.data.data;
+        }
+        this.problem.spjLanguage = "C";
+        await this.init();
+      } catch (e) {
+        this.loadFailed = true;
+      } finally {
+        this.loading = false;
+      }
+    },
     applyRequestedStep() {
       const requestedStep = Number(this.$route.query && this.$route.query.step);
       if (requestedStep !== 2 || this.mode !== "edit") return;
       this.editorStep = 2;
       this.verificationPid = this.$route.params.problemId;
     },
-    nextToDataStep() {
+    validateBasicFields() {
       const required = [
         [this.problem.problemId, this.$i18n.t("m.Problem_Display_ID")],
         [this.problem.title, this.$i18n.t("m.Title")],
@@ -908,107 +947,65 @@ export default {
         [this.problem.output, this.$i18n.t("m.Output")],
       ];
       const missing = required.find(([value]) => !value || !String(value).trim());
-      if (missing) return myMessage.error(missing[1] + " " + this.$i18n.t("m.is_required"));
-      if (!this.problemLanguages.length) return myMessage.error(this.$i18n.t("m.Language") + " " + this.$i18n.t("m.is_required"));
+      if (missing || !this.problemLanguages.length) {
+        this.editorStep = 0;
+        myMessage.error((missing ? missing[1] : this.$i18n.t("m.Language")) + " " + this.$i18n.t("m.is_required"));
+        return false;
+      }
+      return true;
+    },
+    nextToDataStep() {
+      if (!this.validateBasicFields()) return;
       this.editorStep = 1;
       this.$nextTick(() => window.scrollTo(0, 0));
     },
-    init() {
+    async init() {
       this.sampleIndex = 1;
-      if (this.mode === "edit") {
-        this.pid = this.$route.params.problemId;
-        this.backPath = this.$route.query.back;
-        this.title = this.$i18n.t("m.Edit_Problem");
-        let funcName = {
-          "admin-edit-problem": "admin_getProblem",
-          "admin-edit-contest-problem": "admin_getContestProblem",
-        }[this.routeName];
-        api[funcName](this.pid).then((problemRes) => {
-          let data = problemRes.data.data;
-          data.spjCompileOk = false;
-          data.uploadTestcaseDir = "";
-          data.testCaseScore = [];
-          if (!data.spjCode) {
-            data.spjCode = "";
-          }
-          data.spjLanguage = data.spjLanguage || "C";
-          this.spjRecord.spjLanguage = data.spjLanguage;
-          this.spjRecord.spjCode = data.spjCode;
-          this.judgeExtraFileRecord = data.judgeExtraFile || null;
-          this.judgeCaseModeRecord = data.judgeCaseMode;
-          this.problem = data;
-          this.problem["examples"] = utils.stringToExamples(data.examples);
-          if (this.problem["examples"].length > 0) {
-            this.problem["examples"][0]["isOpen"] = true;
-          }
-          this.testCaseUploaded = true;
-          if (this.problem.userExtraFile) {
-            this.addUserExtraFile = true;
-            this.userExtraFile = JSON.parse(this.problem.userExtraFile);
-          }
-          if (this.problem.judgeExtraFile) {
-            this.addJudgeExtraFile = true;
-            this.judgeExtraFile = JSON.parse(this.problem.judgeExtraFile);
-          }
-          api
-            .admin_getProblemCases(this.pid, this.problem.isUploadCase)
-            .then((res) => {
-              if (this.problem.isUploadCase) {
-                this.problem.testCaseScore = res.data.data;
-                this.problem.testCaseScore.forEach((item, index) => {
-                  item.index = index + 1;
-                });
-                if(this.$refs.xTable != undefined){
-                  this.$refs.xTable.sort("groupNum", "asc");
-                }
-              } else {
-                this.problemSamples = res.data.data;
-                if (
-                  this.problemSamples != null &&
-                  this.problemSamples.length > 0
-                ) {
-                  this.problemSamples[0]["isOpen"] = true;
-                  this.problemSamples.forEach((item, index) => {
-                    item.index = index + 1;
-                  });
-                  this.sampleIndex = this.problemSamples.length + 1;
-                }
-              }
-            });
-        });
-        if (funcName === "admin_getContestProblem") {
-          api
-            .admin_getContestProblemInfo(this.pid, this.contestID)
-            .then((res) => {
-              this.contestProblem = res.data.data;
-            });
-        }
-        this.getProblemCodeTemplateAndLanguage();
-
-        api.admin_getProblemTags(this.pid).then((res) => {
-          this.problemTags = res.data.data;
-        });
-      } else {
+      if (this.mode !== "edit") {
         this.addExample();
         this.testCaseUploaded = false;
         this.title = this.$i18n.t("m.Create_Problem");
-        for (let item of this.allLanguage) {
-          this.problemLanguages.push(item.name);
-        }
+        this.problemLanguages = this.allLanguage.map(item => item.name);
+        return;
       }
-    },
-
-    async getProblemCodeTemplateAndLanguage() {
-      const that = this;
-      await api.getProblemCodeTemplate(that.pid).then((res) => {
-        that.problemCodeTemplate = res.data.data;
-      });
-      api.getProblemLanguages(that.pid).then((res) => {
-        let Languages = res.data.data;
-        for (let i = 0; i < Languages.length; i++) {
-          that.problemLanguages.push(Languages[i].name);
-        }
-      });
+      this.pid = this.$route.params.problemId;
+      this.backPath = this.$route.query.back;
+      this.title = this.$i18n.t("m.Edit_Problem");
+      const getProblem = this.contestID ? api.admin_getContestProblem : api.admin_getProblem;
+      const [problemRes, tagsRes, templatesRes, languagesRes, contestInfoRes] = await Promise.all([
+        getProblem(this.pid), api.admin_getProblemTags(this.pid),
+        api.getProblemCodeTemplate(this.pid), api.getProblemLanguages(this.pid),
+        this.contestID ? api.admin_getContestProblemInfo(this.pid, this.contestID) : Promise.resolve(null)
+      ]);
+      const data = problemRes.data.data;
+      const cases = (await api.admin_getProblemCases(this.pid, data.isUploadCase)).data.data || [];
+      data.spjCompileOk = false;
+      data.uploadTestcaseDir = "";
+      data.testCaseScore = data.isUploadCase ? cases : [];
+      data.spjCode = data.spjCode || "";
+      data.spjLanguage = data.spjLanguage || "C";
+      this.spjRecord = { spjCode: data.spjCode, spjLanguage: data.spjLanguage };
+      this.judgeExtraFileRecord = data.judgeExtraFile || null;
+      this.judgeCaseModeRecord = data.judgeCaseMode;
+      data.examples = utils.stringToExamples(data.examples);
+      if (data.examples.length) data.examples[0].isOpen = true;
+      cases.forEach((item, index) => { item.index = index + 1; });
+      if (!data.isUploadCase) {
+        this.problemSamples = cases;
+        if (cases.length) cases[0].isOpen = true;
+        this.sampleIndex = cases.length + 1;
+      }
+      this.problem = data;
+      this.testCaseUploaded = data.isUploadCase && cases.length > 0;
+      this.addUserExtraFile = Boolean(data.userExtraFile);
+      this.userExtraFile = data.userExtraFile ? JSON.parse(data.userExtraFile) : null;
+      this.addJudgeExtraFile = Boolean(data.judgeExtraFile);
+      this.judgeExtraFile = data.judgeExtraFile ? JSON.parse(data.judgeExtraFile) : null;
+      this.problemTags = tagsRes.data.data;
+      this.problemCodeTemplate = templatesRes.data.data;
+      this.problemLanguages = languagesRes.data.data.map(item => item.name);
+      if (contestInfoRes) this.contestProblem = contestInfoRes.data.data;
+      if (data.isUploadCase && this.$refs.xTable) this.$refs.xTable.sort("groupNum", "asc");
     },
 
     switchMode(mode) {
@@ -1284,216 +1281,66 @@ export default {
         return value1 - value2;
       });
     },
-    submit() {
-      if (this.saving) return;
-      if (!this.problem.problemId) {
-        myMessage.error(
-          this.$i18n.t("m.Problem_Display_ID") +
-            " " +
-            this.$i18n.t("m.is_required")
-        );
-        return;
+    async submit(goToVerification = false) {
+      if (this.saving || this.loading || this.loadFailed || (this.$refs.verificationStep && this.$refs.verificationStep.submitting)) return;
+      if (this.refreshRequired) {
+        this.saving = true;
+        try {
+          await this.refreshSavedProblem();
+        } catch (e) {
+          myMessage.error(this.$i18n.t("m.Prob_Saved_Refresh_Failed"));
+          return;
+        } finally { this.saving = false; }
       }
-
+      if (!this.validateBasicFields()) return;
+      const fail = (message, step) => {
+        this.editorStep = step;
+        myMessage.error(message);
+      };
       if (this.contestID) {
-        if (!this.contestProblem.displayId) {
-          myMessage.error(
-            this.$i18n.t("m.Contest_Display_ID") +
-              " " +
-              this.$i18n.t("m.is_required")
-          );
-          return;
-        }
-        if (!this.contestProblem.displayTitle) {
-          myMessage.error(
-            this.$i18n.t("m.Contest_Display_Title") +
-              " " +
-              this.$i18n.t("m.is_required")
-          );
-          return;
-        }
+        if (!this.contestProblem.displayId) return fail(this.$i18n.t("m.Contest_Display_ID") + " " + this.$i18n.t("m.is_required"), 0);
+        if (!this.contestProblem.displayTitle) return fail(this.$i18n.t("m.Contest_Display_Title") + " " + this.$i18n.t("m.is_required"), 0);
       }
-
-      if(this.problem.isFileIO && (!this.problem.ioReadFileName || !this.problem.ioWriteFileName)){
-        myMessage.error(this.$i18n.t("m.When_the_read_write_mode_is_File_IO_the_input_file_name_or_output_file_name_cannot_be_empty"));
-        return;
-      }
-
-      // // 不强制校验题目样例不能为空
-      // if (!this.problem.examples.length && !this.problem.isRemote) {
-      //   myMessage.error(
-      //     this.$i18n.t('m.Problem_Examples') +
-      //       ' ' +
-      //       this.$i18n.t('m.is_required')
-      //   );
-      //   return;
-      // }
-
       if (!this.problem.isRemote) {
-        // 选择手动输入
-        if (!this.problem.isUploadCase) {
-          if (!this.problemSamples.length) {
-            myMessage.error(
-              this.$i18n.t("m.Judge_Samples") +
-                " " +
-                this.$i18n.t("m.is_required")
-            );
-            return;
+        for (const field of ["timeLimit", "memoryLimit", "stackLimit"]) {
+          if (!Number.isInteger(Number(this.problem[field])) || Number(this.problem[field]) <= 0) {
+            return fail(this.$i18n.t("m.Prob_Invalid_Limits"), 0);
           }
-
-          for (let sample of this.problemSamples) {
-            if (!sample.input && !sample.output) {
-              myMessage.error(
-                this.$i18n.t("m.Sample_Input") +
-                  " or " +
-                  this.$i18n.t("m.Sample_Output") +
-                  " " +
-                  this.$i18n.t("m.is_required")
-              );
-              return;
-            }
+        }
+        if (this.problem.isFileIO && (!this.problem.ioReadFileName || !this.problem.ioWriteFileName)) {
+          return fail(this.$i18n.t("m.When_the_read_write_mode_is_File_IO_the_input_file_name_or_output_file_name_cannot_be_empty"), 0);
+        }
+        const samples = this.problem.isUploadCase ? this.problem.testCaseScore : this.problemSamples;
+        if (!samples.length || (this.problem.isUploadCase && !this.testCaseUploaded)) {
+          return fail(this.$i18n.t("m.Judge_Samples") + " " + this.$i18n.t("m.is_required"), 1);
+        }
+        for (let i = 0; i < samples.length; i++) {
+          const sample = samples[i];
+          if (!this.problem.isUploadCase && !sample.input && !sample.output) {
+            return fail(this.$i18n.t("m.Sample_Input") + " / " + this.$i18n.t("m.Sample_Output") + " " + this.$i18n.t("m.is_required"), 1);
           }
-
-          // 同时是oi题目，则对应的每个测试样例的io得分不能为空或小于0
           if (this.problem.type == 1) {
-            for (let i = 0; i < this.problemSamples.length; i++) {
-              if (this.problemSamples[i].score == "") {
-                myMessage.error(
-                  this.$i18n.t("m.Problem_Sample") +
-                    (this.problemSamples[i].index) +
-                    " " +
-                    this.$i18n.t("m.Score_must_be_an_integer")
-                );
-                return;
-              }
-              try {
-                if (parseInt(this.problemSamples[i].score) < 0) {
-                  myMessage.error(
-                    this.$i18n.t("m.Problem_Sample") +
-                      (this.problemSamples[i].index) +
-                      " " +
-                      this.$i18n.t("m.Score_must_be_greater_than_or_equal_to_0")
-                  );
-                  return;
-                }
-              } catch (e) {
-                myMessage.error(this.$i18n.t("m.Score_must_be_an_integer"));
-                return;
-              }
-              if (
-                (this.problem.judgeCaseMode == this.JUDGE_CASE_MODE.SUBTASK_LOWEST 
-                  || this.problem.judgeCaseMode == this.JUDGE_CASE_MODE.SUBTASK_AVERAGE
-                ) && this.problemSamples[i].groupNum == ""
-              ) {
-                myMessage.error(
-                  this.$i18n.t("m.Problem_Sample") +
-                    (this.problemSamples[i].index) +
-                    "：" +
-                    this.$i18n.t(
-                      "m.Non_Default_Judge_Case_Mode_And_Group_Num_IS_NULL"
-                    )
-                );
-                return;
-              }
+            if (sample.score === "" || sample.score == null || !Number.isInteger(Number(sample.score))) {
+              return fail(this.$i18n.t("m.Problem_Sample") + (i + 1) + " " + this.$i18n.t("m.Score_must_be_an_integer"), 1);
             }
-          }
-        } else {
-          // 选择上传文件
-          // 两种情况：create模式是需要校验是否上传成功了，edit模式获取题目数据已经默认为true了，若是edit又重新上传数据，需要校验
-          if (!this.testCaseUploaded) {
-            this.error.testCase =
-              this.$i18n.t("m.Judge_Samples") +
-              " " +
-              this.$i18n.t("m.is_required");
-            myMessage.error(this.error.testCase);
-            return;
-          }
-
-          // 如果是oi题目，需要检查上传的数据的得分
-          if (this.problem.type == 1) {
-            let problemSamples = this.problem.testCaseScore;
-            for (let i = 0; i < problemSamples.length; i++) {
-              if (problemSamples[i].score == "") {
-                myMessage.error(
-                  this.$i18n.t("m.Problem_Sample") +
-                    (i + 1) +
-                    " " +
-                    this.$i18n.t("m.Score_must_be_an_integer")
-                );
-                return;
-              }
-              try {
-                if (parseInt(problemSamples[i].score) < 0) {
-                  myMessage.error(
-                    this.$i18n.t("m.Problem_Sample") +
-                      (i + 1) +
-                      " " +
-                      this.$i18n.t("m.Score_must_be_greater_than_or_equal_to_0")
-                  );
-                  return;
-                }
-              } catch (e) {
-                myMessage.error(this.$i18n.t("m.Score_must_be_an_integer"));
-                return;
-              }
-              if (
-                (this.problem.judgeCaseMode == this.JUDGE_CASE_MODE.SUBTASK_LOWEST 
-                  || this.problem.judgeCaseMode == this.JUDGE_CASE_MODE.SUBTASK_AVERAGE
-                ) && problemSamples[i].groupNum == ""
-              ) {
-                myMessage.error(
-                  this.$i18n.t("m.Problem_Sample") +
-                    (i + 1) +
-                    "：" +
-                    this.$i18n.t(
-                      "m.Non_Default_Judge_Case_Mode_And_Group_Num_IS_NULL"
-                    )
-                );
-                return;
-              }
+            if (Number(sample.score) < 0) return fail(this.$i18n.t("m.Score_must_be_greater_than_or_equal_to_0"), 1);
+            if ([this.JUDGE_CASE_MODE.SUBTASK_LOWEST, this.JUDGE_CASE_MODE.SUBTASK_AVERAGE].includes(this.problem.judgeCaseMode)
+              && (sample.groupNum === "" || sample.groupNum == null)) {
+              return fail(this.$i18n.t("m.Problem_Sample") + (i + 1) + "：" + this.$i18n.t("m.Non_Default_Judge_Case_Mode_And_Group_Num_IS_NULL"), 1);
             }
           }
         }
       }
-      // 运行题目标签为空
-      // if (!this.problemTags.length) {
-      //   this.error.tags =
-      //     this.$i18n.t('m.Tags') + ' ' + this.$i18n.t('m.is_required');
-      //   myMessage.error(this.error.tags);
-      //   return;
-      // }
-      let isChangeModeCode =
+      this.error.spj = "";
+      const isChangeModeCode =
         this.spjRecord.spjLanguage != this.problem.spjLanguage ||
         this.spjRecord.spjCode != this.problem.spjCode ||
         this.judgeExtraFileRecord !=
-          (Object.keys(this.judgeExtraFile || {}).length
-            ? JSON.stringify(this.judgeExtraFile)
-            : null);
-      if (!this.problem.isRemote) {
-        if (this.problem.judgeMode != "default") {
-          if (!this.problem.spjCode) {
-            this.error.spj =
-              this.$i18n.t("m.Spj_Or_Interactive_Code") +
-              " " +
-              this.$i18n.t("m.is_required");
-            myMessage.error(this.error.spj);
-          } else if (!this.problem.spjCompileOk && isChangeModeCode) {
-            this.error.spj = this.$i18n.t(
-              "m.Spj_Or_Interactive_Code_not_Compile_Success"
-            );
-          }
-          if (this.error.spj) {
-            myMessage.error(this.error.spj);
-            return;
-          }
-        }
-      }
-
-      if (!this.problemLanguages.length) {
-        this.error.languages =
-          this.$i18n.t("m.Language") + " " + this.$i18n.t("m.is_required");
-        myMessage.error(this.error.languages);
-        return;
+          (Object.keys(this.judgeExtraFile || {}).length ? JSON.stringify(this.judgeExtraFile) : null);
+      if (!this.problem.isRemote && this.problem.judgeMode != "default") {
+        if (!this.problem.spjCode) this.error.spj = this.$i18n.t("m.Spj_Or_Interactive_Code") + " " + this.$i18n.t("m.is_required");
+        else if (!this.problem.spjCompileOk && isChangeModeCode) this.error.spj = this.$i18n.t("m.Spj_Or_Interactive_Code_not_Compile_Success");
+        if (this.error.spj) return fail(this.error.spj, 0);
       }
 
       let funcName = this.savedPid
@@ -1505,7 +1352,7 @@ export default {
         "admin-edit-contest-problem": "admin_editContestProblem",
       }[this.routeName]);
       // edit contest problem 时, contest_id会被后来的请求覆盖掉
-      if (funcName === "editContestProblem") {
+      if (funcName === "admin_editContestProblem") {
         this.problem.cid = this.contest.id;
       }
       if (
@@ -1543,6 +1390,7 @@ export default {
             if (this.codeTemplate[lang.name].status) {
               if(this.codeTemplate[lang.name].code == null 
                 || this.codeTemplate[lang.name].code.length == 0){
+                  this.editorStep = 0;
                   myMessage.error(
                     lang.name +
                       "：" +
@@ -1570,7 +1418,7 @@ export default {
           }
         } else {
           // 原本是spj或交互，但现在关闭了
-          if (!this.spjRecord.spjCode) {
+          if (this.spjRecord.spjCode) {
             problemDto["changeModeCode"] = true;
             this.problem.spjCode = null;
             this.problem.spjLanguage = null;
@@ -1617,66 +1465,144 @@ export default {
       } else {
         problemDto["changeJudgeCaseMode"] = false;
       }
-      this.needsVerification = !this.problem.isRemote;
+      const sampleRefs = problemDto.samples.slice();
+      problemDto = JSON.parse(JSON.stringify(problemDto));
       this.saving = true;
-
-      api[funcName](problemDto)
-        .then((res) => {
-          const responseData = res.data.data;
+      try {
+          let responseData;
+          if (!this.problem.isRemote) {
+            const request = {
+              problemDTO: problemDto,
+              contestId: this.contestID || null,
+              contestProblem: this.contestID ? this.contestProblem : null,
+            };
+            const res = await api.admin_prepareProblemSave({
+              ...request,
+              pendingId: this.pendingSave ? this.pendingSave.id : null,
+            });
+            responseData = res.data.data;
+            this.pendingSave = responseData.requiresVerification ? {
+              id: responseData.pendingId,
+              pid: responseData.pid,
+            } : null;
+            if (this.pendingSave) {
+              this.verificationPid = this.pendingSave.pid;
+              await this.$nextTick();
+              const status = (await api.admin_getProblemVerification(this.verificationPid)).data.data;
+              if (this.$refs.verificationStep) this.$refs.verificationStep.applyStatus(status);
+              if (!status || !status.verified || goToVerification) {
+                this.editorStep = 2;
+                this.$nextTick(() => window.scrollTo(0, 0));
+                myMessage.warning(this.$i18n.t(status && status.verified
+                  ? "m.Prob_Pending_Ready_To_Save" : "m.Prob_Pending_Needs_Verification"));
+                return;
+              }
+              responseData = (await api.admin_commitProblemSave({ pendingId: this.pendingSave.id })).data.data;
+              this.pendingSave = null;
+            }
+          } else {
+            responseData = (await api[funcName](problemDto)).data.data;
+          }
           const responsePid = responseData && typeof responseData === "object" ? responseData.pid || responseData.id : responseData;
           const savedPid = (typeof responsePid === "number" || typeof responsePid === "string" ? responsePid : null) || this.problem.id || this.pid;
           if (savedPid) {
             this.savedPid = savedPid;
             this.problem.id = savedPid;
             this.pid = savedPid;
+            this.mode = "edit";
+            this.title = this.$i18n.t("m.Edit_Problem");
+            this.refreshRequired = { problemDto, sampleRefs };
+            if (this.problem.uploadTestcaseDir === problemDto.uploadTestcaseDir) this.problem.uploadTestcaseDir = "";
           }
-          if (
+          if (this.problem.isRemote && (
             this.routeName === "admin-create-contest-problem" ||
             this.routeName === "admin-edit-contest-problem"
-          ) {
+          )) {
             if (savedPid) {
               // 新增题目操作 需要使用返回来的pid
               this.contestProblem["pid"] = savedPid;
               this.contestProblem["cid"] = this.$route.params.contestId;
             }
-            return api.admin_setContestProblemInfo(this.contestProblem).then(() => {
-              this.afterSave(this.contestProblem.pid);
-            });
-          } else {
-            this.afterSave(savedPid);
+            await api.admin_setContestProblemInfo(this.contestProblem);
           }
-        })
-        .catch(() => {})
-        .finally(() => { this.saving = false; });
+          await this.afterSave(savedPid, goToVerification);
+      } catch (e) {
+        if (this.refreshRequired) myMessage.error(this.$i18n.t("m.Prob_Saved_Refresh_Failed"));
+      } finally { this.saving = false; }
     },
-    afterSave(pid) {
-      if (this.needsVerification && pid) {
-        this.savedPid = pid;
-        this.pid = pid;
-        this.problem.id = pid;
-        this.verificationPid = pid;
-        this.editorStep = 2;
-        this.$nextTick(() => window.scrollTo(0, 0));
+    async refreshSavedProblem() {
+      const pending = this.refreshRequired;
+      if (!pending) return;
+      const { problemDto, sampleRefs } = pending;
+      const [problemRes, casesRes, tagsRes, templatesRes] = await Promise.all([
+        (this.contestID ? api.admin_getContestProblem(this.pid) : api.admin_getProblem(this.pid)),
+        api.admin_getProblemCases(this.pid, problemDto.isUploadTestCase),
+        api.admin_getProblemTags(this.pid),
+        api.getProblemCodeTemplate(this.pid)
+      ]);
+      const data = problemRes.data.data;
+      Object.keys(data).forEach(key => {
+        if (["examples", "uploadTestcaseDir", "testCaseScore", "spjCompileOk"].includes(key)) return;
+        if (JSON.stringify(this.problem[key]) === JSON.stringify(problemDto.problem[key])) {
+          this.$set(this.problem, key, key === "spjLanguage" ? data[key] || "C" : data[key]);
+        }
+      });
+      this.spjRecord = { spjCode: data.spjCode || "", spjLanguage: data.spjLanguage || "C" };
+      this.judgeExtraFileRecord = data.judgeExtraFile || null;
+      this.judgeCaseModeRecord = data.judgeCaseMode;
+      const cases = casesRes.data.data || [];
+      const remainingCases = cases.slice();
+      problemDto.samples.forEach((sample, index) => {
+        let savedIndex = sample.id ? remainingCases.findIndex(item => item.id === sample.id) : -1;
+        const matchesContent = item => item.input === sample.input
+          && (item.output === sample.output || (problemDto.isUploadTestCase && !sample.output));
+        if (savedIndex === -1) savedIndex = remainingCases.findIndex(item => matchesContent(item)
+          && Number(item.score) === Number(sample.score) && Number(item.groupNum) === Number(sample.groupNum));
+        if (savedIndex === -1) savedIndex = remainingCases.findIndex(matchesContent);
+        if (savedIndex === -1) throw new Error("Saved test case could not be matched");
+        const saved = remainingCases.splice(savedIndex, 1)[0];
+        Object.keys(saved).forEach(key => {
+          if (key === "id" || key === "pid" || JSON.stringify(sampleRefs[index][key]) === JSON.stringify(sample[key])) {
+            this.$set(sampleRefs[index], key, saved[key]);
+          }
+        });
+      });
+      this.problemTags.forEach(tag => {
+        const saved = tagsRes.data.data.find(item => item.name === tag.name);
+        if (saved) this.$set(tag, "id", saved.id);
+      });
+      Object.keys(this.codeTemplate).forEach(language => {
+        const lang = this.allLanguage.find(item => item.name === language);
+        const saved = templatesRes.data.data.find(item => lang && item.lid === lang.id);
+        this.$set(this.codeTemplate[language], "id", saved ? saved.id : null);
+      });
+      this.refreshRequired = null;
+    },
+    async afterSave(pid, goToVerification) {
+      await this.refreshSavedProblem();
+      if (this.problem.isRemote) {
+        myMessage.success(this.$i18n.t("m.Prob_Saved"));
         return;
       }
-      this.finishVerification();
-    },
-    finishVerification() {
-      myMessage.success("success");
-      if (this.routeName === "admin-create-contest-problem" || this.routeName === "admin-edit-contest-problem") {
-        this.$router.push({
-          name: "admin-contest-problem-list",
-          params: { contestId: this.$route.params.contestId },
-        });
-      } else if (this.backPath) {
-        this.$router.push({ path: this.backPath });
-      } else {
-        this.$router.push({ name: "admin-problem-list" });
+      let status;
+      try {
+        status = (await api.admin_getProblemVerification(pid)).data.data;
+      } catch (e) {
+        myMessage.error(this.$i18n.t("m.Prob_Saved_Status_Failed"));
+        return;
       }
+      this.verificationPid = pid;
+      await this.$nextTick();
+      if (this.$refs.verificationStep) this.$refs.verificationStep.applyStatus(status);
+      if (goToVerification) {
+        this.editorStep = 2;
+        this.$nextTick(() => window.scrollTo(0, 0));
+      }
+      myMessage.success(this.$i18n.t("m.Prob_Saved"));
     },
   },
   computed: {
-    ...mapGetters(["userInfo"]),
+    ...mapGetters(["userInfo", "isSuperAdmin", "isProblemAdmin"]),
     selectedTemplateLanguages: {
       get() {
         return Object.keys(this.codeTemplate).filter((key) => this.codeTemplate[key].status);
@@ -1693,6 +1619,7 @@ export default {
 </script>
 
 <style scoped>
+.external-actions { float: right; display: flex; gap: 8px; margin: -4px 0 8px; flex-wrap: wrap; }
 /* 页面整体 */
 .problem {
   padding: 20px;

@@ -1417,7 +1417,10 @@ export default {
         // 调试日志：打印要发送的附件数据
 
         // 检查是否有答案
-        if (Object.keys(answersData).length === 0) {
+        if (Object.keys(answersData).length === 0 && !this.homework.questions.some(item => {
+          const key = this.getProgrammingStatusKey(item)
+          return item.problemId && key && this.programmingStatus[key] === 'submitted'
+        })) {
           this.$message.warning(this.$t('m.SHD_Answer_At_Least_One'))
           return
         }
@@ -1732,10 +1735,7 @@ export default {
 
               // 检查是否有评测结果
               const hasCompleted = judgeResult &&
-                                   judgeResult !== '' &&
-                                   judgeResult !== 'Pending' &&
-                                   judgeResult !== 'Judging' &&
-                                   judgeResult !== 'Submitting'
+                !['PENDING', 'JUDGING', 'SUBMITTING', 'COMPILING'].includes(String(judgeResult).toUpperCase())
 
               if (hasCompleted) {
                 // 评测完成，更新状态

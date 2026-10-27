@@ -88,108 +88,110 @@
             <p>Creator: {{ row.author }}</p>
           </template>
         </vxe-table-column>
-        <vxe-table-column min-width="150" :title="$t('m.Option')">
+        <vxe-table-column width="210" :title="$t('m.Option')">
           <template v-slot="{ row }">
-            <template v-if="isSuperAdmin || userInfo.uid == row.uid">
-              <div style="margin-bottom:10px">
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.Edit')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-edit"
-                    size="mini"
-                    @click.native="goEdit(row.id)"
-                    type="primary"
-                  >
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.View_Contest_Problem_List')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-tickets"
-                    size="mini"
-                    @click.native="goContestProblemList(row.id)"
-                    type="success"
-                  >
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.View_Registration_Info')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-user"
-                    size="mini"
-                    @click.native="goContestRegistrationList(row.id)"
-                    type="warning"
-                  ></el-button>
-                </el-tooltip>
-              </div>
-              <div style="margin-bottom:10px">
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.View_Contest_Announcement_List')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-info"
-                    size="mini"
-                    @click.native="goContestAnnouncement(row.id)"
-                    type="info"
-                  >
-                  </el-button>
-                </el-tooltip>
-
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.Download_Contest_AC_Submission')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-download"
-                    size="mini"
-                    @click.native="openDownloadOptions(row.id)"
-                    type="warning"
-                  >
-                  </el-button>
-                </el-tooltip>
-              </div>
-              <div style="margin-bottom:10px" v-if="!row.isRating">
-                <el-tooltip
-                  effect="dark"
-                  :content="$t('m.ContestAdm_Set_Rating')"
-                  placement="top"
-                >
-                  <el-button
-                    icon="el-icon-star-on"
-                    size="mini"
-                    @click.native="openSetRatingDialog(row)"
-                    type="warning"
-                  >
-                  </el-button>
-                </el-tooltip>
-              </div>
-            </template>
-            <el-tooltip
-              effect="dark"
-              :content="$t('m.Delete')"
-              placement="top"
-              v-if="isSuperAdmin"
-            >
-              <el-button
-                icon="el-icon-delete"
-                size="mini"
-                @click.native="deleteContest(row.id)"
-                type="danger"
+            <div v-if="isSuperAdmin || userInfo.uid == row.uid" class="contest-actions">
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.Edit')"
+                placement="top"
               >
-              </el-button>
-            </el-tooltip>
+                <el-button
+                  icon="el-icon-edit"
+                  :aria-label="$t('m.Edit')"
+                  size="mini"
+                  @click.native="goEdit(row.id)"
+                  type="primary"
+                >
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.View_Contest_Problem_List')"
+                placement="top"
+              >
+                <el-button
+                  icon="el-icon-tickets"
+                  :aria-label="$t('m.View_Contest_Problem_List')"
+                  size="mini"
+                  @click.native="goContestProblemList(row.id)"
+                  type="success"
+                >
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.View_Registration_Info')"
+                placement="top"
+              >
+                <el-button
+                  icon="el-icon-user"
+                  :aria-label="$t('m.View_Registration_Info')"
+                  size="mini"
+                  @click.native="goContestRegistrationList(row.id)"
+                  type="warning"
+                ></el-button>
+              </el-tooltip>
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.View_Contest_Announcement_List')"
+                placement="top"
+              >
+                <el-button
+                  icon="el-icon-info"
+                  :aria-label="$t('m.View_Contest_Announcement_List')"
+                  size="mini"
+                  @click.native="goContestAnnouncement(row.id)"
+                  type="info"
+                >
+                </el-button>
+              </el-tooltip>
+
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.Download_Contest_AC_Submission')"
+                placement="top"
+              >
+                <el-button
+                  icon="el-icon-download"
+                  :aria-label="$t('m.Download_Contest_AC_Submission')"
+                  size="mini"
+                  @click.native="openDownloadOptions(row.id)"
+                  type="warning"
+                >
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                v-if="!row.isRating"
+                effect="dark"
+                :content="$t('m.ContestAdm_Set_Rating')"
+                placement="top"
+              >
+                <el-button
+                  icon="el-icon-star-on"
+                  :aria-label="$t('m.ContestAdm_Set_Rating')"
+                  size="mini"
+                  @click.native="openSetRatingDialog(row)"
+                  type="warning"
+                >
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                effect="dark"
+                :content="$t('m.Delete')"
+                placement="top"
+                v-if="isSuperAdmin"
+              >
+                <el-button
+                  icon="el-icon-delete"
+                  :aria-label="$t('m.Delete')"
+                  size="mini"
+                  @click.native="deleteContest(row.id)"
+                  type="danger"
+                >
+                </el-button>
+              </el-tooltip>
+            </div>
           </template>
         </vxe-table-column>
       </vxe-table>
@@ -503,6 +505,21 @@ export default {
 };
 </script>
 <style scoped>
+.contest-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 168px;
+  gap: 8px;
+  vertical-align: middle;
+}
+.contest-actions > .el-button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+}
 .filter-row {
   margin-top: 10px;
 }

@@ -28,6 +28,7 @@ import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
 import top.hcode.hoj.service.problem.ProblemVerificationLifecycle;
 import top.hcode.hoj.service.problem.ProblemVerificationChangeDetector;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.validator.ProblemValidator;
@@ -70,6 +71,9 @@ public class AdminProblemManager {
     @Autowired
     private ProblemVerificationLifecycle verificationLifecycle;
 
+    @Resource
+    private ProblemPendingSaveGuard pendingSaveGuard;
+
     public IPage<Problem> getProblemList(Integer limit, Integer currentPage, String keyword, Integer auth, String oj) {
         if (currentPage == null || currentPage < 1) currentPage = 1;
         if (limit == null || limit < 1) limit = 10;
@@ -78,6 +82,8 @@ public class AdminProblemManager {
 
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("is_group", false)
+                .apply("NOT EXISTS (SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = problem.id "
+                        + "AND (ps.published_pid IS NULL OR ps.published_pid <> ps.candidate_pid))")
                 .orderByDesc("id");
 
         // 根据oj筛选过滤
@@ -143,6 +149,9 @@ public class AdminProblemManager {
     public Long addProblem(ProblemDTO problemDto) throws StatusFailException {
 
         problemValidator.validateProblem(problemDto.getProblem());
+        if (pendingSaveGuard.requiresVerification(problemDto, null)) {
+            throw new StatusFailException("新题目需先提交标准程序验题，通过后才能保存");
+        }
 
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemDto.getProblem().getProblemId().toUpperCase());
@@ -163,18 +172,24 @@ public class AdminProblemManager {
 
         problemValidator.validateProblemUpdate(problemDto.getProblem());
 
+        Problem oldProblem = problemEntityService.getOne(new QueryWrapper<Problem>()
+                .eq("id", problemDto.getProblem().getId()).last("FOR UPDATE"), false);
+        if (oldProblem == null) throw new StatusFailException("题目不存在");
+        pendingSaveGuard.requireFormal(oldProblem.getId());
         // 获取当前登录的用户
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
         boolean isProblemAdmin = SecurityUtils.getSubject().hasRole("problem_admin");
         // 只有超级管理员和题目管理员、题目创建者才能操作
-        if (!isRoot && !isProblemAdmin && !userRolesVo.getUsername().equals(problemDto.getProblem().getAuthor())) {
+        if (!isRoot && !isProblemAdmin && !userRolesVo.getUsername().equals(oldProblem.getAuthor())) {
             throw new StatusForbiddenException("对不起，你无权限修改题目！");
         }
 
         String problemId = problemDto.getProblem().getProblemId().toUpperCase();
-        Problem oldProblem = problemEntityService.getById(problemDto.getProblem().getId());
+        if (pendingSaveGuard.requiresVerification(problemDto, oldProblem)) {
+            throw new StatusFailException("当前改动需要重新验题，请先验证临时版本，通过后才能保存");
+        }
         QueryWrapper<Problem> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("problem_id", problemId);
         Problem problem = problemEntityService.getOne(queryWrapper);
@@ -262,6 +277,7 @@ public class AdminProblemManager {
     }
 
     public void changeProblemAuth(Problem problem) throws StatusFailException, StatusForbiddenException {
+        pendingSaveGuard.requireFormal(problem.getId());
         // 普通管理员只能将题目变成隐藏题目和比赛题目
         boolean root = SecurityUtils.getSubject().hasRole("root");
 

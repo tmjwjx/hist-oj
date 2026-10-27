@@ -1978,16 +1978,6 @@ export default {
 
           // 关键数据填充完成，隐藏 loading
           this.loadingData = false
-
-          // 异步加载编程题详情（不阻塞界面）
-          const programmingProblemIds = homework.questions
-            .filter(q => q.problemId)
-            .map(q => q.problemId)
-
-          if (programmingProblemIds.length > 0) {
-            // 不使用 await，让加载在后台进行，完成后会自动更新界面
-            this.loadProgrammingProblemByIds(programmingProblemIds)
-          }
         }
       } catch (error) {
         console.error('加载作业数据失败:', error)

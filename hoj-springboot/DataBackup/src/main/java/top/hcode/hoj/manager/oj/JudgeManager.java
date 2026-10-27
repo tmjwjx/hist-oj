@@ -23,8 +23,13 @@ import top.hcode.hoj.dao.contest.ContestRecordEntityService;
 import top.hcode.hoj.dao.judge.JudgeCaseEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.user.UserAcproblemEntityService;
 import top.hcode.hoj.exception.AccessException;
+import top.hcode.hoj.manager.classroom.ClassroomAccessManager;
+import top.hcode.hoj.manager.classroom.HomeworkManager;
+import top.hcode.hoj.mapper.classroom.ClassroomHomeworkMapper;
+import top.hcode.hoj.pojo.entity.classroom.ClassroomHomework;
 import top.hcode.hoj.judge.remote.RemoteJudgeDispatcher;
 import top.hcode.hoj.judge.self.JudgeDispatcher;
 import top.hcode.hoj.pojo.dto.*;
@@ -66,6 +71,9 @@ public class JudgeManager {
     private ProblemEntityService problemEntityService;
 
     @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
+
+    @Autowired
     private ContestEntityService contestEntityService;
 
     @Autowired
@@ -101,6 +109,15 @@ public class JudgeManager {
     @Autowired
     private NacosSwitchConfig nacosSwitchConfig;
 
+    @Autowired
+    private HomeworkManager homeworkManager;
+
+    @Autowired
+    private ClassroomHomeworkMapper classroomHomeworkMapper;
+
+    @Autowired
+    private ClassroomAccessManager classroomAccessManager;
+
     /**
      * @MethodName submitProblemJudge
      * @Description 核心方法 判题通过openfeign调用判题系统服务
@@ -115,6 +132,12 @@ public class JudgeManager {
 
         boolean isContestSubmission = judgeDto.getCid() != null && judgeDto.getCid() != 0;
         boolean isTrainingSubmission = judgeDto.getTid() != null && judgeDto.getTid() != 0;
+        if (judgeDto.getHomeworkId() != null) {
+            if (isContestSubmission || isTrainingSubmission || judgeDto.getGid() != null) {
+                throw new StatusFailException("课堂作业提交不能同时属于比赛、训练或团队！");
+            }
+            homeworkManager.checkProgrammingSubmission(judgeDto.getHomeworkId(), judgeDto.getPid());
+        }
 
         SwitchConfig switchConfig = nacosSwitchConfig.getSwitchConfig();
         if (!isContestSubmission && switchConfig.getDefaultSubmitInterval() > 0) { // 非比赛提交有限制限制
@@ -131,6 +154,7 @@ public class JudgeManager {
                 .setCode(judgeDto.getCode())
                 .setCid(judgeDto.getCid())
                 .setGid(judgeDto.getGid())
+                .setHomeworkId(judgeDto.getHomeworkId())
                 .setLanguage(judgeDto.getLanguage())
                 .setLength(judgeDto.getCode().length())
                 .setUid(userRolesVo.getUid())
@@ -148,9 +172,10 @@ public class JudgeManager {
             beforeDispatchInitManager.initContestSubmission(judgeDto.getCid(), judgeDto.getPid(), userRolesVo, judge);
         } else if (isTrainingSubmission) {
             beforeDispatchInitManager.initTrainingSubmission(judgeDto.getTid(), judgeDto.getPid(), userRolesVo, judge);
+        } else if (judgeDto.getHomeworkId() != null) {
+            beforeDispatchInitManager.initClassroomSubmission(judgeDto.getPid(), judgeDto.getGid(), judge);
         } else { // 如果不是比赛提交和训练提交
             beforeDispatchInitManager.initCommonSubmission(judgeDto.getPid(), judgeDto.getGid(), judge);
-
         }
 
         // 将提交加入任务队列
@@ -195,6 +220,7 @@ public class JudgeManager {
     public String submitProblemTestJudge(TestJudgeDTO testJudgeDto) throws AccessException,
             StatusFailException, StatusForbiddenException, StatusSystemErrorException {
         judgeValidator.validateTestJudgeInfo(testJudgeDto);
+        pendingSaveGuard.requireFormal(testJudgeDto.getPid());
         // 需要获取一下该token对应用户的数据
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
@@ -269,7 +295,7 @@ public class JudgeManager {
     public Judge resubmit(Long submitId) throws StatusNotFoundException, StatusForbiddenException {
 
         Judge judge = judgeEntityService.getById(submitId);
-        if (judge == null) {
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
             throw new StatusNotFoundException("此提交数据不存在！");
         }
 
@@ -277,6 +303,13 @@ public class JudgeManager {
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
         if (!Objects.equals(judge.getUid(), userRolesVo.getUid())){
             throw new StatusForbiddenException("非提交该评测的用户不可操作！");
+        }
+        if (judge.getHomeworkId() != null) {
+            try {
+                homeworkManager.checkProgrammingSubmission(judge.getHomeworkId(), judge.getDisplayPid());
+            } catch (StatusFailException e) {
+                throw new StatusForbiddenException(e.getMessage());
+            }
         }
 
         QueryWrapper<Problem> problemQueryWrapper = new QueryWrapper<>();
@@ -357,7 +390,7 @@ public class JudgeManager {
     public SubmissionInfoVO getSubmission(Long submitId) throws StatusNotFoundException, StatusAccessDeniedException {
 
         Judge judge = judgeEntityService.getById(submitId);
-        if (judge == null) {
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
             throw new StatusNotFoundException("此提交数据不存在！");
         }
 
@@ -377,7 +410,12 @@ public class JudgeManager {
 
         SubmissionInfoVO submissionInfoVo = new SubmissionInfoVO();
 
-        if (judge.getCid() != 0) {
+        if (judge.getHomeworkId() != null) {
+            if (!canViewClassroomSubmission(judge)) {
+                throw new StatusAccessDeniedException("仅提交者、班级教师和管理员可查看课堂作业提交！");
+            }
+            judge.setShare(false);
+        } else if (judge.getCid() != 0) {
             if (userRolesVo == null) {
                 throw new StatusAccessDeniedException("请先登录！");
             }
@@ -452,7 +490,7 @@ public class JudgeManager {
         }
         decorateJudgeStatus(judge);
         submissionInfoVo.setSubmission(judge);
-        submissionInfoVo.setCodeShare(problem.getCodeShare());
+        submissionInfoVo.setCodeShare(judge.getHomeworkId() == null && Boolean.TRUE.equals(problem.getCodeShare()));
 
         return submissionInfoVo;
 
@@ -470,10 +508,19 @@ public class JudgeManager {
         }
 
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
-        judgeQueryWrapper.select("submit_id", "cid", "uid")
+        judgeQueryWrapper.select("submit_id", "cid", "uid", "homework_id", "submission_type")
                 .eq("submit_id", judge.getSubmitId());
 
         Judge judgeInfo = judgeEntityService.getOne(judgeQueryWrapper);
+        if (judgeInfo == null) {
+            throw new StatusFailException("此提交数据不存在！");
+        }
+        if (ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judgeInfo.getSubmissionType())) {
+            throw new StatusForbiddenException("外部验题提交不可通过普通提交入口操作！");
+        }
+        if (judgeInfo.getHomeworkId() != null) {
+            throw new StatusForbiddenException("课堂作业提交不可公开分享！");
+        }
 
         // 需要获取一下该token对应用户的数据
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
@@ -561,6 +608,10 @@ public class JudgeManager {
         List<Judge> judgeList = judgeEntityService.list(queryWrapper);
         HashMap<Long, Object> result = new HashMap<>();
         for (Judge judge : judgeList) {
+            if (ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())
+                    || !canViewClassroomSubmission(judge)) {
+                continue;
+            }
             judge.setCode(null);
             judge.setErrorMessage(null);
             judge.setVjudgeUsername(null);
@@ -607,6 +658,9 @@ public class JudgeManager {
         List<Judge> judgeList = judgeEntityService.list(queryWrapper);
         HashMap<Long, Object> result = new HashMap<>();
         for (Judge judge : judgeList) {
+            if (ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
+                continue;
+            }
             judge.setCode(null);
             judge.setDisplayPid(null);
             judge.setErrorMessage(null);
@@ -635,8 +689,11 @@ public class JudgeManager {
 
         Judge judge = judgeEntityService.getById(submitId);
 
-        if (judge == null) {
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
             throw new StatusNotFoundException("此提交数据不存在！");
+        }
+        if (!canViewClassroomSubmission(judge)) {
+            throw new StatusForbiddenException("仅提交者、班级教师和管理员可查看课堂作业测试点！");
         }
 
         Problem problem = problemEntityService.getById(judge.getPid());
@@ -714,6 +771,29 @@ public class JudgeManager {
             judgeCaseVo.setJudgeCaseMode(Constants.JudgeCaseMode.DEFAULT.getMode());
         }
         return judgeCaseVo;
+    }
+
+    private boolean canViewClassroomSubmission(Judge judge) {
+        if (judge.getHomeworkId() == null) {
+            return true;
+        }
+        AccountProfile profile = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
+        if (profile == null) {
+            return false;
+        }
+        if (Objects.equals(judge.getUid(), profile.getUid()) || classroomAccessManager.isAdmin()) {
+            return true;
+        }
+        ClassroomHomework homework = classroomHomeworkMapper.selectById(judge.getHomeworkId());
+        if (homework == null) {
+            return false;
+        }
+        try {
+            return classroomAccessManager.canManage(
+                    classroomAccessManager.requireClassroom(homework.getClassroomId()), profile.getUid());
+        } catch (StatusNotFoundException e) {
+            return false;
+        }
     }
 
     private void decorateJudgeStatus(Judge judge) {

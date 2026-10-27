@@ -2,6 +2,10 @@ package top.hcode.hoj.manager.admin.problem;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import top.hcode.hoj.dao.judge.JudgeCaseEntityService;
+import top.hcode.hoj.pojo.entity.judge.JudgeCase;
 import org.apache.shiro.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -51,6 +55,9 @@ public class ProblemVerificationManager {
 
     @Autowired
     private JudgeDispatcher judgeDispatcher;
+
+    @Autowired
+    private JudgeCaseEntityService judgeCaseEntityService;
 
     @Autowired
     private ContestProblemEntityService contestProblemEntityService;
@@ -137,6 +144,70 @@ public class ProblemVerificationManager {
         return submitInternal(problem, dto, submissionType, uid, username, record);
     }
 
+    /** Auxiliary programs use the full judge without replacing the authoritative standard. */
+    Long submitComparisonForAi(ProblemVerificationSubmitDTO dto, String uid, String username)
+            throws StatusFailException {
+        if (dto == null || dto.getPid() == null || StringUtils.isEmpty(dto.getLanguage())
+                || StringUtils.isEmpty(dto.getCode()) || dto.getCode().length() > 65535
+                || StringUtils.isEmpty(uid) || StringUtils.isEmpty(username)) {
+            throw new StatusFailException("比较验题的题目、用户、语言和标准程序无效");
+        }
+        Problem problem = requireProblem(dto.getPid());
+        ProblemVerification record = find(dto.getPid());
+        if (record == null || !Objects.equals(record.getCaseVersion(), problem.getCaseVersion())
+                || !Objects.equals(record.getSyncStatus(), ProblemVerificationConstants.SYNC_SUCCESS)) {
+            throw new StatusFailException("题目测试数据尚未同步，请先重新保存题目");
+        }
+        return submitInternal(problem, dto, ProblemVerificationConstants.AI_COMPARISON, uid, username, null);
+    }
+
+    JSONObject comparisonResult(Long pid, Long submitId) throws StatusFailException {
+        Problem problem = requireProblem(pid);
+        Judge judge = judgeEntityService.getById(submitId);
+        if (judge == null || !Objects.equals(judge.getPid(), pid)
+                || !Boolean.TRUE.equals(judge.getIsProblemVerification())) {
+            throw new StatusFailException("验题提交不存在或不属于当前题目");
+        }
+        List<JudgeCase> rows = judgeCaseEntityService.list(new QueryWrapper<JudgeCase>()
+                .eq("submit_id", submitId).orderByAsc("seq"));
+        int expected = problemCaseEntityService.count(new QueryWrapper<top.hcode.hoj.pojo.entity.problem.ProblemCase>()
+                .eq("pid", pid).eq("status", 0));
+        java.util.regex.Matcher samples = java.util.regex.Pattern.compile(
+                "<input>([\\s\\S]*?)</input>\\s*<output>([\\s\\S]*?)</output>")
+                .matcher(problem.getExamples() == null ? "" : problem.getExamples());
+        while (!"interactive".equals(problem.getJudgeMode()) && samples.find()) expected++;
+        java.util.Map<Integer, JudgeCase> bySequence = new java.util.HashMap<>();
+        for (JudgeCase row : rows) if (row.getSeq() != null && row.getSeq() > 0) {
+            bySequence.put(row.getSeq(), row);
+            expected = Math.max(expected, row.getSeq());
+        }
+        JSONArray cases = new JSONArray();
+        int passed = 0, failed = 0, pending = 0;
+        for (int index = 1; index <= expected; index++) {
+            JudgeCase row = bySequence.get(index);
+            Integer status = row == null ? null : row.getStatus();
+            boolean notRun = status == null || status == -10 || status == 15
+                    || ProblemVerificationConstants.isJudgeRunning(status);
+            if (Objects.equals(status, Constants.Judge.STATUS_ACCEPTED.getStatus())) passed++;
+            else if (notRun) pending++;
+            else failed++;
+            String statusText = "NOT_RUN";
+            if (!notRun) for (Constants.Judge value : Constants.Judge.values()) {
+                if (Objects.equals(value.getStatus(), status)) { statusText = value.getName(); break; }
+            }
+            cases.add(new JSONObject().set("index", index).set("caseId", row == null ? null : row.getCaseId())
+                    .set("judgeStatus", status).set("status", statusText)
+                    .set("timeMs", row == null ? null : row.getTime())
+                    .set("memoryKb", row == null ? null : row.getMemory())
+                    .set("stderr", row == null ? "" : StringUtils.hasText(row.getStderr()) ? row.getStderr() : row.getUserOutput()));
+        }
+        return new JSONObject().set("submitId", submitId).set("judgeStatus", judge.getStatus())
+                .set("status", expected > 0 && passed == expected && Objects.equals(judge.getStatus(), 0)
+                        ? "SUCCESS" : "FAILED")
+                .set("totalCases", expected).set("passedCases", passed).set("failedCases", failed)
+                .set("pendingCases", pending).set("caseResults", cases).set("errorMessage", judge.getErrorMessage());
+    }
+
     private Long submitInternal(Problem problem, ProblemVerificationSubmitDTO dto,
                                 String submissionType, String uid, String username,
                                 ProblemVerification record) throws StatusFailException {
@@ -147,9 +218,11 @@ public class ProblemVerificationManager {
                 .setStatus(Constants.Judge.STATUS_PENDING.getStatus()).setSubmitTime(new Date()).setVersion(0);
         judgeEntityService.save(judge);
 
-        record.setSubmitId(judge.getSubmitId()).setVerifiedUid(uid)
-                .setVerificationStatus(ProblemVerificationConstants.JUDGING);
-        verificationService.updateById(record);
+        if (record != null) {
+            record.setSubmitId(judge.getSubmitId()).setVerifiedUid(uid)
+                    .setVerificationStatus(ProblemVerificationConstants.JUDGING);
+            verificationService.updateById(record);
+        }
         judgeDispatcher.sendTask(judge.getSubmitId(), problem.getId(), false);
         return judge.getSubmitId();
     }
@@ -171,7 +244,7 @@ public class ProblemVerificationManager {
             Judge judge = judgeEntityService.getById(submitId);
             if (judge != null && !ProblemVerificationConstants.isJudgeRunning(judge.getStatus())) {
                 ProblemVerification record = find(pid);
-                if (record != null) refreshJudgeStatus(record);
+                if (record != null && Objects.equals(record.getSubmitId(), submitId)) refreshJudgeStatus(record);
                 return;
             }
             if (System.currentTimeMillis() >= deadline) {
@@ -249,10 +322,13 @@ public class ProblemVerificationManager {
             return;
         }
         if (Objects.equals(judge.getStatus(), Constants.Judge.STATUS_ACCEPTED.getStatus())) {
+            Problem problem = problemEntityService.getById(record.getPid());
+            boolean interactive = problem != null && "interactive".equals(problem.getJudgeMode());
             record.setVerificationStatus(ProblemVerificationConstants.PASSED)
                     .setSubmitId(judge.getSubmitId())
-                    .setSampleVerified(true)
-                    .setSyncMessage("标准程序已通过正式判题，样例也随同测试点完成校验");
+                    .setSampleVerified(!interactive)
+                    .setSyncMessage(interactive ? "交互客户端已通过全部隐藏测试点；题面会话样例仅作协议推演，未作为隐藏输入执行"
+                            : "标准程序已通过正式判题，样例也随同测试点完成校验");
         } else {
             JudgeProgressService.Progress progress = judgeProgressService.resolve(
                     judge.getSubmitId(), judge.getStatus(), judge.getErrorMessage());
@@ -299,11 +375,25 @@ public class ProblemVerificationManager {
             throws StatusFailException, StatusForbiddenException {
         Problem problem = requireProblem(pid);
         checkOperator(problem);
-        Judge judge = judgeEntityService.getOne(new QueryWrapper<Judge>()
-                .select("submit_id", "language", "code")
-                .eq("pid", pid).eq("is_problem_verification", true)
-                .eq("status", Constants.Judge.STATUS_ACCEPTED.getStatus())
-                .orderByDesc("submit_id").last("LIMIT 1"), false);
+        ProblemVerification verification = find(pid);
+        Judge judge = verification != null && verification.getSubmitId() != null
+                && Objects.equals(verification.getCaseVersion(), problem.getCaseVersion())
+                ? judgeEntityService.getById(verification.getSubmitId()) : null;
+        if (judge == null || !Objects.equals(judge.getPid(), pid)
+                || !Boolean.TRUE.equals(judge.getIsProblemVerification())
+                || !Objects.equals(judge.getStatus(), Constants.Judge.STATUS_ACCEPTED.getStatus())
+                || (judge.getSubmissionType() != null
+                && !ProblemVerificationConstants.CREATOR_VALIDATION.equals(judge.getSubmissionType())
+                && !ProblemVerificationConstants.AI_VALIDATION.equals(judge.getSubmissionType()))) {
+            judge = judgeEntityService.getOne(new QueryWrapper<Judge>()
+                    .select("submit_id", "language", "code")
+                    .eq("pid", pid).eq("is_problem_verification", true)
+                    .eq("status", Constants.Judge.STATUS_ACCEPTED.getStatus())
+                    .and(query -> query.isNull("submission_type")
+                            .or().in("submission_type", ProblemVerificationConstants.CREATOR_VALIDATION,
+                                    ProblemVerificationConstants.AI_VALIDATION))
+                    .orderByDesc("submit_id").last("LIMIT 1"), false);
+        }
         LastAcceptedCodeVO result = new LastAcceptedCodeVO();
         if (judge != null) {
             result.setSubmitId(judge.getSubmitId());

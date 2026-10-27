@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import top.hcode.hoj.common.result.CommonResult;
+import top.hcode.hoj.dao.judge.JudgeEntityService;
+import top.hcode.hoj.utils.ProblemVerificationConstants;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.service.admin.rejudge.RejudgeService;
 
@@ -27,11 +29,18 @@ public class AdminJudgeController {
     @Resource
     private RejudgeService rejudgeService;
 
+    @Resource
+    private JudgeEntityService judgeEntityService;
+
     @GetMapping("/rejudge")
     @RequiresAuthentication
     @RequiresRoles("root")  // 只有超级管理员能操作
     @RequiresPermissions("rejudge")
     public CommonResult<Judge> rejudge(@RequestParam("submitId") Long submitId) {
+        Judge judge = judgeEntityService.getById(submitId);
+        if (judge == null || ProblemVerificationConstants.EXTERNAL_VERIFICATION.equals(judge.getSubmissionType())) {
+            return CommonResult.errorResponse("此提交数据不存在！");
+        }
         return rejudgeService.rejudge(submitId);
     }
 

@@ -1,6 +1,7 @@
 package top.hcode.hoj.service.problem;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -22,11 +23,11 @@ public class ProblemVerificationLifecycle {
         ProblemVerification record = find(pid);
         if (sameSyncedVersion(record, version)) {
             resetVerification(record, judgeMode, "测试数据已导入，无需重复同步");
-            verificationService.updateById(record);
+            persist(record);
             return;
         }
         record = prepare(record, pid, version, judgeMode, "正在准备判题测试数据");
-        verificationService.saveOrUpdate(record);
+        persist(record);
         try {
             int count = syncManager.sync(pid, version);
             record.setSyncStatus(ProblemVerificationConstants.SYNC_SUCCESS)
@@ -35,13 +36,13 @@ public class ProblemVerificationLifecycle {
             record.setSyncStatus(ProblemVerificationConstants.SYNC_FAILED)
                     .setSyncMessage(message(e));
         }
-        verificationService.updateById(record);
+        persist(record);
     }
 
     /** 仅刷新 info 元数据；测试文件本身不重复传输。 */
     public void markTestCaseMetadataChanged(Long pid, String version, String judgeMode) {
         ProblemVerification record = prepare(find(pid), pid, version, judgeMode, "正在更新判题配置");
-        verificationService.saveOrUpdate(record);
+        persist(record);
         try {
             int count = syncManager.syncInfo(pid, version);
             record.setSyncStatus(ProblemVerificationConstants.SYNC_SUCCESS)
@@ -56,10 +57,10 @@ public class ProblemVerificationLifecycle {
                         .setSyncMessage(message(fullSyncError));
             }
         }
-        verificationService.updateById(record);
+        persist(record);
     }
 
-    /** 题面、时限等变化只要求重新验题，不传输已同步的测试包。 */
+    /** 样例输入输出、时限等变化只要求重新验题，不传输已同步的测试包。 */
     public void markVerificationChanged(Long pid, String version, String judgeMode) {
         ProblemVerification record = find(pid);
         if (!sameSyncedVersion(record, version)) {
@@ -67,7 +68,18 @@ public class ProblemVerificationLifecycle {
             return;
         }
         resetVerification(record, judgeMode, "测试数据未变化，无需重复同步；请重新提交标准程序验题");
-        verificationService.updateById(record);
+        persist(record);
+    }
+
+    private void persist(ProblemVerification record) {
+        if (record.getId() == null) {
+            verificationService.save(record);
+        } else {
+            // updateById 默认忽略 null，必须明确清除上个版本的提交与验证人。
+            verificationService.update(record, new UpdateWrapper<ProblemVerification>()
+                    .eq("id", record.getId())
+                    .set("submit_id", record.getSubmitId()).set("verified_uid", record.getVerifiedUid()));
+        }
     }
 
     private ProblemVerification find(Long pid) {

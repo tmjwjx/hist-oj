@@ -1,13 +1,17 @@
 package top.hcode.hoj.pojo.entity.problem;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 @Data
+@ToString(exclude = {"apiKey", "modelsJson", "models"})
 @Accessors(chain = true)
 @TableName("problem_ai_config")
 public class ProblemAiConfig implements Serializable {
@@ -17,6 +21,12 @@ public class ProblemAiConfig implements Serializable {
     private String apiUrl;
     private String apiKey;
     private String model;
+    @TableField(exist = false)
+    private String protocol;
+    @JsonIgnore
+    private String modelsJson;
+    @TableField(exist = false)
+    private List<ProblemAiModelConfig> models;
     private Integer timeoutSeconds;
     private String systemPrompt;
     private String validationPrompt;

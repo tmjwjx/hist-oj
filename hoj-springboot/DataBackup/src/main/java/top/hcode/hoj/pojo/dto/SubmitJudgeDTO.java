@@ -29,6 +29,8 @@ public class SubmitJudgeDTO {
 
     private Long gid;
 
+    private Long homeworkId;
+
     private Boolean isRemote;
 
 }

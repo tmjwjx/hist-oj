@@ -18,6 +18,7 @@ import top.hcode.hoj.dao.group.GroupProblemEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemCaseEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.problem.TagEntityService;
 import top.hcode.hoj.judge.Dispatcher;
 import top.hcode.hoj.pojo.dto.CompileDTO;
@@ -56,6 +57,9 @@ public class GroupProblemManager {
 
     @Autowired
     private ProblemEntityService problemEntityService;
+
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Autowired
     private JudgeEntityService judgeEntityService;
@@ -129,6 +133,7 @@ public class GroupProblemManager {
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {
@@ -221,6 +226,7 @@ public class GroupProblemManager {
 
         Long pid = problemDto.getProblem().getId();
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {
@@ -302,6 +308,7 @@ public class GroupProblemManager {
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {
@@ -339,6 +346,7 @@ public class GroupProblemManager {
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {
@@ -446,6 +454,7 @@ public class GroupProblemManager {
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {
@@ -485,6 +494,7 @@ public class GroupProblemManager {
 
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
 
+        pendingSaveGuard.requireFormal(pid);
         Problem problem = problemEntityService.getById(pid);
 
         if (problem == null) {

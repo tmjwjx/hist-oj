@@ -1,9 +1,23 @@
 import { USER_TYPE } from '@/common/constants'
 import storage from '@/common/storage'
 import api from '@/common/api'
+let storedToken = localStorage.getItem('token')
+try {
+  if (storedToken) {
+    const payload = JSON.parse(atob(storedToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    // 只剔除已明确过期的凭据；权限仍由服务器验证。
+    if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+      storage.remove('token')
+      storage.remove('userInfo')
+      storedToken = null
+    }
+  }
+} catch (_) { /* 无法解析的凭据交由服务器验证。 */ }
+
+let authRequest = null
 const state = {
-  userInfo:  storage.get('userInfo'),
-  token: localStorage.getItem('token'),
+  userInfo: storage.get('userInfo'),
+  token: storedToken,
   loginFailNum:0,
   unreadMessage:{
     comment:0,
@@ -68,7 +82,9 @@ const mutations = {
     state.token = ''
     state.userInfo = {}
     state.loginFailNum = 0
-    storage.clear()
+    state.unreadMessage = { comment: 0, reply: 0, like: 0, sys: 0, mine: 0 }
+    storage.remove('token')
+    storage.remove('userInfo')
   },
   updateUnreadMessageCount(state, {unreadMessage}){
     state.unreadMessage = unreadMessage
@@ -105,15 +121,25 @@ const actions = {
       needSubstractMsg: needSubstractMsg
     })
   },
-  refreshUserAuthInfo({commit,dispatch}){
-    return new Promise((resolve, reject) => {
-      api.getUserAuthInfo().then((res) => {
-        commit('changeUserAuthInfo', {roles: res.data.data.roles})
-        resolve(res)
-      })
-    }, err => {
-      reject(err)
+  refreshUserAuthInfo({commit, state}){
+    const token = state.token
+    const uid = state.userInfo && state.userInfo.uid
+    if (!token) return Promise.resolve(null)
+    if (authRequest && authRequest.token === token && authRequest.uid === uid) {
+      return authRequest.promise
+    }
+    const request = { token, uid }
+    request.promise = api.getUserAuthInfo().then((res) => {
+      const refreshedToken = res.headers && res.headers['refresh-token'] && res.headers.authorization
+      if (!state.token || (state.token !== token && state.token !== refreshedToken) ||
+          !state.userInfo || state.userInfo.uid !== uid) return null
+      commit('changeUserAuthInfo', {roles: res.data.data.roles})
+      return res
+    }).finally(() => {
+      if (authRequest === request) authRequest = null
     })
+    authRequest = request
+    return request.promise
   }
 }
 

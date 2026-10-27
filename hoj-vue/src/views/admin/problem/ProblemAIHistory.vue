@@ -48,112 +48,150 @@
           <el-alert v-if="selectedRecord.errorMessage" :title="friendlyError(selectedRecord.errorMessage)"
             type="error" :closable="false" show-icon />
 
-          <section v-if="generatedProgram" class="generated-program">
-            <div class="generated-heading">
-              <strong>{{ programHeading }}</strong>
-              <div class="program-actions">
-                <el-tag size="mini" type="success">{{ generatedProgram.language || $t('m.ProbAI_Auto_Language') }}</el-tag>
-                <el-button size="mini" plain icon="el-icon-document-copy"
-                  @click="copyCode(generatedProgram.code, $t('m.ProbAI_Standard_Program'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
-              </div>
-            </div>
-            <p v-if="generatedProgram.algorithm">{{ generatedProgram.algorithm }}</p>
-            <el-collapse>
-              <el-collapse-item :title="$t('m.ProbAI_View_Generated_Source')" name="generated-source">
-                <pre>{{ generatedProgram.code }}</pre>
-              </el-collapse-item>
-            </el-collapse>
-          </section>
-          <section v-if="generatedProgram && generatedProgram.validatorCode" class="validator-program">
-            <div class="generated-heading">
-              <strong>{{ $t('m.ProbAI_Testlib_Validator_Generated') }}</strong>
-              <div class="program-actions">
-                <el-tag size="mini" type="warning">{{ generatedProgram.validatorLanguage || 'C++' }}</el-tag>
-                <el-button size="mini" plain icon="el-icon-document-copy"
-                  @click="copyCode(generatedProgram.validatorCode, $t('m.ProbAI_Testlib_Validator'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
-              </div>
-            </div>
-            <p v-if="generatedProgram.validatorAlgorithm">{{ generatedProgram.validatorAlgorithm }}</p>
-            <el-collapse>
-              <el-collapse-item :title="$t('m.ProbAI_View_Testlib_Source')" name="validator-source">
-                <pre>{{ generatedProgram.validatorCode }}</pre>
-              </el-collapse-item>
-            </el-collapse>
-          </section>
+          <nav class="report-navigation" :aria-label="$t('m.ProbAI_Report_Sections')">
+            <router-link v-for="section in reportSections" :key="section.id" :to="sectionRoute(section.id)"
+              :class="{ active: activeSection === section.id }" :aria-current="activeSection === section.id ? 'page' : null">
+              {{ $t(section.label) }}
+            </router-link>
+          </nav>
 
-          <template v-if="report">
-            <el-alert v-if="report.recheck" class="recheck-note" type="info" :closable="false" show-icon
-              :title="$t('m.ProbAI_Recheck_Source_Report', { id: report.recheck.sourceRecordId || '—' })"
-              :description="report.recheck.note || $t('m.ProbAI_Recheck_Note_Default')" />
-            <div class="summary-card" :class="reportType">
-              <div class="summary-label">{{ $t('m.ProbAI_Final_Conclusion') }}</div>
-              <div class="summary-text">{{ report.summary || $t('m.ProbAI_No_Summary') }}</div>
-            </div>
-
-            <el-collapse class="report-sections" :value="['steps', 'tests', 'issues']">
-              <el-collapse-item :title="$t('m.ProbAI_Validation_Process')" name="steps">
-                <div v-for="(step, index) in report.steps || []" :key="'step' + index" class="report-row">
-                  <el-tag size="mini" :type="tagType(step.status)">{{ step.status || 'WARN' }}</el-tag>
-                  <div><strong>{{ step.name }}</strong><p>{{ step.detail }}</p></div>
+          <section v-if="activeSection === 'overview'" class="report-section">
+            <template v-if="report">
+              <el-alert v-if="report.recheck" class="recheck-note" type="info" :closable="false" show-icon
+                :title="$t('m.ProbAI_Recheck_Source_Report', { id: report.recheck.sourceRecordId || '—' })"
+                :description="report.recheck.note || $t('m.ProbAI_Recheck_Note_Default')" />
+              <div class="summary-card" :class="reportType">
+                <div class="summary-label">{{ $t('m.ProbAI_Final_Conclusion') }}</div>
+                <div class="summary-text">{{ report.summary || $t('m.ProbAI_No_Summary') }}</div>
+              </div>
+              <el-alert v-if="report.finalRecommendation" :title="$t('m.ProbAI_Final_Recommendation')"
+                :description="report.finalRecommendation" :type="reportType === 'danger' ? 'error' : reportType" :closable="false" />
+              <template v-if="report.sampleResults && report.sampleResults.length">
+                <h3>{{ $t('m.ProbAI_Sample_Simulation') }}</h3>
+                <div v-for="(sample, index) in report.sampleResults" :key="'sample' + index" class="report-row">
+                  <el-tag size="mini" :type="tagType(sample.status)">{{ $t('m.ProbAI_Sample') }} {{ sample.index }}</el-tag>
+                  <p>{{ sample.detail }}</p>
                 </div>
-                <el-empty v-if="!report.steps || !report.steps.length" :description="$t('m.ProbAI_No_Steps')" />
-              </el-collapse-item>
-              <el-collapse-item v-if="report.testPointResults && report.testPointResults.length"
-                :title="$t('m.ProbAI_TestPoints_And_Stderr', { count: report.testPointResults.length })" name="tests">
-                <!-- Match the per-language detail tables: show ten rows and
-                     keep the remaining points in an internal scrollbar. -->
-                <el-table :data="report.testPointResults" border stripe size="mini" max-height="390">
+              </template>
+            </template>
+            <el-empty v-else :description="$t('m.ProbAI_Section_Empty')" />
+          </section>
+
+          <template v-if="activeSection === 'program'">
+            <section v-if="generatedProgram" class="generated-program">
+              <div class="generated-heading">
+                <strong>{{ programHeading }}</strong>
+                <div class="program-actions">
+                  <el-tag size="mini" type="success">{{ generatedProgram.language || $t('m.ProbAI_Auto_Language') }}</el-tag>
+                  <el-button size="mini" plain icon="el-icon-document-copy"
+                    @click="copyCode(generatedProgram.code, $t('m.ProbAI_Standard_Program'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
+                </div>
+              </div>
+              <p v-if="generatedProgram.algorithm">{{ generatedProgram.algorithm }}</p>
+              <el-collapse>
+                <el-collapse-item :title="$t('m.ProbAI_View_Generated_Source')" name="generated-source">
+                  <pre>{{ generatedProgram.code }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </section>
+            <section v-if="generatedProgram && generatedProgram.validatorCode" class="validator-program">
+              <div class="generated-heading">
+                <strong>{{ $t('m.ProbAI_Testlib_Validator_Generated') }}</strong>
+                <div class="program-actions">
+                  <el-tag size="mini" type="warning">{{ generatedProgram.validatorLanguage || 'C++' }}</el-tag>
+                  <el-button size="mini" plain icon="el-icon-document-copy"
+                    @click="copyCode(generatedProgram.validatorCode, $t('m.ProbAI_Testlib_Validator'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
+                </div>
+              </div>
+              <p v-if="generatedProgram.validatorAlgorithm">{{ generatedProgram.validatorAlgorithm }}</p>
+              <el-collapse>
+                <el-collapse-item :title="$t('m.ProbAI_View_Testlib_Source')" name="validator-source">
+                  <pre>{{ generatedProgram.validatorCode }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </section>
+            <el-empty v-if="!generatedProgram" :description="$t('m.ProbAI_Section_Empty')" />
+          </template>
+
+          <section v-if="activeSection === 'models'" class="report-section">
+            <ProblemAIModelResults v-if="report && (report.difficulty || (report.modelResults && report.modelResults.length))"
+              :report="report" @copy="copyCode" />
+            <el-empty v-else :description="$t('m.ProbAI_Section_Empty')" />
+          </section>
+
+          <section v-if="activeSection === 'judge-program'" class="report-section">
+            <ProblemAIJudgeProgramReview :review="report && report.judgeProgramReview" @copy="copyCode" />
+          </section>
+
+          <section v-if="activeSection === 'steps'" class="report-section">
+            <h3>{{ $t('m.ProbAI_Validation_Process') }}</h3>
+            <div v-for="(step, index) in (report && report.steps) || []" :key="'step' + index" class="report-row">
+              <el-tag size="mini" :type="tagType(step.status)">{{ step.status || 'WARN' }}</el-tag>
+              <div><strong>{{ step.name }}</strong><p>{{ step.detail }}</p></div>
+            </div>
+            <el-empty v-if="!report || !report.steps || !report.steps.length" :description="$t('m.ProbAI_No_Steps')" />
+          </section>
+
+          <section v-if="activeSection === 'tests'" class="report-section">
+            <h3>{{ $t('m.ProbAI_Test_Results') }}</h3>
+            <el-table v-if="report && report.testPointResults && report.testPointResults.length" :data="report.testPointResults" border stripe size="mini" max-height="390">
+              <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
+              <el-table-column prop="status" :label="$t('m.ProbAI_AI_Conclusion')" width="100">
+                <template slot-scope="scope"><el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status || 'WARN' }}</el-tag></template>
+              </el-table-column>
+              <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Formal_Judge_Status')" width="180" />
+              <el-table-column v-if="report.testPointResults.some(item => item.testlibValidator)" :label="$t('m.ProbAI_Testlib_Check')" width="110">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="tagType(scope.row.testlibValidator && scope.row.testlibValidator.status === 'PASS' ? 'PASS' : 'FAIL')">
+                    {{ scope.row.testlibValidator ? scope.row.testlibValidator.status : $t('m.ProbAI_Not_Executed') }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
+              <el-table-column label="stderr" min-width="260">
+                <template slot-scope="scope"><pre class="stderr-output">{{ scope.row.stderr || $t('m.ProbAI_Stderr_Empty') }}</pre></template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else :description="$t('m.ProbAI_Section_Empty')" />
+          </section>
+
+          <section v-if="activeSection === 'languages'" class="report-section">
+            <h3>{{ $t('m.ProbAI_Multi_Language_Judging') }}</h3>
+            <template v-if="report && report.multiLanguageResults && report.multiLanguageResults.length">
+              <el-table :data="report.multiLanguageResults" border stripe>
+                <el-table-column prop="language" :label="$t('m.Language')" width="150" />
+                <el-table-column :label="$t('m.ProbAI_Result')" width="100"><template slot-scope="scope">
+                  <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
+                </template></el-table-column>
+                <el-table-column :label="$t('m.ProbAI_Passed_Test_Points')" width="120"><template slot-scope="scope">
+                  {{ scope.row.passed || 0 }} / {{ scope.row.total || 0 }}
+                </template></el-table-column>
+                <el-table-column prop="message" :label="$t('m.ProbAI_Message')" />
+              </el-table>
+              <div v-for="language in report.multiLanguageResults" :key="language.language" class="multi-language-details">
+                <strong>{{ $t('m.ProbAI_TestPoint_Details', { lang: language.language }) }}</strong>
+                <el-table :data="language.testPoints || []" border size="mini" max-height="390">
                   <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
-                  <el-table-column prop="status" :label="$t('m.ProbAI_AI_Conclusion')" width="100">
-                    <template slot-scope="scope"><el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status || 'WARN' }}</el-tag></template>
-                  </el-table-column>
-                  <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Formal_Judge_Status')" width="180" />
-                  <el-table-column :label="$t('m.ProbAI_Testlib_Check')" width="110">
-                    <template slot-scope="scope">
-                      <el-tag size="mini" :type="tagType(scope.row.testlibValidator && scope.row.testlibValidator.status === 'PASS' ? 'PASS' : 'FAIL')">
-                        {{ scope.row.testlibValidator ? scope.row.testlibValidator.status : $t('m.ProbAI_Not_Executed') }}
-                      </el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
-                  <el-table-column label="stderr" min-width="260">
-                    <template slot-scope="scope"><pre class="stderr-output">{{ scope.row.stderr || $t('m.ProbAI_Stderr_Empty') }}</pre></template>
-                  </el-table-column>
-                </el-table>
-              </el-collapse-item>
-              <el-collapse-item v-if="report.multiLanguageResults && report.multiLanguageResults.length"
-                :title="$t('m.ProbAI_Multi_Language_Judging')" name="multilanguage">
-                <el-table :data="report.multiLanguageResults" border stripe>
-                  <el-table-column prop="language" :label="$t('m.Language')" width="150" />
-                  <el-table-column :label="$t('m.ProbAI_Result')" width="100"><template slot-scope="scope">
+                  <el-table-column :label="$t('m.Status')" width="100"><template slot-scope="scope">
                     <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
                   </template></el-table-column>
-                  <el-table-column :label="$t('m.ProbAI_Passed_Test_Points')" width="120"><template slot-scope="scope">
-                    {{ scope.row.passed || 0 }} / {{ scope.row.total || 0 }}
-                  </template></el-table-column>
-                  <el-table-column prop="message" :label="$t('m.ProbAI_Message')" />
+                  <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Judge_Status')" width="150" />
+                  <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
+                  <el-table-column prop="stderr" label="stderr" />
                 </el-table>
-                <div v-for="language in report.multiLanguageResults" :key="language.language" class="multi-language-details">
-                  <strong>{{ $t('m.ProbAI_TestPoint_Details', { lang: language.language }) }}</strong>
-                  <el-table :data="language.testPoints || []" border size="mini" max-height="390">
-                    <el-table-column prop="index" :label="$t('m.ProbAI_Test_Point')" width="80" />
-                    <el-table-column :label="$t('m.Status')" width="100"><template slot-scope="scope">
-                      <el-tag size="mini" :type="tagType(scope.row.status)">{{ scope.row.status }}</el-tag>
-                    </template></el-table-column>
-                    <el-table-column prop="judgeStatus" :label="$t('m.ProbAI_Judge_Status')" width="150" />
-                    <el-table-column prop="timeMs" :label="$t('m.ProbAI_Time_Cost')" width="100" />
-                    <el-table-column prop="stderr" label="stderr" />
-                  </el-table>
-                </div>
-              </el-collapse-item>
-              <el-collapse-item v-if="report.issues && report.issues.length" :title="$t('m.ProbAI_Issue_List')" name="issues">
-                <div v-for="(issue, index) in report.issues" :key="'issue' + index" class="report-row">
-                  <el-tag size="mini" :type="issueType(issue.severity)">{{ issue.severity }}</el-tag>
-                  <div><strong>{{ issue.location }}</strong><p>{{ issue.detail }}</p><small>{{ issue.suggestion }}</small></div>
-                </div>
-              </el-collapse-item>
-            </el-collapse>
-          </template>
+              </div>
+            </template>
+            <el-empty v-else :description="$t('m.ProbAI_Section_Empty')" />
+          </section>
+
+          <section v-if="activeSection === 'issues'" class="report-section">
+            <h3>{{ $t('m.ProbAI_Issue_List') }}</h3>
+            <div v-for="(issue, index) in (report && report.issues) || []" :key="'issue' + index" class="report-row">
+              <el-tag size="mini" :type="issueType(issue.severity)">{{ issue.severity }}</el-tag>
+              <div><strong>{{ issue.location }}</strong><p>{{ issue.detail }}</p><small>{{ issue.suggestion }}</small></div>
+            </div>
+            <el-empty v-if="!report || !report.issues || !report.issues.length" :description="$t('m.ProbAI_Section_Empty')" />
+          </section>
         </main>
         <el-empty v-else-if="!loading" class="report-empty" :description="$t('m.ProbAI_Select_Record')" />
       </div>
@@ -186,12 +224,28 @@
 <script>
 import api from '@/common/api'
 import time from '@/common/time'
+import ProblemAIModelResults from '@/components/admin/ProblemAIModelResults.vue'
+import ProblemAIJudgeProgramReview from '@/components/admin/ProblemAIJudgeProgramReview.vue'
+
+const reportSections = [
+  { id: 'overview', label: 'm.ProbAI_Report_Overview' },
+  { id: 'program', label: 'm.ProbAI_Standard_Program' },
+  { id: 'models', label: 'm.ProbAI_Model_Results' },
+  { id: 'judge-program', label: 'm.ProbAI_Judge_Program_Review' },
+  { id: 'steps', label: 'm.ProbAI_Validation_Process' },
+  { id: 'tests', label: 'm.ProbAI_Test_Results' },
+  { id: 'languages', label: 'm.ProbAI_Multi_Language_Judging' },
+  { id: 'issues', label: 'm.ProbAI_Issue_List' }
+]
 
 export default {
   name: 'ProblemAIHistory',
+  components: { ProblemAIModelResults, ProblemAIJudgeProgramReview },
   data() {
     return {
       loading: false,
+      loadSequence: 0,
+      reportSections,
       records: [],
       selectedRecord: null,
       recordPage: 1,
@@ -202,19 +256,59 @@ export default {
     }
   },
   mounted() { this.load() },
+  watch: {
+    $route(to, from) {
+      if (to.name !== 'admin-problem-ai-history') return
+      if (to.params.problemId !== from.params.problemId) {
+        this.records = []
+        this.selectedRecord = null
+        this.recordPage = 1
+        this.load()
+      } else if (!this.loading) {
+        this.syncRecordFromRoute()
+      }
+    }
+  },
   methods: {
     async load() {
+      const sequence = ++this.loadSequence
       this.loading = true
       try {
         const res = await api.admin_getProblemAIRecords(this.pid)
+        if (sequence !== this.loadSequence) return
         this.records = (res.data.data || []).filter(record => this.isValidationRecord(record)).slice().reverse()
-        const current = this.selectedRecord && this.records.find(item => item.id === this.selectedRecord.id)
-        this.selectedRecord = current || this.records[0] || null
-        this.recordPage = this.selectedRecord ? Math.floor(this.records.indexOf(this.selectedRecord) / this.recordPageSize) + 1 : 1
-      } catch (e) { this.$message.error(this.$t('m.ProbAI_Load_Failed')) }
-      finally { this.loading = false }
+        this.syncRecordFromRoute()
+      } catch (e) {
+        if (sequence === this.loadSequence) this.$message.error(this.$t('m.ProbAI_Load_Failed'))
+      } finally {
+        if (sequence === this.loadSequence) this.loading = false
+      }
     },
-    selectRecord(record) { this.selectedRecord = record },
+    sectionRoute(section, record = this.selectedRecord) {
+      const query = { ...this.$route.query }
+      if (record) query.recordId = String(record.id)
+      else delete query.recordId
+      return {
+        name: 'admin-problem-ai-history',
+        params: { problemId: this.pid, section },
+        query
+      }
+    },
+    syncRecordFromRoute() {
+      if (this._isDestroyed || this.$route.name !== 'admin-problem-ai-history') return
+      const recordId = this.$route.query.recordId
+      this.selectedRecord = this.records.find(item => String(item.id) === recordId) || this.records[0] || null
+      this.recordPage = this.selectedRecord ? Math.floor(this.records.indexOf(this.selectedRecord) / this.recordPageSize) + 1 : 1
+      const selectedId = this.selectedRecord ? String(this.selectedRecord.id) : undefined
+      if (this.$route.params.section !== this.activeSection || recordId !== selectedId) {
+        this.$router.replace(this.sectionRoute(this.activeSection))
+      }
+    },
+    selectRecord(record) {
+      if (!this.selectedRecord || this.selectedRecord.id !== record.id) {
+        this.$router.push(this.sectionRoute(this.activeSection, record))
+      }
+    },
     changeRecordPage(page) { this.recordPage = page },
     beijingTime(value) { return time.utcToBeijing(value) },
     openRecheck() {
@@ -237,10 +331,7 @@ export default {
         await this.load()
         if (newRecordId) {
           const record = this.records.find(item => String(item.id) === String(newRecordId))
-          if (record) {
-            this.selectedRecord = record
-            this.recordPage = Math.floor(this.records.indexOf(record) / this.recordPageSize) + 1
-          }
+          if (record) this.selectRecord(record)
         }
       } catch (e) {
         this.$message.error(this.friendlyError(
@@ -307,6 +398,7 @@ export default {
     hasBlockingProblems(result) {
       if (!result) return true
       if (result.overall === 'FAIL') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status === 'FAIL') return true
       if ((result.issues || []).some(item => item.severity === 'ERROR')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'FAIL')
@@ -314,6 +406,7 @@ export default {
     hasWarnings(result) {
       if (!result) return false
       if (result.overall === 'WARN') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status !== 'PASS') return true
       if ((result.issues || []).some(item => item.severity === 'WARNING')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'WARN')
@@ -321,6 +414,10 @@ export default {
   },
   computed: {
     pid() { return this.$route.params.problemId },
+    activeSection() {
+      const section = this.$route.params.section
+      return reportSections.some(item => item.id === section) ? section : 'overview'
+    },
     pagedRecords() {
       const start = (this.recordPage - 1) * this.recordPageSize
       return this.records.slice(start, start + this.recordPageSize)
@@ -384,6 +481,12 @@ export default {
 .recheck-form { margin-top: 14px; }
 .report-header h2 { display: inline; margin: 0 12px 0 0; color: #303133; font-size: 20px; }
 .report-result { font-size: 14px; }
+.report-navigation { display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0; padding-bottom: 12px; border-bottom: 1px solid #ebeef5; }
+.report-navigation a { padding: 9px 12px; border-radius: 4px; color: #606266; text-decoration: none; }
+.report-navigation a:hover, .report-navigation a.active { background: #ecf5ff; color: #409eff; }
+.report-navigation a.active { font-weight: 600; }
+.report-section { min-width: 0; }
+.report-section h3 { margin: 16px 0; color: #303133; font-size: 16px; }
 .summary-card { margin: 16px 0; padding: 16px 18px; border-left: 4px solid; border-radius: 4px; }
 .recheck-note { margin: 0 0 16px; }
 .summary-card.success { border-color: #67c23a; background: #f0f9eb; color: #529b2e; }

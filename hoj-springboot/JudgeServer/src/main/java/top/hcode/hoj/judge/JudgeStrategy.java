@@ -3,6 +3,7 @@ package top.hcode.hoj.judge;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.file.FileReader;
 import cn.hutool.core.io.file.FileWriter;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -54,6 +55,8 @@ public class JudgeStrategy {
     public HashMap<String, Object> judge(Problem problem, Judge judge) {
 
         HashMap<String, Object> result = new HashMap<>();
+        boolean internalVerification = Boolean.TRUE.equals(judge.getIsProblemVerification())
+                && !"external_verification".equals(judge.getSubmissionType());
         // 编译好的临时代码文件id
         String userFileId = null;
         String testCasesDir = null;
@@ -76,7 +79,7 @@ public class JudgeStrategy {
                     problem.getCaseVersion(),
                     problem.getJudgeMode(),
                     problem.getJudgeCaseMode());
-            if (Boolean.TRUE.equals(judge.getIsProblemVerification())) {
+            if (internalVerification) {
                 verificationSampleFiles = verificationSampleCaseService.append(
                         problem, judge.getSubmitId(), testCasesDir, testCasesInfo);
             }
@@ -99,7 +102,7 @@ public class JudgeStrategy {
             // 获取题目数据的评测模式
             String infoJudgeCaseMode = testCasesInfo.getStr("judgeCaseMode", Constants.JudgeCaseMode.DEFAULT.getMode());
             String judgeCaseMode = getFinalJudgeCaseMode(problem.getType(), problem.getJudgeCaseMode(), infoJudgeCaseMode);
-            if (Boolean.TRUE.equals(judge.getIsProblemVerification())) {
+            if (internalVerification) {
                 // 标准程序和 AI 验题必须执行全部测试点，不能因 subtask 或首个错误跳过后续数据。
                 judgeCaseMode = Constants.JudgeCaseMode.DEFAULT.getMode();
             }
@@ -121,8 +124,8 @@ public class JudgeStrategy {
             return getJudgeInfo(allCaseResultList, problem, judge, judgeCaseMode);
         } catch (SystemError systemError) {
             result.put("code", Constants.Judge.STATUS_SYSTEM_ERROR.getStatus());
-            result.put("errMsg", Boolean.TRUE.equals(judge.getIsProblemVerification())
-                    ? systemError.getMessage()
+            result.put("errMsg", internalVerification
+                    ? mergeNonEmptyStrings(systemError.getMessage(), systemError.getStdout(), systemError.getStderr())
                     : "Oops, something has gone wrong with the judgeServer. Please report this to administrator.");
             result.put("time", 0);
             result.put("memory", 0);
@@ -219,90 +222,46 @@ public class JudgeStrategy {
         }
     }
 
-    private Boolean checkOrCompileExtraProgram(Problem problem) throws CompileError, SystemError {
-
+    private Boolean checkOrCompileExtraProgram(Problem problem) throws SystemError {
         Constants.JudgeMode judgeMode = Constants.JudgeMode.getJudgeMode(problem.getJudgeMode());
-
-        String currentVersion = problem.getCaseVersion();
-
-        LanguageConfig languageConfig;
-
-        String programFilePath;
-
-        String programVersionPath;
-
-        switch (judgeMode) {
-            case DEFAULT:
-                return true;
-            case SPJ:
-                languageConfig = languageConfigLoader.getLanguageConfigByName("SPJ-" + problem.getSpjLanguage());
-
-                programFilePath = Constants.JudgeDir.SPJ_WORKPLACE_DIR.getContent() + File.separator +
-                        problem.getId() + File.separator + languageConfig.getExeName();
-
-                programVersionPath = Constants.JudgeDir.SPJ_WORKPLACE_DIR.getContent() + File.separator +
-                        problem.getId() + File.separator + "version";
-
-                // 如果不存在该已经编译好的程序，则需要再次进行编译
-                if (!FileUtil.exist(programFilePath) || !FileUtil.exist(programVersionPath)) {
-                    boolean isCompileSpjOk = Compiler.compileSpj(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
-                            JudgeUtils.getProblemExtraFileMap(problem, "judge"));
-
-                    FileWriter fileWriter = new FileWriter(programVersionPath);
-                    fileWriter.write(currentVersion);
-                    return isCompileSpjOk;
-                }
-
-                FileReader spjVersionReader = new FileReader(programVersionPath);
-                String recordSpjVersion = spjVersionReader.readString();
-
-                // 版本变动也需要重新编译
-                if (!currentVersion.equals(recordSpjVersion)) {
-                    boolean isCompileSpjOk = Compiler.compileSpj(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
-                            JudgeUtils.getProblemExtraFileMap(problem, "judge"));
-                    FileWriter fileWriter = new FileWriter(programVersionPath);
-                    fileWriter.write(currentVersion);
-                    return isCompileSpjOk;
-                }
-
-                break;
-            case INTERACTIVE:
-                languageConfig = languageConfigLoader.getLanguageConfigByName("INTERACTIVE-" + problem.getSpjLanguage());
-                programFilePath = Constants.JudgeDir.INTERACTIVE_WORKPLACE_DIR.getContent() + File.separator +
-                        problem.getId() + File.separator + languageConfig.getExeName();
-
-                programVersionPath = Constants.JudgeDir.INTERACTIVE_WORKPLACE_DIR.getContent() + File.separator +
-                        problem.getId() + File.separator + "version";
-
-                // 如果不存在该已经编译好的程序，则需要再次进行编译 版本变动也需要重新编译
-                if (!FileUtil.exist(programFilePath) || !FileUtil.exist(programVersionPath)) {
-                    boolean isCompileInteractive = Compiler.compileInteractive(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
-                            JudgeUtils.getProblemExtraFileMap(problem, "judge"));
-                    FileWriter fileWriter = new FileWriter(programVersionPath);
-                    fileWriter.write(currentVersion);
-                    return isCompileInteractive;
-                }
-
-                FileReader interactiveVersionFileReader = new FileReader(programVersionPath);
-                String recordInteractiveVersion = interactiveVersionFileReader.readString();
-
-                // 版本变动也需要重新编译
-                if (!currentVersion.equals(recordInteractiveVersion)) {
-                    boolean isCompileInteractive = Compiler.compileSpj(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
-                            JudgeUtils.getProblemExtraFileMap(problem, "judge"));
-
-                    FileWriter fileWriter = new FileWriter(programVersionPath);
-                    fileWriter.write(currentVersion);
-
-                    return isCompileInteractive;
-                }
-
-                break;
-            default:
-                throw new RuntimeException("The problem mode is error:" + judgeMode);
+        if (judgeMode == Constants.JudgeMode.DEFAULT) {
+            return true;
         }
-
-        return true;
+        if (judgeMode != Constants.JudgeMode.SPJ && judgeMode != Constants.JudgeMode.INTERACTIVE) {
+            throw new RuntimeException("The problem mode is error:" + judgeMode);
+        }
+        if (!StringUtils.hasText(problem.getSpjCode())) {
+            return false;
+        }
+        LanguageConfig languageConfig = languageConfigLoader.getLanguageConfigByName(
+                judgeMode.name() + "-" + problem.getSpjLanguage());
+        if (languageConfig == null) {
+            throw new SystemError("Unsupported " + judgeMode + " language: " + problem.getSpjLanguage(), null, null);
+        }
+        String programDir = (judgeMode == Constants.JudgeMode.SPJ
+                ? Constants.JudgeDir.SPJ_WORKPLACE_DIR : Constants.JudgeDir.INTERACTIVE_WORKPLACE_DIR)
+                .getContent() + File.separator + problem.getId();
+        String programFilePath = programDir + File.separator + languageConfig.getExeName();
+        String programVersionPath = programDir + File.separator + "version";
+        // 数据未更新时，修改判题器源码、语言或附件也必须重新编译。
+        String currentVersion = DigestUtil.sha256Hex(new JSONArray(Arrays.asList(problem.getCaseVersion(),
+                judgeMode.name(), problem.getSpjLanguage(), problem.getSpjCode(), problem.getJudgeExtraFile(),
+                languageConfig.getCompileCommand())).toString());
+        synchronized (Compiler.extraProgramLock(problem.getId())) {
+            if (FileUtil.exist(programFilePath) && FileUtil.exist(programVersionPath)
+                    && currentVersion.equals(new FileReader(programVersionPath).readString())) {
+                return true;
+            }
+            boolean compiled = judgeMode == Constants.JudgeMode.SPJ
+                    ? Compiler.compileSpj(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
+                            JudgeUtils.getProblemExtraFileMap(problem, "judge"))
+                    : Compiler.compileInteractive(problem.getSpjCode(), problem.getId(), problem.getSpjLanguage(),
+                            JudgeUtils.getProblemExtraFileMap(problem, "judge"));
+            if (compiled) {
+                new FileWriter(programVersionPath).write(currentVersion);
+            }
+            return compiled;
+        }
     }
 
     // 获取判题的运行时间，运行空间，OI得分

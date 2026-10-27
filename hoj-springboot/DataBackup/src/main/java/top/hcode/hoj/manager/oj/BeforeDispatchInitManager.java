@@ -16,9 +16,11 @@ import top.hcode.hoj.dao.contest.ContestProblemEntityService;
 import top.hcode.hoj.dao.contest.ContestRecordEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.dao.training.TrainingEntityService;
 import top.hcode.hoj.dao.training.TrainingProblemEntityService;
 import top.hcode.hoj.dao.training.TrainingRecordEntityService;
+import top.hcode.hoj.manager.classroom.HomeworkManager;
 import top.hcode.hoj.pojo.entity.contest.Contest;
 import top.hcode.hoj.pojo.entity.contest.ContestProblem;
 import top.hcode.hoj.pojo.entity.contest.ContestRecord;
@@ -59,6 +61,9 @@ public class BeforeDispatchInitManager {
     @Resource
     private ProblemEntityService problemEntityService;
 
+    @Autowired
+    private ProblemPendingSaveGuard pendingSaveGuard;
+
     @Resource
     private TrainingEntityService trainingEntityService;
 
@@ -80,6 +85,17 @@ public class BeforeDispatchInitManager {
     @Autowired
     private GroupValidator groupValidator;
 
+    @Resource
+    private HomeworkManager homeworkManager;
+
+    @Transactional(rollbackFor = Exception.class)
+    public void initClassroomSubmission(String problemId, Long gid, Judge judge)
+            throws StatusForbiddenException, StatusFailException, StatusNotFoundException {
+        homeworkManager.checkProgrammingSubmission(judge.getHomeworkId(), problemId);
+        initCommonSubmission(problemId, gid, judge);
+        homeworkManager.recordProgrammingSubmission(judge);
+    }
+
     public void initCommonSubmission(String problemId, Long gid, Judge judge) throws StatusForbiddenException {
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
@@ -88,7 +104,7 @@ public class BeforeDispatchInitManager {
         problemQueryWrapper.eq("problem_id", problemId);
         Problem problem = problemEntityService.getOne(problemQueryWrapper, false);
 
-        if (problem == null){
+        if (problem == null || pendingSaveGuard.isCandidate(problem.getId())) {
             throw new StatusForbiddenException("错误！当前题目已不存在，不可提交！");
         }
 
@@ -115,7 +131,9 @@ public class BeforeDispatchInitManager {
         // 将新提交数据插入数据库
         judgeEntityService.save(judge);
 
-        trainingManager.checkAndSyncTrainingRecord(problem.getId(), judge.getSubmitId(), judge.getUid());
+        if (judge.getHomeworkId() == null) {
+            trainingManager.checkAndSyncTrainingRecord(problem.getId(), judge.getSubmitId(), judge.getUid());
+        }
     }
 
 
@@ -159,7 +177,7 @@ public class BeforeDispatchInitManager {
 
         Problem problem = problemEntityService.getById(contestProblem.getPid());
 
-        if (problem == null){
+        if (problem == null || pendingSaveGuard.isCandidate(problem.getId())) {
             throw new StatusForbiddenException("错误！当前题目已不存在，不可提交！");
         }
 
@@ -216,7 +234,7 @@ public class BeforeDispatchInitManager {
 
         Problem problem = problemEntityService.getById(trainingProblem.getPid());
 
-        if (problem == null){
+        if (problem == null || pendingSaveGuard.isCandidate(problem.getId())) {
             throw new StatusForbiddenException("错误！当前题目已不存在，不可提交！");
         }
 

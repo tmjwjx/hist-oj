@@ -9,6 +9,7 @@ import java.util.List;
 @Data
 public class ProblemAiValidateDTO {
     private Long pid;
+    private Long submitId;
     private String language;
     private String standardProgram;
     private Boolean aiGenerated;

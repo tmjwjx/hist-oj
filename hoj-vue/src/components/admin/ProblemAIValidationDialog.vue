@@ -6,6 +6,18 @@
       type="info" :closable="false" show-icon
     />
     <div class="validation-kind"><el-tag type="warning">{{ $t('m.ProbAI_Kind_Tag') }}</el-tag></div>
+    <section v-loading="modelsLoading" class="model-selection">
+      <strong>{{ $t('m.ProbAI_Select_Models') }}</strong>
+      <p>{{ $t('m.ProbAI_Select_Models_Hint') }}</p>
+      <el-checkbox-group v-model="selectedModelIds" :disabled="running">
+        <el-checkbox v-for="item in models" :key="item.id" :label="item.id" :disabled="item.primary">
+          {{ item.name || item.model }} · {{ item.model }}
+          <el-tag v-if="item.primary" size="mini">{{ $t('m.ProbAI_Primary_Model') }}</el-tag>
+        </el-checkbox>
+      </el-checkbox-group>
+      <el-alert v-if="modelsError" :title="modelsError" type="error" :closable="false" show-icon />
+      <el-button v-if="modelsError" type="text" @click="initialize">{{ $t('m.ProbAI_Reload_Models') }}</el-button>
+    </section>
 
     <div v-if="running" class="validation-running">
       <div class="running-title"><i class="el-icon-loading" /> {{ $t('m.ProbAI_Running_Title') }}</div>
@@ -18,7 +30,7 @@
       </div>
     </div>
 
-    <section v-if="generatedProgram" class="generated-program">
+    <section v-if="generatedProgram && generatedProgram.code" class="generated-program">
       <div class="program-heading">
         <div>
           <el-tag size="small" type="success">{{ $t('m.ProbAI_Generated_Program_Tag') }}</el-tag>
@@ -40,27 +52,8 @@
       </el-collapse>
     </section>
 
-    <section v-if="generatedProgram && generatedProgram.validatorCode" class="validator-program">
-      <div class="program-heading">
-        <div>
-          <el-tag size="small" type="warning">{{ $t('m.ProbAI_Testlib_Tag') }}</el-tag>
-          <span class="program-language">{{ generatedProgram.validatorLanguage || 'C++' }}</span>
-        </div>
-        <el-button size="mini" plain icon="el-icon-document-copy"
-          @click="copyCode(generatedProgram.validatorCode, $t('m.ProbAI_Testlib_Validator'))">{{ $t('m.ProbAI_Copy_Code') }}</el-button>
-      </div>
-      <p v-if="generatedProgram.validatorAlgorithm" class="program-algorithm">{{ generatedProgram.validatorAlgorithm }}</p>
-      <el-alert v-if="generatedProgram.validatorWarnings" :title="generatedProgram.validatorWarnings"
-        type="warning" :closable="false" show-icon />
-      <el-collapse class="program-source">
-        <el-collapse-item :title="$t('m.ProbAI_View_Testlib_Full_Source')" name="validator-source">
-          <pre>{{ generatedProgram.validatorCode }}</pre>
-        </el-collapse-item>
-      </el-collapse>
-    </section>
-
     <template v-if="result">
-      <section class="result-summary" :class="resultType">
+      <section v-if="recordStatus !== 'running'" class="result-summary" :class="resultType">
         <div class="summary-main">
           <i :class="resultType === 'error' ? 'el-icon-error' : resultType === 'warning' ? 'el-icon-warning' : 'el-icon-success'" />
           <div>
@@ -76,8 +69,11 @@
         </div>
       </section>
 
-      <el-alert v-if="result.finalRecommendation" class="recommendation"
+      <el-alert v-if="recordStatus !== 'running' && result.finalRecommendation" class="recommendation"
                 :title="$t('m.ProbAI_Final_Recommendation')" :description="result.finalRecommendation" :type="resultType" :closable="false" />
+
+      <ProblemAIModelResults :report="result" @copy="copyCode" />
+      <ProblemAIJudgeProgramReview v-if="result.judgeProgramReview" :review="result.judgeProgramReview" @copy="copyCode" />
 
       <el-collapse v-model="detailPanels" class="report-details">
         <el-collapse-item :title="$t('m.ProbAI_Validation_Process')" name="steps">
@@ -103,7 +99,7 @@
               <template slot-scope="scope">
                 <p><strong>{{ $t('m.ProbAI_AI_Check_Process') }}</strong>{{ scope.row.detail }}</p>
                 <p><strong>{{ $t('m.ProbAI_Executed_Label') }}</strong>{{ scope.row.executed ? $t('m.Yes') : $t('m.No') }}</p>
-                <p><strong>{{ $t('m.ProbAI_Testlib_Check_Label') }}</strong>{{ (scope.row.testlibValidator && scope.row.testlibValidator.statusText) || $t('m.ProbAI_Not_Executed') }}
+                <p v-if="scope.row.testlibValidator"><strong>{{ $t('m.ProbAI_Testlib_Check_Label') }}</strong>{{ (scope.row.testlibValidator && scope.row.testlibValidator.statusText) || $t('m.ProbAI_Not_Executed') }}
                   <span v-if="scope.row.testlibValidator && scope.row.testlibValidator.stderr">{{ $t('m.ProbAI_Stderr_Label') }}{{ scope.row.testlibValidator.stderr }}</span>
                 </p>
                 <strong>{{ $t('m.ProbAI_Stderr_Colon') }}</strong><pre class="stderr-output">{{ scope.row.stderr || $t('m.ProbAI_Stderr_Empty') }}</pre>
@@ -167,26 +163,29 @@
 
 <script>
 import api from '@/common/api'
+import ProblemAIModelResults from './ProblemAIModelResults.vue'
+import ProblemAIJudgeProgramReview from './ProblemAIJudgeProgramReview.vue'
 
 export default {
   name: 'ProblemAIValidationDialog',
+  components: { ProblemAIModelResults, ProblemAIJudgeProgramReview },
   props: {
     visible: Boolean,
     pid: { type: [Number, String], required: true },
     language: { type: String, default: '' },
-    standardProgram: { type: String, default: '' },
-    autoRun: { type: Boolean, default: false }
+    standardProgram: { type: String, default: '' }
   },
   data() {
     return {
-      result: null, running: false, error: '', autoStarted: false,
+      result: null, running: false, error: '', recordStatus: '',
+      models: [], selectedModelIds: [], modelsLoading: false, modelsError: '', aiEnabled: false,
       detailPanels: [], resultDurationMs: 0,
       judgeProgress: '', judgeMessage: '',
       activeStage: 0,
       generatedProgram: null,
       validationRecordId: null,
       // 模块级数据存 i18n 键名字符串，模板中通过 $t('m.' + stage) 翻译
-      runningStages: ['ProbAI_Generated_Program_Tag', 'ProbAI_Stage_Testlib', 'ProbAI_Stage_Official_Judge', 'ProbAI_Stage_Statement', 'ProbAI_Sample_Simulation', 'ProbAI_Stage_TestPoints_Testlib', 'ProbAI_Final_Conclusion']
+      runningStages: ['ProbAI_Generated_Program_Tag', 'ProbAI_Progress_Backend_Running', 'ProbAI_Final_Conclusion']
     }
   },
   computed: {
@@ -198,12 +197,18 @@ export default {
         }
       }
     },
-    canRun() { return Boolean(this.language) && !this.running },
+    canRun() {
+      const primary = this.models.filter(item => item.primary)
+      return Boolean(this.language) && !this.running && !this.modelsLoading && !this.modelsError
+        && this.aiEnabled && primary.length === 1 && this.selectedModelIds.includes(primary[0].id)
+    },
     resultType() {
+      if (this.recordStatus === 'failed') return 'error'
       if (this.hasBlockingProblems(this.result)) return 'error'
       return this.hasWarnings(this.result) ? 'warning' : 'success'
     },
     resultTitle() {
+      if (this.recordStatus === 'failed') return this.$t('m.ProbAI_Status_Failed')
       if (this.resultType === 'error') return this.$t('m.ProbAI_Result_Found_Issues')
       return this.resultType === 'warning' ? this.$t('m.ProbAI_Result_Pass_Warnings') : this.$t('m.ProbAI_Result_Passed')
     },
@@ -214,37 +219,53 @@ export default {
   mounted() { if (this.visible) this.initialize() },
   methods: {
     async initialize() {
-      if (this.autoRun && !this.autoStarted) {
-        this.autoStarted = true
-        await this.run()
+      if (this.running || this.modelsLoading) return
+      this.modelsLoading = true
+      this.modelsError = ''
+      this.models = []
+      this.selectedModelIds = []
+      this.aiEnabled = false
+      try {
+        const config = (await api.admin_getProblemAIConfig()).data.data || {}
+        this.models = config.models || []
+        this.aiEnabled = Boolean(config.enabled)
+        const primary = this.models.filter(item => item.primary)
+        this.selectedModelIds = primary.map(item => item.id)
+        if (!this.aiEnabled) this.modelsError = this.$t('m.ProbAI_Disabled')
+        else if (primary.length !== 1) this.modelsError = this.$t('m.Sys_AI_Primary_Required')
+      } catch (e) {
+        this.modelsError = this.errorMessage(e)
+      } finally {
+        this.modelsLoading = false
       }
     },
     async run() {
-      if (!this.canRun) return this.$message.warning(this.$t('m.ProbAI_Select_Language_First'))
+      if (!this.canRun) return
       this.running = true
       this.error = ''
       this.result = null
+      this.recordStatus = 'running'
       this.generatedProgram = null
+      this.validationRecordId = null
+      this.resultDurationMs = 0
       this.activeStage = 0
       this.judgeProgress = this.$t('m.ProbAI_Progress_Generating')
       this.judgeMessage = this.$t('m.ProbAI_Progress_Generating_Desc')
       try {
         const generated = (await api.admin_generateProblemAIStandardProgram({
-          pid: this.pid, language: this.language
+          pid: this.pid, language: this.language, modelIds: this.selectedModelIds.slice()
         })).data.data
+        if (!generated || !generated.validationRecordId) throw new Error(this.$t('m.ProbAI_Task_Not_Created'))
         this.generatedProgram = Object.assign({}, generated, { aiGenerated: true })
         this.validationRecordId = generated.validationRecordId || null
         this.$emit('program-generated', this.generatedProgram)
         this.activeStage = Math.max(this.activeStage, 1)
         this.judgeProgress = this.$t('m.ProbAI_Progress_Backend_Created')
         this.judgeMessage = this.$t('m.ProbAI_Progress_Backend_Desc')
-        const res = this.validationRecordId
-          ? await this.waitForValidationRecord(this.validationRecordId)
-          : await this.runLegacyValidation(this.generatedProgram)
+        const record = await this.waitForValidationRecord(this.validationRecordId)
         this.activeStage = this.runningStages.length - 1
         this.judgeProgress = this.$t('m.ProbAI_Progress_Done')
         this.judgeMessage = this.$t('m.ProbAI_Progress_Done_Desc')
-        const record = res && res.data ? res.data.data : res
         this.showRecord(record)
         const parsed = record && this.parseResult(record.response)
         if (record && record.status === 'success' && parsed && !this.hasBlockingProblems(parsed)) this.$emit('verified')
@@ -255,44 +276,21 @@ export default {
       }
     },
     showRecord(record) {
+      this.recordStatus = record && record.status || ''
       this.error = record && record.errorMessage ? record.errorMessage : ''
       this.result = this.parseResult(record && record.response)
       if (this.result && this.result.standardProgram) this.generatedProgram = this.result.standardProgram
       this.resultDurationMs = (record && record.durationMs) || 0
       this.detailPanels = this.hasBlockingProblems(this.result) ? ['issues'] : []
     },
-    async runOfficialJudge(program) {
-      let status = (await api.admin_getProblemVerification(this.pid)).data.data
-      if (status.verificationStatus === 1) await this.waitForJudge(status)
-      status = (await api.admin_submitProblemVerification({
-        pid: this.pid, language: program.language, code: program.code,
-        verificationType: 'ai_validation'
-      })).data.data
-      return this.waitForJudge(status)
-    },
-    async runLegacyValidation(program) {
-      this.judgeProgress = this.$t('m.ProbAI_Progress_Official_Judging')
-      this.judgeMessage = this.$t('m.ProbAI_Progress_Official_Desc')
-      const verification = await this.runOfficialJudge(program)
-      const officialPassed = verification && verification.verificationStatus === 2
-      if (officialPassed) this.$emit('verified')
-      this.activeStage = 2
-      this.judgeProgress = officialPassed ? this.$t('m.ProbAI_Progress_Analyzing') : this.$t('m.ProbAI_Progress_Analyzing_Failed')
-      this.judgeMessage = officialPassed
-        ? this.$t('m.ProbAI_Progress_Checking_Desc')
-        : this.$t('m.ProbAI_Progress_Keeping_Desc')
-      return api.admin_problemAIValidate({
-        pid: this.pid, language: program.language,
-        standardProgram: program.code, aiGenerated: true,
-        algorithmSummary: program.algorithm,
-        validatorLanguage: program.validatorLanguage,
-        validatorCode: program.validatorCode
-      })
-    },
     async waitForValidationRecord(recordId) {
       for (let count = 0; count < 1200; count += 1) {
         const record = (await api.admin_getProblemAIRecord(recordId)).data.data
+        if (!record) throw new Error(this.$t('m.ProbAI_Err_Task_Failed'))
         if (record.status !== 'running') return record
+        this.result = this.parseResult(record.response)
+        if (this.result && this.result.standardProgram) this.generatedProgram = this.result.standardProgram
+        this.resultDurationMs = record.durationMs || 0
         this.judgeProgress = this.$t('m.ProbAI_Progress_Backend_Running')
         this.judgeMessage = this.$t('m.ProbAI_Progress_Backend_Waiting')
         await new Promise(resolve => setTimeout(resolve, 1000))
@@ -324,16 +322,6 @@ export default {
         this.$message.success((label || this.$t('m.ProbAI_Code')) + this.$t('m.ProbAI_Copied'))
       } catch (e) { this.$message.error(this.$t('m.ProbAI_Copy_Failed')) }
     },
-    async waitForJudge(status) {
-      for (let count = 0; count < 1200; count += 1) {
-        this.judgeProgress = status.judgeStatusText || this.$t('m.ProbAI_Progress_Waiting_Judge')
-        this.judgeMessage = status.judgeMessage || this.$t('m.ProbAI_Progress_Waiting_Judge_Desc')
-        if (status.verificationStatus !== 1) return status
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        status = (await api.admin_getProblemVerification(this.pid)).data.data
-      }
-      throw new Error(this.$t('m.ProbAI_Err_Judge_Timeout'))
-    },
     parseResult(response) {
       if (!response) return null
       try { return typeof response === 'string' ? JSON.parse(response) : response }
@@ -358,6 +346,7 @@ export default {
     hasBlockingProblems(result) {
       if (!result) return true
       if (result.overall === 'FAIL') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status === 'FAIL') return true
       if ((result.issues || []).some(item => item.severity === 'ERROR')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'FAIL')
@@ -365,6 +354,7 @@ export default {
     hasWarnings(result) {
       if (!result) return false
       if (result.overall === 'WARN') return true
+      if (result.judgeProgramReview && result.judgeProgramReview.status !== 'PASS') return true
       if ((result.issues || []).some(item => item.severity === 'WARNING')) return true
       return [...(result.steps || []), ...(result.sampleResults || []), ...(result.testPointResults || [])]
         .some(item => item.status === 'WARN')
@@ -384,19 +374,16 @@ export default {
   background: #f5f7fa;
 }
 .validation-kind { margin-top: 12px; }
+.model-selection { margin: 14px 0; padding: 14px; border: 1px solid #ebeef5; border-radius: 4px; }
+.model-selection p { color: #606266; line-height: 1.6; margin: 8px 0; }
+.model-selection .el-checkbox { margin-bottom: 8px; }
+.model-selection .el-alert { margin-top: 8px; }
 .generated-program {
   margin-top: 14px;
   padding: 14px 16px 8px;
   border: 1px solid #b3e19d;
   border-radius: 6px;
   background: #f0f9eb;
-}
-.validator-program {
-  margin-top: 14px;
-  padding: 14px 16px 8px;
-  border: 1px solid #f5dab1;
-  border-radius: 6px;
-  background: #fdf6ec;
 }
 .program-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .program-actions { display: inline-flex; align-items: center; gap: 8px; }

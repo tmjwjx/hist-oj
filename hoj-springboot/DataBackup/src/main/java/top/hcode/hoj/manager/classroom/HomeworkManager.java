@@ -10,6 +10,8 @@ import top.hcode.hoj.common.exception.StatusForbiddenException;
 import top.hcode.hoj.common.exception.StatusNotFoundException;
 import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
+import top.hcode.hoj.dao.problem.ProblemEntityService;
+import top.hcode.hoj.service.problem.ProblemPendingSaveGuard;
 import top.hcode.hoj.mapper.classroom.ClassroomHomeworkMapper;
 import top.hcode.hoj.mapper.classroom.ClassroomStudentMapper;
 import top.hcode.hoj.mapper.classroom.ExamViolationLogMapper;
@@ -18,6 +20,7 @@ import top.hcode.hoj.mapper.classroom.HomeworkSubmitMapper;
 import top.hcode.hoj.mapper.classroom.QuestionBankMapper;
 import top.hcode.hoj.pojo.entity.classroom.*;
 import top.hcode.hoj.pojo.entity.judge.Judge;
+import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.user.UserInfo;
 
 import javax.annotation.Resource;
@@ -37,6 +40,8 @@ public class HomeworkManager {
     @Resource private ClassroomAccessManager access;
     @Resource private UserInfoEntityService userService;
     @Resource private JudgeEntityService judgeService;
+    @Resource private ProblemEntityService problemService;
+    @Resource private ProblemPendingSaveGuard pendingSaveGuard;
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> create(Map<String, Object> request) throws Exception {
@@ -112,6 +117,7 @@ public class HomeworkManager {
         List<HomeworkSubmit> submits = submitMapper.selectList(new QueryWrapper<HomeworkSubmit>()
                 .eq("homework_id", homeworkId).eq("is_officially_submitted", 1)
                 .orderByDesc("update_time").orderByDesc("id"));
+        syncProgrammingResults(homeworkId, submits);
         Map<String, HomeworkSubmit> latest = new LinkedHashMap<>();
         for (HomeworkSubmit submit : submits) {
             String identity = identity(submit);
@@ -148,6 +154,7 @@ public class HomeworkManager {
 
     public Map<String, Object> status(Long homeworkId) throws Exception {
         ClassroomHomework row = viewable(homeworkId); List<HomeworkSubmit> submits = own(homeworkId);
+        syncProgrammingResults(homeworkId, submits);
         Map<String, Object> data = base(row); data.put("submissions", submits.stream().map(this::submitView).collect(Collectors.toList()));
         data.put("submitted", submits.stream().anyMatch(s -> Objects.equals(s.getIsOfficiallySubmitted(), 1))); return data;
     }
@@ -155,6 +162,7 @@ public class HomeworkManager {
     public Map<String, Object> myDetail(Long homeworkId) throws Exception {
         viewable(homeworkId);
         List<HomeworkSubmit> rows = own(homeworkId);
+        syncProgrammingResults(homeworkId, rows);
         Map<String, HomeworkSubmit> latest = new LinkedHashMap<>();
         for (HomeworkSubmit row : rows) {
             String identity = identity(row);
@@ -203,6 +211,7 @@ public class HomeworkManager {
         manager(number(request.get("homeworkId")));
         Long submitId = number(request.get("submissionId")); if (submitId == null) submitId = number(request.get("id"));
         HomeworkSubmit row = submitMapper.selectById(submitId); if (row == null) throw new StatusNotFoundException("提交记录不存在");
+        if (!Objects.equals(row.getHomeworkId(), number(request.get("homeworkId")))) throw new StatusForbiddenException("提交记录不属于该作业");
         submitMapper.update(null, new UpdateWrapper<HomeworkSubmit>().eq("id", submitId).set("score", decimal(request.get("score"))).set("is_scored", 1).set("update_time", new Date()));
     }
 
@@ -215,30 +224,78 @@ public class HomeworkManager {
         }
     }
 
+    public void checkProgrammingSubmission(Long homeworkId, String problemId)
+            throws StatusForbiddenException, StatusFailException, StatusNotFoundException {
+        ClassroomHomework homework = require(homeworkId);
+        access.requireClassroom(homework.getClassroomId());
+        if (!access.isStudent(homework.getClassroomId(), access.uid())) {
+            throw new StatusForbiddenException("只有班级学生可以提交作业代码");
+        }
+        Date now = new Date();
+        if (Objects.equals(homework.getStatus(), 0) || now.before(homework.getStartTime()) || now.after(homework.getEndTime())) {
+            throw new StatusFailException("当前不在作业提交时间内");
+        }
+        if (questionMapper.selectCount(new QueryWrapper<HomeworkQuestion>()
+                .eq("homework_id", homeworkId).eq("problem_id", problemId)) == 0) {
+            throw new StatusNotFoundException("作业中的编程题不存在");
+        }
+        if (Objects.equals(homework.getIsExamMode(), 1)) {
+            List<HomeworkSubmit> rows = submitMapper.selectList(new QueryWrapper<HomeworkSubmit>()
+                    .eq("homework_id", homeworkId).eq("uid", access.uid()).orderByAsc("id").last("FOR UPDATE"));
+            if (rows.stream().anyMatch(row -> Objects.equals(row.getIsOfficiallySubmitted(), 1))) {
+                throw new StatusFailException("考试已经交卷，不能继续提交代码");
+            }
+            HomeworkSubmit marker = rows.stream().filter(row -> row.getQuestionId() == null && row.getProblemId() == null)
+                    .findFirst().orElse(null);
+            if (marker == null || marker.getExamStartTime() == null) throw new StatusFailException("请先开始考试");
+            int duration = homework.getExamDuration() == null ? 60 : Math.max(1, homework.getExamDuration());
+            long deadline = Math.min(homework.getEndTime().getTime(), marker.getExamStartTime().getTime() + duration * 60_000L);
+            if (now.getTime() >= deadline) throw new StatusFailException("考试时间已结束");
+        }
+    }
+
+    public HomeworkSubmit recordProgrammingSubmission(Judge judge) {
+        QueryWrapper<HomeworkSubmit> query = new QueryWrapper<HomeworkSubmit>().eq("homework_id", judge.getHomeworkId())
+                .eq("uid", judge.getUid()).eq("problem_id", judge.getDisplayPid()).orderByDesc("id").last("limit 1");
+        HomeworkSubmit row = submitMapper.selectOne(query);
+        // Retried requests must not replace a newer answer or erase its grade.
+        if (row != null && row.getSubmitId() != null && row.getSubmitId() >= judge.getSubmitId()) return row;
+        Date now = judge.getSubmitTime() == null ? new Date() : judge.getSubmitTime();
+        Map<String, Object> answer = new LinkedHashMap<>();
+        answer.put("submitId", judge.getSubmitId());
+        answer.put("code", judge.getCode());
+        answer.put("language", judge.getLanguage());
+        if (row == null) {
+            row = new HomeworkSubmit().setHomeworkId(judge.getHomeworkId()).setProblemId(judge.getDisplayPid())
+                    .setUid(judge.getUid()).setIsOfficiallySubmitted(0).setCreateTime(now);
+        }
+        row.setSubmitId(judge.getSubmitId()).setAnswer(JSONUtil.toJsonStr(answer))
+                .setScore(0d).setIsScored(0).setJudgeResult("PENDING").setUpdateTime(now);
+        if (row.getId() == null) submitMapper.insert(row);
+        else submitMapper.update(null, new UpdateWrapper<HomeworkSubmit>().eq("id", row.getId())
+                .and(w -> w.isNull("submit_id").or().lt("submit_id", judge.getSubmitId()))
+                .set("submit_id", row.getSubmitId()).set("answer", row.getAnswer())
+                .set("score", 0d).set("is_scored", 0).set("judge_result", "PENDING").set("update_time", now));
+        return row;
+    }
+
     public Map<String, Object> saveProgramming(Map<String, Object> request) throws Exception {
         Long homeworkId = number(request.get("homeworkId"));
         String problemId = text(request.get("problemId")).trim();
         viewable(homeworkId);
-        HomeworkQuestion relation = questionMapper.selectOne(new QueryWrapper<HomeworkQuestion>()
-                .eq("homework_id", homeworkId).eq("problem_id", problemId).last("limit 1"));
-        if (relation == null) throw new StatusNotFoundException("作业中的编程题不存在");
-
-        QueryWrapper<HomeworkSubmit> query = new QueryWrapper<HomeworkSubmit>().eq("homework_id", homeworkId)
-                .eq("uid", access.uid()).eq("problem_id", problemId).orderByDesc("id").last("limit 1");
-        HomeworkSubmit row = submitMapper.selectOne(query);
-        Date now = new Date();
-        Map<String, Object> answer = new LinkedHashMap<>();
-        answer.put("submitId", number(request.get("submitId")));
-        answer.put("code", text(request.get("code")));
-        answer.put("language", text(request.get("language")));
-        if (row == null) {
-            row = new HomeworkSubmit().setHomeworkId(homeworkId).setProblemId(problemId).setUid(access.uid())
-                    .setIsOfficiallySubmitted(0).setScore(0d).setCreateTime(now);
+        Long submitId = number(request.get("submitId"));
+        Judge judge = submitId == null ? null : judgeService.getById(submitId);
+        if (judge == null || !Objects.equals(judge.getUid(), access.uid())
+                || !Objects.equals(judge.getHomeworkId(), homeworkId)
+                || !Objects.equals(judge.getDisplayPid(), problemId)) {
+            throw new StatusForbiddenException("提交记录不属于当前学生和作业题目");
         }
-        row.setSubmitId(number(request.get("submitId"))).setAnswer(JSONUtil.toJsonStr(answer))
-                .setIsScored(0).setJudgeResult(null).setUpdateTime(now);
-        if (row.getId() == null) submitMapper.insert(row); else submitMapper.updateById(row);
-        return submitView(row);
+        HomeworkSubmit current = submitMapper.selectOne(new QueryWrapper<HomeworkSubmit>()
+                .eq("homework_id", homeworkId).eq("uid", access.uid()).eq("problem_id", problemId)
+                .orderByDesc("id").last("limit 1"));
+        if (current != null && Objects.equals(current.getSubmitId(), submitId)) return submitView(current);
+        checkProgrammingSubmission(homeworkId, problemId);
+        return submitView(recordProgrammingSubmission(judge));
     }
 
     public List<Map<String, Object>> programmingSubmissions(Map<String, String> params) throws Exception {
@@ -248,21 +305,30 @@ public class HomeworkManager {
         if (relation == null || !Objects.equals(relation.getHomeworkId(), homeworkId)) {
             throw new StatusNotFoundException("作业题目不存在");
         }
-        QueryWrapper<HomeworkSubmit> q = new QueryWrapper<HomeworkSubmit>().eq("homework_id", homeworkId).eq("uid", access.uid()).isNotNull("submit_id").orderByDesc("create_time");
-        if (relation != null && relation.getProblemId() != null) q.eq("problem_id", relation.getProblemId());
+        if (relation.getProblemId() == null) throw new StatusNotFoundException("作业中的编程题不存在");
+        List<HomeworkSubmit> rows = submitMapper.selectList(new QueryWrapper<HomeworkSubmit>()
+                .eq("homework_id", homeworkId).eq("uid", access.uid()).eq("problem_id", relation.getProblemId())
+                .isNotNull("submit_id").orderByDesc("id"));
+        syncProgrammingResults(homeworkId, rows);
+        Map<Long, Judge> judges = new LinkedHashMap<>();
+        for (Judge judge : judgeService.list(new QueryWrapper<Judge>().eq("homework_id", homeworkId)
+                .eq("uid", access.uid()).eq("display_pid", relation.getProblemId()).orderByDesc("submit_id"))) {
+            judges.put(judge.getSubmitId(), judge);
+        }
+        for (HomeworkSubmit row : rows) {
+            if (judges.containsKey(row.getSubmitId())) continue;
+            Judge judge = judgeService.getById(row.getSubmitId());
+            if (matchesProgrammingJudge(row, judge)) judges.put(judge.getSubmitId(), judge);
+        }
         List<Map<String, Object>> result = new ArrayList<>();
-        for (HomeworkSubmit row : submitMapper.selectList(q)) {
-            Judge judge = row.getSubmitId() == null ? null : judgeService.getById(row.getSubmitId());
-            if (judge != null) syncProgrammingResult(row, relation, judge);
-            Map<String, Object> value = submitView(row);
-            try {
-                cn.hutool.json.JSONObject answer = JSONUtil.parseObj(row.getAnswer());
-                value.put("code", answer.getStr("code", ""));
-                value.put("language", answer.getStr("language", ""));
-            } catch (Exception ignored) { }
-            value.put("submitTime", row.getUpdateTime() == null ? row.getCreateTime() : row.getUpdateTime());
-            if (judge != null) { value.put("result", judgeResult(judge.getStatus())); value.put("status", judge.getStatus()); value.put("code", judge.getCode()); value.put("language", judge.getLanguage()); }
-            else value.put("result", row.getJudgeResult() == null ? "PENDING" : row.getJudgeResult());
+        for (Judge judge : judges.values()) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("submitId", judge.getSubmitId());
+            value.put("submitTime", judge.getSubmitTime());
+            value.put("result", judgeResult(judge.getStatus()));
+            value.put("status", judge.getStatus());
+            value.put("code", judge.getCode());
+            value.put("language", judge.getLanguage());
             result.add(value);
         }
         return result;
@@ -279,6 +345,7 @@ public class HomeworkManager {
         Map<String, Object> answers = request.get("answers") instanceof Map ? (Map<String, Object>) request.get("answers") : Collections.emptyMap();
         Map<String, Object> attachments = request.get("attachments") instanceof Map ? (Map<String, Object>) request.get("attachments") : Collections.emptyMap();
         for (HomeworkQuestion question : questionMapper.selectList(new QueryWrapper<HomeworkQuestion>().eq("homework_id", homeworkId))) {
+            if (question.getProblemId() != null) continue;
             String key = question.getQuestionId() != null ? String.valueOf(question.getQuestionId()) : question.getProblemId(); if (!answers.containsKey(key) && !attachments.containsKey(key)) continue;
             HomeworkSubmit row = ownQuestion(homeworkId, question); String answer = text(answers.get(key)); QuestionBank bank = question.getQuestionId() == null ? null : bankMapper.selectById(question.getQuestionId()); Double score = bank == null ? null : objectiveScore(bank, answer, question.getScore());
             if (row == null) row = new HomeworkSubmit().setHomeworkId(homeworkId).setQuestionId(question.getQuestionId()).setProblemId(question.getProblemId()).setUid(access.uid()).setCreateTime(new Date());
@@ -374,8 +441,60 @@ public class HomeworkManager {
         }
         return Integer.MAX_VALUE;
     }
-    private void syncProgrammingResult(HomeworkSubmit row, HomeworkQuestion relation, Judge judge) { if (judge.getStatus() == null || (judge.getStatus() >= 5 && judge.getStatus() != 10) || relation == null) return; double score = judge.getStatus() == 0 ? relation.getScore() : judge.getStatus() == 8 && judge.getScore() != null ? relation.getScore() * Math.max(0, Math.min(100, judge.getScore())) / 100d : 0d; row.setScore(score).setJudgeResult(judgeResult(judge.getStatus())).setIsScored(1); submitMapper.updateById(row); }
-    private String judgeResult(Integer status) { if (status == null || (status >= 5 && status != 10)) return "PENDING"; switch (status) { case 0: return "AC"; case -2: return "CE"; case -3: return "PE"; case -1: return "WA"; case 1: return "TLE"; case 2: return "MLE"; case 3: return "RE"; case 4: return "SE"; case 8: return "PAC"; case -4: return "CA"; case -5: return "SNR"; case 10: return "SE"; default: return "UNKNOWN(" + status + ")"; } }
+    void syncProgrammingResults(Long homeworkId, List<HomeworkSubmit> rows) {
+        Set<Long> ids = rows.stream().map(HomeworkSubmit::getSubmitId).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (ids.isEmpty()) return;
+        Map<Long, Judge> judges = judgeService.listByIds(ids).stream()
+                .collect(Collectors.toMap(Judge::getSubmitId, value -> value));
+        List<HomeworkQuestion> relations = questionMapper.selectList(new QueryWrapper<HomeworkQuestion>().eq("homework_id", homeworkId));
+        for (HomeworkSubmit row : rows) {
+            Judge judge = judges.get(row.getSubmitId());
+            if (matchesProgrammingJudge(row, judge)) syncProgrammingResult(row, relation(relations, row), judge);
+        }
+    }
+
+    private boolean matchesProgrammingJudge(HomeworkSubmit row, Judge judge) {
+        return judge != null && Objects.equals(judge.getUid(), row.getUid())
+                && Objects.equals(judge.getDisplayPid(), row.getProblemId())
+                && (judge.getHomeworkId() == null || Objects.equals(judge.getHomeworkId(), row.getHomeworkId()));
+    }
+
+    private void syncProgrammingResult(HomeworkSubmit row, HomeworkQuestion relation, Judge judge) {
+        if (relation == null) return;
+        String result = judgeResult(judge.getStatus());
+        boolean pending = "PENDING".equals(result);
+        boolean newerJudgment = judge.getGmtModified() != null && row.getUpdateTime() != null
+                && judge.getGmtModified().after(row.getUpdateTime());
+        // Preserve teacher adjustments unless the judge has subsequently changed.
+        if (!pending && Objects.equals(row.getIsScored(), 1) && result.equals(row.getJudgeResult()) && !newerJudgment) return;
+        double fullScore = relation.getScore() == null ? 0d : relation.getScore();
+        double score = "AC".equals(result) ? fullScore : 0d;
+        if ("PAC".equals(result) && judge.getScore() != null) {
+            Problem problem = problemService.getById(judge.getPid());
+            int total = problem == null || problem.getIoScore() == null ? 100 : problem.getIoScore();
+            if (total > 0) score = fullScore * Math.max(0, Math.min(total, judge.getScore())) / total;
+        }
+        score = Math.round(score * 100d) / 100d;
+        int scored = pending ? 0 : 1;
+        if (Objects.equals(row.getScore(), score) && Objects.equals(row.getJudgeResult(), result)
+                && Objects.equals(row.getIsScored(), scored)) return;
+        row.setScore(score).setJudgeResult(result).setIsScored(scored);
+        // A poll for an older judge must never overwrite a concurrent newer submission.
+        submitMapper.update(null, new UpdateWrapper<HomeworkSubmit>().eq("id", row.getId()).eq("submit_id", judge.getSubmitId())
+                .eq(row.getUpdateTime() != null, "update_time", row.getUpdateTime()).isNull(row.getUpdateTime() == null, "update_time")
+                .set("score", score).set("judge_result", result).set("is_scored", scored)
+                .setSql("update_time = update_time"));
+    }
+
+    private String judgeResult(Integer status) {
+        if (status == null || status == 5 || status == 6 || status == 7 || status == 9 || status == 15) return "PENDING";
+        switch (status) {
+            case 0: return "AC"; case -2: return "CE"; case -3: return "PE"; case -1: return "WA";
+            case 1: return "TLE"; case 2: return "MLE"; case 3: return "RE"; case 4: return "SE";
+            case 8: return "PAC"; case -4: return "CA"; case -5: return "SNR"; case 10: return "SE";
+            default: return "UNKNOWN(" + status + ")";
+        }
+    }
     private ClassroomHomework viewable(Long homeworkId) throws Exception { ClassroomHomework row = require(homeworkId); if (!access.canManage(access.requireClassroom(row.getClassroomId()), access.uid()) && !access.isStudent(row.getClassroomId(), access.uid())) throw new StatusForbiddenException("无权访问该作业"); return row; }
     private void requireClassroomAccess(Long classroomId) throws Exception {
         String uid = access.uid();
@@ -386,7 +505,26 @@ public class HomeworkManager {
     }
     private ClassroomHomework manager(Long homeworkId) throws Exception { ClassroomHomework row = require(homeworkId); access.requireManager(row.getClassroomId()); return row; }
     private ClassroomHomework require(Long id) throws StatusNotFoundException { ClassroomHomework row = id == null ? null : homeworkMapper.selectById(id); if (row == null) throw new StatusNotFoundException("作业不存在"); return row; }
-    private void replaceQuestions(Long homeworkId, List<Map<String, Object>> rows) throws StatusFailException { questionMapper.delete(new QueryWrapper<HomeworkQuestion>().eq("homework_id", homeworkId)); int order = 1; for (Map<String, Object> item : rows) { Long questionId = number(item.get("questionId")); String problemId = text(item.get("problemId")); if (questionId == null && problemId.trim().isEmpty()) throw new StatusFailException("题目必须提供题库题目或编程题编号"); String type = text(item.get("questionType")); int score = integer(item.get("score"), defaultScore(type)); questionMapper.insert(new HomeworkQuestion().setHomeworkId(homeworkId).setQuestionId(questionId).setProblemId(problemId.trim().isEmpty() ? null : problemId).setQuestionOrder(order++).setScore(score).setCreateTime(new Date())); } }
+    private void replaceQuestions(Long homeworkId, List<Map<String, Object>> rows) throws StatusFailException {
+        questionMapper.delete(new QueryWrapper<HomeworkQuestion>().eq("homework_id", homeworkId));
+        int order = 1;
+        for (Map<String, Object> item : rows) {
+            Long questionId = number(item.get("questionId"));
+            String problemId = text(item.get("problemId"));
+            if (questionId == null && problemId.trim().isEmpty()) {
+                throw new StatusFailException("题目必须提供题库题目或编程题编号");
+            }
+            if (!problemId.trim().isEmpty()) {
+                Problem problem = problemService.getOne(new QueryWrapper<Problem>().eq("problem_id", problemId), false);
+                if (problem != null) pendingSaveGuard.requireFormal(problem.getId());
+            }
+            String type = text(item.get("questionType"));
+            int score = integer(item.get("score"), defaultScore(type));
+            questionMapper.insert(new HomeworkQuestion().setHomeworkId(homeworkId).setQuestionId(questionId)
+                    .setProblemId(problemId.trim().isEmpty() ? null : problemId).setQuestionOrder(order++)
+                    .setScore(score).setCreateTime(new Date()));
+        }
+    }
     private HomeworkSubmit ownQuestion(Long homeworkId, HomeworkQuestion q) { QueryWrapper<HomeworkSubmit> w = new QueryWrapper<HomeworkSubmit>().eq("homework_id", homeworkId).eq("uid", access.uid()); if (q.getQuestionId() == null) w.isNull("question_id").eq("problem_id", q.getProblemId()); else w.eq("question_id", q.getQuestionId()); return submitMapper.selectOne(w); }
     private List<HomeworkSubmit> own(Long homeworkId) { return submitMapper.selectList(new QueryWrapper<HomeworkSubmit>().eq("homework_id", homeworkId).eq("uid", access.uid()).orderByAsc("id")); }
     private Double objectiveScore(QuestionBank q, String answer, Integer fullScore) {

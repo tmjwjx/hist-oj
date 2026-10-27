@@ -60,13 +60,16 @@
         </where>
         ) as ac
         from contest_problem cp,problem p
-        where cp.cid = #{cid} and cp.pid=p.id and p.auth!=2 order by cp.display_id asc
+        where cp.cid = #{cid} and cp.pid=p.id and p.auth!=2
+          AND NOT EXISTS (SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = p.id AND (ps.published_pid IS NULL OR ps.published_pid &lt;&gt; ps.candidate_pid))
+        order by cp.display_id asc
     </select>
 
     <select id="getContestFullScreenProblemList" resultType="top.hcode.hoj.pojo.vo.ProblemFullScreenListVO">
         select cp.display_id as problem_id,cp.pid,cp.display_title as title
         from contest_problem cp,problem p
         where cp.cid = #{cid} and cp.pid = p.id and p.auth != 2
+          AND NOT EXISTS (SELECT 1 FROM problem_pending_save ps WHERE ps.candidate_pid = p.id AND (ps.published_pid IS NULL OR ps.published_pid &lt;&gt; ps.candidate_pid))
         order by cp.display_id asc
     </select>
 

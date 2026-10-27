@@ -9,11 +9,13 @@ import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.dao.judge.JudgeCaseEntityService;
 import top.hcode.hoj.dao.judge.JudgeEntityService;
 import top.hcode.hoj.dao.problem.ProblemCaseEntityService;
+import top.hcode.hoj.dao.problem.ProblemEntityService;
 import top.hcode.hoj.dao.problem.ProblemVerificationEntityService;
 import top.hcode.hoj.pojo.dto.ProblemAiValidateDTO;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.judge.JudgeCase;
 import top.hcode.hoj.pojo.entity.problem.ProblemCase;
+import top.hcode.hoj.pojo.entity.problem.Problem;
 import top.hcode.hoj.pojo.entity.problem.ProblemVerification;
 import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.utils.ProblemVerificationConstants;
@@ -30,18 +32,27 @@ import java.util.*;
 public class ProblemAiValidationContext {
     @Resource private ProblemVerificationEntityService verificationService;
     @Resource private ProblemCaseEntityService problemCaseService;
+    @Resource private ProblemEntityService problemService;
     @Resource private JudgeEntityService judgeService;
     @Resource private JudgeCaseEntityService judgeCaseService;
 
     public Snapshot load(ProblemAiValidateDTO input) throws StatusFailException {
         ProblemVerification verification = verificationService.getOne(
                 new QueryWrapper<ProblemVerification>().eq("pid", input.getPid()), false);
-        if (verification == null || verification.getSubmitId() == null) {
+        Long submitId = input.getSubmitId() != null ? input.getSubmitId()
+                : verification == null ? null : verification.getSubmitId();
+        if (submitId == null) {
             throw new StatusFailException("AI 验题前必须先完成标准程序的正式全测试点判题");
         }
-        Judge judge = judgeService.getById(verification.getSubmitId());
+        Judge judge = judgeService.getById(submitId);
         if (judge == null || ProblemVerificationConstants.isJudgeRunning(judge.getStatus())) {
             throw new StatusFailException("标准程序仍在判题，请等待全部测试点完成");
+        }
+        if (!Objects.equals(judge.getPid(), input.getPid()) || !Boolean.TRUE.equals(judge.getIsProblemVerification())
+                || (judge.getSubmissionType() != null
+                && !ProblemVerificationConstants.CREATOR_VALIDATION.equals(judge.getSubmissionType())
+                && !ProblemVerificationConstants.AI_VALIDATION.equals(judge.getSubmissionType()))) {
+            throw new StatusFailException("验题提交不属于当前题目");
         }
         if (!Objects.equals(judge.getLanguage(), input.getLanguage())
                 || !Objects.equals(judge.getCode(), input.getStandardProgram())) {
@@ -52,17 +63,35 @@ public class ProblemAiValidationContext {
                 .eq("pid", input.getPid()).eq("status", 0).orderByAsc("id"));
         List<JudgeCase> results = judgeCaseService.list(new QueryWrapper<JudgeCase>()
                 .eq("submit_id", judge.getSubmitId()).orderByAsc("seq"));
+        Problem problem = problemService.getById(input.getPid());
+        List<String[]> samples = new ArrayList<>();
+        java.util.regex.Matcher sampleMatcher = java.util.regex.Pattern.compile(
+                "<input>([\\s\\S]*?)</input>\\s*<output>([\\s\\S]*?)</output>")
+                .matcher(problem == null || problem.getExamples() == null ? "" : problem.getExamples());
+        while (!"interactive".equals(problem == null ? null : problem.getJudgeMode()) && sampleMatcher.find()) {
+            String sampleInput = sampleMatcher.group(1).replace("\r\n", "\n").replace('\r', '\n');
+            if (!sampleInput.endsWith("\n")) sampleInput += "\n";
+            samples.add(new String[]{sampleInput,
+                    sampleMatcher.group(2).replace("\r\n", "\n").replace('\r', '\n')});
+        }
         Map<Integer, JudgeCase> resultBySeq = new HashMap<>();
-        for (JudgeCase item : results) resultBySeq.put(item.getSeq(), item);
+        int total = cases.size() + samples.size();
+        for (JudgeCase item : results) if (item.getSeq() != null && item.getSeq() > 0) {
+            resultBySeq.put(item.getSeq(), item);
+            total = Math.max(total, item.getSeq());
+        }
 
         List<ProblemAiTestPoint> points = new ArrayList<>();
-        int total = Math.max(cases.size(), results.size());
         for (int i = 0; i < total; i++) {
             ProblemCase problemCase = i < cases.size() ? cases.get(i) : null;
+            String[] sample = i >= cases.size() && i - cases.size() < samples.size()
+                    ? samples.get(i - cases.size()) : null;
             JudgeCase result = resultBySeq.get(i + 1);
             String stderr = result == null ? "" : firstNonBlank(result.getStderr(), result.getUserOutput());
-            String inputValue = problemCase == null ? "验证样例或动态测试点，输入内容见题面样例" : problemCase.getInput();
-            String expectedOutputValue = problemCase == null ? "验证样例或动态测试点，输出内容见题面样例" : problemCase.getOutput();
+            String inputValue = problemCase != null ? problemCase.getInput()
+                    : sample != null ? sample[0] : result == null ? null : result.getInputData();
+            String expectedOutputValue = problemCase != null ? problemCase.getOutput()
+                    : sample != null ? sample[1] : result == null ? null : result.getOutputData();
             String resolvedInput = resolveTestcaseFile(inputValue, input.getPid());
             String resolvedOutput = resolveTestcaseFile(expectedOutputValue, input.getPid());
             boolean concrete = problemCase != null;
@@ -70,14 +99,14 @@ public class ProblemAiValidationContext {
                     .setCaseId(problemCase == null ? result == null ? null : result.getCaseId() : problemCase.getId())
                     .setInput(resolvedInput)
                     .setExpectedOutput(resolvedOutput)
-                    .setInputAvailable(concrete && isContentAvailable(inputValue, resolvedInput))
-                    .setExpectedOutputAvailable(concrete && isContentAvailable(expectedOutputValue, resolvedOutput))
+                    .setInputAvailable(sample != null || isContentAvailable(inputValue, resolvedInput))
+                    .setExpectedOutputAvailable(sample != null || isContentAvailable(expectedOutputValue, resolvedOutput))
                     .setConcrete(concrete)
                     .setGroupNum(problemCase == null ? result == null ? null : result.getGroupNum() : problemCase.getGroupNum())
                     .setScore(problemCase == null ? result == null ? null : result.getScore() : problemCase.getScore())
                     .setExecuted(result != null && !isPending(result.getStatus()))
                     .setJudgeStatus(result == null ? null : result.getStatus())
-                    .setJudgeStatusText(result == null ? "NOT_RUN" : statusName(result.getStatus()))
+                    .setJudgeStatusText(result == null || isPending(result.getStatus()) ? "NOT_RUN" : statusName(result.getStatus()))
                     .setTime(result == null ? null : result.getTime())
                     .setMemory(result == null ? null : result.getMemory())
                     .setStderr(stderr));
@@ -196,9 +225,8 @@ public class ProblemAiValidationContext {
     }
 
     private boolean isPending(Integer status) {
-        return Objects.equals(status, Constants.Judge.STATUS_PENDING.getStatus())
-                || Objects.equals(status, Constants.Judge.STATUS_COMPILING.getStatus())
-                || Objects.equals(status, Constants.Judge.STATUS_JUDGING.getStatus());
+        return status == null || status == -10 || status == 15
+                || ProblemVerificationConstants.isJudgeRunning(status);
     }
 
     private String statusName(Integer status) {

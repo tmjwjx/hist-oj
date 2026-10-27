@@ -1,7 +1,8 @@
 <template>
   <div id="app">
     <el-backtop :right="10"></el-backtop>
-    <div v-if="!isAdminView" class="full-height flex-column public-shell">
+    <router-view v-if="isExternalVerification" />
+    <div v-else-if="!isAdminView" class="full-height flex-column public-shell">
       <NavBar></NavBar>
       <div id="oj-content">
         <transition name="el-zoom-in-bottom">
@@ -135,14 +136,20 @@ export default {
       }
     },
     async loadUserInfo() {
-      // 预加载用户角色信息，避免权限检查时出现竞态问题
+      if (this.isExternalVerification || !this.isAuthenticated) return;
       try {
-        await this.$store.dispatch('classroom/loadUserRoles')
+        const session = await this.$store.dispatch('refreshUserAuthInfo');
+        if (session && this.isAuthenticated) {
+          await this.$store.dispatch('classroom/loadUserRoles');
+        }
       } catch (error) {
-        console.error('[App] 预加载用户角色失败:', error)
+        if (!error.response || error.response.status !== 401) {
+          console.error('[App] 加载用户信息失败:', error);
+        }
       }
     },
     autoRefreshUserInfo() {
+      if (this.isExternalVerification) return;
       this.$store.dispatch("setUserInfo", storage.get("userInfo"));
       let strogeToken = localStorage.getItem("token");
       if (document.hidden == false && this.token != strogeToken) {
@@ -179,6 +186,19 @@ export default {
     }
   },
   watch: {
+    isAuthenticated(authenticated) {
+      if (authenticated) {
+        this.loadUserInfo();
+      } else {
+        this.$store.commit('classroom/CLEAR_CACHE');
+      }
+    },
+    'userInfo.uid'(uid, previousUid) {
+      if (uid !== previousUid) {
+        this.$store.commit('classroom/CLEAR_CACHE');
+        if (uid && previousUid) this.loadUserInfo();
+      }
+    },
     $route(newVal, oldVal) {
       this.changeDomTitle();
       if (newVal !== oldVal && newVal.path.split("/")[1] == "admin") {
@@ -197,12 +217,17 @@ export default {
     },
   },
   computed: {
+    isExternalVerification() {
+      // The lazy route may still be resolving during App.created.
+      return this.$route.name === 'ExternalVerification' ||
+        (!this.$route.name && window.location.pathname.startsWith('/external-verification/'));
+    },
     ...mapState(["websiteConfig"]),
-    ...mapGetters(["webLanguage", "token", "isAuthenticated"]),
+    ...mapGetters(["webLanguage", "token", "isAuthenticated", "userInfo"]),
   },
   created: function () {
     // 提前加载网站配置,确保工具箱等依赖配置的组件能正常显示
-    this.getWebsiteConfig();
+    if (!this.isExternalVerification) this.getWebsiteConfig();
 
     // 预加载用户角色信息，避免权限检查时出现竞态问题
     this.loadUserInfo();
@@ -217,11 +242,6 @@ export default {
       this.isAdminView = false;
     } else {
       this.isAdminView = true;
-    }
-
-    if(this.isAuthenticated){
-      this.$store.dispatch("refreshUserAuthInfo");
-      this.$store.dispatch("classroom/loadUserRoles");
     }
 
     this.showFooter = !(this.$route.name == 'ProblemDetails'|| utils.isFocusModePage(this.$route.name));

@@ -28,9 +28,4 @@ public class ProblemAiTestPoint {
     private Integer time;
     private Integer memory;
     private String stderr;
-    private String validatorStatus;
-    private String validatorStatusText;
-    private String validatorStderr;
-    private Long validatorTime;
-    private Long validatorMemory;
 }
